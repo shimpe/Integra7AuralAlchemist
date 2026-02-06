@@ -7,7 +7,7 @@ namespace Integra7AuralAlchemist.Models.Domain;
 public class DomainSNSynthTonePartial : DomainBase
 {
     public DomainSNSynthTonePartial(int zeroBasedPart, int zeroBasedPartial, IIntegra7Api integra7Api,
-        Integra7StartAddresses startAddresses, Integra7Parameters parameters, SemaphoreSlim semaphore)
+        Integra7StartAddresses startAddresses, Integra7GzipJsonRepository parameters, SemaphoreSlim semaphore)
         : base(integra7Api, startAddresses, parameters,
             $"Temporary Tone Part {zeroBasedPart + 1}",
             "Offset/Temporary SuperNATURAL Synth Tone",

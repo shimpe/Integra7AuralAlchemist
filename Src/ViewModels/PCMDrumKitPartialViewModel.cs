@@ -28,7 +28,7 @@ public sealed partial class PCMDrumKitPartialViewModel : PartialViewModel
 
     public PCMDrumKitPartialViewModel(PartViewModel parent, byte zeroBasedPart, byte zeroBasedPartial,
         string toneTypeStr, Integra7StartAddresses i7addr,
-        Integra7Parameters par, IIntegra7Api i7api, Integra7Domain i7dom, SemaphoreSlim semaphore) :
+        Integra7GzipJsonRepository par, IIntegra7Api i7api, Integra7Domain i7dom, SemaphoreSlim semaphore) :
         base(parent, zeroBasedPart, zeroBasedPartial, toneTypeStr, i7addr, par, i7api, i7dom, semaphore)
     {
         var parFilterPCMDrumKitPartialParameters = this.WhenAnyValue(x => x.SearchTextPCMDrumKitPartial)

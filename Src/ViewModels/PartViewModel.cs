@@ -17,7 +17,7 @@ namespace Integra7AuralAlchemist.ViewModels;
 public partial class PartViewModel : ViewModelBase
 {
     private readonly IIntegra7Api _i7Api;
-    private readonly Integra7Parameters _i7parameters;
+    private readonly Integra7GzipJsonRepository _i7parameters;
 
     private readonly List<Integra7Preset> _i7presets;
     private readonly Integra7StartAddresses _i7startAddresses;
@@ -272,7 +272,7 @@ public partial class PartViewModel : ViewModelBase
 
 
     public PartViewModel(ViewModelBase parent, byte zeroBasedPartNo, Integra7StartAddresses i7startAddr,
-        Integra7Parameters i7par, IIntegra7Api i7, Integra7Domain i7dom,
+        Integra7GzipJsonRepository i7par, IIntegra7Api i7, Integra7Domain i7dom,
         SemaphoreSlim semaphore, List<Integra7Preset> i7presets,
         bool commonTab = false)
     {

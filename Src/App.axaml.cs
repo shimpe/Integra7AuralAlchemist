@@ -1,6 +1,10 @@
+using System;
+using System.IO;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Integra7AuralAlchemist.Models.Bootstrapping;
 using Integra7AuralAlchemist.ViewModels;
 using Integra7AuralAlchemist.Views;
 
@@ -12,13 +16,31 @@ public class App : Application
     {
         AvaloniaXamlLoader.Load(this);
     }
+    
+    private void EnsureDatabase()
+    {
+        string commonAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string appFolder = Path.Combine(commonAppData, "Integra7AuralAlchemist");
+        if (!Directory.Exists(appFolder))
+        {
+            Directory.CreateDirectory(appFolder);
+        }
+        string dbPath = Path.Combine(appFolder, "Integra7AuralAlchemist.db");
+        string idxPath = Path.Combine(appFolder, "Integra7AuralAlchemist.idx");
+        if (!File.Exists(dbPath))
+        {
+            var p = new Integra7Parameters();
+            Integra7JsonGzipDumper.Dump(dbPath, idxPath, p.Parameters);
+        }
+    }
+
 
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // Line below is needed to remove Avalonia data validation.
-            // Without this line you will get duplicate validations from both Avalonia and CT
+            EnsureDatabase(); // one-time
+            
             var vm = new MainWindowViewModel();
             desktop.MainWindow = new MainWindow
             {

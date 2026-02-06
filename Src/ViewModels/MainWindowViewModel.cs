@@ -7,6 +7,7 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Platform;
+using Integra7AuralAlchemist.Models.Bootstrapping;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
@@ -20,8 +21,12 @@ public partial class MainWindowViewModel : ViewModelBase
 {
 #pragma warning disable CA1822 // Mark members as static
 #pragma warning disable CS8618 // Non-nullable field 'xxx' must contain a non-null value when exiting constructor. Consider adding the 'required' modifier or declaring the field as nullable.
+    private static readonly string commonAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+    private static readonly string appFolder = Path.Combine(commonAppData, "Integra7AuralAlchemist");
+    private static readonly string dbPath = Path.Combine(appFolder, "Integra7AuralAlchemist.db");
+    private static readonly string idxPath = Path.Combine(appFolder, "Integra7AuralAlchemist.idx");
     private readonly Integra7StartAddresses _i7startAddresses = new();
-    private readonly Integra7Parameters _i7parameters = new();
+    private readonly Integra7GzipJsonRepository _i7parameters = new(dbPath, idxPath, 1024);
 
     private readonly SemaphoreSlim _semaphore = new(1, 1);
 
@@ -514,7 +519,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         ShowSaveUserToneDialog = new Interaction<SaveUserToneViewModel, UserToneToSave?>();
     }
-
+    
     public async Task InitializeAsync()
     {
         Integra7 = new Integra7Api(new MidiOut(INTEGRA_CONNECTION_STRING), new MidiIn(INTEGRA_CONNECTION_STRING),

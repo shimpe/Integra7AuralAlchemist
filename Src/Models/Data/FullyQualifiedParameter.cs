@@ -107,7 +107,7 @@ public class FullyQualifiedParameter : INotifyPropertyChanged
         return true;
     }
 
-    public byte[] CompleteAddress(Integra7StartAddresses startAddresses, Integra7Parameters parameters)
+    public byte[] CompleteAddress(Integra7StartAddresses startAddresses, Integra7GzipJsonRepository parameters)
     {
         var startAddr = startAddresses.Lookup(Start).Address;
         var offsetAddr = startAddresses.Lookup(Offset).Address;
@@ -118,7 +118,7 @@ public class FullyQualifiedParameter : INotifyPropertyChanged
     }
 
     public async Task RetrieveFromIntegraAsync(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses,
-        Integra7Parameters parameters)
+        Integra7GzipJsonRepository parameters)
     {
         var totalAddr = CompleteAddress(startAddresses, parameters);
         var reply = await integra7Api.MakeDataRequestAsync(totalAddr, ParSpec.Bytes);
@@ -126,21 +126,21 @@ public class FullyQualifiedParameter : INotifyPropertyChanged
     }
 
     public async Task WriteToIntegraAsync(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses,
-        Integra7Parameters parameters)
+        Integra7GzipJsonRepository parameters)
     {
         var totalAddr = CompleteAddress(startAddresses, parameters);
         var data = GetSysexDataFragment();
         await integra7Api.MakeDataTransmissionAsync(totalAddr, data);
     }
 
-    public void ParseFromSysexReply(byte[] reply, Integra7Parameters parameters,
+    public async Task ParseFromSysexReply(byte[] reply, Integra7GzipJsonRepository parameters,
         Integra7ParameterSpec? firstParameterInSysexReply = null)
     {
         if (firstParameterInSysexReply == null) firstParameterInSysexReply = ParSpec;
 
         const int SYSEX_DATA_REPLY_HEADER_LENGTH = 11;
-        List<Integra7ParameterSpec> parametersInSysexReply =
-            parameters.GetParametersFromTo(firstParameterInSysexReply.Path, ParSpec.Path);
+        List<Integra7ParameterSpec> parametersInSysexReply = await
+            parameters.GetRangeAsync(firstParameterInSysexReply.Path, ParSpec.Path);
         var dataToSkip = SYSEX_DATA_REPLY_HEADER_LENGTH;
         var gap = ParameterListSysexSizeCalculator.CalculateSysexGapBetweenFirstAndLast(parametersInSysexReply);
         dataToSkip += gap;

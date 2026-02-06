@@ -27,7 +27,7 @@ public sealed partial class SNSynthTonePartialViewModel : PartialViewModel
     [Reactive] private string _searchTextSNSynthTonePartial = "";
 
     public SNSynthTonePartialViewModel(PartViewModel parent, byte zeroBasedPart, byte zeroBasedPartial,
-        string toneTypeStr, Integra7StartAddresses i7addr, Integra7Parameters par,
+        string toneTypeStr, Integra7StartAddresses i7addr, Integra7GzipJsonRepository par,
         IIntegra7Api i7api, Integra7Domain i7dom, SemaphoreSlim semaphore) : base(parent, zeroBasedPart,
         zeroBasedPartial, toneTypeStr, i7addr,
         par, i7api, i7dom, semaphore)

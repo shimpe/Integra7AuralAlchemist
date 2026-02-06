@@ -36,7 +36,7 @@ public class FullyQualifiedParameterRange
     }
 
     public async Task WriteToIntegraAsync(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses,
-        Integra7Parameters parameters)
+        Integra7GzipJsonRepository parameters)
     {
         var startAddr = startAddresses.Lookup(_start).Address;
         var offsetAddr = startAddresses.Lookup(_offset).Address;
@@ -56,14 +56,14 @@ public class FullyQualifiedParameterRange
     }
 
     public async Task RetrieveFromIntegraAsync(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses,
-        Integra7Parameters parameters)
+        Integra7GzipJsonRepository parameters)
     {
         var startAddr = startAddresses.Lookup(_start).Address;
         var offsetAddr = startAddresses.Lookup(_offset).Address;
         var offset2Addr = startAddresses.Lookup(_offset2).Address;
         var firstParameterAddr = _firstPar.Address;
         var totalAddr = ByteUtils.AddressWithOffset(startAddr, offsetAddr, offset2Addr, firstParameterAddr);
-        List<Integra7ParameterSpec> allRelevantPars = parameters.GetParametersFromTo(_firstPar.Path, _lastPar.Path);
+        List<Integra7ParameterSpec> allRelevantPars = await parameters.GetRangeAsync(_firstPar.Path, _lastPar.Path);
         _range.Clear();
         for (var i = 0; i < allRelevantPars.Count; i++)
             // range must contain all possible FullyQualifiedParameters between the first and last one for parsing.
@@ -80,7 +80,7 @@ public class FullyQualifiedParameterRange
                 "Unfortunately, no reply received after making a sysex data request. This may indicate a bug in the program, e.g. requesting parameters for a PCM synth tone if no PCM synth patch is active or having multiple instances of the application running at the same time.");
     }
 
-    public void ParseFromSysexReply(byte[] reply, Integra7Parameters parameters,
+    public async Task ParseFromSysexReply(byte[] reply, Integra7GzipJsonRepository parameters,
         Integra7ParameterSpec? firstParameterInSysexReply = null)
     {
         var ctx = new ParserContext();
@@ -89,7 +89,7 @@ public class FullyQualifiedParameterRange
             var p = _range[i];
             if (p.ValidInContext(ctx))
             {
-                p.ParseFromSysexReply(reply, parameters, firstParameterInSysexReply);
+                await p.ParseFromSysexReply(reply, parameters, firstParameterInSysexReply);
                 if (p.ParSpec.IsParent) ctx.Register(p.ParSpec.Path, p.StringValue);
                 p.DebugLog();
             }

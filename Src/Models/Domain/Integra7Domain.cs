@@ -18,12 +18,12 @@ public class Integra7Domain
         _sysexAddressMapper; // (long)address -> (DomainBase, parameter name)
 
     private IIntegra7Api _integra7Api;
-    private Integra7Parameters _integra7Parameters;
+    private Integra7GzipJsonRepository _integra7Parameters;
     private Integra7StartAddresses _integra7StartAddresses;
 
 
     public Integra7Domain(IIntegra7Api integra7Api, Integra7StartAddresses i7startAddresses,
-        Integra7Parameters i7parameters, SemaphoreSlim semaphore)
+        Integra7GzipJsonRepository i7parameters, SemaphoreSlim semaphore)
     {
         _integra7StartAddresses = i7startAddresses;
         _integra7Parameters = i7parameters;

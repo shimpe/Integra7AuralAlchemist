@@ -17,13 +17,13 @@ public class PartialViewModel : ViewModelBase
     private Integra7StartAddresses _i7addr;
     private IIntegra7Api _i7api;
     protected Integra7Domain? _i7domain;
-    private Integra7Parameters _i7par;
+    private Integra7GzipJsonRepository _i7par;
     private PartViewModel _parent;
     protected string _toneTypeStr;
 
     public PartialViewModel(PartViewModel parent, byte zeroBasedPart, byte zeroBasedPartial,
         string toneTypeStr, Integra7StartAddresses i7addr,
-        Integra7Parameters par, IIntegra7Api i7api, Integra7Domain i7dom, SemaphoreSlim semaphore)
+        Integra7GzipJsonRepository par, IIntegra7Api i7api, Integra7Domain i7dom, SemaphoreSlim semaphore)
     {
         _parent = parent;
         _zeroBasedPart = zeroBasedPart;

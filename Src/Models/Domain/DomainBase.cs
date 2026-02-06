@@ -13,12 +13,12 @@ public class DomainBase
 {
     private readonly List<FullyQualifiedParameter> _domainParameters = [];
     private readonly IIntegra7Api _integra7Api;
-    private readonly Integra7Parameters _parameters;
+    private readonly Integra7GzipJsonRepository _parameters;
 
     private readonly SemaphoreSlim _semaphore;
     private readonly Integra7StartAddresses _startAddresses;
 
-    public DomainBase(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses, Integra7Parameters parameters,
+    public DomainBase(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses, Integra7GzipJsonRepository parameters,
         string startAddressName, string offsetAddressName, string offset2AddressName, string parameterNamePrefix,
         SemaphoreSlim semaphore)
     {
@@ -30,7 +30,7 @@ public class DomainBase
         Offset2AddressName = offset2AddressName;
         _semaphore = semaphore;
 
-        List<Integra7ParameterSpec> relevant = parameters.GetParametersWithPrefix(parameterNamePrefix);
+        List<Integra7ParameterSpec> relevant = parameters.GetRangeByPrefix(parameterNamePrefix);
         for (var i = 0; i < relevant.Count; i++)
             _domainParameters.Add(new FullyQualifiedParameter(startAddressName, offsetAddressName, offset2AddressName,
                 relevant[i]));

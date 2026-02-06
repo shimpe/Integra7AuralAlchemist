@@ -7,7 +7,7 @@ namespace Integra7AuralAlchemist.Models.Domain;
 public class DomainStudioSetPartEQ : DomainBase
 {
     public DomainStudioSetPartEQ(int ZeroBasedPartNo, IIntegra7Api integra7Api, Integra7StartAddresses startAddresses,
-        Integra7Parameters parameters, SemaphoreSlim semaphore)
+        Integra7GzipJsonRepository parameters, SemaphoreSlim semaphore)
         : base(integra7Api, startAddresses, parameters,
             "Temporary Studio Set",
             "Offset/Not Used",

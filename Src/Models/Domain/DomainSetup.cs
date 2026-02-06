@@ -6,7 +6,7 @@ namespace Integra7AuralAlchemist.Models.Domain;
 
 public class DomainSetup : DomainBase
 {
-    public DomainSetup(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses, Integra7Parameters parameters,
+    public DomainSetup(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses, Integra7GzipJsonRepository parameters,
         SemaphoreSlim semaphore)
         : base(integra7Api, startAddresses, parameters,
             "Setup",
