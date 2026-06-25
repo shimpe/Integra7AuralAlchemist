@@ -20,6 +20,10 @@ public partial class MotionalSurroundView : UserControl
     {
         InitializeComponent();
         Loaded += OnViewLoaded;
+        // Re-measure the stage when the bound view model changes, so a fresh VM (e.g. after a
+        // reconnect) gets the current room-map size instead of keeping its 1x1 default, which
+        // would otherwise stack every puck in the top-left corner until the next layout pass.
+        DataContextChanged += (_, _) => UpdateStage();
     }
 
     private MotionalSurroundViewModel? Vm => DataContext as MotionalSurroundViewModel;
