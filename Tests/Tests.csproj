@@ -19,6 +19,9 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Src\Integra7AuralAlchemist.csproj"/>
+        <ProjectReference Include="..\Tools\ParameterBlobGenerator\ParameterBlobGenerator.csproj">
+            <Aliases>gen</Aliases>
+        </ProjectReference>
     </ItemGroup>
 
 </Project>
