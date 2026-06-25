@@ -1,0 +1,183 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="760"
+             x:DataType="vm:MotionalSurroundViewModel"
+             x:Name="Root"
+             x:Class="Integra7AuralAlchemist.Views.MotionalSurroundView">
+  <UserControl.Styles>
+    <Style Selector="TextBlock.help">
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="Foreground" Value="#9aa0a3"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style Selector="TextBlock.colhead">
+      <Setter Property="FontSize" Value="11"/>
+      <Setter Property="Foreground" Value="#8a9092"/>
+      <Setter Property="Margin" Value="0,0,0,4"/>
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,*,Auto" Margin="10">
+    <Border Grid.Row="0" Background="#34383a" CornerRadius="6" Padding="10" Margin="0,0,0,8">
+      <StackPanel Orientation="Vertical" Spacing="8">
+        <StackPanel Orientation="Horizontal" Spacing="18">
+          <ToggleSwitch IsChecked="{Binding MotionalSurroundOn}" OnContent="Motional Surround ON" OffContent="Motional Surround OFF" VerticalAlignment="Center"/>
+          <StackPanel Orientation="Vertical">
+            <TextBlock Text="Room Type"/>
+            <ListBox ItemsSource="{Binding RoomTypeOptions}" SelectedIndex="{Binding RoomTypeIndex}">
+              <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ListBox.ItemsPanel>
+            </ListBox>
+          </StackPanel>
+          <StackPanel Orientation="Vertical">
+            <TextBlock Text="Room Size"/>
+            <ListBox ItemsSource="{Binding RoomSizeOptions}" SelectedIndex="{Binding RoomSizeIndex}">
+              <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ListBox.ItemsPanel>
+            </ListBox>
+          </StackPanel>
+          <StackPanel Orientation="Vertical" Width="240">
+            <TextBlock Text="Depth"/>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Slider Minimum="0" Maximum="100" Width="150" Value="{Binding Depth}"/>
+              <NumericUpDown Minimum="0" Maximum="100" Increment="1" Width="90" FormatString="0" Value="{Binding Depth}"/>
+            </StackPanel>
+            <TextBlock Classes="help" Text="How strongly parts are placed in the surround field."/>
+          </StackPanel>
+        </StackPanel>
+        <WrapPanel Orientation="Horizontal">
+          <StackPanel Orientation="Vertical" Width="250" Margin="0,0,16,0">
+            <TextBlock Text="Ambience Level"/>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Slider Minimum="0" Maximum="127" Width="150" Value="{Binding AmbienceLevel}"/>
+              <NumericUpDown Minimum="0" Maximum="127" Increment="1" Width="90" FormatString="0" Value="{Binding AmbienceLevel}"/>
+            </StackPanel>
+            <TextBlock Classes="help" Text="Overall room/reverb presence."/>
+          </StackPanel>
+          <StackPanel Orientation="Vertical" Width="230" Margin="0,0,16,0">
+            <TextBlock Text="Ambience Time"/>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Slider Minimum="0" Maximum="100" Width="140" Value="{Binding AmbienceTime}"/>
+              <NumericUpDown Minimum="0" Maximum="100" Increment="1" Width="90" FormatString="0" Value="{Binding AmbienceTime}"/>
+            </StackPanel>
+          </StackPanel>
+          <StackPanel Orientation="Vertical" Width="230" Margin="0,0,16,0">
+            <TextBlock Text="Ambience Density"/>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Slider Minimum="0" Maximum="100" Width="140" Value="{Binding AmbienceDensity}"/>
+              <NumericUpDown Minimum="0" Maximum="100" Increment="1" Width="90" FormatString="0" Value="{Binding AmbienceDensity}"/>
+            </StackPanel>
+          </StackPanel>
+          <StackPanel Orientation="Vertical" Width="250">
+            <TextBlock Text="Ambience HF Damp"/>
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Slider Minimum="0" Maximum="100" Width="150" Value="{Binding AmbienceHfDamp}"/>
+              <NumericUpDown Minimum="0" Maximum="100" Increment="1" Width="90" FormatString="0" Value="{Binding AmbienceHfDamp}"/>
+            </StackPanel>
+            <TextBlock Classes="help" Text="Higher values darken the ambience."/>
+          </StackPanel>
+        </WrapPanel>
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="220,*,300">
+      <Border Grid.Column="0" Background="#2f3335" CornerRadius="6" Padding="6" Margin="0,0,8,0">
+        <DockPanel>
+          <TextBlock DockPanel.Dock="Top" Classes="colhead" Text="PARTS"/>
+          <ListBox ItemsSource="{Binding AllParts}" SelectedItem="{Binding SelectedPart}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:MotionalSurroundPartViewModel">
+                <Grid ColumnDefinitions="38,*,Auto">
+                  <TextBlock Grid.Column="0" Text="{Binding Label}" FontWeight="SemiBold"/>
+                  <TextBlock Grid.Column="1" Text="{Binding PositionLabel}" Foreground="#cfd3d5"/>
+                  <TextBlock Grid.Column="2" Foreground="#8a9092" Text="{Binding Width, StringFormat='W{0}'}"/>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </DockPanel>
+      </Border>
+
+      <Border Grid.Column="1" Background="#2b2f31" BorderBrush="#5a6063" BorderThickness="1" CornerRadius="8" Margin="0,0,8,0" ClipToBounds="True">
+        <Grid>
+          <Rectangle Height="1" Fill="#44494b" HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
+          <Rectangle Width="1" Fill="#44494b" VerticalAlignment="Stretch" HorizontalAlignment="Center"/>
+          <TextBlock Text="FRONT" Classes="help" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,4"/>
+          <TextBlock Text="BACK" Classes="help" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,4"/>
+          <TextBlock Text="L" Classes="help" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="4,0"/>
+          <TextBlock Text="R" Classes="help" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="4,0"/>
+          <!-- x:CompileBindings="False" on the puck ItemsControl:
+               The Style setters for Canvas.Left/Top target ContentPresenter (an item container) and need
+               a DataContext type that the compiled binding system cannot infer from the Style selector alone.
+               Disabling compiled bindings here falls back to runtime reflection, which resolves CanvasX/CanvasY
+               correctly from the item's MotionalSurroundPartViewModel DataContext. -->
+          <ItemsControl ItemsSource="{Binding AllParts}" Name="PuckHost" x:CompileBindings="False">
+            <ItemsControl.ItemsPanel><ItemsPanelTemplate><Canvas/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+            <ItemsControl.Styles>
+              <Style Selector="ContentPresenter">
+                <Setter Property="(Canvas.Left)" Value="{Binding CanvasX}"/>
+                <Setter Property="(Canvas.Top)" Value="{Binding CanvasY}"/>
+              </Style>
+            </ItemsControl.Styles>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:MotionalSurroundPartViewModel">
+                <Border Width="28" Height="28" CornerRadius="14" Focusable="True"
+                        Background="{Binding IsExternal, Converter={x:Static vm:MsConverters.ExternalBrush}}"
+                        BorderBrush="White"
+                        BorderThickness="{Binding IsSelected, Converter={x:Static vm:MsConverters.SelectedThickness}}"
+                        ToolTip.Tip="{Binding PositionLabel}">
+                  <TextBlock Text="{Binding Label}" Foreground="White" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </Grid>
+      </Border>
+
+      <!-- Detail panel: DataContext is NOT changed here. All bindings use SelectedPart.XXX paths so
+           the outer x:DataType="vm:MotionalSurroundViewModel" covers everything, and ChannelOptions
+           is reached directly without a complex ancestor binding. -->
+      <Border Grid.Column="2" Background="#34383a" CornerRadius="6" Padding="10">
+        <StackPanel Orientation="Vertical" Spacing="8">
+          <TextBlock Text="{Binding SelectedPart.Label, StringFormat='Part {0}'}" FontWeight="Bold" FontSize="16"/>
+          <TextBlock Text="L-R   (Left . Center . Right)"/>
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Slider Minimum="-64" Maximum="63" Width="170" Value="{Binding SelectedPart.Lr}"/>
+            <NumericUpDown Minimum="-64" Maximum="63" Increment="1" Width="100" FormatString="0" Value="{Binding SelectedPart.Lr}"/>
+          </StackPanel>
+          <TextBlock Text="F-B   (Front . Center . Back)"/>
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Slider Minimum="-64" Maximum="63" Width="170" Value="{Binding SelectedPart.Fb}"/>
+            <NumericUpDown Minimum="-64" Maximum="63" Increment="1" Width="100" FormatString="0" Value="{Binding SelectedPart.Fb}"/>
+          </StackPanel>
+          <TextBlock Text="Width   (Narrow to Wide)"/>
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Slider Minimum="0" Maximum="32" Width="170" Value="{Binding SelectedPart.Width}"/>
+            <NumericUpDown Minimum="0" Maximum="32" Increment="1" Width="100" FormatString="0" Value="{Binding SelectedPart.Width}"/>
+          </StackPanel>
+          <TextBlock Text="Ambience Send   (Dry to Ambient)"/>
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Slider Minimum="0" Maximum="127" Width="170" Value="{Binding SelectedPart.Ambience}"/>
+            <NumericUpDown Minimum="0" Maximum="127" Increment="1" Width="100" FormatString="0" Value="{Binding SelectedPart.Ambience}"/>
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding SelectedPart.IsExternal}">
+            <TextBlock Text="Control Channel" VerticalAlignment="Center"/>
+            <ComboBox Width="90" SelectedItem="{Binding SelectedPart.Channel}"
+                      ItemsSource="{Binding ChannelOptions}"/>
+          </StackPanel>
+          <Button Content="Center position" Click="CenterSelected_Click" Margin="0,4,0,0"/>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+      <TextBlock Text="Presets:" VerticalAlignment="Center"/>
+      <Button Content="Center all" Command="{Binding CenterAll}"/>
+      <Button Content="Wide stereo spread" Command="{Binding WideStereoSpread}"/>
+      <Button Content="Front band layout" Command="{Binding FrontBandLayout}"/>
+      <Button Content="Ambient hall layout" Command="{Binding AmbientHallLayout}"/>
+      <Button Content="Reset Motional Surround" Command="{Binding ResetMotionalSurround}"/>
+    </StackPanel>
+  </Grid>
+</UserControl>
