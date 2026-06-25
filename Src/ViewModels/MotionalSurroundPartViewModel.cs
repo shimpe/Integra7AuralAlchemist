@@ -9,7 +9,7 @@ using ReactiveUI;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
-public class MotionalSurroundPartViewModel : ViewModelBase
+public class MotionalSurroundPartViewModel : ViewModelBase, IDisposable
 {
     private readonly MotionalSurroundViewModel _parent;
     private readonly DomainBase _domain;
@@ -203,5 +203,14 @@ public class MotionalSurroundPartViewModel : ViewModelBase
     {
         await _domain.WriteToIntegraAsync(_widthParam.ParSpec.Path, _width.ToString(CultureInfo.InvariantCulture));
         await _domain.WriteToIntegraAsync(_ambParam.ParSpec.Path, _amb.ToString(CultureInfo.InvariantCulture));
+    }
+
+    public void Dispose()
+    {
+        _lrParam.PropertyChanged -= OnParamChanged;
+        _fbParam.PropertyChanged -= OnParamChanged;
+        _widthParam.PropertyChanged -= OnParamChanged;
+        _ambParam.PropertyChanged -= OnParamChanged;
+        if (_channelParam != null) _channelParam.PropertyChanged -= OnParamChanged;
     }
 }

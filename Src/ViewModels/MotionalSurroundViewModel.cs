@@ -223,6 +223,14 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
         Sub("Ambience Density"); Sub("Ambience HF Damp");
     }
 
+    private void UnsubscribeGlobals()
+    {
+        void Unsub(string shortName) => C(shortName).PropertyChanged -= OnCommonChanged;
+        Unsub("Motional Surround Switch"); Unsub("Room Type"); Unsub("Room Size");
+        Unsub("Motional Surround Depth"); Unsub("Ambience Level"); Unsub("Ambience Time");
+        Unsub("Ambience Density"); Unsub("Ambience HF Damp");
+    }
+
     private void OnCommonChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName != nameof(FullyQualifiedParameter.StringValue)) return;
@@ -300,5 +308,7 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
     {
         _writeSub.Dispose();
         _writes.Dispose();
+        UnsubscribeGlobals();
+        foreach (var p in AllParts) p.Dispose();
     }
 }
