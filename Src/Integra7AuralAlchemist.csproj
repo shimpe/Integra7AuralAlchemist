@@ -64,8 +64,15 @@
             BeforeTargets="GenerateAvaloniaResources"
             Inputs="@(ParameterBlobSources)"
             Outputs="$(ParameterBlobPath)">
-        <!-- The ProjectReference above (resolved by ResolveProjectReferences) has already built the
-             generator; fetch its output DLL path and run it directly with the build's own .NET host. -->
+        <!-- Build the generator in *this* build's configuration and fetch its output DLL path, then run
+             it directly with the build's own .NET host. The explicit Build (not just GetTargetPath) is
+             required because a solution build remaps ProjectReferences to projects outside the .sln
+             (the generator) to their default configuration (Debug). Relying on ResolveProjectReferences
+             alone would leave the Release output missing on a clean solution build, so we build the
+             exact configuration we are about to execute. Debug and Release land in separate output dirs,
+             so this never clashes with the generator copy the test project may build concurrently. -->
+        <MSBuild Projects="$(ParameterBlobGeneratorProject)" Targets="Build"
+                 Properties="Configuration=$(Configuration)" />
         <MSBuild Projects="$(ParameterBlobGeneratorProject)" Targets="GetTargetPath"
                  Properties="Configuration=$(Configuration)">
             <Output TaskParameter="TargetOutputs" ItemName="_GeneratorDll" />
