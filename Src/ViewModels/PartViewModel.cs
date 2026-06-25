@@ -387,7 +387,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _studioSetMidiParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
 
@@ -411,7 +411,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _studioSetPartParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
             _cleanupStudioSetPartEQParams = _sourceCacheStudioSetPartEQParameters.Connect()
@@ -434,7 +434,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _StudioSetPartEQParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
             _cleanupPCMSynthToneCommonParams = _sourceCachePCMSynthToneCommonParameters.Connect()
@@ -457,7 +457,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _PCMSynthToneCommonParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
             _cleanupPCMSynthToneCommon2Params = _sourceCachePCMSynthToneCommon2Parameters.Connect()
@@ -480,7 +480,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _PCMSynthToneCommon2Parameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
             _cleanupPCMSynthToneCommonMFXParams = _sourceCachePCMSynthToneCommonMFXParameters.Connect()
@@ -503,7 +503,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _PCMSynthToneCommonMFXParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
             _cleanupPCMSynthTonePMTParametersParams = _sourceCachePCMSynthTonePMTParameters.Connect()
@@ -526,7 +526,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _PCMSynthTonePMTParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
 
@@ -550,7 +550,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _PCMDrumKitCommonParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
             _cleanupPCMDrumKitCommon2Params = _sourceCachePCMDrumKitCommon2Parameters.Connect()
@@ -573,7 +573,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _PCMDrumKitCommon2Parameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
             _cleanupPCMDrumKitCommonMFXParams = _sourceCachePCMDrumKitCommonMFXParameters.Connect()
@@ -596,7 +596,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _PCMDrumKitCommonMFXParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
             _cleanupPCMDrumKitCompEQParametersParams = _sourceCachePCMDrumKitCompEQParameters.Connect()
@@ -619,7 +619,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _PCMDrumKitCompEQParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
             _cleanupSNSynthToneCommonParams = _sourceCacheSNSynthToneCommonParameters.Connect()
@@ -642,7 +642,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _SNSynthToneCommonParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
             _cleanupSNSynthToneCommonMFXParams = _sourceCacheSNSynthToneCommonMFXParameters.Connect()
@@ -665,7 +665,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _SNSynthToneCommonMFXParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
             _cleanupSNAcousticToneCommonParams = _sourceCacheSNAcousticToneCommonParameters.Connect()
@@ -688,7 +688,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _SNAcousticToneCommonParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
             _cleanupSNAcousticToneCommonMFXParams = _sourceCacheSNAcousticToneCommonMFXParameters.Connect()
@@ -711,7 +711,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _SNAcousticToneCommonMFXParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
 
@@ -735,7 +735,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _SNDrumKitCommonParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
             _cleanupSNDrumKitCommonMFXParams = _sourceCacheSNDrumKitCommonMFXParameters.Connect()
@@ -758,7 +758,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _SNDrumKitCommonMFXParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
             _cleanupSNDrumKitCompEQParametersParams = _sourceCacheSNDrumKitCompEQParameters.Connect()
@@ -781,7 +781,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _SNDrumKitCompEQParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
         }
@@ -829,7 +829,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _setupParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
 
@@ -839,7 +839,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _systemParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
 
@@ -849,7 +849,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _studioSetCommonParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
 
@@ -873,7 +873,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _studioSetCommonChorusParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
 
@@ -897,7 +897,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _studioSetCommonReverbParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
 
@@ -921,7 +921,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _studioSetCommonMotionalSurroundParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
 
@@ -945,7 +945,7 @@ public partial class PartViewModel : ViewModelBase
                 .SortAndBind(
                     out _studioSetCommonMasterEQParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                        ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                        t.ParSpec.AddressInt))
                 .DisposeMany()
                 .Subscribe();
         }

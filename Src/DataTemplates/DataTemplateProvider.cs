@@ -121,6 +121,7 @@ public static class DataTemplateProvider
 
         if (!float.IsNaN(p.ParSpec.OMin2) && !float.IsNaN(p.ParSpec.OMax2))
         {
+            var ticks = p.ParSpec.Ticks; // compute once (Ticks allocates a fresh list per access)
             Slider s = new()
             {
                 Minimum = p.ParSpec.OMin2,
@@ -128,9 +129,9 @@ public static class DataTemplateProvider
                 Width = 200,
                 Orientation = Orientation.Horizontal,
                 IsSnapToTickEnabled = true,
-                Ticks = p.ParSpec.Ticks
+                Ticks = ticks
             };
-            if (p.ParSpec.Ticks.First() > p.ParSpec.Ticks.Last())
+            if (ticks.First() > ticks.Last())
             {
                 s.Minimum = p.ParSpec.OMax2;
                 s.Maximum = p.ParSpec.OMin2;
@@ -149,6 +150,7 @@ public static class DataTemplateProvider
 
         if (p.ParSpec.OMin != -20000)
         {
+            var ticks = p.ParSpec.Ticks; // compute once (Ticks allocates a fresh list per access)
             Slider s = new()
             {
                 Minimum = p.ParSpec.OMin,
@@ -156,9 +158,9 @@ public static class DataTemplateProvider
                 Width = 200,
                 Orientation = Orientation.Horizontal,
                 IsSnapToTickEnabled = true,
-                Ticks = p.ParSpec.Ticks
+                Ticks = ticks
             };
-            if (p.ParSpec.Ticks.First() > p.ParSpec.Ticks.Last())
+            if (ticks.First() > ticks.Last())
             {
                 s.Minimum = p.ParSpec.OMax;
                 s.Maximum = p.ParSpec.OMin;

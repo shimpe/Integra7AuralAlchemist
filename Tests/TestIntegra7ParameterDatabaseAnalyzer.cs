@@ -1,12 +1,10 @@
-using Integra7AuralAlchemist.Models.Data;
-using Integra7AuralAlchemist.Models.Services;
+extern alias gen;
+using gen::Integra7AuralAlchemist.ParameterGen;
 
 namespace Tests;
 
 public class TestIntegra7ParameterDatabaseAnalyzer
 {
-    private const Integra7ParameterSpec.SpecType NUM = Integra7ParameterSpec.SpecType.NUMERIC;
-    private const Integra7ParameterSpec.SpecType ASC = Integra7ParameterSpec.SpecType.ASCII;
     public const bool USED = false;
     public const bool RESERVED = true;
 
@@ -18,12 +16,12 @@ public class TestIntegra7ParameterDatabaseAnalyzer
     [Test]
     public void Test_MarkParentControls()
     {
-        IList<Integra7ParameterSpec> db =
+        List<ParameterDef> db =
         [
-            new(NUM, "a", [0x00, 0x00], 1, 4, 1, 4, 1, USED, false, "", null),
-            new(NUM, "b", [0x00, 0x00], 1, 4, 1, 4, 1, USED, false, "", null,
+            new(SpecType.NUMERIC, "a", [0x00, 0x00], 1, 4, 1, 4, 1, USED, false, "", null),
+            new(SpecType.NUMERIC, "b", [0x00, 0x00], 1, 4, 1, 4, 1, USED, false, "", null,
                 "a", "23"),
-            new(NUM, "c", [0x00, 0x00], 1, 4, 1, 4, 1, USED, false, "", null,
+            new(SpecType.NUMERIC, "c", [0x00, 0x00], 1, 4, 1, 4, 1, USED, false, "", null,
                 "b", "1")
         ];
         Integra7ParameterDatabaseAnalyzer.MarkAllParentParametersAsIsParentTrue(db);
@@ -35,12 +33,12 @@ public class TestIntegra7ParameterDatabaseAnalyzer
     [Test]
     public void Test_SecondaryDeps()
     {
-        IList<Integra7ParameterSpec> db =
+        List<ParameterDef> db =
         [
-            new(NUM, "a", [0x00, 0x00], 1, 4, 1, 4, 1, USED, false, "", null),
-            new(NUM, "b", [0x00, 0x00], 1, 4, 1, 4, 1, USED, false, "", null,
+            new(SpecType.NUMERIC, "a", [0x00, 0x00], 1, 4, 1, 4, 1, USED, false, "", null),
+            new(SpecType.NUMERIC, "b", [0x00, 0x00], 1, 4, 1, 4, 1, USED, false, "", null,
                 "a", "23"),
-            new(NUM, "c", [0x00, 0x00], 1, 4, 1, 4, 1, USED, false, "", null,
+            new(SpecType.NUMERIC, "c", [0x00, 0x00], 1, 4, 1, 4, 1, USED, false, "", null,
                 "b", "1")
         ];
         Integra7ParameterDatabaseAnalyzer.FillInSecondaryDependencies(db);

@@ -59,7 +59,7 @@ public sealed partial class PCMSynthTonePartialViewModel : PartialViewModel
             .SortAndBind(
                 out _PCMSynthTonePartialParameters,
                 SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                    ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                    t.ParSpec.AddressInt))
             .DisposeMany()
             .Subscribe();
 

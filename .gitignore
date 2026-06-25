@@ -452,3 +452,6 @@ $RECYCLE.BIN/
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
+# Build-time generated parameter database blob (regenerated from Tools/ParameterBlobGenerator)
+Src/Assets/parameters.bin

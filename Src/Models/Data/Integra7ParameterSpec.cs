@@ -5,85 +5,47 @@ using Integra7AuralAlchemist.Models.Services;
 
 namespace Integra7AuralAlchemist.Models.Data;
 
-public class Integra7ParameterSpec
+// A zero-allocation view over one parameter held in a ParameterStore's columnar arrays.
+// Constructed cheaply on demand (store + index); holds no per-parameter heap state itself.
+public readonly struct Integra7ParameterSpec
 {
-    public enum SpecType
+    public enum SpecType { NUMERIC, ASCII, DISCRETE }
+
+    private readonly ParameterStore _s;
+    private readonly int _i;
+
+    public Integra7ParameterSpec(ParameterStore store, int index)
     {
-        NUMERIC,
-        ASCII,
-        DISCRETE
+        _s = store;
+        _i = index;
     }
 
-    public Integra7ParameterSpec(SpecType type, string path, byte[] offs, int imin, int imax, float omin, float omax,
-        int bytes, bool res, bool nib, string unit, IDictionary<int, string>? repr, string par = "", string parval = "",
-        bool isparent = false, string par2 = "", string parval2 = "", float imin2 = float.NaN, float imax2 = float.NaN,
-        float omin2 = float.NaN, float omax2 = float.NaN, List<Tuple<int, string>>? discrete = null)
-    {
-        Type = type; // numeric or ascii?
-        Path = path; // name of parameter
-        Address = offs; // parameter address in sysex byte stream
-        IMin = imin; // min possible (raw) value for this parameter
-        IMax = imax; // max possible (raw) value for this parameter
-        OMin = omin; // min possible mapped value for this parameter
-        OMax = omax; // max possible mapped value for this parameter
-        Bytes = bytes; // no of bytes used by value in sysex data stream
-        Reserved = res; // boolean to indicate if this parameter is documented as "reserved"
-        PerNibble = nib; // boolean to indicate if this parameter value is transmitted as a series of nibbles
-        Unit = unit; // string to indicate a unit
-        Repr = repr; // lookup table string -> int for discrete raw values mapping 
-        ParentCtrl = par; // a path of a parent control who's value determines if this spec is valid
-        ParentCtrlDispValue = parval; // the displayed value that the parent control must have for this spec to be valid
-        IsParent = isparent; // a boolean to indicate that the displayed value of this parameter should be recorded in a context table during parsing (used for parent controls)
-        ParentCtrl2 = par2; // second level of depencency
-        ParentCtrlDispValue2 = parval2; // second level of dependency
-        IMin2 = imin2; // second level of output mapping, used in combination with generic chorus, reverb, mfx parameters
-        IMax2 = imax2; // second level of output mapping, used in combination with generic chorus, reverb, mfx parameters
-        OMin2 = omin2; // second level of output mapping, used in combination with generic chorus, reverb, mfx parameters
-        OMax2 = omax2; // second level of output mapping, used in combination with generic chorus, reverb, mfx parameters
-        Discrete = discrete; // for a discrete list of items (typically with gaps)
-    }
+    public SpecType Type => (SpecType)_s.Types[_i];
+    public string Path => _s.Str(_s.PathIds[_i]);
+    public string Name => _s.Str(_s.NameIds[_i]);
+    public byte[] Address => _s.UnpackAddress(_i);   // allocates on demand (only the sysex/read paths use it)
+    public int AddressInt => _s.AddrInts[_i];        // for sorting; no allocation
+    public int IMin => _s.IMins[_i];
+    public int IMax => _s.IMaxs[_i];
+    public float OMin => _s.OMins[_i];
+    public float OMax => _s.OMaxs[_i];
+    public int Bytes => _s.BytesCol[_i];
+    public bool Reserved => (_s.Flags[_i] & 1) != 0;
+    public bool PerNibble => (_s.Flags[_i] & 2) != 0;
+    public bool IsParent => (_s.Flags[_i] & 4) != 0;
+    public string Unit => _s.Str(_s.UnitIds[_i]);
+    public IDictionary<int, string>? Repr => _s.ReprIds[_i] < 0 ? null : _s.Reprs[_s.ReprIds[_i]];
+    public List<Tuple<int, string>>? Discrete => _s.DiscreteIds[_i] < 0 ? null : _s.Discretes[_s.DiscreteIds[_i]];
+    public string ParentCtrl => _s.Str(_s.ParentPathIds[_i]);
+    public string ParentCtrlDispValue => _s.Str(_s.ParvalIds[_i]);
+    public string ParentCtrl2 => _s.Str(_s.ParentPath2Ids[_i]);
+    public string ParentCtrlDispValue2 => _s.Str(_s.Parval2Ids[_i]);
+    public float IMin2 => _s.IMin2s[_i];
+    public float IMax2 => _s.IMax2s[_i];
+    public float OMin2 => _s.OMin2s[_i];
+    public float OMax2 => _s.OMax2s[_i];
 
-    public SpecType Type { get; }
-
-    public string Path { get; }
-
-    public byte[] Address { get; }
-
-    public int IMin { get; }
-
-    public int IMax { get; }
-
-    public float OMin { get; }
-
-    public float OMax { get; }
-
-    public int Bytes { get; }
-
-    public bool Reserved { get; }
-
-    public bool PerNibble { get; }
-
-    public string Unit { get; } = "";
-
-    public IDictionary<int, string>? Repr { get; }
-
-    public List<Tuple<int, string>> Discrete { get; }
-
-    public string ParentCtrl { get; set; } = "";
-    public string ParentCtrlDispValue { get; set; } = "";
-    public bool IsParent { get; set; }
-
-    public string ParentCtrl2 { get; set; } = "";
-    public string ParentCtrlDispValue2 { get; set; } = "";
-    public float IMin2 { get; } = float.NaN;
-
-    public float IMax2 { get; } = float.NaN;
-
-    public float OMin2 { get; } = float.NaN;
-
-    public float OMax2 { get; } = float.NaN;
-
-    public string Name => Path.Split('/')[^1];
+    public bool IsSameAs(Integra7ParameterSpec other) => Path == other.Path;
 
     public AvaloniaList<double> Ticks
     {
@@ -105,19 +67,10 @@ public class Integra7ParameterSpec
                 for (long i = 0; i < 127 + 1; i++) ticks.Add(i);
                 return ticks;
             }
-            else
-            {
-                AvaloniaList<double> ticks = [];
-                for (var i = (long)IMin; i <= IMax; i++) ticks.Add(Mapping.linlin(i, IMin, IMax, OMin, OMax));
-                return ticks;
-            }
-        }
-    }
 
-    public bool IsSameAs(Integra7ParameterSpec other)
-    {
-        return Path == other.Path;
-        // no need to check repr, par, parval, par2, parval2
-        // just path should be enough since we are not supposed to specify duplicate paths
+            AvaloniaList<double> result = [];
+            for (var i = (long)IMin; i <= IMax; i++) result.Add(Mapping.linlin(i, IMin, IMax, OMin, OMax));
+            return result;
+        }
     }
 }

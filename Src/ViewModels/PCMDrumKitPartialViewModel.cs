@@ -58,7 +58,7 @@ public sealed partial class PCMDrumKitPartialViewModel : PartialViewModel
             .SortAndBind(
                 out _PCMDrumKitPartialParameters,
                 SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                    ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                    t.ParSpec.AddressInt))
             .DisposeMany()
             .Subscribe();
 

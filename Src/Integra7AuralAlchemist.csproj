@@ -30,4 +30,53 @@
         <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0"/>
         <PackageReference Include="Serilog.Sinks.File" Version="8.0.0-nblumhardt-02322" />
     </ItemGroup>
+
+    <!-- Build-time generation of the parameter database blob (Assets/parameters.bin). It is produced from
+         the C# definitions + CSVs in Tools/ParameterBlobGenerator and is git-ignored: never committed, no
+         manual maintenance. The target runs before Avalonia embeds its resources and explicitly registers
+         the blob as an AvaloniaResource, so even a clean checkout (where the Assets\** glob saw no blob at
+         evaluation time) still gets it embedded. Incremental: only regenerates when the generator sources,
+         the shared format/util files, or the CSVs change. -->
+    <ItemGroup>
+        <!-- Reference the generator for build-ordering ONLY: ReferenceOutputAssembly=false means its
+             assembly is not linked or copied, so the generator's own bundled copy of ByteUtils never
+             clashes with the app's. Building it via the MSBuild graph (rather than an out-of-band
+             `dotnet run`) keeps it a single, deduplicated build, avoiding a DLL write-lock race when
+             `dotnet test` builds the generator (referenced by the test project) and the app concurrently. -->
+        <ProjectReference Include="..\Tools\ParameterBlobGenerator\ParameterBlobGenerator.csproj"
+                          ReferenceOutputAssembly="false" Private="false" />
+    </ItemGroup>
+    <PropertyGroup>
+        <DotNetHost Condition="'$(DOTNET_HOST_PATH)' != ''">$(DOTNET_HOST_PATH)</DotNetHost>
+        <DotNetHost Condition="'$(DotNetHost)' == ''">dotnet</DotNetHost>
+        <ParameterBlobPath>$(MSBuildProjectDirectory)\Assets\parameters.bin</ParameterBlobPath>
+        <ParameterBlobGeneratorProject>$(MSBuildProjectDirectory)\..\Tools\ParameterBlobGenerator\ParameterBlobGenerator.csproj</ParameterBlobGeneratorProject>
+    </PropertyGroup>
+    <ItemGroup>
+        <ParameterBlobSources Include="$(MSBuildProjectDirectory)\..\Tools\ParameterBlobGenerator\**\*.cs"
+                              Exclude="$(MSBuildProjectDirectory)\..\Tools\ParameterBlobGenerator\obj\**\*.cs;$(MSBuildProjectDirectory)\..\Tools\ParameterBlobGenerator\bin\**\*.cs" />
+        <ParameterBlobSources Include="$(MSBuildProjectDirectory)\Models\Services\ByteUtils.cs" />
+        <ParameterBlobSources Include="$(MSBuildProjectDirectory)\Models\Data\ParameterBlobFormat.cs" />
+        <ParameterBlobSources Include="$(MSBuildProjectDirectory)\Assets\*.csv" />
+    </ItemGroup>
+    <Target Name="GenerateParameterBlob"
+            DependsOnTargets="ResolveProjectReferences"
+            BeforeTargets="GenerateAvaloniaResources"
+            Inputs="@(ParameterBlobSources)"
+            Outputs="$(ParameterBlobPath)">
+        <!-- The ProjectReference above (resolved by ResolveProjectReferences) has already built the
+             generator; fetch its output DLL path and run it directly with the build's own .NET host. -->
+        <MSBuild Projects="$(ParameterBlobGeneratorProject)" Targets="GetTargetPath"
+                 Properties="Configuration=$(Configuration)">
+            <Output TaskParameter="TargetOutputs" ItemName="_GeneratorDll" />
+        </MSBuild>
+        <Message Importance="high" Text="GenerateParameterBlob: producing $(ParameterBlobPath) via $(DotNetHost)" />
+        <Exec Command="&quot;$(DotNetHost)&quot; &quot;@(_GeneratorDll)&quot; --assets &quot;$(MSBuildProjectDirectory)\Assets&quot; -o &quot;$(ParameterBlobPath)&quot;" />
+        <!-- Guarantee exactly one AvaloniaResource entry for the freshly-generated blob, whether or not the
+             Assets\** glob already picked it up (Remove+Include is idempotent). -->
+        <ItemGroup>
+            <AvaloniaResource Remove="Assets\parameters.bin" />
+            <AvaloniaResource Include="Assets\parameters.bin" />
+        </ItemGroup>
+    </Target>
 </Project>

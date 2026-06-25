@@ -140,11 +140,11 @@ public class FullyQualifiedParameter : INotifyPropertyChanged
     public void ParseFromSysexReply(byte[] reply, Integra7Parameters parameters,
         Integra7ParameterSpec? firstParameterInSysexReply = null)
     {
-        if (firstParameterInSysexReply == null) firstParameterInSysexReply = ParSpec;
+        firstParameterInSysexReply ??= ParSpec;
 
         const int SYSEX_DATA_REPLY_HEADER_LENGTH = 11;
         List<Integra7ParameterSpec> parametersInSysexReply =
-            parameters.GetParametersFromTo(firstParameterInSysexReply.Path, ParSpec.Path);
+            parameters.GetParametersFromTo(firstParameterInSysexReply.Value.Path, ParSpec.Path);
         var dataToSkip = SYSEX_DATA_REPLY_HEADER_LENGTH;
         var gap = ParameterListSysexSizeCalculator.CalculateSysexGapBetweenFirstAndLast(parametersInSysexReply);
         dataToSkip += gap;
