@@ -48,4 +48,8 @@ public static class MotionalSurroundMapping
         return int.TryParse(display, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ch)
                && ch is >= 1 and <= 16;
     }
+
+    /// <summary>Parse a parameter display value as an integer (InvariantCulture), defaulting to 0.</summary>
+    public static int ParseDisplayInt(string s)
+        => int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : 0;
 }

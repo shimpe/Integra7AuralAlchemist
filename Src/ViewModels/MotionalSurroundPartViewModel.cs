@@ -63,21 +63,18 @@ public class MotionalSurroundPartViewModel : ViewModelBase, IDisposable
         Dispatcher.UIThread.Post(ApplyFromModel);
     }
 
-    private static int ParseInt(string s)
-        => int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : 0;
-
     private void ApplyFromModel()
     {
         _suppress = true;
         try
         {
-            Lr = MotionalSurroundMapping.Clamp(ParseInt(_lrParam.StringValue),
+            Lr = MotionalSurroundMapping.Clamp(MotionalSurroundMapping.ParseDisplayInt(_lrParam.StringValue),
                 MotionalSurroundMapping.LrFbMin, MotionalSurroundMapping.LrFbMax);
-            Fb = MotionalSurroundMapping.Clamp(ParseInt(_fbParam.StringValue),
+            Fb = MotionalSurroundMapping.Clamp(MotionalSurroundMapping.ParseDisplayInt(_fbParam.StringValue),
                 MotionalSurroundMapping.LrFbMin, MotionalSurroundMapping.LrFbMax);
-            Width = MotionalSurroundMapping.Clamp(ParseInt(_widthParam.StringValue),
+            Width = MotionalSurroundMapping.Clamp(MotionalSurroundMapping.ParseDisplayInt(_widthParam.StringValue),
                 MotionalSurroundMapping.WidthMin, MotionalSurroundMapping.WidthMax);
-            Ambience = MotionalSurroundMapping.Clamp(ParseInt(_ambParam.StringValue),
+            Ambience = MotionalSurroundMapping.Clamp(MotionalSurroundMapping.ParseDisplayInt(_ambParam.StringValue),
                 MotionalSurroundMapping.AmbienceMin, MotionalSurroundMapping.AmbienceMax);
             if (_channelParam != null) Channel = _channelParam.StringValue;
         }

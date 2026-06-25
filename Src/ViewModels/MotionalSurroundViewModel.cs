@@ -195,9 +195,6 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
               if (!_suppress) EnqueueCommonWrite("Ambience HF Damp", value.ToString(CultureInfo.InvariantCulture)); }
     }
 
-    private static int ParseInt(string s)
-        => int.TryParse(s, NumberStyles.Integer, CultureInfo.InvariantCulture, out var v) ? v : 0;
-
     private void InitGlobalsFromModel()
     {
         _suppress = true;
@@ -206,11 +203,11 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
             MotionalSurroundOn = C("Motional Surround Switch").StringValue == "ON";
             RoomTypeIndex = Math.Max(0, Array.IndexOf(RoomTypes, C("Room Type").StringValue));
             RoomSizeIndex = Math.Max(0, Array.IndexOf(RoomSizes, C("Room Size").StringValue));
-            Depth = ParseInt(C("Motional Surround Depth").StringValue);
-            AmbienceLevel = ParseInt(C("Ambience Level").StringValue);
-            AmbienceTime = ParseInt(C("Ambience Time").StringValue);
-            AmbienceDensity = ParseInt(C("Ambience Density").StringValue);
-            AmbienceHfDamp = ParseInt(C("Ambience HF Damp").StringValue);
+            Depth = MotionalSurroundMapping.ParseDisplayInt(C("Motional Surround Depth").StringValue);
+            AmbienceLevel = MotionalSurroundMapping.ParseDisplayInt(C("Ambience Level").StringValue);
+            AmbienceTime = MotionalSurroundMapping.ParseDisplayInt(C("Ambience Time").StringValue);
+            AmbienceDensity = MotionalSurroundMapping.ParseDisplayInt(C("Ambience Density").StringValue);
+            AmbienceHfDamp = MotionalSurroundMapping.ParseDisplayInt(C("Ambience HF Damp").StringValue);
         }
         finally { _suppress = false; }
     }
