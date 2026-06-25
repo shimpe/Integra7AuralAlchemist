@@ -1,6 +1,6 @@
 using System;
 using Avalonia.Controls;
-using Avalonia.ReactiveUI;
+using ReactiveUI.Avalonia;
 using Integra7AuralAlchemist.ViewModels;
 using ReactiveUI;
 

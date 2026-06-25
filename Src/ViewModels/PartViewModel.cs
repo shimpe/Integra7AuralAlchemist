@@ -424,7 +424,7 @@ public partial class PartViewModel : ViewModelBase
             _cleanupPresets = _sourceCachePresets.Connect()
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPreset)
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _presets,
                     SortExpressionComparer<Integra7Preset>.Ascending(t => t.Id))
@@ -433,7 +433,7 @@ public partial class PartViewModel : ViewModelBase
             _cleanupMidiParams = _sourceCacheStudioSetMidiParameters.Connect()
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterStudioSetMidiParameters)
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _studioSetMidiParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -458,7 +458,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _studioSetPartParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -482,7 +482,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _StudioSetPartEQParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -506,7 +506,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _PCMSynthToneCommonParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -530,7 +530,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _PCMSynthToneCommon2Parameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -554,7 +554,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _PCMSynthToneCommonMFXParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -578,7 +578,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _PCMSynthTonePMTParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -603,7 +603,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _PCMDrumKitCommonParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -627,7 +627,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _PCMDrumKitCommon2Parameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -651,7 +651,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _PCMDrumKitCommonMFXParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -675,7 +675,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _PCMDrumKitCompEQParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -699,7 +699,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _SNSynthToneCommonParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -723,7 +723,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _SNSynthToneCommonMFXParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -747,7 +747,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _SNAcousticToneCommonParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -771,7 +771,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _SNAcousticToneCommonMFXParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -796,7 +796,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _SNDrumKitCommonParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -820,7 +820,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _SNDrumKitCommonMFXParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -844,7 +844,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _SNDrumKitCompEQParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -904,7 +904,7 @@ public partial class PartViewModel : ViewModelBase
 
             _cleanupSetup = _sourceCacheSetupParameters.Connect()
                 .Filter(parFilterSetup)
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _setupParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -914,7 +914,7 @@ public partial class PartViewModel : ViewModelBase
 
             _cleanupSystem = _sourceCacheSystem.Connect()
                 .Filter(parFilterSystem)
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _systemParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -924,7 +924,7 @@ public partial class PartViewModel : ViewModelBase
 
             _cleanupStudioSetCommon = _sourceCacheStudioSetCommonParameters.Connect()
                 .Filter(parFilterStudioSetCommon)
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _studioSetCommonParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -949,7 +949,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _studioSetCommonChorusParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -974,7 +974,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _studioSetCommonReverbParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -999,7 +999,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _studioSetCommonMotionalSurroundParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
@@ -1024,7 +1024,7 @@ public partial class PartViewModel : ViewModelBase
                             .Select(parentChange2 =>
                                 parentChange2.Current.StringValue == par.ParSpec.ParentCtrlDispValue2)
                         : Observable.Return(true))
-                .ObserveOn(RxApp.MainThreadScheduler)
+                .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
                     out _studioSetCommonMasterEQParameters,
                     SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>

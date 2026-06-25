@@ -1,6 +1,6 @@
 ﻿using System;
 using Avalonia;
-using Avalonia.ReactiveUI;
+using ReactiveUI.Avalonia;
 using Serilog;
 
 namespace Integra7AuralAlchemist;
@@ -32,6 +32,10 @@ internal sealed class Program
             .UsePlatformDetect()
             .WithInterFont()
             .LogToTrace()
-            .UseReactiveUI();
+            // ReactiveUI 23 (via ReactiveUI.Avalonia) replaced the parameterless
+            // UseReactiveUI() with a builder-based overload. The empty action is
+            // enough: UseReactiveUI internally calls WithAvalonia() and builds,
+            // registering the Avalonia main-thread scheduler.
+            .UseReactiveUI(_ => { });
     }
 }

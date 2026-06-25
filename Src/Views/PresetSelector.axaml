@@ -12,7 +12,7 @@
 
     <StackPanel Orientation="Vertical" Spacing="10" Margin="10" Height="700">
 
-        <TextBox Watermark="Filter Presets..."
+        <TextBox PlaceholderText="Filter Presets..."
                  Background="#3c4043"
                  Width="600"
                  HorizontalAlignment="Left"

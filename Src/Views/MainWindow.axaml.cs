@@ -5,7 +5,7 @@ using ReactiveUI;
 
 namespace Integra7AuralAlchemist.Views;
 
-public partial class MainWindow : AppWindow, IViewFor<MainWindowViewModel>
+public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
 {
     private MainWindowViewModel _viewModel;
 
@@ -13,7 +13,9 @@ public partial class MainWindow : AppWindow, IViewFor<MainWindowViewModel>
     {
         InitializeComponent();
         TitleBar.ExtendsContentIntoTitleBar = true;
-        TitleBar.TitleBarHitTestType = TitleBarHitTestType.Complex;
+        // FluentAvalonia 3.0 removed TitleBar.TitleBarHitTestType (and the
+        // TitleBarHitTestType enum). If interactive controls in the extended
+        // title-bar region stop responding to input, revisit hit-testing for FA 3.0.
     }
 
     public MainWindowViewModel ViewModel

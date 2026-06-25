@@ -31,7 +31,7 @@
                     Margin="10,5,0,0"
                     Spacing="50"
                     IsVisible="True">
-            <TextBox MinWidth="200" Watermark="type the new name here" Text="{Binding NewName}" />
+            <TextBox MinWidth="200" PlaceholderText="type the new name here" Text="{Binding NewName}" />
             <Button IsEnabled="{Binding NewNameNotEmpty}" Command="{Binding SaveCommand}">Save</Button>
             <Button Command="{Binding CancelCommand}">Cancel</Button>
         </StackPanel>

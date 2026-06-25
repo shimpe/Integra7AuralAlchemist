@@ -51,7 +51,7 @@ public partial class SaveUserToneViewModel : ViewModelBase
         _cleanupPresets = _sourceCachePresets.Connect()
             .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
             .Filter(parFilterPreset)
-            .ObserveOn(RxApp.MainThreadScheduler)
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
             .SortAndBind(
                 out _presets,
                 SortExpressionComparer<Integra7Preset>.Ascending(t => t.Id))

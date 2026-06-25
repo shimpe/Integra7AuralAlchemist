@@ -58,7 +58,7 @@ public sealed partial class PCMDrumKitPartialViewModel : PartialViewModel
                         .Select(parentChange2 => parentChange2.Current.StringValue ==
                                                  fullyQualifiedParameter.ParSpec.ParentCtrlDispValue2)
                     : Observable.Return(true))
-            .ObserveOn(RxApp.MainThreadScheduler)
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
             .SortAndBind(
                 out _PCMDrumKitPartialParameters,
                 SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>

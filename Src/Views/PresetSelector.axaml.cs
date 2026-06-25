@@ -59,6 +59,6 @@ public partial class PresetSelector : UserControl
     public void PresetDataGrid_CellPointerPressed(object? sender, DataGridCellPointerPressedEventArgs? args)
     {
         SelectedPreset = (Integra7Preset)args.Row.DataContext;
-        SelectedPresetIndex = args.Row.GetIndex();
+        SelectedPresetIndex = args.Row.Index;
     }
 }

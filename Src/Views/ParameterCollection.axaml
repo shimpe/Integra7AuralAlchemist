@@ -16,7 +16,7 @@
           Margin="20">
         <TextBox Grid.Column="0"
                  Grid.Row="0"
-                 Watermark="Filter Parameters..."
+                 PlaceholderText="Filter Parameters..."
                  Background="#3c4043"
                  Width="550"
                  HorizontalAlignment="Left"

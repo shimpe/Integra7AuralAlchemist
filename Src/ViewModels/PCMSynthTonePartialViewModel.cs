@@ -59,7 +59,7 @@ public sealed partial class PCMSynthTonePartialViewModel : PartialViewModel
                         .Select(parentChange2 => parentChange2.Current.StringValue ==
                                                  fullyQualifiedParameter.ParSpec.ParentCtrlDispValue2)
                     : Observable.Return(true))
-            .ObserveOn(RxApp.MainThreadScheduler)
+            .ObserveOn(RxSchedulers.MainThreadScheduler)
             .SortAndBind(
                 out _PCMSynthTonePartialParameters,
                 SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
