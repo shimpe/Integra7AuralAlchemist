@@ -135,6 +135,8 @@ public partial class MainWindowViewModel : ViewModelBase
     [ReactiveCommand]
     public async Task RescanMidiDevicesAsync()
     {
+        MotionalSurroundVm?.Dispose();
+        MotionalSurroundVm = null;
         Integra7 = new Integra7Api(new MidiOut(INTEGRA_CONNECTION_STRING), new MidiIn(INTEGRA_CONNECTION_STRING),
             _semaphore);
         await Integra7.CheckIdentityAsync();
