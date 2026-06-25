@@ -40,7 +40,7 @@ public sealed partial class SNDrumKitPartialViewModel : PartialViewModel
 
         _cleanupSNDrumKitPartialParameters = _sourceCacheSNDrumKitPartialParameters.Connect()
             .Filter(refreshFilterSNDrumKitPartialParameters)
-            .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+            .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
             .Filter(parFilterSNDrumKitPartialParameters)
             .FilterOnObservable(fullyQualifiedParameter =>
                 fullyQualifiedParameter.ParSpec.ParentCtrl != "" &&

@@ -49,7 +49,7 @@ public partial class SaveUserToneViewModel : ViewModelBase
             .Select(text => FilterProvider.SaveTonePresetFilter(_toneTypeStr, text));
 
         _cleanupPresets = _sourceCachePresets.Connect()
-            .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+            .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
             .Filter(parFilterPreset)
             .ObserveOn(RxSchedulers.MainThreadScheduler)
             .SortAndBind(

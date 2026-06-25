@@ -41,7 +41,7 @@ public sealed partial class PCMSynthTonePartialViewModel : PartialViewModel
 
         _cleanupPCMSynthTonePartialParameters = _sourceCachePCMSynthTonePartialParameters.Connect()
             .Filter(refreshFilterPCMSynthTonePartialParameters)
-            .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+            .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
             .Filter(parFilterPCMSynthTonePartialParameters)
             .FilterOnObservable(fullyQualifiedParameter =>
                 fullyQualifiedParameter.ParSpec.ParentCtrl != "" &&

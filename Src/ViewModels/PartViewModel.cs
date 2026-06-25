@@ -422,7 +422,7 @@ public partial class PartViewModel : ViewModelBase
 
 
             _cleanupPresets = _sourceCachePresets.Connect()
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPreset)
                 .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
@@ -431,7 +431,7 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupMidiParams = _sourceCacheStudioSetMidiParameters.Connect()
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterStudioSetMidiParameters)
                 .ObserveOn(RxSchedulers.MainThreadScheduler)
                 .SortAndBind(
@@ -443,7 +443,7 @@ public partial class PartViewModel : ViewModelBase
 
             _cleanupStudioSetPartParams = _sourceCacheStudioSetPartParameters.Connect()
                 .Filter(refreshFilterStudioSetPart)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterStudioSetPartParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -467,7 +467,7 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
             _cleanupStudioSetPartEQParams = _sourceCacheStudioSetPartEQParameters.Connect()
                 .Filter(refreshFilterStudioSetPartEQ)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterStudioSetPartEQParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -491,7 +491,7 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
             _cleanupPCMSynthToneCommonParams = _sourceCachePCMSynthToneCommonParameters.Connect()
                 .Filter(refreshFilterPCMSynthToneCommon)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMSynthToneCommonParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -515,7 +515,7 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
             _cleanupPCMSynthToneCommon2Params = _sourceCachePCMSynthToneCommon2Parameters.Connect()
                 .Filter(refreshFilterPCMSynthToneCommon2)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMSynthToneCommon2Parameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -539,7 +539,7 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
             _cleanupPCMSynthToneCommonMFXParams = _sourceCachePCMSynthToneCommonMFXParameters.Connect()
                 .Filter(refreshFilterPCMSynthToneCommonMFX)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMSynthToneCommonMFXParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -563,7 +563,7 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
             _cleanupPCMSynthTonePMTParametersParams = _sourceCachePCMSynthTonePMTParameters.Connect()
                 .Filter(refreshFilterPCMSynthTonePMTParameters)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMSynthTonePMTParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -588,7 +588,7 @@ public partial class PartViewModel : ViewModelBase
 
             _cleanupPCMDrumKitCommonParams = _sourceCachePCMDrumKitCommonParameters.Connect()
                 .Filter(refreshFilterPCMDrumKitCommon)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMDrumKitCommonParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -612,7 +612,7 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
             _cleanupPCMDrumKitCommon2Params = _sourceCachePCMDrumKitCommon2Parameters.Connect()
                 .Filter(refreshFilterPCMDrumKitCommon2)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMDrumKitCommon2Parameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -636,7 +636,7 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
             _cleanupPCMDrumKitCommonMFXParams = _sourceCachePCMDrumKitCommonMFXParameters.Connect()
                 .Filter(refreshFilterPCMDrumKitCommonMFX)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMDrumKitCommonMFXParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -660,7 +660,7 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
             _cleanupPCMDrumKitCompEQParametersParams = _sourceCachePCMDrumKitCompEQParameters.Connect()
                 .Filter(refreshFilterPCMDrumKitCompEQParameters)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMDrumKitCompEQParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -684,7 +684,7 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
             _cleanupSNSynthToneCommonParams = _sourceCacheSNSynthToneCommonParameters.Connect()
                 .Filter(refreshFilterSNSynthToneCommonParameters)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterSNSynthToneCommonParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -708,7 +708,7 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
             _cleanupSNSynthToneCommonMFXParams = _sourceCacheSNSynthToneCommonMFXParameters.Connect()
                 .Filter(refreshFilterSNSynthToneCommonMFXParameters)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterSNSynthToneCommonMFXParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -732,7 +732,7 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
             _cleanupSNAcousticToneCommonParams = _sourceCacheSNAcousticToneCommonParameters.Connect()
                 .Filter(refreshFilterSNAcousticToneCommonParameters)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterSNAcousticToneCommonParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -756,7 +756,7 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
             _cleanupSNAcousticToneCommonMFXParams = _sourceCacheSNAcousticToneCommonMFXParameters.Connect()
                 .Filter(refreshFilterSNAcousticToneCommonMFXParameters)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterSNAcousticToneCommonMFXParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -781,7 +781,7 @@ public partial class PartViewModel : ViewModelBase
 
             _cleanupSNDrumKitCommonParams = _sourceCacheSNDrumKitCommonParameters.Connect()
                 .Filter(refreshFilterSNDrumKitCommon)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterSNDrumKitCommonParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -805,7 +805,7 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
             _cleanupSNDrumKitCommonMFXParams = _sourceCacheSNDrumKitCommonMFXParameters.Connect()
                 .Filter(refreshFilterSNDrumKitCommonMFX)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterSNDrumKitCommonMFXParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -829,7 +829,7 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
             _cleanupSNDrumKitCompEQParametersParams = _sourceCacheSNDrumKitCompEQParameters.Connect()
                 .Filter(refreshFilterSNDrumKitCompEQParameters)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterSNDrumKitCompEQParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -934,7 +934,7 @@ public partial class PartViewModel : ViewModelBase
 
             _cleanupStudioSetChorus = _sourceCacheStudioSetCommonChorusParameters.Connect()
                 .Filter(refreshCommonChorus)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterStudioSetCommonChorus)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -959,7 +959,7 @@ public partial class PartViewModel : ViewModelBase
 
             _cleanupStudioSetReverb = _sourceCacheStudioSetCommonReverbParameters.Connect()
                 .Filter(refreshCommonReverb)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterStudioSetCommonReverb)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -984,7 +984,7 @@ public partial class PartViewModel : ViewModelBase
 
             _cleanupMotionalSurround = _sourceCacheStudioSetCommonMotionalSurroundParameters.Connect()
                 .Filter(refreshCommonMotionalSurround)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterStudioSetCommonMotionalSurroundParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
@@ -1009,7 +1009,7 @@ public partial class PartViewModel : ViewModelBase
 
             _cleanupStudioSetMasterEQ = _sourceCacheStudioSetCommonMasterEQParameters.Connect()
                 .Filter(refreshCommonMasterEQ)
-                .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
+                .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterStudioSetCommonMasterEQParameters)
                 .FilterOnObservable(par =>
                     par.ParSpec.ParentCtrl != "" && par.ParSpec.ParentCtrl is string parentId
