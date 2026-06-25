@@ -8,7 +8,7 @@ namespace Integra7AuralAlchemist.Models.Services;
 
 public class AsyncMidiInputWrapper
 {
-    private const double inactivityTimespan = 0.5;
+    private const double inactivityTimespan = 1.5;
     private readonly Channel<byte[]> _channel = Channel.CreateUnbounded<byte[]>();
     private readonly IMidiIn _midiInput;
 
