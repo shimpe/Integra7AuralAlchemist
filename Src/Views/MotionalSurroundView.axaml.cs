@@ -32,6 +32,7 @@ public partial class MotionalSurroundView : UserControl
         _puckHost.AddHandler(PointerPressedEvent, OnPuckPointerPressed, RoutingStrategies.Tunnel);
         _puckHost.AddHandler(PointerMovedEvent, OnPuckPointerMoved, RoutingStrategies.Tunnel);
         _puckHost.AddHandler(PointerReleasedEvent, OnPuckPointerReleased, RoutingStrategies.Tunnel);
+        _puckHost.AddHandler(PointerCaptureLostEvent, OnPuckPointerCaptureLost, RoutingStrategies.Bubble);
         _puckHost.AddHandler(KeyDownEvent, OnPuckKeyDown, RoutingStrategies.Bubble);
         _puckHost.PropertyChanged += (_, ev) => { if (ev.Property == BoundsProperty) UpdateStage(); };
         UpdateStage();
@@ -60,6 +61,7 @@ public partial class MotionalSurroundView : UserControl
     {
         if (FindPuck(e.Source) is { DataContext: MotionalSurroundPartViewModel p } b)
         {
+            if (!e.GetCurrentPoint(b).Properties.IsLeftButtonPressed) return;
             _dragging = b;
             _dragVm = p;
             if (Vm != null) Vm.SelectedPart = p;
@@ -85,6 +87,12 @@ public partial class MotionalSurroundView : UserControl
     {
         if (_dragging is null) return;
         e.Pointer.Capture(null);
+        _dragging = null;
+        _dragVm = null;
+    }
+
+    private void OnPuckPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
         _dragging = null;
         _dragVm = null;
     }
