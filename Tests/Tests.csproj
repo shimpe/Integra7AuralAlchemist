@@ -24,4 +24,11 @@
         </ProjectReference>
     </ItemGroup>
 
+    <ItemGroup>
+        <Content Include="..\Src\Assets\parameters.bin">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>parameters.bin</Link>
+        </Content>
+    </ItemGroup>
+
 </Project>

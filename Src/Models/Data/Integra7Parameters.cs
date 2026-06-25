@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using Avalonia.Platform;
 
 namespace Integra7AuralAlchemist.Models.Data;
@@ -14,10 +15,17 @@ public class Integra7Parameters
     private readonly ParameterStore _store;
     private readonly Dictionary<string, int> _index = new();
 
-    public Integra7Parameters(bool testing = false)
+    public Integra7Parameters()
+        : this(AssetLoader.Open(new Uri("avares://Integra7AuralAlchemist/Assets/parameters.bin")))
     {
-        using var s = AssetLoader.Open(new Uri("avares://Integra7AuralAlchemist/Assets/parameters.bin"));
-        _store = ParameterStore.Load(s);
+    }
+
+    // Test/host seam: load the blob from any stream, bypassing Avalonia's AssetLoader (unavailable in
+    // a plain test runner). Takes ownership of the stream and disposes it.
+    public Integra7Parameters(Stream blob)
+    {
+        using (blob)
+            _store = ParameterStore.Load(blob);
         for (var i = 0; i < _store.Count; i++) _index[_store.Str(_store.PathIds[i])] = i;
     }
 
