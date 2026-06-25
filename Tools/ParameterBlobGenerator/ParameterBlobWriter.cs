@@ -9,6 +9,13 @@ public static class ParameterBlobWriter
 {
     public static void Write(System.IO.Stream stream, IReadOnlyList<ParameterDef> defs)
     {
+        // The address column packs each address into a uint (4 bytes) plus a one-byte length, so the
+        // format assumes addresses are at most 4 bytes. Fail fast and loud if that invariant is ever broken.
+        foreach (var def in defs)
+            if (def.Address.Length > 4)
+                throw new System.InvalidOperationException(
+                    $"Parameter '{def.Path}' has a {def.Address.Length}-byte address; the blob format supports at most 4.");
+
         // --- Build string table (id 0 = "") ---
         var stringIds = new Dictionary<string, int>();
         var strings = new List<string>();

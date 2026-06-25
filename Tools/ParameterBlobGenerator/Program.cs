@@ -16,8 +16,21 @@ internal static class Program
         Integra7ParameterDatabaseAnalyzer.FillInSecondaryDependencies(defs);
 
         System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(output)!);
-        using var fs = System.IO.File.Create(output);
-        ParameterBlobWriter.Write(fs, defs);
+        // Write to a temp file and move into place so an interrupted generator never leaves a truncated
+        // blob with a fresh timestamp (which the incremental build would treat as up-to-date and embed).
+        var tmp = output + ".tmp";
+        try
+        {
+            using (var fs = System.IO.File.Create(tmp))
+                ParameterBlobWriter.Write(fs, defs);
+            System.IO.File.Move(tmp, output, overwrite: true);
+        }
+        catch
+        {
+            if (System.IO.File.Exists(tmp)) System.IO.File.Delete(tmp);
+            throw;
+        }
+
         System.Console.WriteLine($"Wrote {defs.Count} parameters to {output}");
         return 0;
     }
