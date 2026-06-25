@@ -50,6 +50,9 @@ public sealed class ParameterStore
     /// <summary>Returns the interned string at the given string-table index.</summary>
     public string Str(int id) => _strings[id];
 
+    /// <summary>Returns a lightweight struct-view over the parameter at the given index.</summary>
+    public Integra7ParameterSpec Get(int idx) => new(this, idx);
+
     /// <summary>
     /// Reconstructs the original byte[] address for parameter <paramref name="i"/>
     /// from the packed representation (big-endian, most-significant byte first).

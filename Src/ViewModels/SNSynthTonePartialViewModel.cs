@@ -59,7 +59,7 @@ public sealed partial class SNSynthTonePartialViewModel : PartialViewModel
             .SortAndBind(
                 out _SNSynthTonePartialParameters,
                 SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                    ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                    t.ParSpec.AddressInt))
             .DisposeMany()
             .Subscribe();
 

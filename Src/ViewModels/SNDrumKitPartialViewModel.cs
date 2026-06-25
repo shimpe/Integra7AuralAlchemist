@@ -58,7 +58,7 @@ public sealed partial class SNDrumKitPartialViewModel : PartialViewModel
             .SortAndBind(
                 out _SNDrumKitPartialParameters,
                 SortExpressionComparer<FullyQualifiedParameter>.Ascending(t =>
-                    ByteUtils.Bytes7ToInt(t.ParSpec.Address)))
+                    t.ParSpec.AddressInt))
             .DisposeMany()
             .Subscribe();
 
