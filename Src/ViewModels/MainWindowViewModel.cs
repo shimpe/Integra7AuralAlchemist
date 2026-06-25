@@ -27,6 +27,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [Reactive] private bool _rescanButtonEnabled = true;
     private Integra7Domain? _integra7Communicator;
+    [Reactive] private MotionalSurroundViewModel? _motionalSurroundVm;
 
     [Reactive] private bool _isSyncing = true;
     private string _syncInfo = "";
@@ -217,11 +218,18 @@ public partial class MainWindowViewModel : ViewModelBase
 
                 PartViewModels = new ReadOnlyObservableCollection<PartViewModel>(pvm);
                 this.RaisePropertyChanged(nameof(PartViewModels));
+
+                // All Studio Set Part + common Motional Surround domains have now been read,
+                // so the spatial editor can bind to their live values.
+                MotionalSurroundVm?.Dispose();
+                MotionalSurroundVm = new MotionalSurroundViewModel(_integra7Communicator);
             }
             else
             {
                 Log.Information("Failed to connect to Integra7");
                 MidiDevices = "Could not find " + INTEGRA_CONNECTION_STRING;
+                MotionalSurroundVm?.Dispose();
+                MotionalSurroundVm = null;
             }
 
             RescanButtonEnabled = !_connected;
