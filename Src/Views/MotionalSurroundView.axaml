@@ -91,7 +91,10 @@
                 <Grid ColumnDefinitions="38,*,Auto">
                   <TextBlock Grid.Column="0" Text="{Binding Label}" FontWeight="SemiBold"/>
                   <TextBlock Grid.Column="1" Text="{Binding PositionLabel}" Foreground="#cfd3d5"/>
-                  <TextBlock Grid.Column="2" Foreground="#8a9092" Text="{Binding Ambience, StringFormat='A{0}'}"/>
+                  <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                    <TextBlock Foreground="#8a9092" Text="{Binding Width, StringFormat='W{0}'}"/>
+                    <TextBlock Foreground="#8a9092" Text="{Binding Ambience, StringFormat='A{0}'}"/>
+                  </StackPanel>
                 </Grid>
               </DataTemplate>
             </ListBox.ItemTemplate>
