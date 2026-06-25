@@ -29,6 +29,8 @@ public class MotionalSurroundPartViewModel : ViewModelBase, IDisposable
     public int PartIndex { get; }
     public string Key => IsExternal ? "ext" : $"p{PartIndex}";
     public string Label => IsExternal ? "Ext" : $"P{PartIndex + 1}";
+    // Full, human-readable title for the detail panel header (avoids the terse "P1"/"Ext" used in compact lists/pucks).
+    public string DetailTitle => IsExternal ? "External Part" : $"Part {PartIndex + 1}";
     public DomainBase Domain => _domain;
     public string LrPath => _lrParam.ParSpec.Path;
     public string FbPath => _fbParam.ParSpec.Path;
