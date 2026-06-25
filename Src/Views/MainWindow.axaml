@@ -26,8 +26,23 @@
                     Value="40" />
         </Style>
     </Window.Styles>
-    <Grid RowDefinitions="*" ColumnDefinitions="*">
-        <Border Background="#BF696969"
+    <Grid RowDefinitions="Auto,*" ColumnDefinitions="*">
+        <!-- Draggable title-bar strip: FluentAvalonia 3 removed TitleBarHitTestType,
+             so with ExtendsContentIntoTitleBar the window is movable only via a
+             non-focusable region inside TitleBar.Height (32px). This strip is that
+             drag handle (a Border/TextBlock are non-focusable, so FA treats it as drag area). -->
+        <Border Grid.Row="0"
+                Height="32"
+                Background="Transparent"
+                PointerPressed="TitleBarDragStrip_PointerPressed">
+            <TextBlock Text="Integra-7 Aural Alchemist"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False"
+                       Margin="10,0" />
+        </Border>
+
+        <Border Grid.Row="1"
+                Background="#BF696969"
                 BorderBrush="#BF696969"
                 BorderThickness="2"
                 CornerRadius="10"
@@ -49,23 +64,16 @@
             </StackPanel>
         </Border>
 
-        <TabControl Grid.Column="0" Grid.Row="0">
+        <TabControl Grid.Column="0" Grid.Row="1">
             <TabItem Header="Parameters">
                 <Grid ColumnDefinitions="*"
-                      RowDefinitions="Auto,Auto,Auto,750">
-                    <Border Grid.Row="0"
-                            Height="32">
-                        <TextBlock Text="Integra-7 Aural Alchemist"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Margin="10 0" />
-                    </Border>
+                      RowDefinitions="Auto,Auto,750">
                     <TextBlock Grid.Column="0"
-                               Grid.Row="1"
+                               Grid.Row="0"
                                Text="{Binding MidiDevices}"
                                HorizontalAlignment="Center"
                                VerticalAlignment="Center" />
-                    <StackPanel Grid.Row="2"
+                    <StackPanel Grid.Row="1"
                                 Orientation="Horizontal"
                                 Spacing="20">
                         <Button IsEnabled="{Binding RescanButtonEnabled}"
@@ -133,7 +141,7 @@
                     </StackPanel>
                     <TabControl HorizontalContentAlignment="Left"
                                 TabStripPlacement="Left"
-                                Grid.Row="3"
+                                Grid.Row="2"
                                 Grid.Column="0"
                                 ItemsSource="{Binding PartViewModels}"
                                 SelectedIndex="{Binding CurrentPartSelection, Mode=TwoWay}">

@@ -1,4 +1,6 @@
 using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Input;
 using FluentAvalonia.UI.Windowing;
 using Integra7AuralAlchemist.ViewModels;
 using ReactiveUI;
@@ -13,9 +15,29 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
     {
         InitializeComponent();
         TitleBar.ExtendsContentIntoTitleBar = true;
-        // FluentAvalonia 3.0 removed TitleBar.TitleBarHitTestType (and the
-        // TitleBarHitTestType enum). If interactive controls in the extended
-        // title-bar region stop responding to input, revisit hit-testing for FA 3.0.
+        // FluentAvalonia 3.0 removed TitleBarHitTestType, and its built-in title-bar
+        // hit-testing doesn't make the extended content area draggable here, so we
+        // move the window ourselves from the title strip via BeginMoveDrag (see
+        // TitleBarDragStrip_PointerPressed). Resize is still handled by the window edges.
+    }
+
+    private void TitleBarDragStrip_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        var point = e.GetCurrentPoint(this);
+        if (!point.Properties.IsLeftButtonPressed)
+            return;
+
+        if (e.ClickCount == 2)
+        {
+            // Double-click toggles maximize/restore, like a normal title bar.
+            WindowState = WindowState == WindowState.Maximized
+                ? WindowState.Normal
+                : WindowState.Maximized;
+        }
+        else
+        {
+            BeginMoveDrag(e);
+        }
     }
 
     public MainWindowViewModel ViewModel
