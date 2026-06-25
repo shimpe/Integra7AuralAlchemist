@@ -53,7 +53,11 @@ public class FullyQualifiedParameter : INotifyPropertyChanged
     public long RawNumericValue
     {
         get => _rawNumericValue;
-        set => _rawNumericValue = value;
+        set
+        {
+            _rawNumericValue = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RawNumericValue)));
+        }
     }
 
     public string StringValue
@@ -147,7 +151,11 @@ public class FullyQualifiedParameter : INotifyPropertyChanged
         if (reply.Length > dataToSkip + ParSpec.Bytes)
         {
             var parResult = ByteUtils.Slice(reply, dataToSkip, ParSpec.Bytes);
-            SysexParameterValueInterpreter.Interpret(parResult, ParSpec, out _rawNumericValue, out _stringValue);
+            // Route through the properties so INotifyPropertyChanged fires; DynamicData's
+            // AutoRefresh relies on this to re-evaluate filters/visibility after a hardware read.
+            SysexParameterValueInterpreter.Interpret(parResult, ParSpec, out var rawValue, out var stringValue);
+            RawNumericValue = rawValue;
+            StringValue = stringValue;
         }
         else
         {
@@ -190,8 +198,9 @@ public class FullyQualifiedParameter : INotifyPropertyChanged
     public void CopyParsedDataFrom(FullyQualifiedParameter other)
     {
         IsNumeric = other.IsNumeric;
-        _rawNumericValue = other.RawNumericValue;
-        _stringValue = other.StringValue;
+        // Route through the properties so INotifyPropertyChanged fires (see AutoRefresh above).
+        RawNumericValue = other.RawNumericValue;
+        StringValue = other.StringValue;
     }
 
     public void DebugLog()

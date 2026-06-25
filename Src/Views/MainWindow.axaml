@@ -8,6 +8,7 @@
         d:DesignHeight="800"
         x:Class="Integra7AuralAlchemist.Views.MainWindow"
         xmlns:local="clr-namespace:Integra7AuralAlchemist.Views"
+        xmlns:behaviors="using:Integra7AuralAlchemist.Behaviors"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
         Title="Integra-7 Aural Alchemist">
@@ -213,7 +214,8 @@
                                         <TabControl TabStripPlacement="Top"
                                                     MaxHeight="700"
                                                     VerticalAlignment="Top"
-                                                    VerticalContentAlignment="Top">
+                                                    VerticalContentAlignment="Top"
+                                                    behaviors:TabControlBehaviors.SelectTabByTag="{Binding ToneTabKey}">
                                             <TabItem Header="Midi">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding StudioSetMidiParameters}"
@@ -230,6 +232,7 @@
                                                     SearchText="{Binding SearchTextStudioSetPartEQ, Mode=TwoWay}" />
                                             </TabItem>
                                             <TabItem Header="Tone"
+                                                     Tag="PCMS"
                                                      IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding PCMSynthToneCommonParameters}"
@@ -254,6 +257,7 @@
                                                     SearchText="{Binding SearchTextPCMSynthTonePMT, Mode=TwoWay}" />
                                             </TabItem>
                                             <TabItem Header="Kit"
+                                                     Tag="PCMD"
                                                      IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding PCMDrumKitCommonParameters}"
@@ -278,6 +282,7 @@
                                                     SearchText="{Binding SearchTextPCMDrumKitCompEQ, Mode=TwoWay}" />
                                             </TabItem>
                                             <TabItem Header="Tone"
+                                                     Tag="SN-S"
                                                      IsVisible="{Binding SelectedPresetIsSNSynthTone}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding SNSynthToneCommonParameters}"
@@ -290,6 +295,7 @@
                                                     SearchText="{Binding SearchTextSNSynthToneCommonMFX, Mode=TwoWay}" />
                                             </TabItem>
                                             <TabItem Header="Tone"
+                                                     Tag="SN-A"
                                                      IsVisible="{Binding SelectedPresetIsSNAcousticTone}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding SNAcousticToneCommonParameters}"
@@ -302,6 +308,7 @@
                                                     SearchText="{Binding SearchTextSNAcousticToneCommonMFX, Mode=TwoWay}" />
                                             </TabItem>
                                             <TabItem Header="Kit"
+                                                     Tag="SN-D"
                                                      IsVisible="{Binding SelectedPresetIsSNDrumKit}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding SNDrumKitCommonParameters}"

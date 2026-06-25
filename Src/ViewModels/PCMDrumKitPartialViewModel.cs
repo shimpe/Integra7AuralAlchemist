@@ -22,7 +22,6 @@ public sealed partial class PCMDrumKitPartialViewModel : PartialViewModel
         new(x => x.ParSpec.Path);
 
     private IDisposable? _cleanupPCMDrumKitPartialParameters;
-    [Reactive] private string _refreshPCMDrumKitPartial = "";
 
     [Reactive] private string _searchTextPCMDrumKitPartial = "";
 
@@ -35,11 +34,8 @@ public sealed partial class PCMDrumKitPartialViewModel : PartialViewModel
             .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
             .DistinctUntilChanged()
             .Select(FilterProvider.ParameterFilter);
-        var refreshFilterPCMDrumKitPartialParameters = this.WhenAnyValue(x => x.RefreshPCMDrumKitPartial)
-            .Select(FilterProvider.ParameterFilter);
 
         _cleanupPCMDrumKitPartialParameters = _sourceCachePCMDrumKitPartialParameters.Connect()
-            .Filter(refreshFilterPCMDrumKitPartialParameters)
             .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
             .Filter(parFilterPCMDrumKitPartialParameters)
             .FilterOnObservable(fullyQualifiedParameter =>
@@ -103,8 +99,9 @@ public sealed partial class PCMDrumKitPartialViewModel : PartialViewModel
         if (startAddressName == $"Temporary Tone Part {_zeroBasedPart + 1}" &&
             offset2AddressName == $"Offset2/PCM Drum Kit Partial {_zeroBasedPartial + 1}")
         {
-            RefreshPCMDrumKitPartial = ".";
-            RefreshPCMDrumKitPartial = SearchTextPCMDrumKitPartial;
+            // Idiomatic DynamicData: emit a Refresh from the source cache to re-evaluate
+            // filters/visibility after a hardware read. Displayed values update via INPC.
+            _sourceCachePCMDrumKitPartialParameters.Refresh();
         }
     }
 

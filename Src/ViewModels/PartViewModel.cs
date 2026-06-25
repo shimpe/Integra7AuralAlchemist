@@ -210,27 +210,6 @@ public partial class PartViewModel : ViewModelBase
     //
 
     //
-    [Reactive] private string _refreshCommonChorusNeeded = "";
-    [Reactive] public string _refreshCommonMasterEQNeeded = "";
-    [Reactive] private string _refreshCommonMotionalSurroundNeeded = "";
-    [Reactive] private string _refreshCommonReverbNeeded = "";
-    [Reactive] private string _refreshPCMDrumKitCommon = "";
-    [Reactive] private string _refreshPCMDrumKitCommon2 = "";
-    [Reactive] private string _refreshPCMDrumKitCommonMFX = "";
-    [Reactive] private string _refreshPCMDrumKitCompEQ = "";
-    [Reactive] private string _refreshPCMSynthToneCommon = "";
-    [Reactive] private string _refreshPCMSynthToneCommon2 = "";
-    [Reactive] private string _refreshPCMSynthToneCommonMFX = "";
-    [Reactive] private string _refreshPCMSynthTonePMT = "";
-    [Reactive] private string _refreshSNAcousticToneCommon = "";
-    [Reactive] private string _refreshSNAcousticToneCommonMFX = "";
-    [Reactive] private string _refreshSNDrumKitCommon = "";
-    [Reactive] private string _refreshSNDrumKitCommonMFX = "";
-    [Reactive] private string _refreshSNDrumKitCompEQ = "";
-    [Reactive] private string _refreshSNSynthToneCommon = "";
-    [Reactive] private string _refreshSNSynthToneCommonMFX = "";
-    [Reactive] private string _refreshStudioSetPart = "";
-    [Reactive] private string _refreshStudioSetPartEQ = "";
     [Reactive] private string _searchSystem = "";
 
     [Reactive] private string _searchTextPCMDrumKitCommon = "";
@@ -264,6 +243,12 @@ public partial class PartViewModel : ViewModelBase
     [Reactive] private string _searchTextStudioSetMidi = "";
     [Reactive] private string _searchTextStudioSetPart = "";
     [Reactive] private string _searchTextStudioSetPartEQ = "";
+
+    // Stable key (the tone type) of the part's tone-section tab to select. When the tone type changes
+    // this changes too, and TabControlBehaviors.SelectTabByTag selects the tab whose Tag matches
+    // (Avalonia #16879 workaround, see ResyncPartAsync). Same-type changes leave it unchanged, so the
+    // user's current tab is kept.
+    [Reactive] private string _toneTabKey = "";
     private Integra7Preset? _selectedPreset;
 
     //
@@ -318,106 +303,71 @@ public partial class PartViewModel : ViewModelBase
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
                 .Select(FilterProvider.ParameterFilter);
-            var refreshFilterStudioSetPart = this.WhenAnyValue(x => x.RefreshStudioSetPart)
-                .Select(FilterProvider.ParameterFilter);
             var parFilterStudioSetPartEQParameters = this.WhenAnyValue(x => x.SearchTextStudioSetPartEQ)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
-                .Select(FilterProvider.ParameterFilter);
-            var refreshFilterStudioSetPartEQ = this.WhenAnyValue(x => x.RefreshStudioSetPartEQ)
                 .Select(FilterProvider.ParameterFilter);
             var parFilterPCMSynthToneCommonParameters = this.WhenAnyValue(x => x.SearchTextPCMSynthToneCommon)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
                 .Select(FilterProvider.ParameterFilter);
-            var refreshFilterPCMSynthToneCommon = this.WhenAnyValue(x => x.RefreshPCMSynthToneCommon)
-                .Select(FilterProvider.ParameterFilter);
             var parFilterPCMSynthToneCommon2Parameters = this.WhenAnyValue(x => x.SearchTextPCMSynthToneCommon2)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
-                .Select(FilterProvider.ParameterFilter);
-            var refreshFilterPCMSynthToneCommon2 = this.WhenAnyValue(x => x.RefreshPCMSynthToneCommon2)
                 .Select(FilterProvider.ParameterFilter);
             var parFilterPCMSynthToneCommonMFXParameters = this.WhenAnyValue(x => x.SearchTextPCMSynthToneCommonMFX)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
                 .Select(FilterProvider.ParameterFilter);
-            var refreshFilterPCMSynthToneCommonMFX = this.WhenAnyValue(x => x.RefreshPCMSynthToneCommonMFX)
-                .Select(FilterProvider.ParameterFilter);
             var parFilterPCMSynthTonePMTParameters = this.WhenAnyValue(x => x.SearchTextPCMSynthTonePMT)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
-                .Select(FilterProvider.ParameterFilter);
-            var refreshFilterPCMSynthTonePMTParameters = this.WhenAnyValue(x => x.RefreshPCMSynthTonePMT)
                 .Select(FilterProvider.ParameterFilter);
 
             var parFilterPCMDrumKitCommonParameters = this.WhenAnyValue(x => x.SearchTextPCMDrumKitCommon)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
                 .Select(FilterProvider.ParameterFilter);
-            var refreshFilterPCMDrumKitCommon = this.WhenAnyValue(x => x.RefreshPCMDrumKitCommon)
-                .Select(FilterProvider.ParameterFilter);
             var parFilterPCMDrumKitCommon2Parameters = this.WhenAnyValue(x => x.SearchTextPCMDrumKitCommon2)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
-                .Select(FilterProvider.ParameterFilter);
-            var refreshFilterPCMDrumKitCommon2 = this.WhenAnyValue(x => x.RefreshPCMDrumKitCommon2)
                 .Select(FilterProvider.ParameterFilter);
             var parFilterPCMDrumKitCommonMFXParameters = this.WhenAnyValue(x => x.SearchTextPCMDrumKitCommonMFX)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
                 .Select(FilterProvider.ParameterFilter);
-            var refreshFilterPCMDrumKitCommonMFX = this.WhenAnyValue(x => x.RefreshPCMDrumKitCommonMFX)
-                .Select(FilterProvider.ParameterFilter);
             var parFilterPCMDrumKitCompEQParameters = this.WhenAnyValue(x => x.SearchTextPCMDrumKitCompEQ)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
-                .Select(FilterProvider.ParameterFilter);
-            var refreshFilterPCMDrumKitCompEQParameters = this.WhenAnyValue(x => x.RefreshPCMDrumKitCompEQ)
                 .Select(FilterProvider.ParameterFilter);
             var parFilterSNSynthToneCommonParameters = this.WhenAnyValue(x => x.SearchTextSNSynthToneCommon)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
                 .Select(FilterProvider.ParameterFilter);
-            var refreshFilterSNSynthToneCommonParameters = this.WhenAnyValue(x => x.RefreshSNSynthToneCommon)
-                .Select(FilterProvider.ParameterFilter);
             var parFilterSNSynthToneCommonMFXParameters = this.WhenAnyValue(x => x.SearchTextSNSynthToneCommonMFX)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
-                .Select(FilterProvider.ParameterFilter);
-            var refreshFilterSNSynthToneCommonMFXParameters = this.WhenAnyValue(x => x.RefreshSNSynthToneCommonMFX)
                 .Select(FilterProvider.ParameterFilter);
 
             var parFilterSNAcousticToneCommonParameters = this.WhenAnyValue(x => x.SearchTextSNAcousticToneCommon)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
                 .Select(FilterProvider.ParameterFilter);
-            var refreshFilterSNAcousticToneCommonParameters = this.WhenAnyValue(x => x.RefreshSNAcousticToneCommon)
-                .Select(FilterProvider.ParameterFilter);
             var parFilterSNAcousticToneCommonMFXParameters = this.WhenAnyValue(x => x.SearchTextSNAcousticToneCommonMFX)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
-                .Select(FilterProvider.ParameterFilter);
-            var refreshFilterSNAcousticToneCommonMFXParameters = this
-                .WhenAnyValue(x => x.RefreshSNAcousticToneCommonMFX)
                 .Select(FilterProvider.ParameterFilter);
             var parFilterSNDrumKitCommonParameters = this.WhenAnyValue(x => x.SearchTextSNDrumKitCommon)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
                 .Select(FilterProvider.ParameterFilter);
-            var refreshFilterSNDrumKitCommon = this.WhenAnyValue(x => x.RefreshSNDrumKitCommon)
-                .Select(FilterProvider.ParameterFilter);
             var parFilterSNDrumKitCommonMFXParameters = this.WhenAnyValue(x => x.SearchTextSNDrumKitCommonMFX)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
                 .Select(FilterProvider.ParameterFilter);
-            var refreshFilterSNDrumKitCommonMFX = this.WhenAnyValue(x => x.RefreshSNDrumKitCommonMFX)
-                .Select(FilterProvider.ParameterFilter);
             var parFilterSNDrumKitCompEQParameters = this.WhenAnyValue(x => x.SearchTextSNDrumKitCompEQ)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
-                .Select(FilterProvider.ParameterFilter);
-            var refreshFilterSNDrumKitCompEQParameters = this.WhenAnyValue(x => x.RefreshSNDrumKitCompEQ)
                 .Select(FilterProvider.ParameterFilter);
 
 
@@ -442,7 +392,6 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
 
             _cleanupStudioSetPartParams = _sourceCacheStudioSetPartParameters.Connect()
-                .Filter(refreshFilterStudioSetPart)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterStudioSetPartParameters)
                 .FilterOnObservable(par =>
@@ -466,7 +415,6 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupStudioSetPartEQParams = _sourceCacheStudioSetPartEQParameters.Connect()
-                .Filter(refreshFilterStudioSetPartEQ)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterStudioSetPartEQParameters)
                 .FilterOnObservable(par =>
@@ -490,7 +438,6 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupPCMSynthToneCommonParams = _sourceCachePCMSynthToneCommonParameters.Connect()
-                .Filter(refreshFilterPCMSynthToneCommon)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMSynthToneCommonParameters)
                 .FilterOnObservable(par =>
@@ -514,7 +461,6 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupPCMSynthToneCommon2Params = _sourceCachePCMSynthToneCommon2Parameters.Connect()
-                .Filter(refreshFilterPCMSynthToneCommon2)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMSynthToneCommon2Parameters)
                 .FilterOnObservable(par =>
@@ -538,7 +484,6 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupPCMSynthToneCommonMFXParams = _sourceCachePCMSynthToneCommonMFXParameters.Connect()
-                .Filter(refreshFilterPCMSynthToneCommonMFX)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMSynthToneCommonMFXParameters)
                 .FilterOnObservable(par =>
@@ -562,7 +507,6 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupPCMSynthTonePMTParametersParams = _sourceCachePCMSynthTonePMTParameters.Connect()
-                .Filter(refreshFilterPCMSynthTonePMTParameters)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMSynthTonePMTParameters)
                 .FilterOnObservable(par =>
@@ -587,7 +531,6 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
 
             _cleanupPCMDrumKitCommonParams = _sourceCachePCMDrumKitCommonParameters.Connect()
-                .Filter(refreshFilterPCMDrumKitCommon)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMDrumKitCommonParameters)
                 .FilterOnObservable(par =>
@@ -611,7 +554,6 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupPCMDrumKitCommon2Params = _sourceCachePCMDrumKitCommon2Parameters.Connect()
-                .Filter(refreshFilterPCMDrumKitCommon2)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMDrumKitCommon2Parameters)
                 .FilterOnObservable(par =>
@@ -635,7 +577,6 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupPCMDrumKitCommonMFXParams = _sourceCachePCMDrumKitCommonMFXParameters.Connect()
-                .Filter(refreshFilterPCMDrumKitCommonMFX)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMDrumKitCommonMFXParameters)
                 .FilterOnObservable(par =>
@@ -659,7 +600,6 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupPCMDrumKitCompEQParametersParams = _sourceCachePCMDrumKitCompEQParameters.Connect()
-                .Filter(refreshFilterPCMDrumKitCompEQParameters)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterPCMDrumKitCompEQParameters)
                 .FilterOnObservable(par =>
@@ -683,7 +623,6 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupSNSynthToneCommonParams = _sourceCacheSNSynthToneCommonParameters.Connect()
-                .Filter(refreshFilterSNSynthToneCommonParameters)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterSNSynthToneCommonParameters)
                 .FilterOnObservable(par =>
@@ -707,7 +646,6 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupSNSynthToneCommonMFXParams = _sourceCacheSNSynthToneCommonMFXParameters.Connect()
-                .Filter(refreshFilterSNSynthToneCommonMFXParameters)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterSNSynthToneCommonMFXParameters)
                 .FilterOnObservable(par =>
@@ -731,7 +669,6 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupSNAcousticToneCommonParams = _sourceCacheSNAcousticToneCommonParameters.Connect()
-                .Filter(refreshFilterSNAcousticToneCommonParameters)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterSNAcousticToneCommonParameters)
                 .FilterOnObservable(par =>
@@ -755,7 +692,6 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupSNAcousticToneCommonMFXParams = _sourceCacheSNAcousticToneCommonMFXParameters.Connect()
-                .Filter(refreshFilterSNAcousticToneCommonMFXParameters)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterSNAcousticToneCommonMFXParameters)
                 .FilterOnObservable(par =>
@@ -780,7 +716,6 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
 
             _cleanupSNDrumKitCommonParams = _sourceCacheSNDrumKitCommonParameters.Connect()
-                .Filter(refreshFilterSNDrumKitCommon)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterSNDrumKitCommonParameters)
                 .FilterOnObservable(par =>
@@ -804,7 +739,6 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupSNDrumKitCommonMFXParams = _sourceCacheSNDrumKitCommonMFXParameters.Connect()
-                .Filter(refreshFilterSNDrumKitCommonMFX)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterSNDrumKitCommonMFXParameters)
                 .FilterOnObservable(par =>
@@ -828,7 +762,6 @@ public partial class PartViewModel : ViewModelBase
                 .DisposeMany()
                 .Subscribe();
             _cleanupSNDrumKitCompEQParametersParams = _sourceCacheSNDrumKitCompEQParameters.Connect()
-                .Filter(refreshFilterSNDrumKitCompEQParameters)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterSNDrumKitCompEQParameters)
                 .FilterOnObservable(par =>
@@ -874,15 +807,9 @@ public partial class PartViewModel : ViewModelBase
                 .DistinctUntilChanged()
                 .Select(FilterProvider.ParameterFilter);
 
-            var refreshCommonChorus = this.WhenAnyValue(x => x.RefreshCommonChorusNeeded)
-                .Select(FilterProvider.ParameterFilter);
-
             var parFilterStudioSetCommonReverb = this.WhenAnyValue(x => x.SearchTextStudioSetCommonReverb)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
-                .Select(FilterProvider.ParameterFilter);
-
-            var refreshCommonReverb = this.WhenAnyValue(x => x.RefreshCommonReverbNeeded)
                 .Select(FilterProvider.ParameterFilter);
 
             var parFilterStudioSetCommonMotionalSurroundParameters = this
@@ -891,15 +818,9 @@ public partial class PartViewModel : ViewModelBase
                 .DistinctUntilChanged()
                 .Select(FilterProvider.ParameterFilter);
 
-            var refreshCommonMotionalSurround = this.WhenAnyValue(x => x.RefreshCommonMotionalSurroundNeeded)
-                .Select(FilterProvider.ParameterFilter);
-
             var parFilterStudioSetCommonMasterEQParameters = this.WhenAnyValue(x => x.SearchTextStudioSetCommonMasterEQ)
                 .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .DistinctUntilChanged()
-                .Select(FilterProvider.ParameterFilter);
-
-            var refreshCommonMasterEQ = this.WhenAnyValue(x => x.RefreshCommonMasterEQNeeded)
                 .Select(FilterProvider.ParameterFilter);
 
             _cleanupSetup = _sourceCacheSetupParameters.Connect()
@@ -933,7 +854,6 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
 
             _cleanupStudioSetChorus = _sourceCacheStudioSetCommonChorusParameters.Connect()
-                .Filter(refreshCommonChorus)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterStudioSetCommonChorus)
                 .FilterOnObservable(par =>
@@ -958,7 +878,6 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
 
             _cleanupStudioSetReverb = _sourceCacheStudioSetCommonReverbParameters.Connect()
-                .Filter(refreshCommonReverb)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterStudioSetCommonReverb)
                 .FilterOnObservable(par =>
@@ -983,7 +902,6 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
 
             _cleanupMotionalSurround = _sourceCacheStudioSetCommonMotionalSurroundParameters.Connect()
-                .Filter(refreshCommonMotionalSurround)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterStudioSetCommonMotionalSurroundParameters)
                 .FilterOnObservable(par =>
@@ -1008,7 +926,6 @@ public partial class PartViewModel : ViewModelBase
                 .Subscribe();
 
             _cleanupStudioSetMasterEQ = _sourceCacheStudioSetCommonMasterEQParameters.Connect()
-                .Filter(refreshCommonMasterEQ)
                 .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
                 .Filter(parFilterStudioSetCommonMasterEQParameters)
                 .FilterOnObservable(par =>
@@ -1219,127 +1136,68 @@ public partial class PartViewModel : ViewModelBase
     {
         if (!ResyncNeeded)
         {
+            // Re-evaluate the DynamicData filters/visibility for the affected section by emitting
+            // a Refresh from its source cache (the idiomatic way), now that the parameter values
+            // have been read from the Integra-7. The displayed values themselves update via
+            // INotifyPropertyChanged (FullyQualifiedParameter raises it on every value change).
             if (IsCommonTab)
             {
-                //Log.Debug("UI Refresh Requested for Common Tab");
                 if (Offset2AddressName == "Offset2/Studio Set Common Chorus")
-                {
-                    // force re-evaluation of the dynamic data filters after the parameters were read from integra-7
-                    // this feels like a very ugly hack, but i currently do not know how to do it properly
-                    // i tried tons of other stuff (like: "this.RaisePropertyChanged(nameof(RefreshCommonChorusNeeded))"), but nothing seems to work
-                    // ... shiver ...
-                    RefreshCommonChorusNeeded = "."; // RefreshCommonChorusNeeded must not have any .Throttle clauses
-                    RefreshCommonChorusNeeded = SearchTextStudioSetCommonChorus;
-                }
+                    _sourceCacheStudioSetCommonChorusParameters.Refresh();
                 else if (Offset2AddressName == "Offset2/Studio Set Common Reverb")
-                {
-                    RefreshCommonReverbNeeded = ".";
-                    RefreshCommonReverbNeeded = SearchTextStudioSetCommonReverb;
-                }
+                    _sourceCacheStudioSetCommonReverbParameters.Refresh();
             }
             else if (IsPartTab)
             {
-                //Log.Debug($"UI Refresh Requested for Part {_part + 1} Tab");
                 if (Offset2AddressName == $"Offset2/Studio Set Part {PartNo + 1}")
-                {
-                    RefreshStudioSetPart = ".";
-                    RefreshStudioSetPart = SearchTextStudioSetPart;
-                }
+                    _sourceCacheStudioSetPartParameters.Refresh();
                 else if (Offset2AddressName == $"Offset2/Studio Set Part EQ {PartNo + 1}")
-                {
-                    RefreshStudioSetPart = ".";
-                    RefreshStudioSetPart = SearchTextStudioSetPart;
-                }
+                    _sourceCacheStudioSetPartEQParameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/PCM Synth Tone Common")
-                {
-                    RefreshPCMSynthToneCommon = ".";
-                    RefreshPCMSynthToneCommon = SearchTextPCMSynthToneCommon;
-                }
+                    _sourceCachePCMSynthToneCommonParameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/PCM Synth Tone Common 2")
-                {
-                    RefreshPCMSynthToneCommon2 = ".";
-                    RefreshPCMSynthToneCommon2 = SearchTextPCMSynthToneCommon2;
-                }
+                    _sourceCachePCMSynthToneCommon2Parameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/PCM Synth Tone Common MFX")
-                {
-                    RefreshPCMSynthToneCommonMFX = ".";
-                    RefreshPCMSynthToneCommonMFX = SearchTextPCMSynthToneCommonMFX;
-                }
+                    _sourceCachePCMSynthToneCommonMFXParameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/PCM Synth Tone Partial Mix Table")
-                {
-                    RefreshPCMSynthTonePMT = ".";
-                    RefreshPCMSynthTonePMT = SearchTextPCMSynthTonePMT;
-                }
+                    _sourceCachePCMSynthTonePMTParameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/PCM Drum Kit Common")
-                {
-                    RefreshPCMDrumKitCommon = ".";
-                    RefreshPCMDrumKitCommon = SearchTextPCMDrumKitCommon;
-                }
+                    _sourceCachePCMDrumKitCommonParameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/PCM Drum Kit Common 2")
-                {
-                    RefreshPCMDrumKitCommon2 = ".";
-                    RefreshPCMDrumKitCommon2 = SearchTextPCMDrumKitCommon2;
-                }
+                    _sourceCachePCMDrumKitCommon2Parameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/PCM Drum Kit Common MFX")
-                {
-                    RefreshPCMDrumKitCommonMFX = ".";
-                    RefreshPCMDrumKitCommonMFX = SearchTextPCMDrumKitCommonMFX;
-                }
+                    _sourceCachePCMDrumKitCommonMFXParameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/PCM Drum Kit Common Comp-EQ")
-                {
-                    RefreshPCMDrumKitCompEQ = ".";
-                    RefreshPCMDrumKitCompEQ = SearchTextPCMDrumKitCompEQ;
-                }
+                    _sourceCachePCMDrumKitCompEQParameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/SuperNATURAL Synth Tone Common")
-                {
-                    RefreshSNSynthToneCommon = ".";
-                    RefreshSNSynthToneCommon = SearchTextSNSynthToneCommon;
-                }
+                    _sourceCacheSNSynthToneCommonParameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/SuperNATURAL Synth Tone Common MFX")
-                {
-                    RefreshSNSynthToneCommonMFX = ".";
-                    RefreshSNSynthToneCommonMFX = SearchTextSNSynthToneCommonMFX;
-                }
+                    _sourceCacheSNSynthToneCommonMFXParameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/SuperNATURAL Acoustic Tone Common")
-                {
-                    RefreshSNAcousticToneCommon = ".";
-                    RefreshSNAcousticToneCommon = SearchTextSNAcousticToneCommon;
-                }
+                    _sourceCacheSNAcousticToneCommonParameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/SuperNATURAL Acoustic Tone Common MFX")
-                {
-                    RefreshSNAcousticToneCommonMFX = ".";
-                    RefreshSNAcousticToneCommonMFX = SearchTextSNAcousticToneCommonMFX;
-                }
+                    _sourceCacheSNAcousticToneCommonMFXParameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/SuperNATURAL Drum Kit Common")
-                {
-                    RefreshSNDrumKitCommon = ".";
-                    RefreshSNDrumKitCommon = SearchTextSNDrumKitCommon;
-                }
+                    _sourceCacheSNDrumKitCommonParameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/SuperNATURAL Drum Kit Common MFX")
-                {
-                    RefreshSNDrumKitCommonMFX = ".";
-                    RefreshSNDrumKitCommonMFX = SearchTextSNDrumKitCommonMFX;
-                }
+                    _sourceCacheSNDrumKitCommonMFXParameters.Refresh();
                 else if (StartAddressName == $"Temporary Tone Part {PartNo + 1}" &&
                          Offset2AddressName == "Offset2/SuperNATURAL Drum Kit Common Comp-EQ")
-                {
-                    RefreshSNDrumKitCompEQ = ".";
-                    RefreshSNDrumKitCompEQ = SearchTextSNDrumKitCompEQ;
-                }
+                    _sourceCacheSNDrumKitCompEQParameters.Refresh();
 
                 if ((IsPartTab && ParPath.Contains("Tone Bank Select")) || ParPath.Contains("Tone Bank Program Number"))
                     if (Offset2AddressName == $"Offset2/Studio Set Part {PartNo + 1}")
@@ -1699,11 +1557,19 @@ public partial class PartViewModel : ViewModelBase
             }
 
             PreSelectConfiguredPreset(setPart);
+
             this.RaisePropertyChanged(nameof(SelectedPresetIsPCMSynthTone));
             this.RaisePropertyChanged(nameof(SelectedPresetIsPCMDrumKit));
             this.RaisePropertyChanged(nameof(SelectedPresetIsSNSynthTone));
             this.RaisePropertyChanged(nameof(SelectedPresetIsSNAcousticTone));
             this.RaisePropertyChanged(nameof(SelectedPresetIsSNDrumKit));
+
+            // Avalonia #16879 workaround: a TabControl keeps displaying the content of a selected
+            // TabItem even after that tab is hidden via IsVisible. Point ToneTabKey at the new tone
+            // type so TabControlBehaviors.SelectTabByTag selects that type's main (now-visible) tab,
+            // dropping the previous type's stale content. RaiseAndSetIfChanged only fires on an actual
+            // change, so browsing presets of the same type leaves the user's current tab alone.
+            ToneTabKey = _selectedPreset?.ToneTypeStr ?? "";
         }
     }
 }

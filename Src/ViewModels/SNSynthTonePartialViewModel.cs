@@ -22,7 +22,6 @@ public sealed partial class SNSynthTonePartialViewModel : PartialViewModel
         new(x => x.ParSpec.Path);
 
     private IDisposable? _cleanupSNSynthTonePartialParameters;
-    [Reactive] private string _refreshSNSynthTonePartial = "";
 
     [Reactive] private string _searchTextSNSynthTonePartial = "";
 
@@ -36,11 +35,8 @@ public sealed partial class SNSynthTonePartialViewModel : PartialViewModel
             .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
             .DistinctUntilChanged()
             .Select(FilterProvider.ParameterFilter);
-        var refreshFilterSNSynthTonePartialParameters = this.WhenAnyValue(x => x.RefreshSNSynthTonePartial)
-            .Select(FilterProvider.ParameterFilter);
 
         _cleanupSNSynthTonePartialParameters = _sourceCacheSNSynthTonePartialParameters.Connect()
-            .Filter(refreshFilterSNSynthTonePartialParameters)
             .Batch(TimeSpan.FromMilliseconds(Constants.THROTTLE))
             .Filter(parFilterSNSynthTonePartialParameters)
             .FilterOnObservable(fullyQualifiedParameter =>
@@ -91,8 +87,9 @@ public sealed partial class SNSynthTonePartialViewModel : PartialViewModel
         if (startAddressName == $"Temporary Tone Part {_zeroBasedPart + 1}" &&
             offset2AddressName == $"Offset2/SuperNATURAL Synth Tone Partial {_zeroBasedPartial + 1}")
         {
-            RefreshSNSynthTonePartial = ".";
-            RefreshSNSynthTonePartial = SearchTextSNSynthTonePartial;
+            // Idiomatic DynamicData: emit a Refresh from the source cache to re-evaluate
+            // filters/visibility after a hardware read. Displayed values update via INPC.
+            _sourceCacheSNSynthTonePartialParameters.Refresh();
         }
     }
 
