@@ -26,6 +26,9 @@ public sealed class SNSynthToneHeaderViewModel : ViewModelBase, IDisposable
     public ParamString UnisonSize { get; }
     public ParamInt AnalogFeel { get; }
     public ParamString Ring { get; }       // Off/Reserved/On (combo for the slice)
+    public ParamInt OctaveShift { get; }
+    public ParamInt PitchBendUp { get; }
+    public ParamInt PitchBendDown { get; }
 
     public SNSynthToneHeaderViewModel(DomainBase common,
         IReadOnlyDictionary<string, FullyQualifiedParameter> byPath, ThrottledParameterWriter writer)
@@ -43,6 +46,9 @@ public sealed class SNSynthToneHeaderViewModel : ViewModelBase, IDisposable
         UnisonSize = PS("Unison Size", new[] { "2", "4", "6", "8" });
         AnalogFeel = PI("Analog Feel", 0, 127);
         Ring = PS("Ring Switch");
+        OctaveShift = PI("Octave Shift", -3, 3);
+        PitchBendUp = PI("Pitch Bend Range Up", 0, 24);
+        PitchBendDown = PI("Pitch Bend Range Down", 0, 24);
 
         _toneName = byPath[CP + "Tone Name"];
         _toneName.PropertyChanged += OnToneNameChanged;
