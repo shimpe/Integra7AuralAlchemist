@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
@@ -68,6 +69,61 @@ public sealed partial class SNSynthToneEditorViewModel : ViewModelBase, IDisposa
     [ReactiveCommand] public void AdvancedOscillator() => _navigateToRawTab?.Invoke("SN-S-PARTIALS", SelectedPartial.Index);
     [ReactiveCommand] public void AdvancedAmp() => _navigateToRawTab?.Invoke("SN-S-PARTIALS", SelectedPartial.Index);
     [ReactiveCommand] public void AdvancedCommon() => _navigateToRawTab?.Invoke("SN-S-COMMON", null);
+
+    // --- Partial Solo/Mute audition ---
+    private readonly bool[] _savedSwitches = new bool[Constants.NO_OF_PARTIALS_SN_SYNTH_TONE];
+    private bool _auditing;
+    private bool _suppressRecompute;
+
+    private bool _isAuditioning;
+    /// <summary>True while any partial is soloed or muted (drives the banner + disables card on/off).</summary>
+    public bool IsAuditioning
+    {
+        get => _isAuditioning;
+        private set => this.RaiseAndSetIfChanged(ref _isAuditioning, value);
+    }
+
+    /// <summary>Recompute effective partial on/off from the solo/mute flags. Snapshots the real
+    /// switches when an audition begins and restores them when it ends (safe audition).</summary>
+    public void RecomputeAudition()
+    {
+        if (_suppressRecompute) return;
+
+        var solo = Partials.Select(p => p.Solo).ToList();
+        var mute = Partials.Select(p => p.Mute).ToList();
+        var active = PartialAudition.IsAuditioning(solo, mute);
+
+        if (active && !_auditing)
+        {
+            for (var i = 0; i < Partials.Count; i++) _savedSwitches[i] = Partials[i].IsOn.Value;
+            _auditing = true;
+        }
+
+        if (active)
+        {
+            var saved = new bool[Partials.Count];
+            for (var i = 0; i < Partials.Count; i++) saved[i] = _savedSwitches[i];
+            var eff = PartialAudition.Effective(saved, solo, mute);
+            for (var i = 0; i < Partials.Count; i++) Partials[i].IsOn.Value = eff[i];
+        }
+        else if (_auditing)
+        {
+            for (var i = 0; i < Partials.Count; i++) Partials[i].IsOn.Value = _savedSwitches[i];
+            _auditing = false;
+        }
+
+        IsAuditioning = active;
+    }
+
+    /// <summary>Clear all solo/mute and restore the saved switches (single recompute).</summary>
+    [ReactiveCommand]
+    public void ClearAudition()
+    {
+        _suppressRecompute = true;
+        foreach (var p in Partials) p.SetAuditionFlags(false, false);
+        _suppressRecompute = false;
+        RecomputeAudition();
+    }
 
     public void Dispose()
     {
