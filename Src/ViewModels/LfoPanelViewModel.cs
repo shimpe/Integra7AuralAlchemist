@@ -22,6 +22,9 @@ public sealed class LfoPanelViewModel : ViewModelBase, IDisposable
     public bool HasKeyTrigger => !IsModWheel;
     public bool HasRateControl => IsModWheel;
 
+    /// <summary>Roland param-name prefix for this LFO ("LFO " or "Modulation LFO "); drives tooltips.</summary>
+    public string Prefix => IsModWheel ? "Modulation LFO " : "LFO ";
+
     public ParamString Shape { get; }
     public ParamInt Rate { get; }
     public ParamBool TempoSync { get; }
