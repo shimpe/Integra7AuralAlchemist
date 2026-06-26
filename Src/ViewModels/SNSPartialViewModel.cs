@@ -61,6 +61,11 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
     public ParamInt FilterEnvRelease { get; }
     public ParamInt FilterEnvDepth { get; }
 
+    // --- Pitch envelope (bipolar AD) ---
+    public ParamInt PitchEnvAttack { get; }
+    public ParamInt PitchEnvDecay { get; }
+    public ParamInt PitchEnvDepth { get; }
+
     private int _activeEnvelope; // 0 = Amp, 1 = Filter (bound to the dual control toggle)
     public int ActiveEnvelope { get => _activeEnvelope; set => this.RaiseAndSetIfChanged(ref _activeEnvelope, value); }
 
@@ -116,6 +121,10 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
         FilterEnvRelease = PI("Filter Env Release Time", 0, 127);
         FilterEnvDepth = PI("Filter Env Depth", -63, 63);
 
+        PitchEnvAttack = PI("OSC Pitch Env Attack Time", 0, 127);
+        PitchEnvDecay = PI("OSC Pitch Env Decay", 0, 127);
+        PitchEnvDepth = PI("OSC Pitch Env Depth", -63, 63);
+
         IsOn = Track(new ParamBool(commonDomain, commonByPath[CP + $"Partial{index + 1} Switch"], writer));
 
         _editable = new IParam[]
@@ -125,7 +134,8 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
             AmpLevel, AmpPan, AmpVeloSens, AmpKeyfollow,
             AmpEnvAttack, AmpEnvDecay, AmpEnvSustain, AmpEnvRelease,
             FilterMode, FilterSlopeSteep, FilterCutoff, FilterResonance, FilterCutoffKeyfollow, HpfCutoff, FilterEnvVeloSens,
-            FilterEnvAttack, FilterEnvDecay, FilterEnvSustain, FilterEnvRelease, FilterEnvDepth
+            FilterEnvAttack, FilterEnvDecay, FilterEnvSustain, FilterEnvRelease, FilterEnvDepth,
+            PitchEnvAttack, PitchEnvDecay, PitchEnvDepth
         };
 
         // Re-raise the conditional-visibility flags and card summary when the wave / level / pan change.
@@ -214,7 +224,10 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
         [PP + "Filter Env Decay Time"] = "64",
         [PP + "Filter Env Sustain Level"] = "127",
         [PP + "Filter Env Release Time"] = "30",
-        [PP + "Filter Env Depth"] = "0"
+        [PP + "Filter Env Depth"] = "0",
+        [PP + "OSC Pitch Env Attack Time"] = "0",
+        [PP + "OSC Pitch Env Decay"] = "64",
+        [PP + "OSC Pitch Env Depth"] = "0"
     };
 
     public void Dispose()
