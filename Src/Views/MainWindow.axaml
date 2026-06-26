@@ -299,11 +299,12 @@
                                                     SearchText="{Binding SearchTextSNSynthToneCommonMFX, Mode=TwoWay}" />
                                             </TabItem>
                                             <TabItem Header="Editor"
+                                                     Tag="SN-A"
                                                      IsVisible="{Binding SelectedPresetIsSNAcousticTone}">
                                                 <local:SNAcousticToneEditorView DataContext="{Binding SNAcousticToneEditor}" />
                                             </TabItem>
                                             <TabItem Header="Tone"
-                                                     Tag="SN-A"
+                                                     Tag="SN-A-TONE"
                                                      IsVisible="{Binding SelectedPresetIsSNAcousticTone}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding SNAcousticToneCommonParameters}"

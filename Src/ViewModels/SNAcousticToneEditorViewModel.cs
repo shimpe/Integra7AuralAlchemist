@@ -102,8 +102,9 @@ public sealed partial class SNAcousticToneEditorViewModel : ViewModelBase, IDisp
         return wrapper;
     }
 
-    // Open the raw SN-A Tone tab for the full parameter set.
-    [ReactiveCommand] public void AdvancedAcoustic() => _navigateToRawTab?.Invoke("SN-A", null);
+    // Open the raw SN-A Tone tab for the full parameter set. The friendly Editor tab owns Tag "SN-A"
+    // (so it's the default on preset load), so the raw Tone tab uses the suffixed "SN-A-TONE".
+    [ReactiveCommand] public void AdvancedAcoustic() => _navigateToRawTab?.Invoke("SN-A-TONE", null);
 
     public void Dispose()
     {
