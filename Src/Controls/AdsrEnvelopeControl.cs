@@ -1,4 +1,3 @@
-using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
@@ -56,9 +55,6 @@ public class AdsrEnvelopeControl : Control
     private static readonly IPen GridPen = new Pen(new SolidColorBrush(Color.FromArgb(0x22, 0xff, 0xff, 0xff)), 1);
     private static readonly IPen AxisPen = new Pen(new SolidColorBrush(Color.FromArgb(0x55, 0xff, 0xff, 0xff)), 1);
     private static readonly IPen FocusPen = new Pen(Brushes.Orange, 2);
-
-    // Axis ticks every 16 parameter units (0..127).
-    private const int TickStep = 16;
 
     // Preview (mini card) palette: dimmer so it reads as a non-editable thumbnail, not a control.
     private static readonly IBrush PreviewBg = new SolidColorBrush(Color.Parse("#15181a"));
@@ -121,6 +117,7 @@ public class AdsrEnvelopeControl : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+        if (Preview) return; // previews are non-interactive
         Focus();
         var pos = e.GetPosition(this);
         var p = SnsEnvelopeMapping.ComputePoints(Attack, Decay, Sustain, Release, Bounds.Width, Bounds.Height, SustainWidth);
@@ -171,6 +168,7 @@ public class AdsrEnvelopeControl : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (Preview) return; // previews are non-interactive
         switch (e.Key)
         {
             case Key.Tab:

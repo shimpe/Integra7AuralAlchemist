@@ -75,7 +75,9 @@ public class DualAdsrEnvelopeControl : Control
         AffectsRender<DualAdsrEnvelopeControl>(
             AmpAttackProperty, AmpDecayProperty, AmpSustainProperty, AmpReleaseProperty,
             FilterAttackProperty, FilterDecayProperty, FilterSustainProperty, FilterReleaseProperty,
-            ActiveEnvelopeProperty, AmpLineBrushProperty, FilterLineBrushProperty);
+            ActiveEnvelopeProperty, AmpLineBrushProperty, AmpFillBrushProperty,
+            FilterLineBrushProperty, FilterFillBrushProperty, BackgroundBrushProperty,
+            GridBrushProperty, AxisBrushProperty, HandleBrushProperty, FocusBrushProperty);
         FocusableProperty.OverrideDefaultValue<DualAdsrEnvelopeControl>(true);
     }
 
