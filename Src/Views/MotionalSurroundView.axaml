@@ -155,23 +155,23 @@
           <TextBlock Text="{Binding SelectedPart.DetailTitle}" FontWeight="Bold" FontSize="16"/>
           <TextBlock Text="L-R   (Left . Center . Right)"/>
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <Slider Minimum="-64" Maximum="63" Width="170" Value="{Binding SelectedPart.Lr}"/>
-            <NumericUpDown Minimum="-64" Maximum="63" Increment="1" Width="100" FormatString="0" Value="{Binding SelectedPart.Lr}"/>
+            <Slider Minimum="-64" Maximum="63" Width="150" Value="{Binding SelectedPart.Lr}"/>
+            <NumericUpDown Minimum="-64" Maximum="63" Increment="1" Width="120" FormatString="0" Value="{Binding SelectedPart.Lr}"/>
           </StackPanel>
           <TextBlock Text="F-B   (Front . Center . Back)"/>
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <Slider Minimum="-64" Maximum="63" Width="170" Value="{Binding SelectedPart.Fb}"/>
-            <NumericUpDown Minimum="-64" Maximum="63" Increment="1" Width="100" FormatString="0" Value="{Binding SelectedPart.Fb}"/>
+            <Slider Minimum="-64" Maximum="63" Width="150" Value="{Binding SelectedPart.Fb}"/>
+            <NumericUpDown Minimum="-64" Maximum="63" Increment="1" Width="120" FormatString="0" Value="{Binding SelectedPart.Fb}"/>
           </StackPanel>
           <TextBlock Text="Width   (Narrow to Wide)"/>
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <Slider Minimum="0" Maximum="32" Width="170" Value="{Binding SelectedPart.Width}"/>
-            <NumericUpDown Minimum="0" Maximum="32" Increment="1" Width="100" FormatString="0" Value="{Binding SelectedPart.Width}"/>
+            <Slider Minimum="0" Maximum="32" Width="150" Value="{Binding SelectedPart.Width}"/>
+            <NumericUpDown Minimum="0" Maximum="32" Increment="1" Width="120" FormatString="0" Value="{Binding SelectedPart.Width}"/>
           </StackPanel>
           <TextBlock Text="Ambience Send   (Dry to Ambient)"/>
           <StackPanel Orientation="Horizontal" Spacing="6">
-            <Slider Minimum="0" Maximum="127" Width="170" Value="{Binding SelectedPart.Ambience}"/>
-            <NumericUpDown Minimum="0" Maximum="127" Increment="1" Width="100" FormatString="0" Value="{Binding SelectedPart.Ambience}"/>
+            <Slider Minimum="0" Maximum="127" Width="150" Value="{Binding SelectedPart.Ambience}"/>
+            <NumericUpDown Minimum="0" Maximum="127" Increment="1" Width="120" FormatString="0" Value="{Binding SelectedPart.Ambience}"/>
           </StackPanel>
           <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding SelectedPart.IsExternal}">
             <TextBlock Text="Control Channel" VerticalAlignment="Center"/>
