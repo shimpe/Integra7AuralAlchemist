@@ -298,6 +298,10 @@
                                                     Parameters="{Binding SNSynthToneCommonMFXParameters}"
                                                     SearchText="{Binding SearchTextSNSynthToneCommonMFX, Mode=TwoWay}" />
                                             </TabItem>
+                                            <TabItem Header="Editor"
+                                                     IsVisible="{Binding SelectedPresetIsSNAcousticTone}">
+                                                <local:SNAcousticToneEditorView DataContext="{Binding SNAcousticToneEditor}" />
+                                            </TabItem>
                                             <TabItem Header="Tone"
                                                      Tag="SN-A"
                                                      IsVisible="{Binding SelectedPresetIsSNAcousticTone}">
@@ -306,6 +310,7 @@
                                                     SearchText="{Binding SearchTextSNAcousticToneCommon, Mode=TwoWay}" />
                                             </TabItem>
                                             <TabItem Header="MFX"
+                                                     Tag="SN-A-MFX"
                                                      IsVisible="{Binding SelectedPresetIsSNAcousticTone}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding SNAcousticToneCommonMFXParameters}"

@@ -198,6 +198,7 @@ public partial class PartViewModel : ViewModelBase
 
     private IDisposable? _cleanupSNSynthToneCommonParams;
     [Reactive] private SNSynthToneEditorViewModel? _sNSynthToneEditor;
+    [Reactive] private SNAcousticToneEditorViewModel? _sNAcousticToneEditor;
     private IDisposable? _cleanupStudioSetChorus;
     private IDisposable? _cleanupStudioSetCommon;
     private IDisposable? _cleanupStudioSetMasterEQ;
@@ -1398,6 +1399,16 @@ public partial class PartViewModel : ViewModelBase
             List<FullyQualifiedParameter> p_snamfx =
                 _i7domain.SNAcousticToneCommonMFX(PartNo).GetRelevantParameters(true, true);
             _sourceCacheSNAcousticToneCommonMFXParameters.AddOrUpdate(p_snamfx);
+
+            // Friendly SuperNATURAL Acoustic editor for this part. Mirrors the SN-S editor above:
+            // binds to the live SN-A FQP instances and resets ToneTabKey (clear-then-set) so repeat
+            // "Advanced …" navigations always fire SelectTabByTag. No partial index for SN-A.
+            _sNAcousticToneEditor?.Dispose();
+            SNAcousticToneEditor = new SNAcousticToneEditorViewModel(_i7domain, PartNo, (tag, _) =>
+            {
+                ToneTabKey = "";
+                ToneTabKey = tag;
+            });
 
             List<FullyQualifiedParameter> p_sndkc = _i7domain.SNDrumKitCommon(PartNo).GetRelevantParameters(true, true);
             _sourceCacheSNDrumKitCommonParameters.AddOrUpdate(p_sndkc);
