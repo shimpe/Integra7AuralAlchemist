@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Reactive;
+using System.ComponentModel;
+using Avalonia.Threading;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
@@ -26,6 +28,7 @@ public sealed class MfxPanelViewModel : ViewModelBase, IDisposable
     private readonly DomainBase _mfxDomain;
     private readonly List<FullyQualifiedParameter> _allMfxParams; // all variants, context-independent
     private readonly IDisposable _typeSub;
+    private readonly List<FullyQualifiedParameter> _discriminators;
 
     private bool _syncing;            // true while syncing the picker from Type (suppress write-back)
     private string _lastEffectType = "Equalizer";
@@ -52,8 +55,21 @@ public sealed class MfxPanelViewModel : ViewModelBase, IDisposable
 
         AdvancedMfxCommand = ReactiveCommand.Create(navigateToAdvanced);
 
-        // Fires immediately with the current type, then on every change (picker / hardware / raw tab).
+        // Recompute the per-type grid only when a *discriminator* (the MFX Type or a sub-switch such
+        // as a delay's ms/Note selector) changes — not on every value edit, which would tear down a
+        // control mid-drag. Discriminators are the params referenced as a parent by some MFX param.
+        var parentPaths = _allMfxParams
+            .SelectMany(p => new[] { p.ParSpec.ParentCtrl, p.ParSpec.ParentCtrl2 })
+            .Where(s => !string.IsNullOrEmpty(s))
+            .ToHashSet();
+        _discriminators = _allMfxParams.Where(p => parentPaths.Contains(p.ParSpec.Path)).ToList();
+        foreach (var d in _discriminators) d.PropertyChanged += OnDiscriminatorChanged;
+
+        // Keeps the family/type pickers + Bypass in sync immediately; the grid follows via the
+        // discriminator subscription once the underlying FQP settles.
         _typeSub = Type.WhenAnyValue(t => t.Value).Subscribe(OnTypeChanged);
+
+        RecomputeTypeParameters(); // initial population
     }
 
     // ---- Picker projection -------------------------------------------------
@@ -135,8 +151,14 @@ public sealed class MfxPanelViewModel : ViewModelBase, IDisposable
         }
         finally { _syncing = false; }
 
-        RecomputeTypeParameters(typeName);
         this.RaisePropertyChanged(nameof(Bypass));
+    }
+
+    private void OnDiscriminatorChanged(object? s, PropertyChangedEventArgs e)
+    {
+        // May fire on a MIDI / throttle-timer thread; marshal before touching TypeParameters.
+        if (e.PropertyName != nameof(FullyQualifiedParameter.StringValue)) return;
+        Dispatcher.UIThread.Post(RecomputeTypeParameters);
     }
 
     private int IndexOfType(string typeName)
@@ -146,12 +168,14 @@ public sealed class MfxPanelViewModel : ViewModelBase, IDisposable
         return -1;
     }
 
-    private void RecomputeTypeParameters(string typeName)
+    // Build the grid from the full context-valid set so 2-level discriminator chains
+    // (MFX Type -> switch -> value, e.g. a delay's ms/Note time) are honoured.
+    // GetRelevantParameters(false,false) excludes reserved + invalid-in-context and follows the chain.
+    private void RecomputeTypeParameters()
     {
-        var relevant = _allMfxParams
-            .Where(p => !p.ParSpec.Reserved
-                        && p.ParSpec.Path.Contains("/MFX Parameter ")
-                        && p.ParSpec.ParentCtrlDispValue == typeName)
+        var typeName = Type.Value;
+        var relevant = _mfxDomain.GetRelevantParameters(false, false)
+            .Where(p => p.ParSpec.Path.Contains("/MFX Parameter "))
             .OrderBy(p => p.ParSpec.AddressInt)
             .ToList();
         var labels = MfxCatalog.FriendlyParamNames(typeName, relevant.Select(p => p.ParSpec.Name).ToList());
@@ -164,6 +188,7 @@ public sealed class MfxPanelViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        foreach (var d in _discriminators) d.PropertyChanged -= OnDiscriminatorChanged;
         _typeSub.Dispose();
         AdvancedMfxCommand.Dispose();
         Type.Dispose();
