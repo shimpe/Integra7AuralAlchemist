@@ -36,10 +36,18 @@ whose `FullyQualifiedParameter` (FQP) values are kept current by the hardware→
 as `MotionalSurroundViewModel` relies on for `StudioSetPart(i)`. The editor **binds to these
 same FQP instances**, so preset changes / hardware edits / resyncs sync for free.
 
-**Path templates** (look up by full `ParSpec.Path`):
-- Partial: `Temporary Tone Part {N}/Offset/Temporary SuperNATURAL Synth Tone/Offset2/SuperNATURAL Synth Tone Partial {P}/<name>` (N=1..16, P=1..3)
-- Common: `…/Offset2/SuperNATURAL Synth Tone Common/<name>`
-- MFX: `…/Offset2/SuperNATURAL Synth Tone Common MFX/<name>`
+**Lookup paths** — the dictionary key and the `DomainBase.WriteToIntegraAsync(path, …)`
+argument is the `ParSpec.Path` (= `<prefix>/<name>`). The part/partial context comes from
+*which domain instance* you call, **not** from the path (exactly as the Motional Surround code
+keys on `"Studio Set Part/Motional Surround L-R"` and gets the part from `StudioSetPart(i)`):
+- Partial — via `SNSynthTonePartial(part, partial)`: `SuperNATURAL Synth Tone Partial/<name>`
+- Common — via `SNSynthToneCommon(part)`: `SuperNATURAL Synth Tone Common/<name>`
+- MFX — via `SNSynthToneCommonMFX(part)`: `SuperNATURAL Synth Tone Common MFX/<name>`
+
+Build `GetRelevantParameters(true, true).ToDictionary(p => p.ParSpec.Path)` per domain. All
+three partial domains share the **same** path set (they differ only by domain instance), which
+makes partial copy/paste trivial: snapshot `{path → StringValue}` from the source partial and
+write each to the target partial's domain.
 
 **Spec items that do NOT exist for SN-S** (belong to other engines; will not be invented):
 Envelope Loop mode/sync-note, Attack/Release/Portamento *Interval Sensitivity*, Chromatic
