@@ -106,8 +106,8 @@
         <Grid>
           <Rectangle Height="1" Fill="#44494b" HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
           <Rectangle Width="1" Fill="#44494b" VerticalAlignment="Stretch" HorizontalAlignment="Center"/>
-          <TextBlock Text="FRONT" Classes="help" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,4"/>
-          <TextBlock Text="BACK" Classes="help" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,4"/>
+          <TextBlock Text="BACK" Classes="help" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,4"/>
+          <TextBlock Text="FRONT" Classes="help" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,4"/>
           <TextBlock Text="L" Classes="help" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="4,0"/>
           <TextBlock Text="R" Classes="help" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="4,0"/>
           <!-- x:CompileBindings="False" on the puck ItemsControl:

@@ -7,7 +7,9 @@ namespace Integra7AuralAlchemist.Models.Services;
 ///
 /// Axis mapping on the 2D room map (documented so it is unambiguous):
 ///   L-R: left edge = -64, center = 0, right edge = +63   (normalized 0..1 left->right)
-///   F-B: top edge  = -64 (Front), center = 0, bottom = +63 (Back) (normalized 0..1 top->bottom)
+///   F-B: -64 = Front, center = 0, +63 = Back. To match the Integra-7's built-in editor the
+///        vertical axis is inverted by the consumer (CanvasY / drag use 1 - normalized), so
+///        Front (-64) is drawn at the BOTTOM and Back (+63) at the TOP.
 /// Both L-R and F-B share the same inclusive integer range [-64, +63].
 /// Width is [0, 32]; Ambience send is [0, 127].
 /// </summary>

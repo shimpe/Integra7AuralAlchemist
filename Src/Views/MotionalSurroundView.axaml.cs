@@ -83,7 +83,9 @@ public partial class MotionalSurroundView : UserControl
         var ny = (pos.Y - PuckRadius) / Vm.StageHeight;
         _dragVm.Lr = MotionalSurroundMapping.FromNormalized(nx,
             MotionalSurroundMapping.LrFbMin, MotionalSurroundMapping.LrFbMax);
-        _dragVm.Fb = MotionalSurroundMapping.FromNormalized(ny,
+        // Vertical axis is inverted to match the Integra-7's built-in editor: bottom = Front (-64),
+        // top = Back (+63). Keep this 1-ny in sync with CanvasY in MotionalSurroundPartViewModel.
+        _dragVm.Fb = MotionalSurroundMapping.FromNormalized(1 - ny,
             MotionalSurroundMapping.LrFbMin, MotionalSurroundMapping.LrFbMax);
     }
 
@@ -109,8 +111,8 @@ public partial class MotionalSurroundView : UserControl
             {
                 case Key.Left: p.Lr -= 1; e.Handled = true; break;
                 case Key.Right: p.Lr += 1; e.Handled = true; break;
-                case Key.Up: p.Fb -= 1; e.Handled = true; break;   // up = toward Front (-)
-                case Key.Down: p.Fb += 1; e.Handled = true; break;
+                case Key.Up: p.Fb += 1; e.Handled = true; break;   // up = toward Back (+), bottom = Front
+                case Key.Down: p.Fb -= 1; e.Handled = true; break;
             }
         }
     }
