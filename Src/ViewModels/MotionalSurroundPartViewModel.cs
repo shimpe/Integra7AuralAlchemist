@@ -176,12 +176,12 @@ public class MotionalSurroundPartViewModel : ViewModelBase, IDisposable
     }
 
     // --- Canvas coordinates (set by the parent when the stage is measured) ---
-    public double CanvasX => MotionalSurroundMapping.ToNormalized(_lr,
-        MotionalSurroundMapping.LrFbMin, MotionalSurroundMapping.LrFbMax) * _parent.StageWidth;
+    // Use the centred mapping so a value of 0 lands at exactly 0.5 of the stage: combined with the
+    // half-puck offset in the view, a part at (0,0) sits dead-centre on the axis crossing.
+    public double CanvasX => MotionalSurroundMapping.LrFbToNormalized(_lr) * _parent.StageWidth;
     // Vertical axis is inverted to match the Integra-7's built-in editor: F-B -64 (Front) sits at the
     // BOTTOM and +63 (Back) at the TOP. The drag math in MotionalSurroundView mirrors this with 1 - ny.
-    public double CanvasY => (1.0 - MotionalSurroundMapping.ToNormalized(_fb,
-        MotionalSurroundMapping.LrFbMin, MotionalSurroundMapping.LrFbMax)) * _parent.StageHeight;
+    public double CanvasY => (1.0 - MotionalSurroundMapping.LrFbToNormalized(_fb)) * _parent.StageHeight;
 
     public string PositionLabel
     {

@@ -1,7 +1,9 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.VisualTree;
 using Integra7AuralAlchemist.Models.Services;
 using Integra7AuralAlchemist.ViewModels;
@@ -12,7 +14,12 @@ public partial class MotionalSurroundView : UserControl
 {
     private const double PuckRadius = 14; // half of the 28px puck
 
+    // Faint guide rings are drawn at these L-R/F-B radii (multiples of 8, up to the 64 half-span).
+    private static readonly int[] RingRadii = [8, 16, 24, 32, 40, 48, 56, 64];
+    private static readonly IBrush RingBrush = new SolidColorBrush(Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF));
+
     private ItemsControl? _puckHost;
+    private Canvas? _ringCanvas;
     private Border? _dragging;
     private MotionalSurroundPartViewModel? _dragVm;
 
@@ -32,14 +39,21 @@ public partial class MotionalSurroundView : UserControl
     {
         if (_puckHost != null) return;
         _puckHost = this.FindControl<ItemsControl>("PuckHost");
+        _ringCanvas = this.FindControl<Canvas>("RingCanvas");
         if (_puckHost is null) return;
         _puckHost.AddHandler(PointerPressedEvent, OnPuckPointerPressed, RoutingStrategies.Tunnel);
         _puckHost.AddHandler(PointerMovedEvent, OnPuckPointerMoved, RoutingStrategies.Tunnel);
         _puckHost.AddHandler(PointerReleasedEvent, OnPuckPointerReleased, RoutingStrategies.Tunnel);
         _puckHost.AddHandler(PointerCaptureLostEvent, OnPuckPointerCaptureLost, RoutingStrategies.Bubble);
         _puckHost.AddHandler(KeyDownEvent, OnPuckKeyDown, RoutingStrategies.Bubble);
-        _puckHost.PropertyChanged += (_, ev) => { if (ev.Property == BoundsProperty) UpdateStage(); };
+        _puckHost.PropertyChanged += (_, ev) =>
+        {
+            if (ev.Property != BoundsProperty) return;
+            UpdateStage();
+            DrawRings();
+        };
         UpdateStage();
+        DrawRings();
     }
 
     private void UpdateStage()
@@ -48,6 +62,40 @@ public partial class MotionalSurroundView : UserControl
         var b = _puckHost.Bounds;
         if (b.Width > 2 * PuckRadius) Vm.StageWidth = b.Width - 2 * PuckRadius;
         if (b.Height > 2 * PuckRadius) Vm.StageHeight = b.Height - 2 * PuckRadius;
+    }
+
+    // Draw faint concentric guide rings whose radii are multiples of 8 in L-R/F-B units, centred on
+    // the (0,0) axis crossing. A value-radius r is an ellipse on screen because the stage's X and Y
+    // scales differ (the room map is rarely square) — this keeps the rings aligned with the pucks,
+    // which use those same per-axis scales. A part exactly r units from centre sits on ring r.
+    private void DrawRings()
+    {
+        if (_ringCanvas is null || _puckHost is null) return;
+        _ringCanvas.Children.Clear();
+        var w = _puckHost.Bounds.Width;
+        var h = _puckHost.Bounds.Height;
+        if (w <= 2 * PuckRadius || h <= 2 * PuckRadius) return;
+
+        var stageW = w - 2 * PuckRadius;
+        var stageH = h - 2 * PuckRadius;
+        var cx = w / 2.0;
+        var cy = h / 2.0;
+        foreach (var r in RingRadii)
+        {
+            var rx = r / (2.0 * MotionalSurroundMapping.LrFbHalfSpan) * stageW;
+            var ry = r / (2.0 * MotionalSurroundMapping.LrFbHalfSpan) * stageH;
+            var ring = new Ellipse
+            {
+                Width = 2 * rx,
+                Height = 2 * ry,
+                Stroke = RingBrush,
+                StrokeThickness = 1,
+                IsHitTestVisible = false
+            };
+            Canvas.SetLeft(ring, cx - rx);
+            Canvas.SetTop(ring, cy - ry);
+            _ringCanvas.Children.Add(ring);
+        }
     }
 
     private static Border? FindPuck(object? src)
@@ -81,12 +129,11 @@ public partial class MotionalSurroundView : UserControl
         var pos = e.GetPosition(_puckHost);
         var nx = (pos.X - PuckRadius) / Vm.StageWidth;
         var ny = (pos.Y - PuckRadius) / Vm.StageHeight;
-        _dragVm.Lr = MotionalSurroundMapping.FromNormalized(nx,
-            MotionalSurroundMapping.LrFbMin, MotionalSurroundMapping.LrFbMax);
+        // Centred inverse mapping: keep in sync with CanvasX/CanvasY in MotionalSurroundPartViewModel.
+        _dragVm.Lr = MotionalSurroundMapping.NormalizedToLrFb(nx);
         // Vertical axis is inverted to match the Integra-7's built-in editor: bottom = Front (-64),
-        // top = Back (+63). Keep this 1-ny in sync with CanvasY in MotionalSurroundPartViewModel.
-        _dragVm.Fb = MotionalSurroundMapping.FromNormalized(1 - ny,
-            MotionalSurroundMapping.LrFbMin, MotionalSurroundMapping.LrFbMax);
+        // top = Back (+63). The 1-ny mirrors the 1-normalized in CanvasY.
+        _dragVm.Fb = MotionalSurroundMapping.NormalizedToLrFb(1 - ny);
     }
 
     private void OnPuckPointerReleased(object? sender, PointerReleasedEventArgs e)

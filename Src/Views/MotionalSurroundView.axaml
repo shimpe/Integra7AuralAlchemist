@@ -18,6 +18,13 @@
       <Setter Property="Foreground" Value="#8a9092"/>
       <Setter Property="Margin" Value="0,0,0,4"/>
     </Style>
+    <!-- Vertically centre the value text inside every spin box. -->
+    <Style Selector="NumericUpDown">
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="NumericUpDown /template/ TextBox">
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+    </Style>
   </UserControl.Styles>
 
   <Grid RowDefinitions="Auto,*,Auto" Margin="10">
@@ -104,6 +111,8 @@
 
       <Border Grid.Column="1" Background="#2b2f31" BorderBrush="#5a6063" BorderThickness="1" CornerRadius="8" Margin="0,0,8,0" ClipToBounds="True">
         <Grid>
+          <!-- Faint concentric guide rings (radii are multiples of 8 in L-R/F-B units), drawn in code-behind. -->
+          <Canvas x:Name="RingCanvas" IsHitTestVisible="False"/>
           <Rectangle Height="1" Fill="#44494b" HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
           <Rectangle Width="1" Fill="#44494b" VerticalAlignment="Stretch" HorizontalAlignment="Center"/>
           <TextBlock Text="BACK" Classes="help" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,4"/>
@@ -180,6 +189,8 @@
       <Button Content="Wide stereo spread" Command="{Binding WideStereoSpread}"/>
       <Button Content="Front band layout" Command="{Binding FrontBandLayout}"/>
       <Button Content="Ambient hall layout" Command="{Binding AmbientHallLayout}"/>
+      <Button Content="Circle" Command="{Binding CircleAroundCenter}"/>
+      <Button Content="Random scatter" Command="{Binding RandomScatter}"/>
       <Button Content="Reset Motional Surround" Command="{Binding ResetMotionalSurround}"/>
     </StackPanel>
   </Grid>

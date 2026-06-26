@@ -43,6 +43,21 @@ public static class MotionalSurroundMapping
         return Clamp(v, min, max);
     }
 
+    // Half-span used for positioning an L-R/F-B value on the room map. The hardware range is
+    // asymmetric (-64..+63), so the plain ToNormalized would put value 0 at 64/127 ~= 0.504 across
+    // rather than dead-centre. Treating the half-span as 64 makes 0 map to exactly 0.5, so a part at
+    // (0,0) sits precisely on the axis crossing. -64 -> 0.0 (edge); +63 -> ~0.992 (just inside the far edge).
+    public const double LrFbHalfSpan = 64.0;
+
+    /// <summary>L-R/F-B value -> screen fraction 0..1, centred so 0 maps to exactly 0.5.</summary>
+    public static double LrFbToNormalized(int value)
+        => 0.5 + value / (2.0 * LrFbHalfSpan);
+
+    /// <summary>Screen fraction (centred mapping) -> nearest L-R/F-B integer, clamped to [-64,+63].</summary>
+    public static int NormalizedToLrFb(double normalized)
+        => Clamp((int)System.Math.Round((normalized - 0.5) * (2.0 * LrFbHalfSpan),
+            System.MidpointRounding.AwayFromZero), LrFbMin, LrFbMax);
+
     /// <summary>Ext Part Control Channel: valid display values are "1".."16" or "OFF".</summary>
     public static bool IsValidControlChannel(string display)
     {

@@ -301,6 +301,42 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
         ExternalPart.Channel = "OFF";
     }
 
+    [ReactiveCommand]
+    public async Task CircleAroundCenter()
+    {
+        // Evenly space all parts on a circle of radius 32 (L-R/F-B units) around the centre.
+        const double radius = 32.0;
+        var n = AllParts.Count;
+        for (var i = 0; i < n; i++)
+        {
+            var angle = 2.0 * Math.PI * i / n;
+            var lr = (int)Math.Round(radius * Math.Cos(angle), MidpointRounding.AwayFromZero);
+            var fb = (int)Math.Round(radius * Math.Sin(angle), MidpointRounding.AwayFromZero);
+            AllParts[i].SetPositionSuppressed(lr, fb);
+            await AllParts[i].WritePositionAsync();
+        }
+    }
+
+    // A fixed (not regenerated) uniform-ish scatter across the field, one entry per part
+    // (16 internal + external). Hand-picked so it looks random but is deterministic.
+    private static readonly (int Lr, int Fb)[] ScatterPositions =
+    [
+        (-58, 41), (33, -50), (12, 18), (-44, -27), (60, 7), (-9, 55), (47, -39), (-31, -60),
+        (5, -14), (-52, 23), (29, 49), (-18, -45), (54, 31), (-63, -8), (21, -58), (-37, 12),
+        (40, -20)
+    ];
+
+    [ReactiveCommand]
+    public async Task RandomScatter()
+    {
+        for (var i = 0; i < AllParts.Count && i < ScatterPositions.Length; i++)
+        {
+            var (lr, fb) = ScatterPositions[i];
+            AllParts[i].SetPositionSuppressed(lr, fb);
+            await AllParts[i].WritePositionAsync();
+        }
+    }
+
     public void Dispose()
     {
         _writeSub.Dispose();

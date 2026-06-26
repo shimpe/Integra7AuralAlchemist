@@ -62,4 +62,41 @@ public class MotionalSurroundMappingTests
     {
         Assert.That(MotionalSurroundMapping.IsValidControlChannel(display), Is.EqualTo(expected));
     }
+
+    // Centred screen mapping: 0 must land at exactly 0.5 (the axis crossing); the edges are
+    // symmetric about it with a half-span of 64.
+    [TestCase(0, 0.5)]
+    [TestCase(-64, 0.0)]
+    [TestCase(64, 1.0)]
+    [TestCase(63, 0.9921875)]
+    [TestCase(32, 0.75)]
+    [TestCase(-32, 0.25)]
+    public void TestLrFbToNormalizedCentred(int value, double expected)
+    {
+        Assert.That(MotionalSurroundMapping.LrFbToNormalized(value), Is.EqualTo(expected).Within(1e-9));
+    }
+
+    // Inverse of the centred mapping, clamped to the real range [-64,+63].
+    [TestCase(0.5, 0)]
+    [TestCase(0.0, -64)]
+    [TestCase(1.0, 63)]   // 64 clamps to the +63 max
+    [TestCase(0.75, 32)]
+    [TestCase(0.25, -32)]
+    [TestCase(-0.2, -64)]
+    [TestCase(1.2, 63)]
+    public void TestNormalizedToLrFb(double normalized, int expected)
+    {
+        Assert.That(MotionalSurroundMapping.NormalizedToLrFb(normalized), Is.EqualTo(expected));
+    }
+
+    [TestCase(-64)]
+    [TestCase(-32)]
+    [TestCase(0)]
+    [TestCase(32)]
+    [TestCase(63)]
+    public void TestCentredRoundTrip(int value)
+    {
+        var n = MotionalSurroundMapping.LrFbToNormalized(value);
+        Assert.That(MotionalSurroundMapping.NormalizedToLrFb(n), Is.EqualTo(value));
+    }
 }
