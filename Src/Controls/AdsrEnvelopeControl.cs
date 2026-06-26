@@ -28,10 +28,15 @@ public class AdsrEnvelopeControl : Control
     public static readonly StyledProperty<int> ReleaseProperty =
         AvaloniaProperty.Register<AdsrEnvelopeControl, int>(nameof(Release), 0, defaultBindingMode: BindingMode.TwoWay);
 
+    /// <summary>When true, render as a non-interactive preview: dimmer line/fill and no draggable handles.</summary>
+    public static readonly StyledProperty<bool> PreviewProperty =
+        AvaloniaProperty.Register<AdsrEnvelopeControl, bool>(nameof(Preview));
+
     public int Attack { get => GetValue(AttackProperty); set => SetValue(AttackProperty, value); }
     public int Decay { get => GetValue(DecayProperty); set => SetValue(DecayProperty, value); }
     public int Sustain { get => GetValue(SustainProperty); set => SetValue(SustainProperty, value); }
     public int Release { get => GetValue(ReleaseProperty); set => SetValue(ReleaseProperty, value); }
+    public bool Preview { get => GetValue(PreviewProperty); set => SetValue(PreviewProperty, value); }
 
     private enum Handle { None, Attack, Decay, Release }
     private Handle _active = Handle.None;
@@ -42,20 +47,33 @@ public class AdsrEnvelopeControl : Control
     private static readonly IBrush HandleBrush = Brushes.White;
     private static readonly IPen LinePen = new Pen(new SolidColorBrush(Color.Parse("#7fb6e0")), 2);
     private static readonly IPen GridPen = new Pen(new SolidColorBrush(Color.FromArgb(0x22, 0xff, 0xff, 0xff)), 1);
+    private static readonly IPen AxisPen = new Pen(new SolidColorBrush(Color.FromArgb(0x55, 0xff, 0xff, 0xff)), 1);
     private static readonly IPen FocusPen = new Pen(Brushes.Orange, 2);
+
+    // Axis ticks every 16 parameter units (0..127).
+    private const int TickStep = 16;
+
+    // Preview (mini card) palette: dimmer so it reads as a non-editable thumbnail, not a control.
+    private static readonly IBrush PreviewBg = new SolidColorBrush(Color.Parse("#15181a"));
+    private static readonly IBrush PreviewFillBrush = new SolidColorBrush(Color.FromArgb(0x22, 0x3d, 0x7e, 0xaa));
+    private static readonly IPen PreviewLinePen = new Pen(new SolidColorBrush(Color.FromArgb(0x66, 0x7f, 0xb6, 0xe0)), 1);
 
     static AdsrEnvelopeControl()
     {
-        AffectsRender<AdsrEnvelopeControl>(AttackProperty, DecayProperty, SustainProperty, ReleaseProperty);
+        AffectsRender<AdsrEnvelopeControl>(AttackProperty, DecayProperty, SustainProperty, ReleaseProperty,
+            PreviewProperty);
         FocusableProperty.OverrideDefaultValue<AdsrEnvelopeControl>(true);
     }
 
     public override void Render(DrawingContext context)
     {
         double w = Bounds.Width, h = Bounds.Height;
-        context.FillRectangle(Bg, new Rect(0, 0, w, h));
-        context.DrawLine(GridPen, new Point(0, h - 1), new Point(w, h - 1));
-        context.DrawLine(GridPen, new Point(0, h / 2), new Point(w, h / 2));
+        var preview = Preview;
+        context.FillRectangle(preview ? PreviewBg : Bg, new Rect(0, 0, w, h));
+        if (preview)
+            context.DrawLine(GridPen, new Point(0, h - 1), new Point(w, h - 1));
+        else
+            DrawAxes(context, w, h);
 
         var p = SnsEnvelopeMapping.ComputePoints(Attack, Decay, Sustain, Release, w, h, SustainWidth);
 
@@ -71,7 +89,7 @@ public class AdsrEnvelopeControl : Control
             c.LineTo(new Point(p.Start.X, h));
             c.EndFigure(true);
         }
-        context.DrawGeometry(FillBrush, null, fill);
+        context.DrawGeometry(preview ? PreviewFillBrush : FillBrush, null, fill);
 
         var line = new StreamGeometry();
         using (var c = line.Open())
@@ -83,7 +101,9 @@ public class AdsrEnvelopeControl : Control
             c.LineTo(new Point(p.End.X, p.End.Y));
             c.EndFigure(false);
         }
-        context.DrawGeometry(null, LinePen, line);
+        context.DrawGeometry(null, preview ? PreviewLinePen : LinePen, line);
+
+        if (preview) return; // previews show no draggable handles
 
         DrawHandle(context, p.Peak, _focused == Handle.Attack);
         DrawHandle(context, p.SustainStart, _focused == Handle.Decay);
@@ -92,6 +112,28 @@ public class AdsrEnvelopeControl : Control
 
     private static void DrawHandle(DrawingContext ctx, SnsEnvelopeMapping.Point pt, bool focused)
         => ctx.DrawEllipse(HandleBrush, focused ? FocusPen : null, new Point(pt.X, pt.Y), HandleRadius, HandleRadius);
+
+    // X (time) and Y (level) axes with faint gridlines / ticks every 16 units (0..127).
+    private static void DrawAxes(DrawingContext ctx, double w, double h)
+    {
+        // Y: full-width gridline + a stronger tick at the left edge for each 16-level step.
+        for (var level = 0; level <= SnsEnvelopeMapping.Max; level += TickStep)
+        {
+            var y = SnsEnvelopeMapping.LevelToY(level, h);
+            ctx.DrawLine(GridPen, new Point(0, y), new Point(w, y));
+            ctx.DrawLine(AxisPen, new Point(0, y), new Point(6, y));
+        }
+
+        // X: short tick at the bottom for each 16-unit step of the (per-segment) time scale.
+        var step = SnsEnvelopeMapping.TimeToWidth(TickStep, SnsEnvelopeMapping.SegmentMax(w, SustainWidth));
+        if (step > 2)
+            for (var x = step; x < w - 1; x += step)
+                ctx.DrawLine(AxisPen, new Point(x, h - 6), new Point(x, h));
+
+        // Axis lines: left (Y) and bottom (X).
+        ctx.DrawLine(AxisPen, new Point(0, 0), new Point(0, h));
+        ctx.DrawLine(AxisPen, new Point(0, h), new Point(w, h));
+    }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {

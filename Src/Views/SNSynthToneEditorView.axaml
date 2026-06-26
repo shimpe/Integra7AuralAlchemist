@@ -88,156 +88,162 @@
                                     <TextBlock Text="Pan" Opacity="0.6"/>
                                     <TextBlock Text="{Binding PanLabel}"/>
                                 </StackPanel>
-                                <controls:AdsrEnvelopeControl Height="48" IsHitTestVisible="False"
+                                <!-- Preview thumbnail (dimmed, no handles): edit on the big graph at right. -->
+                                <controls:AdsrEnvelopeControl Height="44" Preview="True" IsHitTestVisible="False"
+                                    Opacity="0.85"
                                     Attack="{Binding AmpEnvAttack.Value}"
                                     Decay="{Binding AmpEnvDecay.Value}"
                                     Sustain="{Binding AmpEnvSustain.Value}"
                                     Release="{Binding AmpEnvRelease.Value}"/>
+                                <TextBlock Text="amp envelope (preview)" FontSize="10" Opacity="0.45"
+                                           HorizontalAlignment="Center"/>
                             </StackPanel>
                         </Border>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
             </ListBox>
 
-            <ScrollViewer Grid.Column="1">
-                <StackPanel Spacing="12" DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel">
+            <!-- Right column: sections stack; the Amp Envelope row (*) grows to fill the window. -->
+            <Grid Grid.Column="1" DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
+                  RowDefinitions="Auto,Auto,*,Auto">
 
-                    <!-- Oscillator -->
-                    <Border Background="#22000000" CornerRadius="6" Padding="10">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="Oscillator" FontWeight="Bold"/>
-                            <StackPanel Orientation="Horizontal" Spacing="16">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="Waveform" ToolTip.Tip="OSC Wave"/>
-                                    <ComboBox ItemsSource="{Binding OscWave.Options}"
-                                              SelectedItem="{Binding OscWave.Value, Mode=TwoWay}"/>
-                                </StackPanel>
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="Variation"/>
-                                    <ComboBox ItemsSource="{Binding OscWaveVariation.Options}"
-                                              SelectedItem="{Binding OscWaveVariation.Value, Mode=TwoWay}"/>
-                                </StackPanel>
-                                <StackPanel Spacing="2" Width="160">
-                                    <TextBlock Text="Pitch (semitones)" ToolTip.Tip="OSC Pitch"/>
-                                    <Slider Minimum="-24" Maximum="24" Value="{Binding OscPitch.Value, Mode=TwoWay}"/>
-                                </StackPanel>
-                                <StackPanel Spacing="2" Width="160">
-                                    <TextBlock Text="Detune" ToolTip.Tip="OSC Detune (Flat / Center / Sharp)"/>
-                                    <Slider Minimum="-50" Maximum="50" Value="{Binding OscDetune.Value, Mode=TwoWay}"/>
-                                </StackPanel>
+                <!-- Oscillator -->
+                <Border Grid.Row="0" Background="#22000000" CornerRadius="6" Padding="10" Margin="0,0,0,12">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Oscillator" FontWeight="Bold"/>
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Waveform" ToolTip.Tip="OSC Wave"/>
+                                <ComboBox ItemsSource="{Binding OscWave.Options}"
+                                          SelectedItem="{Binding OscWave.Value, Mode=TwoWay}"/>
                             </StackPanel>
-
-                            <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding ShowsPulseWidth}">
-                                <StackPanel Spacing="2" Width="160">
-                                    <TextBlock Text="Pulse Width" ToolTip.Tip="OSC Pulse Width"/>
-                                    <Slider Minimum="0" Maximum="127" Value="{Binding OscPulseWidth.Value, Mode=TwoWay}"/>
-                                </StackPanel>
-                                <StackPanel Spacing="2" Width="160">
-                                    <TextBlock Text="PW Shift" ToolTip.Tip="OSC Pulse Width shift"/>
-                                    <Slider Minimum="0" Maximum="127" Value="{Binding OscPulseWidthShift.Value, Mode=TwoWay}"/>
-                                </StackPanel>
-                                <StackPanel Spacing="2" Width="160">
-                                    <TextBlock Text="PWM Depth" ToolTip.Tip="OSC Pulse Width Mod Depth"/>
-                                    <Slider Minimum="0" Maximum="127" Value="{Binding OscPwmDepth.Value, Mode=TwoWay}"/>
-                                </StackPanel>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Variation"/>
+                                <ComboBox ItemsSource="{Binding OscWaveVariation.Options}"
+                                          SelectedItem="{Binding OscWaveVariation.Value, Mode=TwoWay}"/>
                             </StackPanel>
-
-                            <StackPanel Spacing="2" Width="200" IsVisible="{Binding ShowsSuperSawDetune}">
-                                <TextBlock Text="Super Saw Detune" ToolTip.Tip="Super Saw Detune"/>
-                                <Slider Minimum="0" Maximum="127" Value="{Binding SuperSawDetune.Value, Mode=TwoWay}"/>
+                            <StackPanel Spacing="2" Width="160">
+                                <TextBlock Text="Pitch (semitones)" TextWrapping="Wrap" ToolTip.Tip="OSC Pitch"/>
+                                <Slider Minimum="-24" Maximum="24" Value="{Binding OscPitch.Value, Mode=TwoWay}"/>
                             </StackPanel>
-
-                            <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding ShowsPcm}">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="PCM Wave" ToolTip.Tip="Wave Number"/>
-                                    <ComboBox MaxDropDownHeight="300" Width="220"
-                                              ItemsSource="{Binding WaveNumber.Options}"
-                                              SelectedItem="{Binding WaveNumber.Value, Mode=TwoWay}"/>
-                                </StackPanel>
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="PCM Gain (dB)" ToolTip.Tip="Wave Gain"/>
-                                    <ComboBox ItemsSource="{Binding WaveGain.Options}"
-                                              SelectedItem="{Binding WaveGain.Value, Mode=TwoWay}"/>
-                                </StackPanel>
-                            </StackPanel>
-
-                            <Button Content="Advanced oscillator parameters…"
-                                    Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).AdvancedOscillatorCommand}"/>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Amp -->
-                    <Border Background="#22000000" CornerRadius="6" Padding="10">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="Amp" FontWeight="Bold"/>
-                            <StackPanel Orientation="Horizontal" Spacing="16">
-                                <StackPanel Spacing="2" Width="160">
-                                    <TextBlock Text="Level" ToolTip.Tip="AMP Level"/>
-                                    <Slider Minimum="0" Maximum="127" Value="{Binding AmpLevel.Value, Mode=TwoWay}"/>
-                                </StackPanel>
-                                <StackPanel Spacing="2" Width="160">
-                                    <TextBlock Text="Pan (L / C / R)" ToolTip.Tip="AMP Pan"/>
-                                    <Slider Minimum="-64" Maximum="63" Value="{Binding AmpPan.Value, Mode=TwoWay}"/>
-                                </StackPanel>
-                                <StackPanel Spacing="2" Width="160">
-                                    <TextBlock Text="Velocity (Consistent → Dynamic)" ToolTip.Tip="AMP Level Velocity Sens"/>
-                                    <Slider Minimum="-63" Maximum="63" Value="{Binding AmpVeloSens.Value, Mode=TwoWay}"/>
-                                </StackPanel>
-                                <StackPanel Spacing="2" Width="180">
-                                    <TextBlock Text="Keyfollow (Low → High louder)" ToolTip.Tip="AMP Level Keyfollow"/>
-                                    <Slider Minimum="-100" Maximum="100" Value="{Binding AmpKeyfollow.Value, Mode=TwoWay}"/>
-                                </StackPanel>
-                            </StackPanel>
-                            <Button Content="Advanced amp parameters…"
-                                    Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).AdvancedAmpCommand}"/>
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Amp Envelope -->
-                    <Border Background="#22000000" CornerRadius="6" Padding="10">
-                        <StackPanel Spacing="8">
-                            <TextBlock Text="Amp Envelope (Volume shape)" FontWeight="Bold"/>
-                            <controls:AdsrEnvelopeControl Height="180"
-                                Attack="{Binding AmpEnvAttack.Value, Mode=TwoWay}"
-                                Decay="{Binding AmpEnvDecay.Value, Mode=TwoWay}"
-                                Sustain="{Binding AmpEnvSustain.Value, Mode=TwoWay}"
-                                Release="{Binding AmpEnvRelease.Value, Mode=TwoWay}"/>
-                            <StackPanel Orientation="Horizontal" Spacing="12">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="Attack" ToolTip.Tip="How quickly the sound starts."/>
-                                    <NumericUpDown Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                                   Value="{Binding AmpEnvAttack.Value, Mode=TwoWay}"/>
-                                </StackPanel>
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="Decay" ToolTip.Tip="How quickly it falls after the start."/>
-                                    <NumericUpDown Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                                   Value="{Binding AmpEnvDecay.Value, Mode=TwoWay}"/>
-                                </StackPanel>
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="Sustain" ToolTip.Tip="Level held while the key is down."/>
-                                    <NumericUpDown Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                                   Value="{Binding AmpEnvSustain.Value, Mode=TwoWay}"/>
-                                </StackPanel>
-                                <StackPanel Spacing="2">
-                                    <TextBlock Text="Release" ToolTip.Tip="How long it fades after release."/>
-                                    <NumericUpDown Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                                   Value="{Binding AmpEnvRelease.Value, Mode=TwoWay}"/>
-                                </StackPanel>
+                            <StackPanel Spacing="2" Width="160">
+                                <TextBlock Text="Detune" TextWrapping="Wrap" ToolTip.Tip="OSC Detune (Flat / Center / Sharp)"/>
+                                <Slider Minimum="-50" Maximum="50" Value="{Binding OscDetune.Value, Mode=TwoWay}"/>
                             </StackPanel>
                         </StackPanel>
-                    </Border>
 
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Button Content="Copy partial"
-                                Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).CopyPartialCommand}"/>
-                        <Button Content="Paste partial"
-                                Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).PastePartialCommand}"/>
-                        <Button Content="Init partial"
-                                Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).InitPartialCommand}"/>
+                        <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding ShowsPulseWidth}">
+                            <StackPanel Spacing="2" Width="160">
+                                <TextBlock Text="Pulse Width" TextWrapping="Wrap" ToolTip.Tip="OSC Pulse Width"/>
+                                <Slider Minimum="0" Maximum="127" Value="{Binding OscPulseWidth.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2" Width="160">
+                                <TextBlock Text="PW Shift" TextWrapping="Wrap" ToolTip.Tip="OSC Pulse Width shift"/>
+                                <Slider Minimum="0" Maximum="127" Value="{Binding OscPulseWidthShift.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2" Width="160">
+                                <TextBlock Text="PWM Depth" TextWrapping="Wrap" ToolTip.Tip="OSC Pulse Width Mod Depth"/>
+                                <Slider Minimum="0" Maximum="127" Value="{Binding OscPwmDepth.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel Spacing="2" Width="200" IsVisible="{Binding ShowsSuperSawDetune}">
+                            <TextBlock Text="Super Saw Detune" TextWrapping="Wrap" ToolTip.Tip="Super Saw Detune"/>
+                            <Slider Minimum="0" Maximum="127" Value="{Binding SuperSawDetune.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding ShowsPcm}">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="PCM Wave" ToolTip.Tip="Wave Number"/>
+                                <ComboBox MaxDropDownHeight="300" Width="220"
+                                          ItemsSource="{Binding WaveNumber.Options}"
+                                          SelectedItem="{Binding WaveNumber.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="PCM Gain (dB)" ToolTip.Tip="Wave Gain"/>
+                                <ComboBox ItemsSource="{Binding WaveGain.Options}"
+                                          SelectedItem="{Binding WaveGain.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <Button HorizontalAlignment="Left" Content="Advanced oscillator parameters…"
+                                Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).AdvancedOscillatorCommand}"/>
                     </StackPanel>
+                </Border>
 
+                <!-- Amp -->
+                <Border Grid.Row="1" Background="#22000000" CornerRadius="6" Padding="10" Margin="0,0,0,12">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Amp" FontWeight="Bold"/>
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <StackPanel Spacing="2" Width="160">
+                                <TextBlock Text="Level" TextWrapping="Wrap" ToolTip.Tip="AMP Level"/>
+                                <Slider Minimum="0" Maximum="127" Value="{Binding AmpLevel.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2" Width="160">
+                                <TextBlock Text="Pan (L / C / R)" TextWrapping="Wrap" ToolTip.Tip="AMP Pan"/>
+                                <Slider Minimum="-64" Maximum="63" Value="{Binding AmpPan.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2" Width="170">
+                                <TextBlock Text="Velocity (Consistent → Dynamic)" TextWrapping="Wrap"
+                                           ToolTip.Tip="AMP Level Velocity Sens"/>
+                                <Slider Minimum="-63" Maximum="63" Value="{Binding AmpVeloSens.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2" Width="180">
+                                <TextBlock Text="Keyfollow (Lower → Higher notes louder)" TextWrapping="Wrap"
+                                           ToolTip.Tip="AMP Level Keyfollow"/>
+                                <Slider Minimum="-100" Maximum="100" Value="{Binding AmpKeyfollow.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <Button HorizontalAlignment="Left" Content="Advanced amp parameters…"
+                                Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).AdvancedAmpCommand}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Amp Envelope (fills remaining height) -->
+                <Border Grid.Row="2" Background="#22000000" CornerRadius="6" Padding="10">
+                    <Grid RowDefinitions="Auto,*,Auto">
+                        <TextBlock Grid.Row="0" Text="Amp Envelope (Volume shape)" FontWeight="Bold"/>
+                        <controls:AdsrEnvelopeControl Grid.Row="1" MinHeight="160" Margin="0,8"
+                            Attack="{Binding AmpEnvAttack.Value, Mode=TwoWay}"
+                            Decay="{Binding AmpEnvDecay.Value, Mode=TwoWay}"
+                            Sustain="{Binding AmpEnvSustain.Value, Mode=TwoWay}"
+                            Release="{Binding AmpEnvRelease.Value, Mode=TwoWay}"/>
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Attack" ToolTip.Tip="How quickly the sound starts."/>
+                                <NumericUpDown Minimum="0" Maximum="127" Increment="1" FormatString="0"
+                                               Value="{Binding AmpEnvAttack.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Decay" ToolTip.Tip="How quickly it falls after the start."/>
+                                <NumericUpDown Minimum="0" Maximum="127" Increment="1" FormatString="0"
+                                               Value="{Binding AmpEnvDecay.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Sustain" ToolTip.Tip="Level held while the key is down."/>
+                                <NumericUpDown Minimum="0" Maximum="127" Increment="1" FormatString="0"
+                                               Value="{Binding AmpEnvSustain.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Release" ToolTip.Tip="How long it fades after release."/>
+                                <NumericUpDown Minimum="0" Maximum="127" Increment="1" FormatString="0"
+                                               Value="{Binding AmpEnvRelease.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Partial utilities -->
+                <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+                    <Button Content="Copy partial"
+                            Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).CopyPartialCommand}"/>
+                    <Button Content="Paste partial"
+                            Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).PastePartialCommand}"/>
+                    <Button Content="Init partial"
+                            Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).InitPartialCommand}"/>
                 </StackPanel>
-            </ScrollViewer>
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>
