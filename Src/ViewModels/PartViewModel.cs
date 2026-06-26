@@ -1384,6 +1384,11 @@ public partial class PartViewModel : ViewModelBase
             SNSynthToneEditor = new SNSynthToneEditorViewModel(_i7domain, PartNo, (tag, partialIdx) =>
             {
                 if (partialIdx is int idx) AdvancedPartialIndex = idx;
+                // Force a fresh change even on repeat navigations. SelectTabByTag only reacts to a
+                // *change* in ToneTabKey, and manually clicking a tab does not write the value back,
+                // so re-setting the same tag would be a no-op and the tab would never switch again.
+                // Clearing first (the behavior ignores empty, so no flicker) guarantees the assign fires.
+                ToneTabKey = "";
                 ToneTabKey = tag;
             });
 
