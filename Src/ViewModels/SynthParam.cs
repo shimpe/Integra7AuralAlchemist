@@ -40,12 +40,14 @@ public sealed class ParamInt : ReactiveObject, IParam, IDisposable
     private readonly FullyQualifiedParameter _p;
     private readonly ThrottledParameterWriter _writer;
     private readonly int _min, _max;
+    private readonly string _key;
     private bool _suppress;
     private int _value;
 
     public ParamInt(DomainBase domain, FullyQualifiedParameter p, ThrottledParameterWriter writer, int min, int max)
     {
         _domain = domain; _p = p; _writer = writer; _min = min; _max = max;
+        _key = $"{domain.StartAddressName}|{domain.Offset2AddressName}|{p.ParSpec.Path}";
         ApplyFromModel();
         _p.PropertyChanged += OnModelChanged;
     }
@@ -64,7 +66,7 @@ public sealed class ParamInt : ReactiveObject, IParam, IDisposable
         }
     }
 
-    private void Enqueue() => _writer.Enqueue(_p.ParSpec.Path,
+    private void Enqueue() => _writer.Enqueue(_key,
         () => _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value.ToString(CultureInfo.InvariantCulture)));
 
     public string Snapshot() => _value.ToString(CultureInfo.InvariantCulture);
@@ -101,6 +103,7 @@ public sealed class ParamString : ReactiveObject, IParam, IDisposable
     private readonly DomainBase _domain;
     private readonly FullyQualifiedParameter _p;
     private readonly ThrottledParameterWriter _writer;
+    private readonly string _key;
     private bool _suppress;
     private string _value = "";
 
@@ -108,6 +111,7 @@ public sealed class ParamString : ReactiveObject, IParam, IDisposable
         IReadOnlyList<string>? options = null)
     {
         _domain = domain; _p = p; _writer = writer;
+        _key = $"{domain.StartAddressName}|{domain.Offset2AddressName}|{p.ParSpec.Path}";
         Options = options
             ?? (p.ParSpec.Repr?.OrderBy(kv => kv.Key).Select(kv => kv.Value).ToList()
                 ?? new List<string>());
@@ -125,7 +129,7 @@ public sealed class ParamString : ReactiveObject, IParam, IDisposable
         {
             if (value is null || _value == value) return;
             this.RaiseAndSetIfChanged(ref _value, value);
-            if (!_suppress) _writer.Enqueue(_p.ParSpec.Path, () => _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value));
+            if (!_suppress) _writer.Enqueue(_key, () => _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value));
         }
     }
 
@@ -155,6 +159,7 @@ public sealed class ParamBool : ReactiveObject, IParam, IDisposable
     private readonly FullyQualifiedParameter _p;
     private readonly ThrottledParameterWriter _writer;
     private readonly string _on, _off;
+    private readonly string _key;
     private bool _suppress;
     private bool _value;
 
@@ -162,6 +167,7 @@ public sealed class ParamBool : ReactiveObject, IParam, IDisposable
         string onValue = "ON", string offValue = "OFF")
     {
         _domain = domain; _p = p; _writer = writer; _on = onValue; _off = offValue;
+        _key = $"{domain.StartAddressName}|{domain.Offset2AddressName}|{p.ParSpec.Path}";
         ApplyFromModel();
         _p.PropertyChanged += OnModelChanged;
     }
@@ -175,7 +181,7 @@ public sealed class ParamBool : ReactiveObject, IParam, IDisposable
         {
             if (_value == value) return;
             this.RaiseAndSetIfChanged(ref _value, value);
-            if (!_suppress) _writer.Enqueue(_p.ParSpec.Path,
+            if (!_suppress) _writer.Enqueue(_key,
                 () => _domain.WriteToIntegraAsync(_p.ParSpec.Path, value ? _on : _off));
         }
     }

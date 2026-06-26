@@ -60,6 +60,8 @@
                     <ComboBox ItemsSource="{Binding Header.Ring.Options}"
                               SelectedItem="{Binding Header.Ring.Value, Mode=TwoWay}"/>
                 </StackPanel>
+                <Button VerticalAlignment="Bottom" Content="Advanced common parameters…"
+                        Command="{Binding AdvancedCommonCommand}"/>
             </StackPanel>
         </Border>
 

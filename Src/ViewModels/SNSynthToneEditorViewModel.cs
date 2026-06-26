@@ -34,7 +34,6 @@ public sealed partial class SNSynthToneEditorViewModel : ViewModelBase, IDisposa
                 common, commonByPath, i, _writer));
 
         _selectedPartial = Partials[0];
-        _selectedPartial.IsSelected = true;
     }
 
     private static Dictionary<string, FullyQualifiedParameter> ToDict(DomainBase d)
@@ -51,9 +50,7 @@ public sealed partial class SNSynthToneEditorViewModel : ViewModelBase, IDisposa
         set
         {
             if (value is null || ReferenceEquals(value, _selectedPartial)) return;
-            _selectedPartial.IsSelected = false;
             this.RaiseAndSetIfChanged(ref _selectedPartial, value);
-            _selectedPartial.IsSelected = true;
         }
     }
 

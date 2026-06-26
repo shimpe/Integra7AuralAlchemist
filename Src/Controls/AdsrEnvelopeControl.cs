@@ -149,12 +149,12 @@ public class AdsrEnvelopeControl : Control
         switch (e.Key)
         {
             case Key.Tab:
-                _focused = _focused switch
-                {
-                    Handle.Attack => Handle.Decay,
-                    Handle.Decay => Handle.Release,
-                    _ => Handle.Attack
-                };
+                // Cycle Attack->Decay->Release on Tab, but let focus LEAVE the control at the end
+                // (and on Shift+Tab) so keyboard users are never trapped on the graph. The numeric
+                // up/down inputs next to the graph already provide full keyboard editing.
+                if (e.KeyModifiers.HasFlag(KeyModifiers.Shift) || _focused == Handle.Release)
+                    break; // not handled -> focus traverses out normally
+                _focused = _focused == Handle.Attack ? Handle.Decay : Handle.Release;
                 e.Handled = true; InvalidateVisual(); break;
             case Key.Left: Adjust(-1, vertical: false); e.Handled = true; break;
             case Key.Right: Adjust(+1, vertical: false); e.Handled = true; break;

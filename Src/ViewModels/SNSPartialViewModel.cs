@@ -48,9 +48,6 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
     // --- Card on/off (Common Partial{n} Switch) ---
     public ParamBool IsOn { get; }
 
-    private bool _isSelected;
-    public bool IsSelected { get => _isSelected; set => this.RaiseAndSetIfChanged(ref _isSelected, value); }
-
     // Params copied/pasted/initialised (oscillator + amp + amp env, NOT the common on/off switch).
     private readonly IReadOnlyList<IParam> _editable;
 
