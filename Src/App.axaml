@@ -16,7 +16,7 @@
             <SolidColorBrush x:Key="SnBadgeForegroundBrush" Color="White" />
             <SolidColorBrush x:Key="SnCardBackgroundBrush" Color="#1E2226" />
             <SolidColorBrush x:Key="SnCardHoverBackgroundBrush" Color="#262B30" />
-            <SolidColorBrush x:Key="SnCardSelectedBackgroundBrush" Color="#2E5D82" />
+            <SolidColorBrush x:Key="SnCardSelectedBackgroundBrush" Color="#284A63" />
             <SolidColorBrush x:Key="SnCardSelectedBorderBrush" Color="#8FC4EF" />
         </ResourceDictionary>
     </Application.Resources>
