@@ -69,7 +69,7 @@
         <TabControl Grid.Column="0" Grid.Row="1">
             <TabItem Header="Parameters">
                 <Grid ColumnDefinitions="*"
-                      RowDefinitions="Auto,Auto,750">
+                      RowDefinitions="Auto,Auto,*">
                     <TextBlock Grid.Column="0"
                                Grid.Row="0"
                                Text="{Binding MidiDevices}"
@@ -155,15 +155,14 @@
                         </TabControl.ItemTemplate>
                         <TabControl.ContentTemplate>
                             <DataTemplate DataType="vm:PartViewModel">
-                                <StackPanel Orientation="Vertical">
+                                <Panel>
                                     <StackPanel Orientation="Horizontal"
                                                 Margin="10,5,0,0"
                                                 Spacing="50"
                                                 IsVisible="{Binding IsCommonTab}">
                                         <TabControl TabStripPlacement="Top"
-                                                    MaxHeight="700"
-                                                    VerticalAlignment="Top"
-                                                    VerticalContentAlignment="Top">
+                                                    VerticalAlignment="Stretch"
+                                                    VerticalContentAlignment="Stretch">
                                             <TabItem Header="Setup">
                                                 <local:ParameterCollection Parameters="{Binding SetupParameters}"
                                                                            SearchText="{Binding SearchTextSetup, Mode=TwoWay}" />
@@ -207,15 +206,13 @@
                                         <local:PresetSelector SearchText="{Binding SearchTextPreset, Mode=TwoWay}"
                                                               Presets="{Binding Presets}"
                                                               SelectedPreset="{Binding SelectedPreset, Mode=TwoWay}"
-                                                              Height="700"
-                                                              VerticalAlignment="Top"
-                                                              VerticalContentAlignment="Top"
+                                                              VerticalAlignment="Stretch"
+                                                              VerticalContentAlignment="Stretch"
                                                               IsVisible="{Binding IsPartTab}" />
 
                                         <TabControl TabStripPlacement="Top"
-                                                    MaxHeight="700"
-                                                    VerticalAlignment="Top"
-                                                    VerticalContentAlignment="Top"
+                                                    VerticalAlignment="Stretch"
+                                                    VerticalContentAlignment="Stretch"
                                                     behaviors:TabControlBehaviors.SelectTabByTag="{Binding ToneTabKey}">
                                             <TabItem Header="Midi">
                                                 <local:ParameterCollection
@@ -282,14 +279,20 @@
                                                     Parameters="{Binding PCMDrumKitCompEQParameters}"
                                                     SearchText="{Binding SearchTextPCMDrumKitCompEQ, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="Tone"
+                                            <TabItem Header="Editor"
                                                      Tag="SN-S"
+                                                     IsVisible="{Binding SelectedPresetIsSNSynthTone}">
+                                                <local:SNSynthToneEditorView DataContext="{Binding SNSynthToneEditor}" />
+                                            </TabItem>
+                                            <TabItem Header="Advanced — Common"
+                                                     Tag="SN-S-COMMON"
                                                      IsVisible="{Binding SelectedPresetIsSNSynthTone}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding SNSynthToneCommonParameters}"
                                                     SearchText="{Binding SearchTextSNSynthToneCommon, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="MFX"
+                                            <TabItem Header="Advanced — MFX"
+                                                     Tag="SN-S-MFX"
                                                      IsVisible="{Binding SelectedPresetIsSNSynthTone}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding SNSynthToneCommonMFXParameters}"
@@ -364,7 +367,8 @@
                                                     </TabControl.ContentTemplate>
                                                 </TabControl>
                                             </TabItem>
-                                            <TabItem Header="Partials"
+                                            <TabItem Header="Advanced — Partials"
+                                                     Tag="SN-S-PARTIALS"
                                                      IsVisible="{Binding SelectedPresetIsSNSynthTone}">
                                                 <TabControl
                                                     ItemsSource="{Binding SNSynthTonePartialViewModels}"
@@ -404,7 +408,7 @@
                                             </TabItem>
                                         </TabControl>
                                     </StackPanel>
-                                </StackPanel>
+                                </Panel>
                             </DataTemplate>
                         </TabControl.ContentTemplate>
                     </TabControl>

@@ -95,7 +95,8 @@ public sealed partial class SNSynthTonePartialViewModel : PartialViewModel
 
     public override int GetPartialOffset()
     {
-        return Constants.FIRST_PARTIAL_SN_SYNTH_TONE;
+        // 1-based partial numbering ("Partial 1/2/3") to match the friendly editor and Roland's labels.
+        return 1;
     }
 
     public override string GetPartialName()
