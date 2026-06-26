@@ -18,6 +18,16 @@
             <SolidColorBrush x:Key="SnCardHoverBackgroundBrush" Color="#262B30" />
             <SolidColorBrush x:Key="SnCardSelectedBackgroundBrush" Color="#284A63" />
             <SolidColorBrush x:Key="SnCardSelectedBorderBrush" Color="#8FC4EF" />
+            <!-- Envelope graph palette (Amp = blue, Filter = amber). -->
+            <SolidColorBrush x:Key="SnEnvelopeBackgroundBrush" Color="#1B1F22" />
+            <SolidColorBrush x:Key="SnEnvelopeGridBrush" Color="#22FFFFFF" />
+            <SolidColorBrush x:Key="SnEnvelopeAxisBrush" Color="#55FFFFFF" />
+            <SolidColorBrush x:Key="SnEnvelopeHandleBrush" Color="White" />
+            <SolidColorBrush x:Key="SnEnvelopeFocusBrush" Color="Orange" />
+            <SolidColorBrush x:Key="SnAmpEnvelopeBrush" Color="#7FB6E0" />
+            <SolidColorBrush x:Key="SnAmpEnvelopeFillBrush" Color="#553D7EAA" />
+            <SolidColorBrush x:Key="SnFilterEnvelopeBrush" Color="#E0A23D" />
+            <SolidColorBrush x:Key="SnFilterEnvelopeFillBrush" Color="#55B07A1E" />
         </ResourceDictionary>
     </Application.Resources>
 
