@@ -222,24 +222,47 @@
                 <Border Grid.Row="1" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,12">
                     <StackPanel Spacing="8">
                         <TextBlock Text="Filter" FontWeight="Bold"/>
-                        <StackPanel Orientation="Horizontal" Spacing="16">
-                            <StackPanel Spacing="2">
-                                <TextBlock Text="Mode" Classes="sliderLabel" ToolTip.Tip="Filter Mode"/>
-                                <ComboBox ItemsSource="{Binding FilterMode.Options}"
-                                          SelectedItem="{Binding FilterMode.Value, Mode=TwoWay}"/>
-                            </StackPanel>
-                            <StackPanel Spacing="2">
-                                <TextBlock Text="Slope" Classes="sliderLabel" ToolTip.Tip="Filter Slope"/>
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Spacing="2" Margin="16,0,0,0">
+                                <TextBlock Text="Slope" ToolTip.Tip="Filter Slope"/>
                                 <ToggleSwitch OnContent="Steep 24 dB" OffContent="Gentle 12 dB"
                                               IsChecked="{Binding FilterSlopeSteep.Value, Mode=TwoWay}"/>
                             </StackPanel>
-                            <StackPanel Spacing="2" Width="150">
-                                <TextBlock Text="Cutoff (Brightness)" Classes="sliderLabel" ToolTip.Tip="Filter Cutoff"/>
-                                <Slider Minimum="0" Maximum="127" Value="{Binding FilterCutoff.Value, Mode=TwoWay}"/>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Mode" ToolTip.Tip="Filter Mode"/>
+                                <ListBox ItemsSource="{Binding FilterMode.Options}"
+                                         SelectedItem="{Binding FilterMode.Value, Mode=TwoWay}"
+                                         SelectionMode="Single" Background="Transparent" Padding="0">
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate><WrapPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                </ListBox>
                             </StackPanel>
-                            <StackPanel Spacing="2" Width="150">
-                                <TextBlock Text="Resonance" Classes="sliderLabel" ToolTip.Tip="Filter Resonance"/>
-                                <Slider Minimum="0" Maximum="127" Value="{Binding FilterResonance.Value, Mode=TwoWay}"/>
+                        </DockPanel>
+
+                        <!-- Interactive filter response: drag = Cutoff (X) / Resonance (Y); Mode/Slope above redraw it. -->
+                        <controls:FilterCurveControl Height="150"
+                            Mode="{Binding FilterMode.Value}"
+                            Steep="{Binding FilterSlopeSteep.Value}"
+                            Cutoff="{Binding FilterCutoff.Value, Mode=TwoWay}"
+                            Resonance="{Binding FilterResonance.Value, Mode=TwoWay}"
+                            LineBrush="{StaticResource SnFilterEnvelopeBrush}"
+                            FillBrush="{StaticResource SnFilterEnvelopeFillBrush}"
+                            BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                            GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                            AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
+                            HandleBrush="{StaticResource SnEnvelopeHandleBrush}"/>
+
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Cutoff (Brightness)" ToolTip.Tip="Filter Cutoff"/>
+                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0"
+                                               Value="{Binding FilterCutoff.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Resonance" ToolTip.Tip="Filter Resonance"/>
+                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0"
+                                               Value="{Binding FilterResonance.Value, Mode=TwoWay}"/>
                             </StackPanel>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="16">
