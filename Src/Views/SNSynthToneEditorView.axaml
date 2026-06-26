@@ -320,18 +320,18 @@
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Amp A/D/S/R" Foreground="{StaticResource SnAmpEnvelopeBrush}"
                                        VerticalAlignment="Center" Margin="0,0,8,2"/>
                             <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,2">
-                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvAttack.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvDecay.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvSustain.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvRelease.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvAttack.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvDecay.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvSustain.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvRelease.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Filter A/D/S/R" Foreground="{StaticResource SnFilterEnvelopeBrush}"
                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvAttack.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvDecay.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvSustain.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvRelease.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvAttack.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvDecay.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvSustain.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvRelease.Value, Mode=TwoWay}"/>
                             </StackPanel>
                         </Grid>
                     </Grid>
