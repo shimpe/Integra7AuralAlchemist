@@ -115,14 +115,20 @@
                                     <TextBlock Text="Pan" Opacity="0.6"/>
                                     <TextBlock Text="{Binding PanLabel}"/>
                                 </StackPanel>
-                                <!-- Preview thumbnail (dimmed, no handles): edit on the big graph at right. -->
-                                <controls:AdsrEnvelopeControl Height="44" Preview="True" IsHitTestVisible="False"
-                                    Opacity="0.85"
-                                    Attack="{Binding AmpEnvAttack.Value}"
-                                    Decay="{Binding AmpEnvDecay.Value}"
-                                    Sustain="{Binding AmpEnvSustain.Value}"
-                                    Release="{Binding AmpEnvRelease.Value}"/>
-                                <TextBlock Text="amp envelope (preview)" FontSize="10" Opacity="0.45"
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="Filter" Opacity="0.6"/>
+                                    <TextBlock Text="{Binding FilterSummary}"/>
+                                </StackPanel>
+                                <!-- Preview thumbnails (dimmed, no handles): edit on the big graph at right. -->
+                                <controls:AdsrEnvelopeControl Height="40" Preview="True" IsHitTestVisible="False" Opacity="0.85"
+                                    LineBrush="{StaticResource SnAmpEnvelopeBrush}" FillBrush="{StaticResource SnAmpEnvelopeFillBrush}"
+                                    Attack="{Binding AmpEnvAttack.Value}" Decay="{Binding AmpEnvDecay.Value}"
+                                    Sustain="{Binding AmpEnvSustain.Value}" Release="{Binding AmpEnvRelease.Value}"/>
+                                <controls:AdsrEnvelopeControl Height="40" Preview="True" IsHitTestVisible="False" Opacity="0.85"
+                                    LineBrush="{StaticResource SnFilterEnvelopeBrush}" FillBrush="{StaticResource SnFilterEnvelopeFillBrush}"
+                                    Attack="{Binding FilterEnvAttack.Value}" Decay="{Binding FilterEnvDecay.Value}"
+                                    Sustain="{Binding FilterEnvSustain.Value}" Release="{Binding FilterEnvRelease.Value}"/>
+                                <TextBlock Text="amp (blue) + filter (amber) env — preview" FontSize="10" Opacity="0.45"
                                            HorizontalAlignment="Center"/>
                             </StackPanel>
                         </Border>
@@ -130,9 +136,9 @@
                 </ListBox.ItemTemplate>
             </ListBox>
 
-            <!-- Right column: sections stack; the Amp Envelope row (*) grows to fill the window. -->
+            <!-- Right column: sections stack; the Combined Envelope row (*) grows to fill the window. -->
             <Grid Grid.Column="1" DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
-                  RowDefinitions="Auto,Auto,*,Auto">
+                  RowDefinitions="Auto,Auto,Auto,*,Auto">
 
                 <!-- Oscillator -->
                 <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,12">
@@ -198,8 +204,51 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Amp -->
+                <!-- Filter -->
                 <Border Grid.Row="1" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,12">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Filter" FontWeight="Bold"/>
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Mode" ToolTip.Tip="Filter Mode"/>
+                                <ComboBox ItemsSource="{Binding FilterMode.Options}"
+                                          SelectedItem="{Binding FilterMode.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2">
+                                <TextBlock Text="Slope" ToolTip.Tip="Filter Slope"/>
+                                <ToggleSwitch OnContent="Steep 24 dB" OffContent="Gentle 12 dB"
+                                              IsChecked="{Binding FilterSlopeSteep.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2" Width="150">
+                                <TextBlock Text="Cutoff (Brightness)" TextWrapping="Wrap" ToolTip.Tip="Filter Cutoff"/>
+                                <Slider Minimum="0" Maximum="127" Value="{Binding FilterCutoff.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2" Width="150">
+                                <TextBlock Text="Resonance" TextWrapping="Wrap" ToolTip.Tip="Filter Resonance"/>
+                                <Slider Minimum="0" Maximum="127" Value="{Binding FilterResonance.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="16">
+                            <StackPanel Spacing="2" Width="180">
+                                <TextBlock Text="Cutoff Keyfollow" TextWrapping="Wrap" ToolTip.Tip="Filter Cutoff Keyfollow"/>
+                                <Slider Minimum="-100" Maximum="100" Value="{Binding FilterCutoffKeyfollow.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2" Width="150">
+                                <TextBlock Text="HPF Cutoff" TextWrapping="Wrap" ToolTip.Tip="HPF Cutoff"/>
+                                <Slider Minimum="0" Maximum="127" Value="{Binding HpfCutoff.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                            <StackPanel Spacing="2" Width="180">
+                                <TextBlock Text="Env Velocity Sens" TextWrapping="Wrap" ToolTip.Tip="Filter Env Velocity Sens"/>
+                                <Slider Minimum="-63" Maximum="63" Value="{Binding FilterEnvVeloSens.Value, Mode=TwoWay}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <Button HorizontalAlignment="Left" Content="Advanced filter parameters…"
+                                Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).AdvancedOscillatorCommand}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Amp -->
+                <Border Grid.Row="2" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,12">
                     <StackPanel Spacing="8">
                         <TextBlock Text="Amp" FontWeight="Bold"/>
                         <StackPanel Orientation="Horizontal" Spacing="16">
@@ -227,42 +276,64 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Amp Envelope (fills remaining height) -->
-                <Border Grid.Row="2" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <!-- Combined Amp + Filter envelope (shared axes), fills remaining height -->
+                <Border Grid.Row="3" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
                     <Grid RowDefinitions="Auto,*,Auto">
-                        <TextBlock Grid.Row="0" Text="Amp Envelope (Volume shape)" FontWeight="Bold"/>
-                        <controls:AdsrEnvelopeControl Grid.Row="1" MinHeight="160" Margin="0,8"
-                            Attack="{Binding AmpEnvAttack.Value, Mode=TwoWay}"
-                            Decay="{Binding AmpEnvDecay.Value, Mode=TwoWay}"
-                            Sustain="{Binding AmpEnvSustain.Value, Mode=TwoWay}"
-                            Release="{Binding AmpEnvRelease.Value, Mode=TwoWay}"/>
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="12">
-                            <StackPanel Spacing="2">
-                                <TextBlock Text="Attack" ToolTip.Tip="How quickly the sound starts."/>
-                                <NumericUpDown Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                               Value="{Binding AmpEnvAttack.Value, Mode=TwoWay}"/>
+                        <DockPanel Grid.Row="0">
+                            <TextBlock Text="Envelopes — Amp + Filter (shared time / level)" FontWeight="Bold"/>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10">
+                                <TextBlock Text="Filter Depth" VerticalAlignment="Center" ToolTip.Tip="Filter Env Depth"/>
+                                <Slider Width="120" Minimum="-63" Maximum="63"
+                                        Value="{Binding FilterEnvDepth.Value, Mode=TwoWay}" VerticalAlignment="Center"/>
+                                <ComboBox SelectedIndex="{Binding ActiveEnvelope, Mode=TwoWay}" VerticalAlignment="Center"
+                                          ToolTip.Tip="Which envelope the keyboard edits">
+                                    <ComboBoxItem>Amp</ComboBoxItem>
+                                    <ComboBoxItem>Filter</ComboBoxItem>
+                                </ComboBox>
                             </StackPanel>
-                            <StackPanel Spacing="2">
-                                <TextBlock Text="Decay" ToolTip.Tip="How quickly it falls after the start."/>
-                                <NumericUpDown Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                               Value="{Binding AmpEnvDecay.Value, Mode=TwoWay}"/>
+                        </DockPanel>
+                        <controls:DualAdsrEnvelopeControl Grid.Row="1" MinHeight="180" Margin="0,8"
+                            ActiveEnvelope="{Binding ActiveEnvelope, Mode=TwoWay}"
+                            AmpAttack="{Binding AmpEnvAttack.Value, Mode=TwoWay}"
+                            AmpDecay="{Binding AmpEnvDecay.Value, Mode=TwoWay}"
+                            AmpSustain="{Binding AmpEnvSustain.Value, Mode=TwoWay}"
+                            AmpRelease="{Binding AmpEnvRelease.Value, Mode=TwoWay}"
+                            FilterAttack="{Binding FilterEnvAttack.Value, Mode=TwoWay}"
+                            FilterDecay="{Binding FilterEnvDecay.Value, Mode=TwoWay}"
+                            FilterSustain="{Binding FilterEnvSustain.Value, Mode=TwoWay}"
+                            FilterRelease="{Binding FilterEnvRelease.Value, Mode=TwoWay}"
+                            AmpLineBrush="{StaticResource SnAmpEnvelopeBrush}"
+                            AmpFillBrush="{StaticResource SnAmpEnvelopeFillBrush}"
+                            FilterLineBrush="{StaticResource SnFilterEnvelopeBrush}"
+                            FilterFillBrush="{StaticResource SnFilterEnvelopeFillBrush}"
+                            BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                            GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                            AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
+                            HandleBrush="{StaticResource SnEnvelopeHandleBrush}"
+                            FocusBrush="{StaticResource SnEnvelopeFocusBrush}"/>
+                        <Grid Grid.Row="2" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto">
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Amp A/D/S/R" Foreground="{StaticResource SnAmpEnvelopeBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,8,2"/>
+                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,2">
+                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvAttack.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvDecay.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvSustain.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvRelease.Value, Mode=TwoWay}"/>
                             </StackPanel>
-                            <StackPanel Spacing="2">
-                                <TextBlock Text="Sustain" ToolTip.Tip="Level held while the key is down."/>
-                                <NumericUpDown Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                               Value="{Binding AmpEnvSustain.Value, Mode=TwoWay}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Filter A/D/S/R" Foreground="{StaticResource SnFilterEnvelopeBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvAttack.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvDecay.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvSustain.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvRelease.Value, Mode=TwoWay}"/>
                             </StackPanel>
-                            <StackPanel Spacing="2">
-                                <TextBlock Text="Release" ToolTip.Tip="How long it fades after release."/>
-                                <NumericUpDown Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                               Value="{Binding AmpEnvRelease.Value, Mode=TwoWay}"/>
-                            </StackPanel>
-                        </StackPanel>
+                        </Grid>
                     </Grid>
                 </Border>
 
                 <!-- Partial utilities -->
-                <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+                <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
                     <Button Content="Copy partial"
                             Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).CopyPartialCommand}"/>
                     <Button Content="Paste partial"
