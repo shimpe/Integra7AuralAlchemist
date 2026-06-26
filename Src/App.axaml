@@ -28,6 +28,8 @@
             <SolidColorBrush x:Key="SnAmpEnvelopeFillBrush" Color="#553D7EAA" />
             <SolidColorBrush x:Key="SnFilterEnvelopeBrush" Color="#E0A23D" />
             <SolidColorBrush x:Key="SnFilterEnvelopeFillBrush" Color="#55B07A1E" />
+            <SolidColorBrush x:Key="SnPitchEnvelopeBrush" Color="#9C7BE0" />
+            <SolidColorBrush x:Key="SnPitchEnvelopeFillBrush" Color="#556A4FB0" />
         </ResourceDictionary>
     </Application.Resources>
 

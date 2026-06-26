@@ -161,7 +161,7 @@
                      window scrolls instead of overlapping the buttons. -->
                 <Grid DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
                       MinHeight="{Binding #RightScroll.Bounds.Height}"
-                      RowDefinitions="Auto,Auto,Auto,*,Auto">
+                      RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
 
                 <!-- Oscillator -->
                 <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,12">
@@ -227,8 +227,70 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Filter -->
+                <!-- Pitch -->
                 <Border Grid.Row="1" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,12">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Pitch" FontWeight="Bold"/>
+                        <DockPanel>
+                            <!-- Tone-wide pitch controls (apply to the whole tone, not just this partial) -->
+                            <StackPanel DockPanel.Dock="Right" Spacing="2" Margin="16,0,0,0">
+                                <TextBlock Text="Octave / Bend (whole tone)" Opacity="0.7"/>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Octave" ToolTip.Tip="Octave Shift"/>
+                                        <NumericUpDown Width="100" Minimum="-3" Maximum="3" Increment="1" FormatString="0"
+                                                       Value="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).Header.OctaveShift.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Bend Up" ToolTip.Tip="Pitch Bend Range Up"/>
+                                        <NumericUpDown Width="100" Minimum="0" Maximum="24" Increment="1" FormatString="0"
+                                                       Value="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).Header.PitchBendUp.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Bend Down" ToolTip.Tip="Pitch Bend Range Down"/>
+                                        <NumericUpDown Width="100" Minimum="0" Maximum="24" Increment="1" FormatString="0"
+                                                       Value="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).Header.PitchBendDown.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                            <!-- Per-partial pitch envelope (bipolar: up = sharp, down = flat) -->
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="Pitch envelope (up = sharp, down = flat)"/>
+                                <controls:PitchEnvelopeControl Height="120"
+                                    Attack="{Binding PitchEnvAttack.Value, Mode=TwoWay}"
+                                    Decay="{Binding PitchEnvDecay.Value, Mode=TwoWay}"
+                                    Depth="{Binding PitchEnvDepth.Value, Mode=TwoWay}"
+                                    LineBrush="{StaticResource SnPitchEnvelopeBrush}"
+                                    FillBrush="{StaticResource SnPitchEnvelopeFillBrush}"
+                                    BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                                    GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                                    AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
+                                    HandleBrush="{StaticResource SnEnvelopeHandleBrush}"
+                                    FocusBrush="{StaticResource SnEnvelopeFocusBrush}"/>
+                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Attack" ToolTip.Tip="OSC Pitch Env Attack Time"/>
+                                        <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0"
+                                                       Value="{Binding PitchEnvAttack.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Decay" ToolTip.Tip="OSC Pitch Env Decay"/>
+                                        <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0"
+                                                       Value="{Binding PitchEnvDecay.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Depth" ToolTip.Tip="OSC Pitch Env Depth"/>
+                                        <NumericUpDown Width="118" Minimum="-63" Maximum="63" Increment="1" FormatString="0"
+                                                       Value="{Binding PitchEnvDepth.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </DockPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Filter -->
+                <Border Grid.Row="2" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,12">
                     <StackPanel Spacing="8">
                         <TextBlock Text="Filter" FontWeight="Bold"/>
                         <DockPanel>
@@ -294,7 +356,7 @@
                 </Border>
 
                 <!-- Amp -->
-                <Border Grid.Row="2" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,12">
+                <Border Grid.Row="3" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,12">
                     <StackPanel Spacing="8">
                         <TextBlock Text="Amp" FontWeight="Bold"/>
                         <StackPanel Orientation="Horizontal" Spacing="16">
@@ -323,7 +385,7 @@
                 </Border>
 
                 <!-- Combined Amp + Filter envelope (shared axes), fills remaining height -->
-                <Border Grid.Row="3" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <Border Grid.Row="4" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <DockPanel Grid.Row="0">
                             <TextBlock Text="Envelopes — Amp + Filter (shared time / level)" FontWeight="Bold"/>
@@ -379,7 +441,7 @@
                 </Border>
 
                 <!-- Partial utilities -->
-                <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
+                <StackPanel Grid.Row="5" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
                     <Button Content="Copy partial"
                             Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).CopyPartialCommand}"/>
                     <Button Content="Paste partial"
