@@ -282,14 +282,20 @@
                                                     Parameters="{Binding PCMDrumKitCompEQParameters}"
                                                     SearchText="{Binding SearchTextPCMDrumKitCompEQ, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="Tone"
+                                            <TabItem Header="Editor"
                                                      Tag="SN-S"
+                                                     IsVisible="{Binding SelectedPresetIsSNSynthTone}">
+                                                <local:SNSynthToneEditorView DataContext="{Binding SNSynthToneEditor}" />
+                                            </TabItem>
+                                            <TabItem Header="Advanced — Common"
+                                                     Tag="SN-S-COMMON"
                                                      IsVisible="{Binding SelectedPresetIsSNSynthTone}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding SNSynthToneCommonParameters}"
                                                     SearchText="{Binding SearchTextSNSynthToneCommon, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="MFX"
+                                            <TabItem Header="Advanced — MFX"
+                                                     Tag="SN-S-MFX"
                                                      IsVisible="{Binding SelectedPresetIsSNSynthTone}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding SNSynthToneCommonMFXParameters}"
@@ -364,7 +370,8 @@
                                                     </TabControl.ContentTemplate>
                                                 </TabControl>
                                             </TabItem>
-                                            <TabItem Header="Partials"
+                                            <TabItem Header="Advanced — Partials"
+                                                     Tag="SN-S-PARTIALS"
                                                      IsVisible="{Binding SelectedPresetIsSNSynthTone}">
                                                 <TabControl
                                                     ItemsSource="{Binding SNSynthTonePartialViewModels}"

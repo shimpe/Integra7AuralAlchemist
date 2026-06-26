@@ -197,6 +197,7 @@ public partial class PartViewModel : ViewModelBase
     private IDisposable? _cleanupSNSynthToneCommonMFXParams;
 
     private IDisposable? _cleanupSNSynthToneCommonParams;
+    [Reactive] private SNSynthToneEditorViewModel? _sNSynthToneEditor;
     private IDisposable? _cleanupStudioSetChorus;
     private IDisposable? _cleanupStudioSetCommon;
     private IDisposable? _cleanupStudioSetMasterEQ;
@@ -1370,6 +1371,13 @@ public partial class PartViewModel : ViewModelBase
             List<FullyQualifiedParameter> p_snmfx =
                 _i7domain.SNSynthToneCommonMFX(PartNo).GetRelevantParameters(true, true);
             _sourceCacheSNSynthToneCommonMFXParameters.AddOrUpdate(p_snmfx);
+
+            // Friendly SuperNATURAL Synth editor for this part. Binds to the same live SN-S FQP
+            // instances populated above, so it tracks preset/hardware changes for free. The
+            // navigation callback points the inner tab control's SelectTabByTag binding at the
+            // matching raw "Advanced" tab.
+            _sNSynthToneEditor?.Dispose();
+            SNSynthToneEditor = new SNSynthToneEditorViewModel(_i7domain, PartNo, tag => ToneTabKey = tag);
 
             List<FullyQualifiedParameter> p_snatc =
                 _i7domain.SNAcousticToneCommon(PartNo).GetRelevantParameters(true, true);
