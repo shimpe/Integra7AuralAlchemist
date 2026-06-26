@@ -128,16 +128,25 @@
                                     <TextBlock Text="Filter" Opacity="0.6"/>
                                     <TextBlock Text="{Binding FilterSummary}"/>
                                 </StackPanel>
-                                <!-- Preview thumbnails (dimmed, no handles): edit on the big graph at right. -->
-                                <controls:AdsrEnvelopeControl Height="40" Preview="True" IsHitTestVisible="False" Opacity="0.85"
-                                    LineBrush="{StaticResource SnAmpEnvelopeBrush}" FillBrush="{StaticResource SnAmpEnvelopeFillBrush}"
-                                    Attack="{Binding AmpEnvAttack.Value}" Decay="{Binding AmpEnvDecay.Value}"
-                                    Sustain="{Binding AmpEnvSustain.Value}" Release="{Binding AmpEnvRelease.Value}"/>
-                                <controls:AdsrEnvelopeControl Height="40" Preview="True" IsHitTestVisible="False" Opacity="0.85"
+                                <!-- Preview thumbnails (non-interactive). Row 1: filter shape. -->
+                                <controls:FilterCurveControl Height="40" Preview="True" IsHitTestVisible="False" Opacity="0.85"
+                                    Mode="{Binding FilterMode.Value}" Steep="{Binding FilterSlopeSteep.Value}"
+                                    Cutoff="{Binding FilterCutoff.Value}" Resonance="{Binding FilterResonance.Value}"
                                     LineBrush="{StaticResource SnFilterEnvelopeBrush}" FillBrush="{StaticResource SnFilterEnvelopeFillBrush}"
-                                    Attack="{Binding FilterEnvAttack.Value}" Decay="{Binding FilterEnvDecay.Value}"
-                                    Sustain="{Binding FilterEnvSustain.Value}" Release="{Binding FilterEnvRelease.Value}"/>
-                                <TextBlock Text="amp (blue) + filter (amber) env — preview" FontSize="10" Opacity="0.45"
+                                    BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}" GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                                    AxisBrush="{StaticResource SnEnvelopeAxisBrush}"/>
+                                <TextBlock Text="filter shape (preview)" FontSize="10" Opacity="0.45" HorizontalAlignment="Center"/>
+                                <!-- Row 2: amp + filter envelopes overlaid on shared axes. -->
+                                <controls:DualAdsrEnvelopeControl Height="44" Preview="True" IsHitTestVisible="False" Opacity="0.85"
+                                    AmpAttack="{Binding AmpEnvAttack.Value}" AmpDecay="{Binding AmpEnvDecay.Value}"
+                                    AmpSustain="{Binding AmpEnvSustain.Value}" AmpRelease="{Binding AmpEnvRelease.Value}"
+                                    FilterAttack="{Binding FilterEnvAttack.Value}" FilterDecay="{Binding FilterEnvDecay.Value}"
+                                    FilterSustain="{Binding FilterEnvSustain.Value}" FilterRelease="{Binding FilterEnvRelease.Value}"
+                                    AmpLineBrush="{StaticResource SnAmpEnvelopeBrush}" AmpFillBrush="{StaticResource SnAmpEnvelopeFillBrush}"
+                                    FilterLineBrush="{StaticResource SnFilterEnvelopeBrush}" FilterFillBrush="{StaticResource SnFilterEnvelopeFillBrush}"
+                                    BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}" GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                                    AxisBrush="{StaticResource SnEnvelopeAxisBrush}"/>
+                                <TextBlock Text="amp (blue) + filter (amber) env (preview)" FontSize="10" Opacity="0.45"
                                            HorizontalAlignment="Center"/>
                             </StackPanel>
                         </Border>

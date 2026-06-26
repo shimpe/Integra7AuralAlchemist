@@ -26,6 +26,10 @@ public class FilterCurveControl : Control
     public static readonly StyledProperty<int> ResonanceProperty =
         AvaloniaProperty.Register<FilterCurveControl, int>(nameof(Resonance), 0, defaultBindingMode: BindingMode.TwoWay);
 
+    /// <summary>When true, render as a non-interactive preview: no handle, no input.</summary>
+    public static readonly StyledProperty<bool> PreviewProperty =
+        AvaloniaProperty.Register<FilterCurveControl, bool>(nameof(Preview));
+
     private static StyledProperty<IBrush> B(string name, IBrush def) =>
         AvaloniaProperty.Register<FilterCurveControl, IBrush>(name, def);
 
@@ -46,6 +50,7 @@ public class FilterCurveControl : Control
     public IBrush GridBrush { get => GetValue(GridBrushProperty); set => SetValue(GridBrushProperty, value); }
     public IBrush AxisBrush { get => GetValue(AxisBrushProperty); set => SetValue(AxisBrushProperty, value); }
     public IBrush HandleBrush { get => GetValue(HandleBrushProperty); set => SetValue(HandleBrushProperty, value); }
+    public bool Preview { get => GetValue(PreviewProperty); set => SetValue(PreviewProperty, value); }
 
     private bool _dragging;
 
@@ -53,7 +58,7 @@ public class FilterCurveControl : Control
     {
         AffectsRender<FilterCurveControl>(ModeProperty, SteepProperty, CutoffProperty, ResonanceProperty,
             LineBrushProperty, FillBrushProperty, BackgroundBrushProperty, GridBrushProperty,
-            AxisBrushProperty, HandleBrushProperty);
+            AxisBrushProperty, HandleBrushProperty, PreviewProperty);
         FocusableProperty.OverrideDefaultValue<FilterCurveControl>(true);
     }
 
@@ -88,6 +93,8 @@ public class FilterCurveControl : Control
         }
         context.DrawGeometry(null, new Pen(LineBrush, 2), line);
 
+        if (Preview) return; // previews show no handle
+
         // Handle sits on the curve peak at the cutoff.
         var hx = Cutoff / 127.0 * w;
         var hy = (1 - FilterCurve.PeakLevel(Resonance)) * h;
@@ -113,6 +120,7 @@ public class FilterCurveControl : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+        if (Preview) return; // previews are non-interactive
         Focus();
         _dragging = true;
         e.Pointer.Capture(this);
@@ -150,6 +158,7 @@ public class FilterCurveControl : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (Preview) return; // previews are non-interactive
         switch (e.Key)
         {
             case Key.Left: Cutoff = SnsEnvelopeMapping.Clamp(Cutoff - 1); e.Handled = true; break;

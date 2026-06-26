@@ -48,6 +48,11 @@ public class DualAdsrEnvelopeControl : Control
     public static readonly StyledProperty<IBrush> HandleBrushProperty = B(nameof(HandleBrush), Brushes.White);
     public static readonly StyledProperty<IBrush> FocusBrushProperty = B(nameof(FocusBrush), Brushes.Orange);
 
+    /// <summary>When true, render as a non-interactive preview: both envelopes shown equally,
+    /// no handles, no active/inactive dimming.</summary>
+    public static readonly StyledProperty<bool> PreviewProperty =
+        AvaloniaProperty.Register<DualAdsrEnvelopeControl, bool>(nameof(Preview));
+
     public int AmpAttack { get => GetValue(AmpAttackProperty); set => SetValue(AmpAttackProperty, value); }
     public int AmpDecay { get => GetValue(AmpDecayProperty); set => SetValue(AmpDecayProperty, value); }
     public int AmpSustain { get => GetValue(AmpSustainProperty); set => SetValue(AmpSustainProperty, value); }
@@ -66,6 +71,7 @@ public class DualAdsrEnvelopeControl : Control
     public IBrush AxisBrush { get => GetValue(AxisBrushProperty); set => SetValue(AxisBrushProperty, value); }
     public IBrush HandleBrush { get => GetValue(HandleBrushProperty); set => SetValue(HandleBrushProperty, value); }
     public IBrush FocusBrush { get => GetValue(FocusBrushProperty); set => SetValue(FocusBrushProperty, value); }
+    public bool Preview { get => GetValue(PreviewProperty); set => SetValue(PreviewProperty, value); }
 
     // 0=Attack,1=Decay,2=Release. _dragEnv/_dragHandle while dragging; _focusedHandle for keyboard.
     private int _dragEnv = -1, _dragHandle = -1, _focusedHandle = 0;
@@ -77,7 +83,7 @@ public class DualAdsrEnvelopeControl : Control
             FilterAttackProperty, FilterDecayProperty, FilterSustainProperty, FilterReleaseProperty,
             ActiveEnvelopeProperty, AmpLineBrushProperty, AmpFillBrushProperty,
             FilterLineBrushProperty, FilterFillBrushProperty, BackgroundBrushProperty,
-            GridBrushProperty, AxisBrushProperty, HandleBrushProperty, FocusBrushProperty);
+            GridBrushProperty, AxisBrushProperty, HandleBrushProperty, FocusBrushProperty, PreviewProperty);
         FocusableProperty.OverrideDefaultValue<DualAdsrEnvelopeControl>(true);
     }
 
@@ -92,23 +98,31 @@ public class DualAdsrEnvelopeControl : Control
         context.FillRectangle(BackgroundBrush, new Rect(0, 0, w, h));
         EnvelopeAxes.Draw(context, w, h, SustainWidth, new Pen(GridBrush), new Pen(AxisBrush));
 
+        if (Preview)
+        {
+            // Both envelopes shown equally, no handles (the card thumbnail).
+            DrawEnvelope(context, AmpPoints(w, h), AmpLineBrush, AmpFillBrush, h, 0.9, 1.5, drawHandles: false);
+            DrawEnvelope(context, FilterPoints(w, h), FilterLineBrush, FilterFillBrush, h, 0.9, 1.5, drawHandles: false);
+            return;
+        }
+
         // Inactive first (dim), then active on top.
         if (ActiveEnvelope == 0)
         {
-            DrawEnvelope(context, FilterPoints(w, h), FilterLineBrush, FilterFillBrush, h, active: false);
-            DrawEnvelope(context, AmpPoints(w, h), AmpLineBrush, AmpFillBrush, h, active: true);
+            DrawEnvelope(context, FilterPoints(w, h), FilterLineBrush, FilterFillBrush, h, 0.4, 1.5, drawHandles: false);
+            DrawEnvelope(context, AmpPoints(w, h), AmpLineBrush, AmpFillBrush, h, 1.0, 2, drawHandles: true);
         }
         else
         {
-            DrawEnvelope(context, AmpPoints(w, h), AmpLineBrush, AmpFillBrush, h, active: false);
-            DrawEnvelope(context, FilterPoints(w, h), FilterLineBrush, FilterFillBrush, h, active: true);
+            DrawEnvelope(context, AmpPoints(w, h), AmpLineBrush, AmpFillBrush, h, 0.4, 1.5, drawHandles: false);
+            DrawEnvelope(context, FilterPoints(w, h), FilterLineBrush, FilterFillBrush, h, 1.0, 2, drawHandles: true);
         }
     }
 
     private void DrawEnvelope(DrawingContext context, SnsEnvelopeMapping.EnvPoints p, IBrush line, IBrush fill,
-        double h, bool active)
+        double h, double opacity, double lineWidth, bool drawHandles)
     {
-        using (context.PushOpacity(active ? 1.0 : 0.4))
+        using (context.PushOpacity(opacity))
         {
             var fillGeo = new StreamGeometry();
             using (var c = fillGeo.Open())
@@ -134,9 +148,9 @@ public class DualAdsrEnvelopeControl : Control
                 c.LineTo(new Point(p.End.X, p.End.Y));
                 c.EndFigure(false);
             }
-            context.DrawGeometry(null, new Pen(line, active ? 2 : 1.5), lineGeo);
+            context.DrawGeometry(null, new Pen(line, lineWidth), lineGeo);
 
-            if (!active) return;
+            if (!drawHandles) return;
             DrawHandle(context, p.Peak, _focusedHandle == 0);
             DrawHandle(context, p.SustainStart, _focusedHandle == 1);
             DrawHandle(context, p.End, _focusedHandle == 2);
@@ -149,6 +163,7 @@ public class DualAdsrEnvelopeControl : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+        if (Preview) return; // previews are non-interactive
         Focus();
         var pos = e.GetPosition(this);
         var hit = SnsEnvelopeMapping.NearestHandle(pos.X, pos.Y, AmpPoints(Bounds.Width, Bounds.Height),
@@ -208,6 +223,7 @@ public class DualAdsrEnvelopeControl : Control
     protected override void OnKeyDown(KeyEventArgs e)
     {
         base.OnKeyDown(e);
+        if (Preview) return; // previews are non-interactive
         switch (e.Key)
         {
             case Key.Tab:
