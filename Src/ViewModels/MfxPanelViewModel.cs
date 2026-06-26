@@ -19,10 +19,11 @@ public sealed record MfxParamDisplay(FullyQualifiedParameter Param, string Label
 /// Friendly, tone-wide Multi-Effect panel. Two-combo (family -> type) picker, bypass (Thru),
 /// Chorus/Reverb send faders, and the current effect type's parameters rendered dynamically from the
 /// MFX domain (filtered by the MFX Type discriminator) using DataTemplateProvider.ParameterValueTemplate.
+/// Engine-agnostic: pass ANY engine's "Common MFX" <see cref="DomainBase"/> (SN-S / SN-A / SN-D /
+/// PCM Synth / PCM Drum) — the MFX parameter set is identical across engines, only the path prefix differs.
 /// </summary>
 public sealed class MfxPanelViewModel : ViewModelBase, IDisposable
 {
-    private const string PFX = "SuperNATURAL Synth Tone Common MFX/";
     private const string Thru = "Thru";
 
     private readonly DomainBase _mfxDomain;
@@ -47,11 +48,14 @@ public sealed class MfxPanelViewModel : ViewModelBase, IDisposable
     {
         _mfxDomain = mfxDomain;
         _allMfxParams = mfxDomain.GetRelevantParameters(true, true);
-        var byPath = _allMfxParams.ToDictionary(p => p.ParSpec.Path);
 
-        Type = new ParamString(mfxDomain, byPath[PFX + "MFX Type"], writer);
-        ChorusSend = new ParamInt(mfxDomain, byPath[PFX + "MFX Chorus Send Level"], writer, 0, 127);
-        ReverbSend = new ParamInt(mfxDomain, byPath[PFX + "MFX Reverb Send Level"], writer, 0, 127);
+        // Look up by leaf name (not full path) so the panel works for ANY engine's Common MFX domain —
+        // the MFX param set is identical across engines, only the path prefix differs.
+        FullyQualifiedParameter ByName(string name) => _allMfxParams.First(p => p.ParSpec.Name == name);
+
+        Type = new ParamString(mfxDomain, ByName("MFX Type"), writer);
+        ChorusSend = new ParamInt(mfxDomain, ByName("MFX Chorus Send Level"), writer, 0, 127);
+        ReverbSend = new ParamInt(mfxDomain, ByName("MFX Reverb Send Level"), writer, 0, 127);
 
         AdvancedMfxCommand = ReactiveCommand.Create(navigateToAdvanced);
 
