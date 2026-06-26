@@ -137,8 +137,13 @@
             </ListBox>
 
             <!-- Right column: sections stack; the Combined Envelope row (*) grows to fill the window. -->
-            <Grid Grid.Column="1" DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
-                  RowDefinitions="Auto,Auto,Auto,*,Auto">
+            <ScrollViewer Grid.Column="1" Name="RightScroll"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <!-- MinHeight = viewport so the envelope row (*) fills a tall window, while a short
+                     window scrolls instead of overlapping the buttons. -->
+                <Grid DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
+                      MinHeight="{Binding #RightScroll.Bounds.Height}"
+                      RowDefinitions="Auto,Auto,Auto,*,Auto">
 
                 <!-- Oscillator -->
                 <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,12">
@@ -341,7 +346,8 @@
                     <Button Content="Init partial"
                             Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).InitPartialCommand}"/>
                 </StackPanel>
-            </Grid>
+                </Grid>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </UserControl>
