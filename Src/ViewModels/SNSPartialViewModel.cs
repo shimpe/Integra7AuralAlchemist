@@ -40,6 +40,10 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
     public ParamInt AmpVeloSens { get; }
     public ParamInt AmpKeyfollow { get; }
 
+    // --- Aftertouch response (cutoff + level) ---
+    public ParamInt CutoffAftertouchSens { get; }
+    public ParamInt LevelAftertouchSens { get; }
+
     // --- Amp envelope ---
     public ParamInt AmpEnvAttack { get; }
     public ParamInt AmpEnvDecay { get; }
@@ -120,6 +124,9 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
         HpfCutoff = PI("HPF Cutoff", 0, 127);
         FilterEnvVeloSens = PI("Filter Env Velocity Sens", -63, 63);
 
+        CutoffAftertouchSens = PI("Cutoff Aftertouch Sens", -63, 63);
+        LevelAftertouchSens = PI("Level Aftertouch Sens", -63, 63);
+
         FilterEnvAttack = PI("Filter Env Attack Time", 0, 127);
         FilterEnvDecay = PI("Filter Env Decay Time", 0, 127);
         FilterEnvSustain = PI("Filter Env Sustain Level", 0, 127);
@@ -143,7 +150,8 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
             AmpEnvAttack, AmpEnvDecay, AmpEnvSustain, AmpEnvRelease,
             FilterMode, FilterSlopeSteep, FilterCutoff, FilterResonance, FilterCutoffKeyfollow, HpfCutoff, FilterEnvVeloSens,
             FilterEnvAttack, FilterEnvDecay, FilterEnvSustain, FilterEnvRelease, FilterEnvDepth,
-            PitchEnvAttack, PitchEnvDecay, PitchEnvDepth
+            PitchEnvAttack, PitchEnvDecay, PitchEnvDepth,
+            CutoffAftertouchSens, LevelAftertouchSens
         }
         .Concat(AutomaticMotion.Params).Concat(ModWheelMotion.Params).ToArray();
 
@@ -229,6 +237,8 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
         [PP + "Filter Cutoff Keyfollow"] = "0",
         [PP + "HPF Cutoff"] = "0",
         [PP + "Filter Env Velocity Sens"] = "0",
+        [PP + "Cutoff Aftertouch Sens"] = "0",
+        [PP + "Level Aftertouch Sens"] = "0",
         [PP + "Filter Env Attack Time"] = "0",
         [PP + "Filter Env Decay Time"] = "64",
         [PP + "Filter Env Sustain Level"] = "127",
