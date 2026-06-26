@@ -62,23 +62,43 @@ public class MotionalSurroundPartViewModel : ViewModelBase, IDisposable
     {
         if (e.PropertyName != nameof(FullyQualifiedParameter.StringValue)) return;
         // FQP changes may arrive on a MIDI background thread; marshal to UI.
-        Dispatcher.UIThread.Post(ApplyFromModel);
+        // Sync ONLY the parameter that changed. Re-reading all four here caused a cross-axis
+        // revert during the coupled L-R+F-B position write: writing L-R fired this echo, which
+        // re-read the not-yet-written F-B and reverted it, after which the F-B write persisted
+        // that stale value (so F-B snapped back). Granular sync leaves the other axes untouched.
+        Dispatcher.UIThread.Post(() => ApplyParamFromModel(sender));
     }
 
+    // Read every axis from the model. Used once at construction; per-change updates go through
+    // ApplyParamFromModel so one axis can never clobber another mid-write (see OnParamChanged).
     private void ApplyFromModel()
+    {
+        ApplyParamFromModel(_lrParam);
+        ApplyParamFromModel(_fbParam);
+        ApplyParamFromModel(_widthParam);
+        ApplyParamFromModel(_ambParam);
+        if (_channelParam != null) ApplyParamFromModel(_channelParam);
+    }
+
+    private void ApplyParamFromModel(object? sender)
     {
         _suppress = true;
         try
         {
-            Lr = MotionalSurroundMapping.Clamp(MotionalSurroundMapping.ParseDisplayInt(_lrParam.StringValue),
-                MotionalSurroundMapping.LrFbMin, MotionalSurroundMapping.LrFbMax);
-            Fb = MotionalSurroundMapping.Clamp(MotionalSurroundMapping.ParseDisplayInt(_fbParam.StringValue),
-                MotionalSurroundMapping.LrFbMin, MotionalSurroundMapping.LrFbMax);
-            Width = MotionalSurroundMapping.Clamp(MotionalSurroundMapping.ParseDisplayInt(_widthParam.StringValue),
-                MotionalSurroundMapping.WidthMin, MotionalSurroundMapping.WidthMax);
-            Ambience = MotionalSurroundMapping.Clamp(MotionalSurroundMapping.ParseDisplayInt(_ambParam.StringValue),
-                MotionalSurroundMapping.AmbienceMin, MotionalSurroundMapping.AmbienceMax);
-            if (_channelParam != null) Channel = _channelParam.StringValue;
+            if (ReferenceEquals(sender, _lrParam))
+                Lr = MotionalSurroundMapping.Clamp(MotionalSurroundMapping.ParseDisplayInt(_lrParam.StringValue),
+                    MotionalSurroundMapping.LrFbMin, MotionalSurroundMapping.LrFbMax);
+            else if (ReferenceEquals(sender, _fbParam))
+                Fb = MotionalSurroundMapping.Clamp(MotionalSurroundMapping.ParseDisplayInt(_fbParam.StringValue),
+                    MotionalSurroundMapping.LrFbMin, MotionalSurroundMapping.LrFbMax);
+            else if (ReferenceEquals(sender, _widthParam))
+                Width = MotionalSurroundMapping.Clamp(MotionalSurroundMapping.ParseDisplayInt(_widthParam.StringValue),
+                    MotionalSurroundMapping.WidthMin, MotionalSurroundMapping.WidthMax);
+            else if (ReferenceEquals(sender, _ambParam))
+                Ambience = MotionalSurroundMapping.Clamp(MotionalSurroundMapping.ParseDisplayInt(_ambParam.StringValue),
+                    MotionalSurroundMapping.AmbienceMin, MotionalSurroundMapping.AmbienceMax);
+            else if (_channelParam != null && ReferenceEquals(sender, _channelParam))
+                Channel = _channelParam.StringValue;
         }
         finally { _suppress = false; }
     }
