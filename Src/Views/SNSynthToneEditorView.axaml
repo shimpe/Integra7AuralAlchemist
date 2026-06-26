@@ -7,6 +7,15 @@
              x:Name="Root"
              x:Class="Integra7AuralAlchemist.Views.SNSynthToneEditorView">
 
+    <UserControl.Styles>
+        <!-- Reserve a uniform 2-line height for control labels so wrapped labels don't push their
+             slider/combo down — keeps every control in a row vertically aligned. -->
+        <Style Selector="TextBlock.sliderLabel">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="MinHeight" Value="40"/>
+        </Style>
+    </UserControl.Styles>
+
     <Grid RowDefinitions="Auto,*" Margin="8">
 
         <!-- ===== Tone Header ===== -->
@@ -151,54 +160,54 @@
                         <TextBlock Text="Oscillator" FontWeight="Bold"/>
                         <StackPanel Orientation="Horizontal" Spacing="16">
                             <StackPanel Spacing="2">
-                                <TextBlock Text="Waveform" ToolTip.Tip="OSC Wave"/>
+                                <TextBlock Text="Waveform" Classes="sliderLabel" ToolTip.Tip="OSC Wave"/>
                                 <ComboBox ItemsSource="{Binding OscWave.Options}"
                                           SelectedItem="{Binding OscWave.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <StackPanel Spacing="2">
-                                <TextBlock Text="Variation"/>
+                                <TextBlock Text="Variation" Classes="sliderLabel"/>
                                 <ComboBox ItemsSource="{Binding OscWaveVariation.Options}"
                                           SelectedItem="{Binding OscWaveVariation.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="160">
-                                <TextBlock Text="Pitch (semitones)" TextWrapping="Wrap" ToolTip.Tip="OSC Pitch"/>
+                                <TextBlock Text="Pitch (semitones)" Classes="sliderLabel" ToolTip.Tip="OSC Pitch"/>
                                 <Slider Minimum="-24" Maximum="24" Value="{Binding OscPitch.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="160">
-                                <TextBlock Text="Detune" TextWrapping="Wrap" ToolTip.Tip="OSC Detune (Flat / Center / Sharp)"/>
+                                <TextBlock Text="Detune" Classes="sliderLabel" ToolTip.Tip="OSC Detune (Flat / Center / Sharp)"/>
                                 <Slider Minimum="-50" Maximum="50" Value="{Binding OscDetune.Value, Mode=TwoWay}"/>
                             </StackPanel>
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding ShowsPulseWidth}">
                             <StackPanel Spacing="2" Width="160">
-                                <TextBlock Text="Pulse Width" TextWrapping="Wrap" ToolTip.Tip="OSC Pulse Width"/>
+                                <TextBlock Text="Pulse Width" Classes="sliderLabel" ToolTip.Tip="OSC Pulse Width"/>
                                 <Slider Minimum="0" Maximum="127" Value="{Binding OscPulseWidth.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="160">
-                                <TextBlock Text="PW Shift" TextWrapping="Wrap" ToolTip.Tip="OSC Pulse Width shift"/>
+                                <TextBlock Text="PW Shift" Classes="sliderLabel" ToolTip.Tip="OSC Pulse Width shift"/>
                                 <Slider Minimum="0" Maximum="127" Value="{Binding OscPulseWidthShift.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="160">
-                                <TextBlock Text="PWM Depth" TextWrapping="Wrap" ToolTip.Tip="OSC Pulse Width Mod Depth"/>
+                                <TextBlock Text="PWM Depth" Classes="sliderLabel" ToolTip.Tip="OSC Pulse Width Mod Depth"/>
                                 <Slider Minimum="0" Maximum="127" Value="{Binding OscPwmDepth.Value, Mode=TwoWay}"/>
                             </StackPanel>
                         </StackPanel>
 
                         <StackPanel Spacing="2" Width="200" IsVisible="{Binding ShowsSuperSawDetune}">
-                            <TextBlock Text="Super Saw Detune" TextWrapping="Wrap" ToolTip.Tip="Super Saw Detune"/>
+                            <TextBlock Text="Super Saw Detune" Classes="sliderLabel" ToolTip.Tip="Super Saw Detune"/>
                             <Slider Minimum="0" Maximum="127" Value="{Binding SuperSawDetune.Value, Mode=TwoWay}"/>
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding ShowsPcm}">
                             <StackPanel Spacing="2">
-                                <TextBlock Text="PCM Wave" ToolTip.Tip="Wave Number"/>
+                                <TextBlock Text="PCM Wave" Classes="sliderLabel" ToolTip.Tip="Wave Number"/>
                                 <ComboBox MaxDropDownHeight="300" Width="220"
                                           ItemsSource="{Binding WaveNumber.Options}"
                                           SelectedItem="{Binding WaveNumber.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <StackPanel Spacing="2">
-                                <TextBlock Text="PCM Gain (dB)" ToolTip.Tip="Wave Gain"/>
+                                <TextBlock Text="PCM Gain (dB)" Classes="sliderLabel" ToolTip.Tip="Wave Gain"/>
                                 <ComboBox ItemsSource="{Binding WaveGain.Options}"
                                           SelectedItem="{Binding WaveGain.Value, Mode=TwoWay}"/>
                             </StackPanel>
@@ -215,35 +224,35 @@
                         <TextBlock Text="Filter" FontWeight="Bold"/>
                         <StackPanel Orientation="Horizontal" Spacing="16">
                             <StackPanel Spacing="2">
-                                <TextBlock Text="Mode" ToolTip.Tip="Filter Mode"/>
+                                <TextBlock Text="Mode" Classes="sliderLabel" ToolTip.Tip="Filter Mode"/>
                                 <ComboBox ItemsSource="{Binding FilterMode.Options}"
                                           SelectedItem="{Binding FilterMode.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <StackPanel Spacing="2">
-                                <TextBlock Text="Slope" ToolTip.Tip="Filter Slope"/>
+                                <TextBlock Text="Slope" Classes="sliderLabel" ToolTip.Tip="Filter Slope"/>
                                 <ToggleSwitch OnContent="Steep 24 dB" OffContent="Gentle 12 dB"
                                               IsChecked="{Binding FilterSlopeSteep.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="150">
-                                <TextBlock Text="Cutoff (Brightness)" TextWrapping="Wrap" ToolTip.Tip="Filter Cutoff"/>
+                                <TextBlock Text="Cutoff (Brightness)" Classes="sliderLabel" ToolTip.Tip="Filter Cutoff"/>
                                 <Slider Minimum="0" Maximum="127" Value="{Binding FilterCutoff.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="150">
-                                <TextBlock Text="Resonance" TextWrapping="Wrap" ToolTip.Tip="Filter Resonance"/>
+                                <TextBlock Text="Resonance" Classes="sliderLabel" ToolTip.Tip="Filter Resonance"/>
                                 <Slider Minimum="0" Maximum="127" Value="{Binding FilterResonance.Value, Mode=TwoWay}"/>
                             </StackPanel>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="16">
                             <StackPanel Spacing="2" Width="180">
-                                <TextBlock Text="Cutoff Keyfollow" TextWrapping="Wrap" ToolTip.Tip="Filter Cutoff Keyfollow"/>
+                                <TextBlock Text="Cutoff Keyfollow" Classes="sliderLabel" ToolTip.Tip="Filter Cutoff Keyfollow"/>
                                 <Slider Minimum="-100" Maximum="100" Value="{Binding FilterCutoffKeyfollow.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="150">
-                                <TextBlock Text="HPF Cutoff" TextWrapping="Wrap" ToolTip.Tip="HPF Cutoff"/>
+                                <TextBlock Text="HPF Cutoff" Classes="sliderLabel" ToolTip.Tip="HPF Cutoff"/>
                                 <Slider Minimum="0" Maximum="127" Value="{Binding HpfCutoff.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="180">
-                                <TextBlock Text="Env Velocity Sens" TextWrapping="Wrap" ToolTip.Tip="Filter Env Velocity Sens"/>
+                                <TextBlock Text="Env Velocity Sens" Classes="sliderLabel" ToolTip.Tip="Filter Env Velocity Sens"/>
                                 <Slider Minimum="-63" Maximum="63" Value="{Binding FilterEnvVeloSens.Value, Mode=TwoWay}"/>
                             </StackPanel>
                         </StackPanel>
@@ -258,20 +267,20 @@
                         <TextBlock Text="Amp" FontWeight="Bold"/>
                         <StackPanel Orientation="Horizontal" Spacing="16">
                             <StackPanel Spacing="2" Width="160">
-                                <TextBlock Text="Level" TextWrapping="Wrap" ToolTip.Tip="AMP Level"/>
+                                <TextBlock Text="Level" Classes="sliderLabel" ToolTip.Tip="AMP Level"/>
                                 <Slider Minimum="0" Maximum="127" Value="{Binding AmpLevel.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="160">
-                                <TextBlock Text="Pan (L / C / R)" TextWrapping="Wrap" ToolTip.Tip="AMP Pan"/>
+                                <TextBlock Text="Pan (L / C / R)" Classes="sliderLabel" ToolTip.Tip="AMP Pan"/>
                                 <Slider Minimum="-64" Maximum="63" Value="{Binding AmpPan.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="170">
-                                <TextBlock Text="Velocity (Consistent → Dynamic)" TextWrapping="Wrap"
+                                <TextBlock Text="Velocity (Consistent → Dynamic)" Classes="sliderLabel"
                                            ToolTip.Tip="AMP Level Velocity Sens"/>
                                 <Slider Minimum="-63" Maximum="63" Value="{Binding AmpVeloSens.Value, Mode=TwoWay}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="180">
-                                <TextBlock Text="Keyfollow (Lower → Higher notes louder)" TextWrapping="Wrap"
+                                <TextBlock Text="Keyfollow (Lower → Higher notes louder)" Classes="sliderLabel"
                                            ToolTip.Tip="AMP Level Keyfollow"/>
                                 <Slider Minimum="-100" Maximum="100" Value="{Binding AmpKeyfollow.Value, Mode=TwoWay}"/>
                             </StackPanel>
