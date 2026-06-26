@@ -8,6 +8,19 @@
         <local:ViewLocator />
     </Application.DataTemplates>
 
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- SuperNATURAL Synth editor palette. Reference via {StaticResource ...}; never hardcode colors in XAML. -->
+            <SolidColorBrush x:Key="SnPanelBackgroundBrush" Color="#22000000" />
+            <SolidColorBrush x:Key="SnAccentBrush" Color="#3D7EAA" />
+            <SolidColorBrush x:Key="SnBadgeForegroundBrush" Color="White" />
+            <SolidColorBrush x:Key="SnCardBackgroundBrush" Color="#1E2226" />
+            <SolidColorBrush x:Key="SnCardHoverBackgroundBrush" Color="#262B30" />
+            <SolidColorBrush x:Key="SnCardSelectedBackgroundBrush" Color="#2E5D82" />
+            <SolidColorBrush x:Key="SnCardSelectedBorderBrush" Color="#8FC4EF" />
+        </ResourceDictionary>
+    </Application.Resources>
+
     <Application.Styles>
         <sty:FluentAvaloniaTheme PreferUserAccentColor="True" />
     </Application.Styles>

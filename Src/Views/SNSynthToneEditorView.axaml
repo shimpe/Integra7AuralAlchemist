@@ -10,11 +10,11 @@
     <Grid RowDefinitions="Auto,*" Margin="8">
 
         <!-- ===== Tone Header ===== -->
-        <Border Grid.Row="0" Background="#22000000" CornerRadius="6" Padding="10" Margin="0,0,0,8">
+        <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,8">
             <StackPanel Orientation="Horizontal" Spacing="16">
                 <StackPanel Spacing="2">
-                    <Border Background="#3d7eaa" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
-                        <TextBlock Text="SuperNATURAL Synth" Foreground="White" FontSize="11"/>
+                    <Border Background="{StaticResource SnAccentBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                        <TextBlock Text="SuperNATURAL Synth" Foreground="{StaticResource SnBadgeForegroundBrush}" FontSize="11"/>
                     </Border>
                     <TextBlock Text="{Binding Header.ToneName}" FontSize="16" FontWeight="Bold"/>
                 </StackPanel>
@@ -84,17 +84,18 @@
                         <Setter Property="Background" Value="Transparent"/>
                     </Style>
                     <Style Selector="ListBoxItem:pointerover Border#CardRoot">
-                        <Setter Property="Background" Value="#262b30"/>
+                        <Setter Property="Background" Value="{StaticResource SnCardHoverBackgroundBrush}"/>
                     </Style>
                     <Style Selector="ListBoxItem:selected Border#CardRoot">
-                        <Setter Property="Background" Value="#2e5d82"/>
-                        <Setter Property="BorderBrush" Value="#8fc4ef"/>
+                        <Setter Property="Background" Value="{StaticResource SnCardSelectedBackgroundBrush}"/>
+                        <Setter Property="BorderBrush" Value="{StaticResource SnCardSelectedBorderBrush}"/>
                     </Style>
                 </ListBox.Styles>
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SNSPartialViewModel">
                         <Border x:Name="CardRoot" Padding="8" CornerRadius="6"
-                                Background="#1e2226" BorderThickness="2" BorderBrush="Transparent">
+                                Background="{StaticResource SnCardBackgroundBrush}" BorderThickness="2"
+                                BorderBrush="Transparent">
                             <StackPanel Spacing="4">
                                 <DockPanel>
                                     <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
@@ -129,7 +130,7 @@
                   RowDefinitions="Auto,Auto,*,Auto">
 
                 <!-- Oscillator -->
-                <Border Grid.Row="0" Background="#22000000" CornerRadius="6" Padding="10" Margin="0,0,0,12">
+                <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,12">
                     <StackPanel Spacing="8">
                         <TextBlock Text="Oscillator" FontWeight="Bold"/>
                         <StackPanel Orientation="Horizontal" Spacing="16">
@@ -193,7 +194,7 @@
                 </Border>
 
                 <!-- Amp -->
-                <Border Grid.Row="1" Background="#22000000" CornerRadius="6" Padding="10" Margin="0,0,0,12">
+                <Border Grid.Row="1" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,12">
                     <StackPanel Spacing="8">
                         <TextBlock Text="Amp" FontWeight="Bold"/>
                         <StackPanel Orientation="Horizontal" Spacing="16">
@@ -222,7 +223,7 @@
                 </Border>
 
                 <!-- Amp Envelope (fills remaining height) -->
-                <Border Grid.Row="2" Background="#22000000" CornerRadius="6" Padding="10">
+                <Border Grid.Row="2" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <TextBlock Grid.Row="0" Text="Amp Envelope (Volume shape)" FontWeight="Bold"/>
                         <controls:AdsrEnvelopeControl Grid.Row="1" MinHeight="160" Margin="0,8"
