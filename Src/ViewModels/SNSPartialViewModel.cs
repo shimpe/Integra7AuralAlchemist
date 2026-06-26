@@ -45,6 +45,25 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
     public ParamInt AmpEnvSustain { get; }
     public ParamInt AmpEnvRelease { get; }
 
+    // --- Filter ---
+    public ParamString FilterMode { get; }
+    public ParamBool FilterSlopeSteep { get; }   // on = -24 dB, off = -12 dB
+    public ParamInt FilterCutoff { get; }
+    public ParamInt FilterResonance { get; }
+    public ParamInt FilterCutoffKeyfollow { get; }
+    public ParamInt HpfCutoff { get; }
+    public ParamInt FilterEnvVeloSens { get; }
+
+    // --- Filter envelope ---
+    public ParamInt FilterEnvAttack { get; }
+    public ParamInt FilterEnvDecay { get; }
+    public ParamInt FilterEnvSustain { get; }
+    public ParamInt FilterEnvRelease { get; }
+    public ParamInt FilterEnvDepth { get; }
+
+    private int _activeEnvelope; // 0 = Amp, 1 = Filter (bound to the dual control toggle)
+    public int ActiveEnvelope { get => _activeEnvelope; set => this.RaiseAndSetIfChanged(ref _activeEnvelope, value); }
+
     // --- Card on/off (Common Partial{n} Switch) ---
     public ParamBool IsOn { get; }
 
@@ -83,6 +102,20 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
         AmpEnvSustain = PI("AMP Env Sustain Level", 0, 127);
         AmpEnvRelease = PI("AMP Env Release Time", 0, 127);
 
+        FilterMode = PS("Filter Mode");
+        FilterSlopeSteep = Track(new ParamBool(partialDomain, byPath[PP + "Filter Slope"], writer, "-24", "-12"));
+        FilterCutoff = PI("Filter Cutoff", 0, 127);
+        FilterResonance = PI("Filter Resonance", 0, 127);
+        FilterCutoffKeyfollow = PI("Filter Cutoff Keyfollow", -100, 100);
+        HpfCutoff = PI("HPF Cutoff", 0, 127);
+        FilterEnvVeloSens = PI("Filter Env Velocity Sens", -63, 63);
+
+        FilterEnvAttack = PI("Filter Env Attack Time", 0, 127);
+        FilterEnvDecay = PI("Filter Env Decay Time", 0, 127);
+        FilterEnvSustain = PI("Filter Env Sustain Level", 0, 127);
+        FilterEnvRelease = PI("Filter Env Release Time", 0, 127);
+        FilterEnvDepth = PI("Filter Env Depth", -63, 63);
+
         IsOn = Track(new ParamBool(commonDomain, commonByPath[CP + $"Partial{index + 1} Switch"], writer));
 
         _editable = new IParam[]
@@ -90,13 +123,17 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
             OscWave, OscWaveVariation, OscPitch, OscDetune, OscPulseWidth, OscPulseWidthShift,
             OscPwmDepth, SuperSawDetune, WaveGain, WaveNumber,
             AmpLevel, AmpPan, AmpVeloSens, AmpKeyfollow,
-            AmpEnvAttack, AmpEnvDecay, AmpEnvSustain, AmpEnvRelease
+            AmpEnvAttack, AmpEnvDecay, AmpEnvSustain, AmpEnvRelease,
+            FilterMode, FilterSlopeSteep, FilterCutoff, FilterResonance, FilterCutoffKeyfollow, HpfCutoff, FilterEnvVeloSens,
+            FilterEnvAttack, FilterEnvDecay, FilterEnvSustain, FilterEnvRelease, FilterEnvDepth
         };
 
         // Re-raise the conditional-visibility flags and card summary when the wave / level / pan change.
         OscWave.PropertyChanged += OnOscWaveChanged;
         AmpLevel.PropertyChanged += OnSummaryChanged;
         AmpPan.PropertyChanged += OnSummaryChanged;
+        FilterMode.PropertyChanged += OnFilterSummaryChanged;
+        FilterCutoff.PropertyChanged += OnFilterSummaryChanged;
     }
 
     private static Dictionary<string, FullyQualifiedParameter> ToDict(DomainBase d)
@@ -129,9 +166,13 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
     private void OnSummaryChanged(object? s, PropertyChangedEventArgs e)
         => this.RaisePropertyChanged(nameof(PanLabel));
 
+    private void OnFilterSummaryChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
+        => this.RaisePropertyChanged(nameof(FilterSummary));
+
     // --- Card summary ---
     public string WaveSummary => OscWave.Value;
     public string PanLabel => AmpPan.Value == 0 ? "C" : AmpPan.Value < 0 ? $"L{-AmpPan.Value}" : $"R{AmpPan.Value}";
+    public string FilterSummary => $"{SnsFilterRules.Abbrev(FilterMode.Value)} {FilterCutoff.Value}";
 
     // --- Utilities (edit-buffer only; no save) ---
     public void Copy() => _parent.PartialClipboard = SnsPartialClipboard.Snapshot(_editable);
@@ -161,7 +202,19 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
         [PP + "AMP Env Attack Time"] = "0",
         [PP + "AMP Env Decay Time"] = "64",
         [PP + "AMP Env Sustain Level"] = "110",
-        [PP + "AMP Env Release Time"] = "30"
+        [PP + "AMP Env Release Time"] = "30",
+        [PP + "Filter Mode"] = "Low pass",
+        [PP + "Filter Slope"] = "-24",
+        [PP + "Filter Cutoff"] = "127",
+        [PP + "Filter Resonance"] = "0",
+        [PP + "Filter Cutoff Keyfollow"] = "0",
+        [PP + "HPF Cutoff"] = "0",
+        [PP + "Filter Env Velocity Sens"] = "0",
+        [PP + "Filter Env Attack Time"] = "0",
+        [PP + "Filter Env Decay Time"] = "64",
+        [PP + "Filter Env Sustain Level"] = "127",
+        [PP + "Filter Env Release Time"] = "30",
+        [PP + "Filter Env Depth"] = "0"
     };
 
     public void Dispose()
@@ -169,6 +222,8 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
         OscWave.PropertyChanged -= OnOscWaveChanged;
         AmpLevel.PropertyChanged -= OnSummaryChanged;
         AmpPan.PropertyChanged -= OnSummaryChanged;
+        FilterMode.PropertyChanged -= OnFilterSummaryChanged;
+        FilterCutoff.PropertyChanged -= OnFilterSummaryChanged;
         foreach (var w in _wrappers) w.Dispose();
     }
 }
