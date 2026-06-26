@@ -153,24 +153,28 @@ public class PitchEnvelopeControl : Control
             case Key.Tab:
                 if (e.KeyModifiers.HasFlag(KeyModifiers.Shift) || _focused == 1) break;
                 _focused = 1; e.Handled = true; InvalidateVisual(); break;
-            case Key.Left: Adjust(-1, vertical: false); e.Handled = true; break;
-            case Key.Right: Adjust(+1, vertical: false); e.Handled = true; break;
-            case Key.Up: Adjust(+1, vertical: true); e.Handled = true; break;
-            case Key.Down: Adjust(-1, vertical: true); e.Handled = true; break;
+            case Key.Left: e.Handled = Adjust(-1, vertical: false); break;
+            case Key.Right: e.Handled = Adjust(+1, vertical: false); break;
+            case Key.Up: e.Handled = Adjust(+1, vertical: true); break;
+            case Key.Down: e.Handled = Adjust(-1, vertical: true); break;
         }
     }
 
-    private void Adjust(int delta, bool vertical)
+    // Returns true only if the key actually changed a value (so an unused key isn't swallowed).
+    private bool Adjust(int delta, bool vertical)
     {
         if (_focused == 0)
         {
             if (vertical) Depth = SnsEnvelopeMapping.ClampBipolar(Depth + delta);
             else Attack = SnsEnvelopeMapping.Clamp(Attack + delta);
+            return true;
         }
-        else if (!vertical)
+        if (!vertical)
         {
             Decay = SnsEnvelopeMapping.Clamp(Decay + delta);
+            return true;
         }
+        return false; // decay handle has no vertical (depth) adjustment
     }
 
     private static int Nearest(Point pos, SnsEnvelopeMapping.PitchPoints p)
