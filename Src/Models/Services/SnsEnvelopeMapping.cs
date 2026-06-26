@@ -71,4 +71,32 @@ public static class SnsEnvelopeMapping
 
     public static int ReleaseFromX(double x, double attackWidth, double decayWidth, double sustainWidth, double segMax)
         => TimeFromWidth(x - attackWidth - decayWidth - sustainWidth, segMax);
+
+    /// <summary>Result of a dual-envelope hit test. Env 0 = amp, 1 = filter; Handle 0/1/2 =
+    /// Attack/Decay/Release; (-1,-1) = nothing within radius.</summary>
+    public readonly record struct HandleHit(int Env, int Handle);
+
+    /// <summary>Nearest editable handle across two envelopes. The active envelope wins ties
+    /// (it is tested first, and later candidates must be strictly closer to replace it).</summary>
+    public static HandleHit NearestHandle(double px, double py, EnvPoints amp, EnvPoints filter,
+        int activeEnv, double radius)
+    {
+        var best = new HandleHit(-1, -1);
+        var bestD = radius * radius;
+        var order = activeEnv == 1 ? new[] { 1, 0 } : new[] { 0, 1 };
+        foreach (var e in order)
+        {
+            var pts = e == 0 ? amp : filter;
+            Consider(e, 0, pts.Peak);
+            Consider(e, 1, pts.SustainStart);
+            Consider(e, 2, pts.End);
+        }
+        return best;
+
+        void Consider(int e, int handle, Point pt)
+        {
+            var dx = px - pt.X; var dy = py - pt.Y; var d = dx * dx + dy * dy;
+            if (d < bestD) { bestD = d; best = new HandleHit(e, handle); }
+        }
+    }
 }
