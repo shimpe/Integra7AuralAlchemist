@@ -83,6 +83,13 @@
                     <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
                         <Setter Property="Background" Value="Transparent"/>
                     </Style>
+                    <!-- Default card look. Set via a Style (NOT a local Background on the Border) so the
+                         :selected / :pointerover styles below can override it. -->
+                    <Style Selector="ListBoxItem Border#CardRoot">
+                        <Setter Property="Background" Value="{StaticResource SnCardBackgroundBrush}"/>
+                        <Setter Property="BorderThickness" Value="2"/>
+                        <Setter Property="BorderBrush" Value="Transparent"/>
+                    </Style>
                     <Style Selector="ListBoxItem:pointerover Border#CardRoot">
                         <Setter Property="Background" Value="{StaticResource SnCardHoverBackgroundBrush}"/>
                     </Style>
@@ -93,9 +100,7 @@
                 </ListBox.Styles>
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SNSPartialViewModel">
-                        <Border x:Name="CardRoot" Padding="8" CornerRadius="6"
-                                Background="{StaticResource SnCardBackgroundBrush}" BorderThickness="2"
-                                BorderBrush="Transparent">
+                        <Border x:Name="CardRoot" Padding="8" CornerRadius="6">
                             <StackPanel Spacing="4">
                                 <DockPanel>
                                     <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
