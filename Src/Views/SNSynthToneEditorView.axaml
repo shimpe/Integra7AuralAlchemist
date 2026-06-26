@@ -339,17 +339,9 @@
                             </StackPanel>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="16">
-                            <StackPanel Spacing="2" Width="180">
-                                <TextBlock Text="Cutoff Keyfollow" Classes="sliderLabel" ToolTip.Tip="Filter Cutoff Keyfollow"/>
-                                <Slider Minimum="-100" Maximum="100" Value="{Binding FilterCutoffKeyfollow.Value, Mode=TwoWay}"/>
-                            </StackPanel>
                             <StackPanel Spacing="2" Width="150">
                                 <TextBlock Text="HPF Cutoff" Classes="sliderLabel" ToolTip.Tip="HPF Cutoff"/>
                                 <Slider Minimum="0" Maximum="127" Value="{Binding HpfCutoff.Value, Mode=TwoWay}"/>
-                            </StackPanel>
-                            <StackPanel Spacing="2" Width="180">
-                                <TextBlock Text="Env Velocity Sens" Classes="sliderLabel" ToolTip.Tip="Filter Env Velocity Sens"/>
-                                <Slider Minimum="-63" Maximum="63" Value="{Binding FilterEnvVeloSens.Value, Mode=TwoWay}"/>
                             </StackPanel>
                         </StackPanel>
                         <Button HorizontalAlignment="Left" Content="Advanced filter parameters…"
@@ -369,16 +361,6 @@
                             <StackPanel Spacing="2" Width="160">
                                 <TextBlock Text="Pan (L / C / R)" Classes="sliderLabel" ToolTip.Tip="AMP Pan"/>
                                 <Slider Minimum="-64" Maximum="63" Value="{Binding AmpPan.Value, Mode=TwoWay}"/>
-                            </StackPanel>
-                            <StackPanel Spacing="2" Width="170">
-                                <TextBlock Text="Velocity (Consistent → Dynamic)" Classes="sliderLabel"
-                                           ToolTip.Tip="AMP Level Velocity Sens"/>
-                                <Slider Minimum="-63" Maximum="63" Value="{Binding AmpVeloSens.Value, Mode=TwoWay}"/>
-                            </StackPanel>
-                            <StackPanel Spacing="2" Width="180">
-                                <TextBlock Text="Keyfollow (Lower → Higher notes louder)" Classes="sliderLabel"
-                                           ToolTip.Tip="AMP Level Keyfollow"/>
-                                <Slider Minimum="-100" Maximum="100" Value="{Binding AmpKeyfollow.Value, Mode=TwoWay}"/>
                             </StackPanel>
                         </StackPanel>
                         <Button HorizontalAlignment="Left" Content="Advanced amp parameters…"
@@ -457,6 +439,55 @@
                     <TabItem Header="FX">
                         <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                             <ContentControl Content="{Binding Mfx}" Margin="0,8,0,0"/>
+                        </ScrollViewer>
+                    </TabItem>
+                    <TabItem Header="Response">
+                        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                            <Border DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
+                                    Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6"
+                                    Padding="10" Margin="0,8,0,0" VerticalAlignment="Top">
+                                <StackPanel Spacing="12">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="Response" FontWeight="Bold"/>
+                                        <TextBlock Text="— how this partial reacts to playing"
+                                                   Opacity="0.6" VerticalAlignment="Bottom"/>
+                                    </StackPanel>
+                                    <Grid ColumnDefinitions="130,210,210" RowDefinitions="Auto,Auto,Auto,Auto"
+                                          ColumnSpacing="16" RowSpacing="10">
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="→ Brightness (filter)" FontWeight="Bold"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="→ Loudness (amp)" FontWeight="Bold"/>
+
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Velocity" VerticalAlignment="Center"
+                                                   ToolTip.Tip="How hard you play"/>
+                                        <Slider Grid.Row="1" Grid.Column="1" Minimum="-63" Maximum="63"
+                                                ToolTip.Tip="Filter Env Velocity Sens"
+                                                Value="{Binding FilterEnvVeloSens.Value, Mode=TwoWay}"/>
+                                        <Slider Grid.Row="1" Grid.Column="2" Minimum="-63" Maximum="63"
+                                                ToolTip.Tip="AMP Level Velocity Sens"
+                                                Value="{Binding AmpVeloSens.Value, Mode=TwoWay}"/>
+
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Aftertouch" VerticalAlignment="Center"
+                                                   ToolTip.Tip="Pressure after the key is down"/>
+                                        <Slider Grid.Row="2" Grid.Column="1" Minimum="-63" Maximum="63"
+                                                ToolTip.Tip="Cutoff Aftertouch Sens"
+                                                Value="{Binding CutoffAftertouchSens.Value, Mode=TwoWay}"/>
+                                        <Slider Grid.Row="2" Grid.Column="2" Minimum="-63" Maximum="63"
+                                                ToolTip.Tip="Level Aftertouch Sens"
+                                                Value="{Binding LevelAftertouchSens.Value, Mode=TwoWay}"/>
+
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Key position" VerticalAlignment="Center"
+                                                   ToolTip.Tip="Higher vs lower notes (keyfollow)"/>
+                                        <Slider Grid.Row="3" Grid.Column="1" Minimum="-100" Maximum="100"
+                                                ToolTip.Tip="Filter Cutoff Keyfollow"
+                                                Value="{Binding FilterCutoffKeyfollow.Value, Mode=TwoWay}"/>
+                                        <Slider Grid.Row="3" Grid.Column="2" Minimum="-100" Maximum="100"
+                                                ToolTip.Tip="AMP Level Keyfollow"
+                                                Value="{Binding AmpKeyfollow.Value, Mode=TwoWay}"/>
+                                    </Grid>
+                                    <Button HorizontalAlignment="Left" Content="Advanced partial parameters…"
+                                            Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).AdvancedOscillatorCommand}"/>
+                                </StackPanel>
+                            </Border>
                         </ScrollViewer>
                     </TabItem>
                 </TabControl>
