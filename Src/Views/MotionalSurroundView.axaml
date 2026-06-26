@@ -37,43 +37,43 @@
               <ListBox.ItemsPanel><ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate></ListBox.ItemsPanel>
             </ListBox>
           </StackPanel>
-          <StackPanel Orientation="Vertical" Width="240">
+          <StackPanel Orientation="Vertical" Width="290">
             <TextBlock Text="Depth"/>
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Slider Minimum="0" Maximum="100" Width="150" Value="{Binding Depth}"/>
-              <NumericUpDown Minimum="0" Maximum="100" Increment="1" Width="90" FormatString="0" Value="{Binding Depth}"/>
+              <NumericUpDown Minimum="0" Maximum="100" Increment="1" Width="120" FormatString="0" Value="{Binding Depth}"/>
             </StackPanel>
             <TextBlock Classes="help" Text="How strongly parts are placed in the surround field."/>
           </StackPanel>
         </StackPanel>
         <WrapPanel Orientation="Horizontal">
-          <StackPanel Orientation="Vertical" Width="250" Margin="0,0,16,0">
+          <StackPanel Orientation="Vertical" Width="290" Margin="0,0,16,0">
             <TextBlock Text="Ambience Level"/>
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Slider Minimum="0" Maximum="127" Width="150" Value="{Binding AmbienceLevel}"/>
-              <NumericUpDown Minimum="0" Maximum="127" Increment="1" Width="90" FormatString="0" Value="{Binding AmbienceLevel}"/>
+              <NumericUpDown Minimum="0" Maximum="127" Increment="1" Width="120" FormatString="0" Value="{Binding AmbienceLevel}"/>
             </StackPanel>
             <TextBlock Classes="help" Text="Overall room/reverb presence."/>
           </StackPanel>
-          <StackPanel Orientation="Vertical" Width="230" Margin="0,0,16,0">
+          <StackPanel Orientation="Vertical" Width="280" Margin="0,0,16,0">
             <TextBlock Text="Ambience Time"/>
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Slider Minimum="0" Maximum="100" Width="140" Value="{Binding AmbienceTime}"/>
-              <NumericUpDown Minimum="0" Maximum="100" Increment="1" Width="90" FormatString="0" Value="{Binding AmbienceTime}"/>
+              <NumericUpDown Minimum="0" Maximum="100" Increment="1" Width="120" FormatString="0" Value="{Binding AmbienceTime}"/>
             </StackPanel>
           </StackPanel>
-          <StackPanel Orientation="Vertical" Width="230" Margin="0,0,16,0">
+          <StackPanel Orientation="Vertical" Width="280" Margin="0,0,16,0">
             <TextBlock Text="Ambience Density"/>
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Slider Minimum="0" Maximum="100" Width="140" Value="{Binding AmbienceDensity}"/>
-              <NumericUpDown Minimum="0" Maximum="100" Increment="1" Width="90" FormatString="0" Value="{Binding AmbienceDensity}"/>
+              <NumericUpDown Minimum="0" Maximum="100" Increment="1" Width="120" FormatString="0" Value="{Binding AmbienceDensity}"/>
             </StackPanel>
           </StackPanel>
-          <StackPanel Orientation="Vertical" Width="250">
+          <StackPanel Orientation="Vertical" Width="290">
             <TextBlock Text="Ambience HF Damp"/>
             <StackPanel Orientation="Horizontal" Spacing="6">
               <Slider Minimum="0" Maximum="100" Width="150" Value="{Binding AmbienceHfDamp}"/>
-              <NumericUpDown Minimum="0" Maximum="100" Increment="1" Width="90" FormatString="0" Value="{Binding AmbienceHfDamp}"/>
+              <NumericUpDown Minimum="0" Maximum="100" Increment="1" Width="120" FormatString="0" Value="{Binding AmbienceHfDamp}"/>
             </StackPanel>
             <TextBlock Classes="help" Text="Higher values darken the ambience."/>
           </StackPanel>
