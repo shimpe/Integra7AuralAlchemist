@@ -99,4 +99,37 @@ public static class SnsEnvelopeMapping
             if (d < bestD) { bestD = d; best = new HandleHit(e, handle); }
         }
     }
+
+    public const int BipolarMax = 63;
+
+    public static int ClampBipolar(int v) => v < -BipolarMax ? -BipolarMax : v > BipolarMax ? BipolarMax : v;
+
+    /// <summary>Bipolar value (−63..+63) → Y pixel. 0 = center, +63 = top (0), −63 = bottom (height).</summary>
+    public static double BipolarToY(int value, double height) =>
+        height / 2.0 - ClampBipolar(value) / (double)BipolarMax * (height / 2.0);
+
+    public static int BipolarFromY(double y, double height)
+    {
+        if (height <= 0) return 0;
+        var v = (height / 2.0 - y) / (height / 2.0) * BipolarMax;
+        return ClampBipolar((int)Math.Round(v, MidpointRounding.AwayFromZero));
+    }
+
+    /// <summary>Two time segments (attack, decay) share the width.</summary>
+    public static double PitchSegmentMax(double width) => width / 2.0;
+
+    public readonly record struct PitchPoints(Point Start, Point Peak, Point End);
+
+    /// <summary>Bipolar AD pitch envelope: center → depth target (attack) → back to center (decay).</summary>
+    public static PitchPoints ComputePitchPoints(int attack, int decay, int depth, double width, double height)
+    {
+        var seg = PitchSegmentMax(width);
+        var aW = TimeToWidth(attack, seg);
+        var dW = TimeToWidth(decay, seg);
+        var cy = height / 2.0;
+        return new PitchPoints(new Point(0, cy), new Point(aW, BipolarToY(depth, height)), new Point(aW + dW, cy));
+    }
+
+    public static int PitchAttackFromX(double x, double segMax) => TimeFromWidth(x, segMax);
+    public static int PitchDecayFromX(double x, double attackWidth, double segMax) => TimeFromWidth(x - attackWidth, segMax);
 }
