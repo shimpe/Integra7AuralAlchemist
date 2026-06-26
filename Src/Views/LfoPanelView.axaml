@@ -1,0 +1,73 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             x:DataType="vm:LfoPanelViewModel"
+             x:CompileBindings="True"
+             x:Class="Integra7AuralAlchemist.Views.LfoPanelView">
+    <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+        <StackPanel Spacing="8">
+            <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
+
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Shape" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Shape'}"/>
+                    <ComboBox ItemsSource="{Binding Shape.Options}" SelectedItem="{Binding Shape.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <controls:LfoWaveformControl Width="90" Height="44" VerticalAlignment="Bottom"
+                    Shape="{Binding Shape.Value}"
+                    LineBrush="{StaticResource SnLfoWaveformBrush}"
+                    BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                    AxisBrush="{StaticResource SnEnvelopeAxisBrush}"/>
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Tempo Sync" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Tempo Sync Switch'}"/>
+                    <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding TempoSync.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2" Width="160" IsVisible="{Binding !TempoSync.Value}">
+                    <TextBlock Text="Rate" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Rate'}"/>
+                    <Slider Minimum="0" Maximum="127" Value="{Binding Rate.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2" IsVisible="{Binding TempoSync.Value}">
+                    <TextBlock Text="Note" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Tempo Sync Note'}"/>
+                    <ComboBox ItemsSource="{Binding TempoSyncNote.Options}" SelectedItem="{Binding TempoSyncNote.Value, Mode=TwoWay}"/>
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding HasFade}">
+                <StackPanel Spacing="2" Width="160">
+                    <TextBlock Text="Fade-in" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Fade Time'}"/>
+                    <Slider Minimum="0" Maximum="127" Value="{Binding FadeTime.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Restart on note" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Key Trigger'}"/>
+                    <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding KeyTrigger.Value, Mode=TwoWay}"/>
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Spacing="2" Width="220" IsVisible="{Binding HasRateControl}">
+                <TextBlock Text="Wheel changes speed" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Rate Control'}"/>
+                <Slider Minimum="-63" Maximum="63" Value="{Binding RateControl.Value, Mode=TwoWay}"/>
+            </StackPanel>
+
+            <TextBlock Text="Motion amount (bipolar)" Opacity="0.7"/>
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Vibrato (pitch)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Pitch Depth'}"/>
+                    <Slider Minimum="-63" Maximum="63" Value="{Binding PitchDepth.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Wah (filter)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Filter Depth'}"/>
+                    <Slider Minimum="-63" Maximum="63" Value="{Binding FilterDepth.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Tremolo (amp)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}AMP Depth'}"/>
+                    <Slider Minimum="-63" Maximum="63" Value="{Binding AmpDepth.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Auto-pan (pan)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Pan Depth'}"/>
+                    <Slider Minimum="-63" Maximum="63" Value="{Binding PanDepth.Value, Mode=TwoWay}"/>
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

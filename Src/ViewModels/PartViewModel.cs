@@ -250,6 +250,10 @@ public partial class PartViewModel : ViewModelBase
     // (Avalonia #16879 workaround, see ResyncPartAsync). Same-type changes leave it unchanged, so the
     // user's current tab is kept.
     [Reactive] private string _toneTabKey = "";
+
+    // Selected partial in the raw "Advanced — Partials" SN-S tab. The friendly editor's
+    // "Advanced … parameters…" links set this so the advanced view opens on the same partial.
+    [Reactive] private int _advancedPartialIndex;
     private Integra7Preset? _selectedPreset;
 
     //
@@ -1377,7 +1381,16 @@ public partial class PartViewModel : ViewModelBase
             // navigation callback points the inner tab control's SelectTabByTag binding at the
             // matching raw "Advanced" tab.
             _sNSynthToneEditor?.Dispose();
-            SNSynthToneEditor = new SNSynthToneEditorViewModel(_i7domain, PartNo, tag => ToneTabKey = tag);
+            SNSynthToneEditor = new SNSynthToneEditorViewModel(_i7domain, PartNo, (tag, partialIdx) =>
+            {
+                if (partialIdx is int idx) AdvancedPartialIndex = idx;
+                // Force a fresh change even on repeat navigations. SelectTabByTag only reacts to a
+                // *change* in ToneTabKey, and manually clicking a tab does not write the value back,
+                // so re-setting the same tag would be a no-op and the tab would never switch again.
+                // Clearing first (the behavior ignores empty, so no flicker) guarantees the assign fires.
+                ToneTabKey = "";
+                ToneTabKey = tag;
+            });
 
             List<FullyQualifiedParameter> p_snatc =
                 _i7domain.SNAcousticToneCommon(PartNo).GetRelevantParameters(true, true);

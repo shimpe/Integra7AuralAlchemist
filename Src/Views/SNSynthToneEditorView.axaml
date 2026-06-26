@@ -154,14 +154,16 @@
                 </ListBox.ItemTemplate>
             </ListBox>
 
-            <!-- Right column: sections stack; the Combined Envelope row (*) grows to fill the window. -->
-            <ScrollViewer Grid.Column="1" Name="RightScroll"
-                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <!-- MinHeight = viewport so the envelope row (*) fills a tall window, while a short
-                     window scrolls instead of overlapping the buttons. -->
-                <Grid DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
-                      MinHeight="{Binding #RightScroll.Bounds.Height}"
-                      RowDefinitions="Auto,Auto,Auto,Auto,*,Auto">
+            <!-- Right column: Sound / Motion sub-tabs; Copy/Paste/Init shared below. -->
+            <Grid Grid.Column="1" RowDefinitions="*,Auto">
+                <TabControl Grid.Row="0">
+                    <TabItem Header="Sound">
+                        <ScrollViewer Name="SoundScroll"
+                                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <!-- MinHeight = viewport so the envelope row (*) fills a tall window. -->
+                            <Grid DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
+                                  MinHeight="{Binding #SoundScroll.Bounds.Height}"
+                                  RowDefinitions="Auto,Auto,Auto,Auto,*">
 
                 <!-- Oscillator -->
                 <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,12">
@@ -440,17 +442,25 @@
                     </Grid>
                 </Border>
 
-                <!-- Partial utilities -->
-                <StackPanel Grid.Row="5" Orientation="Horizontal" Spacing="8" Margin="0,12,0,0">
-                    <Button Content="Copy partial"
-                            Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).CopyPartialCommand}"/>
-                    <Button Content="Paste partial"
-                            Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).PastePartialCommand}"/>
-                    <Button Content="Init partial"
-                            Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).InitPartialCommand}"/>
+                            </Grid>
+                        </ScrollViewer>
+                    </TabItem>
+                    <TabItem Header="Motion">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
+                                        Spacing="12" Margin="0,0,0,8">
+                                <ContentControl Content="{Binding AutomaticMotion}"/>
+                                <ContentControl Content="{Binding ModWheelMotion}"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+                </TabControl>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                    <Button Content="Copy partial" Command="{Binding CopyPartialCommand}"/>
+                    <Button Content="Paste partial" Command="{Binding PastePartialCommand}"/>
+                    <Button Content="Init partial" Command="{Binding InitPartialCommand}"/>
                 </StackPanel>
-                </Grid>
-            </ScrollViewer>
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

@@ -13,7 +13,7 @@ namespace Integra7AuralAlchemist.ViewModels;
 public sealed partial class SNSynthToneEditorViewModel : ViewModelBase, IDisposable
 {
     private readonly ThrottledParameterWriter _writer = new();
-    private readonly Action<string>? _navigateToRawTab;
+    private readonly Action<string, int?>? _navigateToRawTab;
 
     public SNSynthToneHeaderViewModel Header { get; }
     public ObservableCollection<SNSPartialViewModel> Partials { get; } = [];
@@ -21,7 +21,7 @@ public sealed partial class SNSynthToneEditorViewModel : ViewModelBase, IDisposa
     /// <summary>Shared partial copy/paste buffer (path → display value).</summary>
     public IReadOnlyDictionary<string, string>? PartialClipboard { get; set; }
 
-    public SNSynthToneEditorViewModel(Integra7Domain domain, int partNo, Action<string>? navigateToRawTab = null)
+    public SNSynthToneEditorViewModel(Integra7Domain domain, int partNo, Action<string, int?>? navigateToRawTab = null)
     {
         _navigateToRawTab = navigateToRawTab;
 
@@ -58,9 +58,12 @@ public sealed partial class SNSynthToneEditorViewModel : ViewModelBase, IDisposa
     [ReactiveCommand] public void PastePartial() => SelectedPartial.Paste();
     [ReactiveCommand] public void InitPartial() => SelectedPartial.Init();
 
-    [ReactiveCommand] public void AdvancedOscillator() => _navigateToRawTab?.Invoke("SN-S-PARTIALS");
-    [ReactiveCommand] public void AdvancedAmp() => _navigateToRawTab?.Invoke("SN-S-PARTIALS");
-    [ReactiveCommand] public void AdvancedCommon() => _navigateToRawTab?.Invoke("SN-S-COMMON");
+    // Carry the friendly editor's selected partial so the raw "Advanced — Partials" tab opens on
+    // the same partial the user was editing (otherwise they'd land on whatever partial was last
+    // viewed there and silently edit the wrong one).
+    [ReactiveCommand] public void AdvancedOscillator() => _navigateToRawTab?.Invoke("SN-S-PARTIALS", SelectedPartial.Index);
+    [ReactiveCommand] public void AdvancedAmp() => _navigateToRawTab?.Invoke("SN-S-PARTIALS", SelectedPartial.Index);
+    [ReactiveCommand] public void AdvancedCommon() => _navigateToRawTab?.Invoke("SN-S-COMMON", null);
 
     public void Dispose()
     {

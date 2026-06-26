@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.ComponentModel;
 using Avalonia.Threading;
 using Integra7AuralAlchemist.Models.Data;
@@ -66,6 +67,10 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
     public ParamInt PitchEnvDecay { get; }
     public ParamInt PitchEnvDepth { get; }
 
+    // --- Motion (two LFOs) ---
+    public LfoPanelViewModel AutomaticMotion { get; }
+    public LfoPanelViewModel ModWheelMotion { get; }
+
     private int _activeEnvelope; // 0 = Amp, 1 = Filter (bound to the dual control toggle)
     public int ActiveEnvelope { get => _activeEnvelope; set => this.RaiseAndSetIfChanged(ref _activeEnvelope, value); }
 
@@ -127,6 +132,9 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
 
         IsOn = Track(new ParamBool(commonDomain, commonByPath[CP + $"Partial{index + 1} Switch"], writer));
 
+        AutomaticMotion = Track(new LfoPanelViewModel(partialDomain, byPath, writer, "LFO ", "Automatic Motion", false));
+        ModWheelMotion = Track(new LfoPanelViewModel(partialDomain, byPath, writer, "Modulation LFO ", "Mod Wheel Motion", true));
+
         _editable = new IParam[]
         {
             OscWave, OscWaveVariation, OscPitch, OscDetune, OscPulseWidth, OscPulseWidthShift,
@@ -136,7 +144,8 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
             FilterMode, FilterSlopeSteep, FilterCutoff, FilterResonance, FilterCutoffKeyfollow, HpfCutoff, FilterEnvVeloSens,
             FilterEnvAttack, FilterEnvDecay, FilterEnvSustain, FilterEnvRelease, FilterEnvDepth,
             PitchEnvAttack, PitchEnvDecay, PitchEnvDepth
-        };
+        }
+        .Concat(AutomaticMotion.Params).Concat(ModWheelMotion.Params).ToArray();
 
         // Re-raise the conditional-visibility flags and card summary when the wave / level / pan change.
         OscWave.PropertyChanged += OnOscWaveChanged;
@@ -227,7 +236,26 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
         [PP + "Filter Env Depth"] = "0",
         [PP + "OSC Pitch Env Attack Time"] = "0",
         [PP + "OSC Pitch Env Decay"] = "64",
-        [PP + "OSC Pitch Env Depth"] = "0"
+        [PP + "OSC Pitch Env Depth"] = "0",
+        [PP + "LFO Shape"] = "Triangle",
+        [PP + "LFO Rate"] = "64",
+        [PP + "LFO Tempo Sync Switch"] = "OFF",
+        [PP + "LFO Tempo Sync Note"] = "1/4",
+        [PP + "LFO Fade Time"] = "0",
+        [PP + "LFO Key Trigger"] = "OFF",
+        [PP + "LFO Pitch Depth"] = "0",
+        [PP + "LFO Filter Depth"] = "0",
+        [PP + "LFO AMP Depth"] = "0",
+        [PP + "LFO Pan Depth"] = "0",
+        [PP + "Modulation LFO Shape"] = "Triangle",
+        [PP + "Modulation LFO Rate"] = "64",
+        [PP + "Modulation LFO Tempo Sync Switch"] = "OFF",
+        [PP + "Modulation LFO Tempo Sync Note"] = "1/4",
+        [PP + "Modulation LFO Pitch Depth"] = "0",
+        [PP + "Modulation LFO Filter Depth"] = "0",
+        [PP + "Modulation LFO AMP Depth"] = "0",
+        [PP + "Modulation LFO Pan Depth"] = "0",
+        [PP + "Modulation LFO Rate Control"] = "0"
     };
 
     public void Dispose()

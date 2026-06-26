@@ -372,6 +372,7 @@
                                                      IsVisible="{Binding SelectedPresetIsSNSynthTone}">
                                                 <TabControl
                                                     ItemsSource="{Binding SNSynthTonePartialViewModels}"
+                                                    SelectedIndex="{Binding AdvancedPartialIndex, Mode=TwoWay}"
                                                     TabStripPlacement="Left">
                                                     <TabControl.ItemTemplate>
                                                         <DataTemplate>
