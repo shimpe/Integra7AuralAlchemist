@@ -455,3 +455,6 @@ $RECYCLE.BIN/
 
 # Build-time generated parameter database blob (regenerated from Tools/ParameterBlobGenerator)
 Src/Assets/parameters.bin
+
+# Superpowers brainstorming companion working files
+.superpowers/

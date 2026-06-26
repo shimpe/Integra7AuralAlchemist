@@ -9,6 +9,7 @@
         x:Class="Integra7AuralAlchemist.Views.MainWindow"
         xmlns:local="clr-namespace:Integra7AuralAlchemist.Views"
         xmlns:behaviors="using:Integra7AuralAlchemist.Behaviors"
+        xmlns:conv="using:Avalonia.Data.Converters"
         x:DataType="vm:MainWindowViewModel"
         Icon="/Assets/avalonia-logo.ico"
         Title="Integra-7 Aural Alchemist">
@@ -411,6 +412,16 @@
             </TabItem>
             <TabItem Header="SRX Loader">
                 <local:SrxSelector />
+            </TabItem>
+            <TabItem Header="Motional Surround">
+                <Panel>
+                    <Panel IsVisible="{Binding MotionalSurroundVm, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
+                        <local:MotionalSurroundView DataContext="{Binding MotionalSurroundVm}" />
+                    </Panel>
+                    <TextBlock Text="Connect to your Integra-7 to edit Motional Surround."
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               IsVisible="{Binding MotionalSurroundVm, Converter={x:Static conv:ObjectConverters.IsNull}}" />
+                </Panel>
             </TabItem>
         </TabControl>
     </Grid>
