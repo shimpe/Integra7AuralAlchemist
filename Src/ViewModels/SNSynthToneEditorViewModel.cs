@@ -17,6 +17,7 @@ public sealed partial class SNSynthToneEditorViewModel : ViewModelBase, IDisposa
 
     public SNSynthToneHeaderViewModel Header { get; }
     public ObservableCollection<SNSPartialViewModel> Partials { get; } = [];
+    public MfxPanelViewModel Mfx { get; }
 
     /// <summary>Shared partial copy/paste buffer (path → display value).</summary>
     public IReadOnlyDictionary<string, string>? PartialClipboard { get; set; }
@@ -34,6 +35,9 @@ public sealed partial class SNSynthToneEditorViewModel : ViewModelBase, IDisposa
                 common, commonByPath, i, _writer));
 
         _selectedPartial = Partials[0];
+
+        Mfx = new MfxPanelViewModel(domain.SNSynthToneCommonMFX(partNo), _writer,
+            () => _navigateToRawTab?.Invoke("SN-S-MFX", null));
     }
 
     private static Dictionary<string, FullyQualifiedParameter> ToDict(DomainBase d)
@@ -69,6 +73,7 @@ public sealed partial class SNSynthToneEditorViewModel : ViewModelBase, IDisposa
     {
         Header.Dispose();
         foreach (var p in Partials) p.Dispose();
+        Mfx.Dispose();
         _writer.Dispose();
     }
 }
