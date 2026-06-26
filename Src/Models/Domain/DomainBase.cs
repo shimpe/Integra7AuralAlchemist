@@ -159,10 +159,12 @@ public class DomainBase
         }
 
         if (!found)
-            // did you try to update a parameter that simply does not exist?
-            // or did you try to update a data dependent parameter while the parent parameter was set to a
-            // value that makes this parameter inaccessible?
-            Debug.Assert(false, $"Parameter {parameterName} does not exist or is not valid in the current context.");
+            // A queued/throttled write can legitimately land after its parameter became invalid in the
+            // current context — e.g. an MFX per-type parameter whose effect type (or a sub-switch such
+            // as a delay's ms/Note selector) changed before the debounced write fired. Skip it
+            // gracefully and log (matching WriteToIntegraAsync(parameterName)) rather than asserting,
+            // which would terminate a Debug build on a benign race.
+            Log.Error($"Parameter {parameterName} does not exist or is not valid in the current context; skipping stale write.");
     }
 
     private List<string> GetParameterNames(bool IncludeReserved = false, bool IncludeInvalidIncontext = false)
