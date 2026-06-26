@@ -81,6 +81,28 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
     // --- Card on/off (Common Partial{n} Switch) ---
     public ParamBool IsOn { get; }
 
+    // --- Audition (transient solo/mute; coordinated by the parent editor VM, not sent as params) ---
+    private bool _solo;
+    public bool Solo
+    {
+        get => _solo;
+        set { if (_solo == value) return; this.RaiseAndSetIfChanged(ref _solo, value); _parent.RecomputeAudition(); }
+    }
+
+    private bool _mute;
+    public bool Mute
+    {
+        get => _mute;
+        set { if (_mute == value) return; this.RaiseAndSetIfChanged(ref _mute, value); _parent.RecomputeAudition(); }
+    }
+
+    /// <summary>Set solo/mute without triggering a parent recompute (used for bulk clear).</summary>
+    internal void SetAuditionFlags(bool solo, bool mute)
+    {
+        this.RaiseAndSetIfChanged(ref _solo, solo, nameof(Solo));
+        this.RaiseAndSetIfChanged(ref _mute, mute, nameof(Mute));
+    }
+
     // Params copied/pasted/initialised (oscillator + amp + amp env, NOT the common on/off switch).
     private readonly IReadOnlyList<IParam> _editable;
 
