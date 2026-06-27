@@ -1,0 +1,24 @@
+using Avalonia.Controls;
+using Avalonia.Interactivity;
+
+namespace Integra7AuralAlchemist.Views;
+
+public partial class PCMDrumWmtLayerView : UserControl
+{
+    public PCMDrumWmtLayerView()
+    {
+        InitializeComponent();
+    }
+
+    // The wave fields are searchable AutoCompleteBoxes; the browse arrow opens the full list.
+    // Clearing Text first drops the filter; ParamString ignores a null/empty assignment.
+    private void BrowseWaveL(object? sender, RoutedEventArgs e) => OpenForBrowse(WaveLBox);
+    private void BrowseWaveR(object? sender, RoutedEventArgs e) => OpenForBrowse(WaveRBox);
+
+    private static void OpenForBrowse(AutoCompleteBox box)
+    {
+        box.Text = string.Empty;
+        box.Focus();
+        box.IsDropDownOpen = true;
+    }
+}
