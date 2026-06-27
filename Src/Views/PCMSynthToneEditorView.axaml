@@ -486,7 +486,61 @@
                         </ScrollViewer>
                     </TabItem>
                     <TabItem Header="Response">
-                        <TextBlock Margin="12" Opacity="0.6" Text="Response — velocity / aftertouch / keyfollow (Phase 5)."/>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <Border DataContext="{Binding SelectedPartial}" x:DataType="vm:PCMPartialViewModel"
+                                    Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6"
+                                    Padding="10" Margin="0,8,0,0" VerticalAlignment="Top">
+                                <StackPanel Spacing="12">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="Response" FontWeight="Bold"/>
+                                        <TextBlock Text="— how this partial reacts to playing"
+                                                   Opacity="0.6" VerticalAlignment="Bottom"/>
+                                    </StackPanel>
+                                    <Grid ColumnDefinitions="130,200,200,200" RowDefinitions="Auto,Auto,Auto,Auto"
+                                          ColumnSpacing="16" RowSpacing="10">
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="→ Brightness (filter)" FontWeight="Bold"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="→ Loudness (amp)" FontWeight="Bold"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="3" Text="→ Pitch" FontWeight="Bold"/>
+
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Velocity" VerticalAlignment="Center"
+                                                   ToolTip.Tip="How hard you play"/>
+                                        <Slider Grid.Row="1" Grid.Column="1" Minimum="-63" Maximum="63"
+                                                ToolTip.Tip="TVF Cutoff Velocity Sens"
+                                                Value="{Binding TvfCutoffVeloSens.Value, Mode=TwoWay}"/>
+                                        <Slider Grid.Row="1" Grid.Column="2" Minimum="-63" Maximum="63"
+                                                ToolTip.Tip="TVA Velocity Sens"
+                                                Value="{Binding TvaVeloSens.Value, Mode=TwoWay}"/>
+                                        <Slider Grid.Row="1" Grid.Column="3" Minimum="-63" Maximum="63"
+                                                ToolTip.Tip="Pitch Env Velocity Sens"
+                                                Value="{Binding PitchEnvVeloSens.Value, Mode=TwoWay}"/>
+
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Velocity curve" VerticalAlignment="Center"
+                                                   ToolTip.Tip="Shape of the velocity response"/>
+                                        <ComboBox Grid.Row="2" Grid.Column="1" HorizontalAlignment="Stretch"
+                                                  ToolTip.Tip="TVF Cutoff Velocity Curve"
+                                                  ItemsSource="{Binding TvfCutoffVelCurve.Options}"
+                                                  SelectedItem="{Binding TvfCutoffVelCurve.Value, Mode=TwoWay}"/>
+                                        <ComboBox Grid.Row="2" Grid.Column="2" HorizontalAlignment="Stretch"
+                                                  ToolTip.Tip="TVA Velocity Curve"
+                                                  ItemsSource="{Binding TvaVelCurve.Options}"
+                                                  SelectedItem="{Binding TvaVelCurve.Value, Mode=TwoWay}"/>
+
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Key position" VerticalAlignment="Center"
+                                                   ToolTip.Tip="Higher vs lower notes (keyfollow)"/>
+                                        <Slider Grid.Row="3" Grid.Column="1" Minimum="-200" Maximum="200"
+                                                ToolTip.Tip="TVF Cutoff Keyfollow"
+                                                Value="{Binding TvfCutoffKeyfollow.Value, Mode=TwoWay}"/>
+                                        <Slider Grid.Row="3" Grid.Column="3" Minimum="-200" Maximum="200"
+                                                ToolTip.Tip="Wave Pitch Keyfollow"
+                                                Value="{Binding WavePitchKeyfollow.Value, Mode=TwoWay}"/>
+                                    </Grid>
+                                    <TextBlock Text="Loudness vs key position is set by Bias (on the Sound tab’s Amp section)."
+                                               Opacity="0.5" FontSize="11"/>
+                                    <Button HorizontalAlignment="Left" Content="Advanced partial parameters…"
+                                            Command="{Binding #Root.((vm:PCMSynthToneEditorViewModel)DataContext).AdvancedPartialCommand}"/>
+                                </StackPanel>
+                            </Border>
+                        </ScrollViewer>
                     </TabItem>
                 </TabControl>
                 <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
