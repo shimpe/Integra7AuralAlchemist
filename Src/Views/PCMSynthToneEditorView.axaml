@@ -467,7 +467,13 @@
                         </ScrollViewer>
                     </TabItem>
                     <TabItem Header="Motion">
-                        <TextBlock Margin="12" Opacity="0.6" Text="Motion — LFO 1 + LFO 2 (Phase 3)."/>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel DataContext="{Binding SelectedPartial}" x:DataType="vm:PCMPartialViewModel"
+                                        Spacing="12" Margin="0,0,0,8">
+                                <ContentControl Content="{Binding Lfo1}"/>
+                                <ContentControl Content="{Binding Lfo2}"/>
+                            </StackPanel>
+                        </ScrollViewer>
                     </TabItem>
                     <TabItem Header="Zones">
                         <TextBlock Margin="12" Opacity="0.6" Text="Zones — PMT key/velocity map (Phase 4)."/>
