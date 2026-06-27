@@ -1443,6 +1443,16 @@ public partial class PartViewModel : ViewModelBase
                 if (partialIdx is int idx) AdvancedPartialIndex = idx;
                 ToneTabKey = "";
                 ToneTabKey = tag;
+            }, async note =>
+            {
+                // Audition the clicked drum on this part's MIDI channel (best-effort).
+                try
+                {
+                    await _i7Api.NoteOnAsync((byte)PartNo, (byte)note, 100);
+                    await Task.Delay(300);
+                    await _i7Api.NoteOffAsync((byte)PartNo, (byte)note);
+                }
+                catch { /* ignore — auditioning is non-essential */ }
             });
         }
         else

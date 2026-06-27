@@ -67,7 +67,8 @@
                 </ListBox.Styles>
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SNDrumNoteViewModel">
-                        <Grid ColumnDefinitions="54,*" Height="22">
+                        <Grid ColumnDefinitions="54,*" Height="22" Background="Transparent"
+                              PointerPressed="NoteRow_PointerPressed">
                             <Border Grid.Column="0" Classes="key" Classes.black="{Binding IsBlack}"
                                     BorderBrush="#888" BorderThickness="0,0,1,1">
                                 <TextBlock Text="{Binding CLabel}" Foreground="{StaticResource DrumBlackKeyBrush}"

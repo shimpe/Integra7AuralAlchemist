@@ -19,6 +19,7 @@ public sealed partial class SNDrumKitEditorViewModel : ViewModelBase, IDisposabl
 
     private readonly ThrottledParameterWriter _writer = new();
     private readonly Action<string, int?>? _navigateToRawTab;
+    private readonly Func<int, System.Threading.Tasks.Task>? _playNote;
     private readonly List<IDisposable> _wrappers = [];
     private readonly FullyQualifiedParameter _kitName;
 
@@ -32,9 +33,10 @@ public sealed partial class SNDrumKitEditorViewModel : ViewModelBase, IDisposabl
     public MfxPanelViewModel Mfx { get; }
 
     public SNDrumKitEditorViewModel(Integra7Domain domain, int partNo,
-        Action<string, int?>? navigateToRawTab = null)
+        Action<string, int?>? navigateToRawTab = null, Func<int, System.Threading.Tasks.Task>? playNote = null)
     {
         _navigateToRawTab = navigateToRawTab;
+        _playNote = playNote;
 
         var common = domain.SNDrumKitCommon(partNo);
         var byPath = ToDict(common);
@@ -75,6 +77,12 @@ public sealed partial class SNDrumKitEditorViewModel : ViewModelBase, IDisposabl
     }
 
     [ReactiveCommand] public void AdvancedCommon() => _navigateToRawTab?.Invoke("SN-D-KIT", null);
+
+    /// <summary>Audition a drum by sending its MIDI note (note-on/off handled by the host).</summary>
+    public void PlayNote(int note)
+    {
+        if (_playNote is not null) _ = _playNote(note);
+    }
 
     private static Dictionary<string, FullyQualifiedParameter> ToDict(DomainBase d)
     {
