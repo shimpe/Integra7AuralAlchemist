@@ -286,20 +286,20 @@
                                         <TextBlock Text="Pitch envelope — drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
                                         <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Times" VerticalAlignment="Center" Opacity="0.7"/>
-                                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding PitchEnvTime1.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding PitchEnvTime2.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding PitchEnvTime3.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding PitchEnvTime4.Value, Mode=TwoWay}"/>
-                                            </StackPanel>
+                                            <WrapPanel Grid.Row="0" Grid.Column="1">
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding PitchEnvTime1.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding PitchEnvTime2.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding PitchEnvTime3.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding PitchEnvTime4.Value, Mode=TwoWay}"/>
+                                            </WrapPanel>
                                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Levels" VerticalAlignment="Center" Opacity="0.7"/>
-                                            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                                                <NumericUpDown Width="74" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel0.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="74" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel1.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="74" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel2.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="74" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel3.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="74" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel4.Value, Mode=TwoWay}"/>
-                                            </StackPanel>
+                                            <WrapPanel Grid.Row="1" Grid.Column="1">
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel0.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel1.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel2.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel3.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel4.Value, Mode=TwoWay}"/>
+                                            </WrapPanel>
                                         </Grid>
                                     </StackPanel>
                                 </Border>
@@ -363,20 +363,20 @@
                                         <TextBlock Text="Filter envelope — drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
                                         <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Times" VerticalAlignment="Center" Opacity="0.7"/>
-                                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvTime1.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvTime2.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvTime3.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvTime4.Value, Mode=TwoWay}"/>
-                                            </StackPanel>
+                                            <WrapPanel Grid.Row="0" Grid.Column="1">
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvTime1.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvTime2.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvTime3.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvTime4.Value, Mode=TwoWay}"/>
+                                            </WrapPanel>
                                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Levels" VerticalAlignment="Center" Opacity="0.7"/>
-                                            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                                                <NumericUpDown Width="74" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel0.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="74" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel1.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="74" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel2.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="74" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel3.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="74" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel4.Value, Mode=TwoWay}"/>
-                                            </StackPanel>
+                                            <WrapPanel Grid.Row="1" Grid.Column="1">
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel0.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel1.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel2.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel3.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel4.Value, Mode=TwoWay}"/>
+                                            </WrapPanel>
                                         </Grid>
                                     </StackPanel>
                                 </Border>
@@ -423,18 +423,18 @@
                                         <TextBlock Text="Amp envelope — drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
                                         <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Times" VerticalAlignment="Center" Opacity="0.7"/>
-                                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime1.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime2.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime3.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime4.Value, Mode=TwoWay}"/>
-                                            </StackPanel>
+                                            <WrapPanel Grid.Row="0" Grid.Column="1">
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime1.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime2.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime3.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime4.Value, Mode=TwoWay}"/>
+                                            </WrapPanel>
                                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Levels" VerticalAlignment="Center" Opacity="0.7"/>
-                                            <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="6">
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvLevel1.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvLevel2.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="90" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvLevel3.Value, Mode=TwoWay}"/>
-                                            </StackPanel>
+                                            <WrapPanel Grid.Row="1" Grid.Column="1">
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvLevel1.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvLevel2.Value, Mode=TwoWay}"/>
+                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvLevel3.Value, Mode=TwoWay}"/>
+                                            </WrapPanel>
                                         </Grid>
                                         <StackPanel Orientation="Horizontal" Spacing="16">
                                             <StackPanel Spacing="2" Width="150">
