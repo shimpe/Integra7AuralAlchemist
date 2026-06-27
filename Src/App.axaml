@@ -42,6 +42,7 @@
             <!-- SN-Drums note-rail key palette. -->
             <SolidColorBrush x:Key="DrumWhiteKeyBrush" Color="#c8ccce"/>
             <SolidColorBrush x:Key="DrumBlackKeyBrush" Color="#23262a"/>
+            <SolidColorBrush x:Key="DrumKeyBorderBrush" Color="#888888"/>
         </ResourceDictionary>
     </Application.Resources>
 

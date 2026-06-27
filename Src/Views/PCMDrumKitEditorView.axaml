@@ -2,10 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
              xmlns:controls="using:Integra7AuralAlchemist.Controls"
-             x:DataType="vm:SNDrumKitEditorViewModel"
+             x:DataType="vm:PCMDrumKitEditorViewModel"
              x:CompileBindings="True"
              x:Name="Root"
-             x:Class="Integra7AuralAlchemist.Views.SNDrumKitEditorView">
+             x:Class="Integra7AuralAlchemist.Views.PCMDrumKitEditorView">
 
     <UserControl.Styles>
         <!-- Note-rail key cell: white by default, dark when the row is a black key. -->
@@ -25,17 +25,13 @@
             <StackPanel Orientation="Horizontal" Spacing="16">
                 <StackPanel Spacing="2">
                     <Border Background="{StaticResource SnAccentBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
-                        <TextBlock Text="SN Drums" Foreground="{StaticResource SnBadgeForegroundBrush}" FontSize="11"/>
+                        <TextBlock Text="PCM Drums" Foreground="{StaticResource SnBadgeForegroundBrush}" FontSize="11"/>
                     </Border>
                     <TextBlock Text="{Binding KitName}" FontSize="16" FontWeight="Bold"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="160">
                     <TextBlock Text="Kit Level"/>
                     <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding KitLevel.Value, Mode=TwoWay}"/>
-                </StackPanel>
-                <StackPanel Spacing="2" Width="160">
-                    <TextBlock Text="Ambience" ToolTip.Tip="Ambience Level"/>
-                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding AmbienceLevel.Value, Mode=TwoWay}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="260">
                     <TextBlock Text="Phrase" ToolTip.Tip="Phrase Number"/>
@@ -56,7 +52,7 @@
         <!-- ===== Rail + selected drum ===== -->
         <Grid Grid.Row="1" ColumnDefinitions="340,*">
 
-            <!-- Note rail: low note at the bottom (VM orders 88 -> 27) -->
+            <!-- Note rail: low note at the bottom (VM orders 108 -> 21) -->
             <ListBox Grid.Column="0" Margin="0,0,8,0"
                      ItemsSource="{Binding Notes}"
                      SelectedItem="{Binding SelectedNote, Mode=TwoWay}">
@@ -67,7 +63,7 @@
                     </Style>
                 </ListBox.Styles>
                 <ListBox.ItemTemplate>
-                    <DataTemplate x:DataType="vm:SNDrumNoteViewModel">
+                    <DataTemplate x:DataType="vm:PCMDrumNoteViewModel">
                         <Grid ColumnDefinitions="54,*" Height="22" Background="Transparent"
                               PointerPressed="NoteRow_PointerPressed">
                             <Border Grid.Column="0" Classes="key" Classes.black="{Binding IsBlack}"
@@ -88,14 +84,11 @@
             <!-- Right: Drum / Comp-EQ / FX -->
             <TabControl Grid.Column="1">
                 <TabItem Header="Drum">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <ContentControl Content="{Binding SelectedDrumEditor}" Margin="0,8,0,0"/>
-                    </ScrollViewer>
+                    <TextBlock Margin="12" Opacity="0.6"
+                               Text="{Binding SelectedNote.NoteName, StringFormat='Per-key editor for {0} — coming in Phase 2.'}"/>
                 </TabItem>
                 <TabItem Header="Comp-EQ">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <ContentControl Content="{Binding CompEq}" Margin="0,8,0,0"/>
-                    </ScrollViewer>
+                    <TextBlock Margin="12" Opacity="0.6" Text="Comp-EQ — 6-unit compressor / EQ (Phase 5)."/>
                 </TabItem>
                 <TabItem Header="FX">
                     <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
