@@ -272,26 +272,34 @@
                                                     Parameters="{Binding PCMSynthTonePMTParameters}"
                                                     SearchText="{Binding SearchTextPCMSynthTonePMT, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="Kit"
+                                            <TabItem Header="Editor"
                                                      Tag="PCMD"
+                                                     IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
+                                                <local:PCMDrumKitEditorView DataContext="{Binding PcmDrumKitEditor}" />
+                                            </TabItem>
+                                            <TabItem Header="Advanced — Kit"
+                                                     Tag="PCMD-KIT"
                                                      IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding PCMDrumKitCommonParameters}"
                                                     SearchText="{Binding SearchTextPCMDrumKitCommon, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="Kit extra"
+                                            <TabItem Header="Advanced — Kit extra"
+                                                     Tag="PCMD-KIT2"
                                                      IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding PCMDrumKitCommon2Parameters}"
                                                     SearchText="{Binding SearchTextPCMDrumKitCommon2, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="MFX"
+                                            <TabItem Header="Advanced — MFX"
+                                                     Tag="PCMD-MFX"
                                                      IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding PCMDrumKitCommonMFXParameters}"
                                                     SearchText="{Binding SearchTextPCMDrumKitCommonMFX, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="Comp-EQ"
+                                            <TabItem Header="Advanced — Comp-EQ"
+                                                     Tag="PCMD-COMPEQ"
                                                      IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding PCMDrumKitCompEQParameters}"
@@ -382,8 +390,11 @@
                                                     </TabControl.ContentTemplate>
                                                 </TabControl>
                                             </TabItem>
-                                            <TabItem Header="Partials" IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
+                                            <TabItem Header="Advanced — Partials"
+                                                     Tag="PCMD-PARTIALS"
+                                                     IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
                                                 <TabControl
+                                                    SelectedIndex="{Binding AdvancedPartialIndex, Mode=TwoWay}"
                                                     ItemsSource="{Binding PcmDrumKitPartialViewModels}"
                                                     TabStripPlacement="Left">
                                                     <TabControl.ItemTemplate>
