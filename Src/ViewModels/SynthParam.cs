@@ -66,8 +66,14 @@ public sealed class ParamInt : ReactiveObject, IParam, IDisposable
         }
     }
 
-    private void Enqueue() => _writer.Enqueue(_key,
-        () => _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value.ToString(CultureInfo.InvariantCulture)));
+    private void Enqueue() => _writer.Enqueue(_key, async () =>
+    {
+        await _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value.ToString(CultureInfo.InvariantCulture));
+        // A parent param reinterprets dependent slots on the hardware; re-read so dependent controls
+        // show correct values (mirrors the advanced view's IsParent resync). See memory
+        // conditional-parameters-and-write-races.
+        if (_p.ParSpec.IsParent) await _domain.ReadFromIntegraAsync();
+    });
 
     public string Snapshot() => _value.ToString(CultureInfo.InvariantCulture);
 
@@ -129,7 +135,11 @@ public sealed class ParamString : ReactiveObject, IParam, IDisposable
         {
             if (value is null || _value == value) return;
             this.RaiseAndSetIfChanged(ref _value, value);
-            if (!_suppress) _writer.Enqueue(_key, () => _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value));
+            if (!_suppress) _writer.Enqueue(_key, async () =>
+            {
+                await _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value);
+                if (_p.ParSpec.IsParent) await _domain.ReadFromIntegraAsync(); // resync dependents
+            });
         }
     }
 
@@ -181,8 +191,11 @@ public sealed class ParamBool : ReactiveObject, IParam, IDisposable
         {
             if (_value == value) return;
             this.RaiseAndSetIfChanged(ref _value, value);
-            if (!_suppress) _writer.Enqueue(_key,
-                () => _domain.WriteToIntegraAsync(_p.ParSpec.Path, value ? _on : _off));
+            if (!_suppress) _writer.Enqueue(_key, async () =>
+            {
+                await _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value ? _on : _off);
+                if (_p.ParSpec.IsParent) await _domain.ReadFromIntegraAsync(); // resync dependents
+            });
         }
     }
 
