@@ -1,0 +1,211 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             x:DataType="vm:PCMDrumNoteEditorViewModel"
+             x:CompileBindings="True"
+             x:Class="Integra7AuralAlchemist.Views.PCMDrumNoteEditorView">
+    <UserControl.Styles>
+        <Style Selector="TextBlock.sliderLabel">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="MinHeight" Value="34"/>
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Spacing="10" Margin="0,0,0,8">
+
+        <!-- Per-key copy/paste/init (applies to the whole drum key) -->
+        <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Copy drum" Command="{Binding CopyDrumCommand}"/>
+            <Button Content="Paste drum" Command="{Binding PasteDrumCommand}"/>
+            <Button Content="Init drum" Command="{Binding InitDrumCommand}"/>
+        </StackPanel>
+
+        <TabControl>
+            <!-- Wave / Pitch / Filter: filled in Phases 3-4 -->
+            <TabItem Header="Wave">
+                <TextBlock Margin="12" Opacity="0.6" Text="Wave (WMT) — velocity-layered waves (Phase 3)."/>
+            </TabItem>
+            <TabItem Header="Pitch">
+                <TextBlock Margin="12" Opacity="0.6" Text="Pitch envelope (Phase 4)."/>
+            </TabItem>
+            <TabItem Header="Filter">
+                <TextBlock Margin="12" Opacity="0.6" Text="Filter / TVF (Phase 4)."/>
+            </TabItem>
+
+            <!-- Amp (TVA) -->
+            <TabItem Header="Amp">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="12" Margin="0,8,0,8">
+                        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Amplifier (TVA)" FontWeight="Bold"/>
+                                <WrapPanel Orientation="Horizontal">
+                                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                                        <TextBlock Text="Level" Classes="sliderLabel"/>
+                                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding Level.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                                        <TextBlock Text="Velocity Sens" Classes="sliderLabel"/>
+                                        <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding TvaVeloSens.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="180" Margin="0,0,16,8">
+                                        <TextBlock Text="Velocity Curve" Classes="sliderLabel"/>
+                                        <ComboBox HorizontalAlignment="Stretch"
+                                                  ItemsSource="{Binding TvaVeloCurve.Options}"
+                                                  SelectedItem="{Binding TvaVeloCurve.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Amp envelope (TVA)" FontWeight="Bold"/>
+                                <controls:MultiStageEnvelopeControl Height="120" FixedEndpoints="True"
+                                    Time1="{Binding TvaEnvTime1.Value, Mode=TwoWay}"
+                                    Time2="{Binding TvaEnvTime2.Value, Mode=TwoWay}"
+                                    Time3="{Binding TvaEnvTime3.Value, Mode=TwoWay}"
+                                    Time4="{Binding TvaEnvTime4.Value, Mode=TwoWay}"
+                                    Level0="0"
+                                    Level1="{Binding TvaEnvLevel1.Value, Mode=TwoWay}"
+                                    Level2="{Binding TvaEnvLevel2.Value, Mode=TwoWay}"
+                                    Level3="{Binding TvaEnvLevel3.Value, Mode=TwoWay}"/>
+                                <WrapPanel Orientation="Horizontal">
+                                    <StackPanel Spacing="2" Margin="0,0,12,4">
+                                        <TextBlock Text="Times (T1-T4)" Opacity="0.7"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime1.Value, Mode=TwoWay}"/>
+                                            <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime2.Value, Mode=TwoWay}"/>
+                                            <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime3.Value, Mode=TwoWay}"/>
+                                            <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime4.Value, Mode=TwoWay}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Margin="0,0,12,4">
+                                        <TextBlock Text="Levels (L1-L3)" Opacity="0.7"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvLevel1.Value, Mode=TwoWay}"/>
+                                            <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvLevel2.Value, Mode=TwoWay}"/>
+                                            <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvLevel3.Value, Mode=TwoWay}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="200" Margin="0,0,16,8">
+                                        <TextBlock Text="T1 Velocity Sens" Classes="sliderLabel"/>
+                                        <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding TvaEnvTime1VeloSens.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="200" Margin="0,0,16,8">
+                                        <TextBlock Text="T4 Velocity Sens" Classes="sliderLabel"/>
+                                        <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding TvaEnvTime4VeloSens.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Setup (identity & routing) -->
+            <TabItem Header="Setup">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="12" Margin="0,8,0,8">
+                        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Identity" FontWeight="Bold"/>
+                                <StackPanel Spacing="2" Width="320">
+                                    <TextBlock Text="Name" ToolTip.Tip="Partial Name"/>
+                                    <TextBox Text="{Binding PartialName.Value, Mode=TwoWay}"/>
+                                </StackPanel>
+                                <WrapPanel Orientation="Horizontal">
+                                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                                        <TextBlock Text="Assign Type"/>
+                                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding AssignType.Options}" SelectedItem="{Binding AssignType.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                                        <TextBlock Text="Mute Group"/>
+                                        <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch" ItemsSource="{Binding MuteGroup.Options}" SelectedItem="{Binding MuteGroup.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                                        <TextBlock Text="Env Mode" ToolTip.Tip="Partial Env Mode"/>
+                                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding EnvMode.Options}" SelectedItem="{Binding EnvMode.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Margin="0,0,16,8">
+                                        <TextBlock Text="One Shot" ToolTip.Tip="One Shot Mode"/>
+                                        <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding OneShot.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Margin="0,0,16,8">
+                                        <TextBlock Text="Rx Expression" ToolTip.Tip="Partial Receive Expression"/>
+                                        <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding ReceiveExpression.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Margin="0,0,16,8">
+                                        <TextBlock Text="Rx Sustain" ToolTip.Tip="Partial Receive Sustain"/>
+                                        <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding ReceiveSustain.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Pitch &amp; pan" FontWeight="Bold"/>
+                                <WrapPanel Orientation="Horizontal">
+                                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                                        <TextBlock Text="Coarse Tune" Classes="sliderLabel"/>
+                                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding CoarseTune.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                                        <TextBlock Text="Fine Tune" Classes="sliderLabel"/>
+                                        <controls:ValueSlider Minimum="-50" Maximum="50" Value="{Binding FineTune.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                                        <TextBlock Text="Pitch Bend Range" Classes="sliderLabel"/>
+                                        <controls:ValueSlider Minimum="0" Maximum="48" Value="{Binding PitchBendRange.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="200" Margin="0,0,16,8">
+                                        <TextBlock Text="Random Pitch Depth" Classes="sliderLabel"/>
+                                        <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch" ItemsSource="{Binding RandomPitchDepth.Options}" SelectedItem="{Binding RandomPitchDepth.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                                        <TextBlock Text="Pan (L / C / R)" Classes="sliderLabel"/>
+                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding Pan.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                                        <TextBlock Text="Random Pan Depth" Classes="sliderLabel"/>
+                                        <controls:ValueSlider Minimum="0" Maximum="63" Value="{Binding RandomPanDepth.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                                        <TextBlock Text="Alternate Pan Depth" Classes="sliderLabel"/>
+                                        <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding AlternatePanDepth.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Output" FontWeight="Bold"/>
+                                <WrapPanel Orientation="Horizontal">
+                                    <StackPanel Spacing="2" Width="200" Margin="0,0,16,8">
+                                        <TextBlock Text="Output Assign" Classes="sliderLabel"/>
+                                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding OutputAssign.Options}" SelectedItem="{Binding OutputAssign.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                                        <TextBlock Text="Output Level" Classes="sliderLabel"/>
+                                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding OutputLevel.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                                        <TextBlock Text="Chorus Send" Classes="sliderLabel"/>
+                                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                                        <TextBlock Text="Reverb Send" Classes="sliderLabel"/>
+                                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </StackPanel>
+</UserControl>
