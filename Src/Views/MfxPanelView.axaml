@@ -1,7 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
-             xmlns:dataTemplates="using:Integra7AuralAlchemist.DataTemplates"
              x:DataType="vm:MfxPanelViewModel"
              x:CompileBindings="True"
              x:Class="Integra7AuralAlchemist.Views.MfxPanelView">
@@ -27,20 +26,6 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Effect picker: family -> type -->
-            <StackPanel Orientation="Horizontal" Spacing="16">
-                <StackPanel Spacing="2">
-                    <TextBlock Text="Effect family"/>
-                    <ComboBox MinWidth="150" ItemsSource="{Binding Families}"
-                              SelectedItem="{Binding SelectedFamily, Mode=TwoWay}"/>
-                </StackPanel>
-                <StackPanel Spacing="2">
-                    <TextBlock Text="Type"/>
-                    <ComboBox MinWidth="200" ItemsSource="{Binding TypesInFamily}"
-                              SelectedItem="{Binding SelectedType, Mode=TwoWay}"/>
-                </StackPanel>
-            </StackPanel>
-
             <!-- Sends -->
             <StackPanel Orientation="Horizontal" Spacing="16">
                 <StackPanel Spacing="2" Width="200">
@@ -55,26 +40,8 @@
 
             <Border Height="1" Background="{StaticResource SnEnvelopeAxisBrush}"/>
 
-            <!-- Dynamic per-type parameters -->
-            <TextBlock Text="{Binding SelectedType, StringFormat='{}{0} — parameters'}" FontWeight="Bold"/>
-            <TextBlock Text="This effect has no extra parameters." Opacity="0.6"
-                       IsVisible="{Binding !HasTypeParameters}"/>
-            <ItemsControl ItemsSource="{Binding TypeParameters}">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel Orientation="Horizontal"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:MfxParamDisplay">
-                        <StackPanel Width="300" Spacing="2" Margin="0,0,12,10">
-                            <TextBlock Classes="sliderLabel" Text="{Binding Label}"/>
-                            <ContentControl Content="{Binding Param}"
-                                            ContentTemplate="{x:Static dataTemplates:DataTemplateProvider.ParameterValueTemplate}"/>
-                        </StackPanel>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+            <!-- Effect picker (family -> type) + dynamic per-type parameters (shared section) -->
+            <ContentControl Content="{Binding Section}"/>
 
             <Button HorizontalAlignment="Left" Content="Advanced MFX parameters…"
                     Command="{Binding AdvancedMfxCommand}"/>
