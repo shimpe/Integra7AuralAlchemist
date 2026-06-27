@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
-using System.Threading.Tasks;
 using Avalonia.Threading;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
@@ -33,9 +32,7 @@ public sealed class DiscriminatedParamSectionViewModel : ViewModelBase, IDisposa
     private readonly Func<int, string> _familyOf;
     private readonly Func<string, IReadOnlyList<int>> _valuesIn;
     private readonly Func<string, IReadOnlyList<string>, IReadOnlyList<string>> _friendlyLabels;
-    private FullyQualifiedParameter _discFqp = default!;   // the top-level discriminator FQP
     private bool _syncing;
-    private bool _reading;                                 // true while re-reading after a parent change
 
     /// <summary>The discriminator wrapper (e.g. MFX Type / Instrument). Exposed for engine-specific extras.</summary>
     public ParamString Discriminator { get; }
@@ -59,7 +56,6 @@ public sealed class DiscriminatedParamSectionViewModel : ViewModelBase, IDisposa
         var opts = disc.ParSpec.Repr?.OrderBy(kv => kv.Key).Select(kv => kv.Value).ToList()
                    ?? disc.ParSpec.Discrete?.Select(d => d.Item2).ToList()
                    ?? new List<string>();
-        _discFqp = disc;
         Discriminator = new ParamString(domain, disc, writer, opts);
 
         var parentPaths = _allParams
@@ -131,29 +127,11 @@ public sealed class DiscriminatedParamSectionViewModel : ViewModelBase, IDisposa
 
     private void OnDiscriminatorChanged(object? s, PropertyChangedEventArgs e)
     {
+        // Rebuild the grid when a parent changes. Dependent VALUES are resynced elsewhere — the param
+        // wrappers re-read on an IsParent write, and ParameterValueTemplate's ui2hw path resyncs
+        // sub-switches — so here we only need the structural rebuild.
         if (e.PropertyName != nameof(FullyQualifiedParameter.StringValue)) return;
-        if (_reading) return; // ignore the FQP changes our own re-read causes
-
-        // When the TOP-LEVEL discriminator (MFX Type / Instrument) changes, the hardware reinterprets the
-        // shared parameter slots, so the dependent controls' values are now stale — re-read the domain from
-        // the Integra (like the advanced view does on an IsParent write) before rebuilding. Sub-switches are
-        // edited via DataTemplateProvider's ui2hw path, which already resyncs, so they just rebuild.
-        if (ReferenceEquals(s, _discFqp))
-            Dispatcher.UIThread.Post(() => _ = ResyncAndRecomputeAsync());
-        else
-            Dispatcher.UIThread.Post(Recompute);
-    }
-
-    private async Task ResyncAndRecomputeAsync()
-    {
-        if (_reading) return;
-        _reading = true;
-        // The throttled write of the discriminator already holds the MIDI semaphore, so this read runs
-        // after it (the hardware has the new value before we read the dependent slots back).
-        try { await _domain.ReadFromIntegraAsync(); }
-        catch { /* keep current values rather than crash if the read fails */ }
-        finally { _reading = false; }
-        Recompute();
+        Dispatcher.UIThread.Post(Recompute);
     }
 
     private void Recompute()
