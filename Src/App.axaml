@@ -39,7 +39,7 @@
             <SolidColorBrush x:Key="PmtZone2Brush" Color="#ff9e6b"/>
             <SolidColorBrush x:Key="PmtZone3Brush" Color="#7ad19a"/>
             <SolidColorBrush x:Key="PmtZone4Brush" Color="#d18ad1"/>
-            <!-- SN-Drums note-rail key palette. -->
+            <!-- Drum note-rail key palette (SN-Drums + PCM-Drums). -->
             <SolidColorBrush x:Key="DrumWhiteKeyBrush" Color="#c8ccce"/>
             <SolidColorBrush x:Key="DrumBlackKeyBrush" Color="#23262a"/>
             <SolidColorBrush x:Key="DrumKeyBorderBrush" Color="#888888"/>
