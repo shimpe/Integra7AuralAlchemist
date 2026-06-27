@@ -24,7 +24,46 @@
         <TabControl>
             <!-- Wave / Pitch / Filter: filled in Phases 3-4 -->
             <TabItem Header="Wave">
-                <TextBlock Margin="12" Opacity="0.6" Text="Wave (WMT) — velocity-layered waves (Phase 3)."/>
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="12" Margin="0,8,0,8">
+                        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                            <StackPanel Spacing="8">
+                                <DockPanel>
+                                    <TextBlock Text="Velocity map" FontWeight="Bold"/>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="Vel control" VerticalAlignment="Center" ToolTip.Tip="WMT Velocity Control"/>
+                                        <ComboBox ItemsSource="{Binding WmtVelocityControl.Options}"
+                                                  SelectedItem="{Binding WmtVelocityControl.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                </DockPanel>
+                                <controls:WmtVelocityMapControl Height="180"
+                                    SelectedIndex="{Binding SelectedWmtIndex, Mode=TwoWay}"
+                                    Wmt1On="{Binding Wmt1.WaveSwitch.Value}" Wmt1Lo="{Binding Wmt1.RangeLower.Value, Mode=TwoWay}" Wmt1Hi="{Binding Wmt1.RangeUpper.Value, Mode=TwoWay}" Wmt1FadeLo="{Binding Wmt1.FadeLower.Value}" Wmt1FadeHi="{Binding Wmt1.FadeUpper.Value}"
+                                    Wmt2On="{Binding Wmt2.WaveSwitch.Value}" Wmt2Lo="{Binding Wmt2.RangeLower.Value, Mode=TwoWay}" Wmt2Hi="{Binding Wmt2.RangeUpper.Value, Mode=TwoWay}" Wmt2FadeLo="{Binding Wmt2.FadeLower.Value}" Wmt2FadeHi="{Binding Wmt2.FadeUpper.Value}"
+                                    Wmt3On="{Binding Wmt3.WaveSwitch.Value}" Wmt3Lo="{Binding Wmt3.RangeLower.Value, Mode=TwoWay}" Wmt3Hi="{Binding Wmt3.RangeUpper.Value, Mode=TwoWay}" Wmt3FadeLo="{Binding Wmt3.FadeLower.Value}" Wmt3FadeHi="{Binding Wmt3.FadeUpper.Value}"
+                                    Wmt4On="{Binding Wmt4.WaveSwitch.Value}" Wmt4Lo="{Binding Wmt4.RangeLower.Value, Mode=TwoWay}" Wmt4Hi="{Binding Wmt4.RangeUpper.Value, Mode=TwoWay}" Wmt4FadeLo="{Binding Wmt4.FadeLower.Value}" Wmt4FadeHi="{Binding Wmt4.FadeUpper.Value}"
+                                    Lane1Brush="{StaticResource PmtZone1Brush}" Lane2Brush="{StaticResource PmtZone2Brush}"
+                                    Lane3Brush="{StaticResource PmtZone3Brush}" Lane4Brush="{StaticResource PmtZone4Brush}"
+                                    BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                                    GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                                    AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
+                                    LabelBrush="{StaticResource SnEnvelopeHandleBrush}"
+                                    HighlightBrush="{StaticResource SnEnvelopeFocusBrush}"/>
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="Edit layer" VerticalAlignment="Center"/>
+                                    <ComboBox ItemsSource="{Binding Wmts}" SelectedIndex="{Binding SelectedWmtIndex, Mode=TwoWay}">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:PCMDrumWmtLayerViewModel">
+                                                <TextBlock Text="{Binding Summary}"/>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                        <ContentControl Content="{Binding SelectedWmt}"/>
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
             <TabItem Header="Pitch">
                 <TextBlock Margin="12" Opacity="0.6" Text="Pitch envelope (Phase 4)."/>
