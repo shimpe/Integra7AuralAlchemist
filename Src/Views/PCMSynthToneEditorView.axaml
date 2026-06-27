@@ -209,10 +209,14 @@
                                             </StackPanel>
                                             <StackPanel Spacing="2">
                                                 <TextBlock Text="Wave (type to find)" Classes="sliderLabel" ToolTip.Tip="Wave Number L (Mono)"/>
-                                                <AutoCompleteBox Width="240" MaxDropDownHeight="320"
-                                                                 FilterMode="Contains"
-                                                                 ItemsSource="{Binding WaveNumberL.Options}"
-                                                                 SelectedItem="{Binding WaveNumberL.Value, Mode=TwoWay}"/>
+                                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                                    <AutoCompleteBox x:Name="WaveLBox" Width="240" MaxDropDownHeight="320"
+                                                                     MinimumPrefixLength="0" FilterMode="Contains"
+                                                                     ItemsSource="{Binding WaveNumberL.Options}"
+                                                                     SelectedItem="{Binding WaveNumberL.Value, Mode=TwoWay}"/>
+                                                    <Button Content="▾" Padding="8,4" VerticalAlignment="Center"
+                                                            Click="BrowseWaveL" ToolTip.Tip="Browse all waves"/>
+                                                </StackPanel>
                                             </StackPanel>
                                             <StackPanel Spacing="2">
                                                 <TextBlock Text="Gain (dB)" Classes="sliderLabel" ToolTip.Tip="Wave Gain"/>
@@ -227,10 +231,14 @@
                                             </StackPanel>
                                             <StackPanel Spacing="2" IsVisible="{Binding #StereoToggle.IsChecked}">
                                                 <TextBlock Text="Wave R (type to find)" Classes="sliderLabel" ToolTip.Tip="Wave Number R"/>
-                                                <AutoCompleteBox Width="240" MaxDropDownHeight="320"
-                                                                 FilterMode="Contains"
-                                                                 ItemsSource="{Binding WaveNumberR.Options}"
-                                                                 SelectedItem="{Binding WaveNumberR.Value, Mode=TwoWay}"/>
+                                                <StackPanel Orientation="Horizontal" Spacing="2">
+                                                    <AutoCompleteBox x:Name="WaveRBox" Width="240" MaxDropDownHeight="320"
+                                                                     MinimumPrefixLength="0" FilterMode="Contains"
+                                                                     ItemsSource="{Binding WaveNumberR.Options}"
+                                                                     SelectedItem="{Binding WaveNumberR.Value, Mode=TwoWay}"/>
+                                                    <Button Content="▾" Padding="8,4" VerticalAlignment="Center"
+                                                            Click="BrowseWaveR" ToolTip.Tip="Browse all waves"/>
+                                                </StackPanel>
                                             </StackPanel>
                                             <StackPanel Spacing="2">
                                                 <TextBlock Text="Metallic (FXM)" ToolTip.Tip="Wave FXM Switch"/>
