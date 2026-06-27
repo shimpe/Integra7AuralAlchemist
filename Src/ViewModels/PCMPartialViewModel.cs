@@ -83,6 +83,15 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
     public ParamInt BiasPosition { get; }
     public ParamString BiasDirection { get; }
 
+    // --- Response (velocity / keyfollow) ---
+    public ParamInt TvfCutoffVeloSens { get; }
+    public ParamInt TvaVeloSens { get; }
+    public ParamInt PitchEnvVeloSens { get; }
+    public ParamString TvfCutoffVelCurve { get; }
+    public ParamString TvaVelCurve { get; }
+    public ParamInt TvfCutoffKeyfollow { get; }
+    public ParamInt WavePitchKeyfollow { get; }
+
     /// <summary>Card on/off — the PMT per-partial switch (audition saves/restores this).</summary>
     public ParamBool IsOn { get; }
 
@@ -157,6 +166,14 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
         BiasPosition = PI("Bias Position", 0, 127);
         BiasDirection = PS("Bias Direction");
 
+        TvfCutoffVeloSens = PI("TVF Cutoff Velocity Sens", -63, 63);
+        TvaVeloSens = PI("TVA Velocity Sens", -63, 63);
+        PitchEnvVeloSens = PI("Pitch Env Velocity Sens", -63, 63);
+        TvfCutoffVelCurve = PS("TVF Cutoff Velocity Curve");
+        TvaVelCurve = PS("TVA Velocity Curve");
+        TvfCutoffKeyfollow = PI("TVF Cutoff Keyfollow", -200, 200);
+        WavePitchKeyfollow = PI("Wave Pitch Keyfollow", -200, 200);
+
         IsOn = Track(new ParamBool(pmtDomain, pmtByPath[PMT + $"PMT {index + 1} Partial Switch"], writer));
 
         Lfo1 = Track(new PcmLfoPanelViewModel(partialDomain, byPath, writer, "LFO1 ", "LFO 1"));
@@ -174,6 +191,8 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
             TvaEnvTime1, TvaEnvTime2, TvaEnvTime3, TvaEnvTime4,
             TvaEnvLevel1, TvaEnvLevel2, TvaEnvLevel3,
             BiasLevel, BiasPosition, BiasDirection,
+            TvfCutoffVeloSens, TvaVeloSens, PitchEnvVeloSens, TvfCutoffVelCurve, TvaVelCurve,
+            TvfCutoffKeyfollow, WavePitchKeyfollow,
         }
         .Concat(Lfo1.Params).Concat(Lfo2.Params).ToArray();
 
