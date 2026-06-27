@@ -26,6 +26,7 @@
 
         <!-- ===== Tone Header ===== -->
         <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,8">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <StackPanel Spacing="8">
               <StackPanel Orientation="Horizontal" Spacing="16">
                 <StackPanel Spacing="2">
@@ -95,6 +96,7 @@
                 </StackPanel>
               </StackPanel>
             </StackPanel>
+            </ScrollViewer>
         </Border>
 
         <!-- ===== Rack + Selected partial ===== -->
@@ -202,7 +204,7 @@
                 <TabControl Grid.Row="0">
                     <TabItem Header="Sound">
                         <ScrollViewer Name="SoundScroll"
-                                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                             <!-- MinHeight = viewport so the envelope row (*) fills a tall window. -->
                             <Grid DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
                                   MinHeight="{Binding #SoundScroll.Bounds.Height}"
@@ -471,7 +473,7 @@
                         </ScrollViewer>
                     </TabItem>
                     <TabItem Header="Motion">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                             <StackPanel DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
                                         Spacing="12" Margin="0,0,0,8">
                                 <ContentControl Content="{Binding AutomaticMotion}"/>
@@ -480,12 +482,12 @@
                         </ScrollViewer>
                     </TabItem>
                     <TabItem Header="FX">
-                        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                             <ContentControl Content="{Binding Mfx}" Margin="0,8,0,0"/>
                         </ScrollViewer>
                     </TabItem>
                     <TabItem Header="Response">
-                        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                             <Border DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
                                     Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6"
                                     Padding="10" Margin="0,8,0,0" VerticalAlignment="Top">
