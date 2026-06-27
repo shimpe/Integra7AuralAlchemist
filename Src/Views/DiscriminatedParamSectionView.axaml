@@ -17,6 +17,8 @@
                           SelectedItem="{Binding SelectedValue, Mode=TwoWay}"/>
             </StackPanel>
         </StackPanel>
+        <TextBlock Text="{Binding SelectedValue, StringFormat='{}{0} — parameters'}"
+                   FontWeight="Bold" IsVisible="{Binding HasParams}"/>
         <TextBlock Text="No extra parameters for this selection." Opacity="0.6"
                    IsVisible="{Binding !HasParams}"/>
         <ItemsControl ItemsSource="{Binding Params}">
