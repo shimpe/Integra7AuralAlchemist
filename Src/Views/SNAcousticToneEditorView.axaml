@@ -19,6 +19,7 @@
 
         <!-- ===== Tone Header ===== -->
         <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,8">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <StackPanel Orientation="Horizontal" Spacing="16">
                 <StackPanel Spacing="2">
                     <Border Background="{StaticResource SnAccentBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
@@ -54,12 +55,13 @@
                                    Value="{Binding Category.Value, Mode=TwoWay}"/>
                 </StackPanel>
             </StackPanel>
+            </ScrollViewer>
         </Border>
 
         <!-- ===== Tone / FX ===== -->
         <TabControl Grid.Row="1">
             <TabItem Header="Tone">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                     <StackPanel Spacing="12" Margin="0,0,0,8">
 
                         <!-- Instrument detail section (family picker + per-instrument modify params) -->
@@ -139,7 +141,7 @@
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="FX">
-                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                     <ContentControl Content="{Binding Mfx}" Margin="0,8,0,0"/>
                 </ScrollViewer>
             </TabItem>
