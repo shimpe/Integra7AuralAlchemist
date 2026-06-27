@@ -28,7 +28,8 @@ public static class LfoWaveform
         switch (shape)
         {
             case "Sine": return 0.5 + 0.5 * Math.Sin(2 * Math.PI * x);
-            case "Sawtooth": return x;
+            case "Sawtooth": case "Saw Up": return x;
+            case "Saw Down": return 1.0 - x;
             case "Square": return x < 0.5 ? 1.0 : 0.0;
             case "Sample&Hold": return SampleHoldLevels[StepIndex(x, SampleHoldLevels.Length)];
             case "Random": return RandomLevels[StepIndex(x, RandomLevels.Length)];

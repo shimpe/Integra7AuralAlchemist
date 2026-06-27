@@ -56,4 +56,20 @@ public class LfoWaveformTests
         Assert.That(a.Select(p => p.Y), Is.EqualTo(b.Select(p => p.Y)));
         Assert.That(a.All(p => p.Y is >= 0 and <= 1), Is.True);
     }
+
+    [Test]
+    public void SawUp_ramps_up()
+    {
+        var pts = LfoWaveform.Sample("Saw Up", 5);
+        Assert.That(pts[0].Y, Is.EqualTo(0).Within(1e-9));
+        Assert.That(pts[^1].Y, Is.EqualTo(1).Within(1e-9));
+    }
+
+    [Test]
+    public void SawDown_ramps_down()
+    {
+        var pts = LfoWaveform.Sample("Saw Down", 5);
+        Assert.That(pts[0].Y, Is.EqualTo(1).Within(1e-9));
+        Assert.That(pts[^1].Y, Is.EqualTo(0).Within(1e-9));
+    }
 }
