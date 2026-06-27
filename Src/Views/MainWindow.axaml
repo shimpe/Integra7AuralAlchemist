@@ -303,14 +303,14 @@
                                                      IsVisible="{Binding SelectedPresetIsSNAcousticTone}">
                                                 <local:SNAcousticToneEditorView DataContext="{Binding SNAcousticToneEditor}" />
                                             </TabItem>
-                                            <TabItem Header="Tone"
+                                            <TabItem Header="Advanced — Tone"
                                                      Tag="SN-A-TONE"
                                                      IsVisible="{Binding SelectedPresetIsSNAcousticTone}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding SNAcousticToneCommonParameters}"
                                                     SearchText="{Binding SearchTextSNAcousticToneCommon, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="MFX"
+                                            <TabItem Header="Advanced — MFX"
                                                      Tag="SN-A-MFX"
                                                      IsVisible="{Binding SelectedPresetIsSNAcousticTone}">
                                                 <local:ParameterCollection
