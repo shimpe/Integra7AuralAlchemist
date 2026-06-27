@@ -239,26 +239,34 @@
                                                     Parameters="{Binding StudioSetPartEQParameters}"
                                                     SearchText="{Binding SearchTextStudioSetPartEQ, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="Tone"
+                                            <TabItem Header="Editor"
                                                      Tag="PCMS"
+                                                     IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
+                                                <local:PCMSynthToneEditorView DataContext="{Binding PcmSynthToneEditor}" />
+                                            </TabItem>
+                                            <TabItem Header="Advanced — Common"
+                                                     Tag="PCM-SYN-COMMON"
                                                      IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding PCMSynthToneCommonParameters}"
                                                     SearchText="{Binding SearchTextPCMSynthToneCommon, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="Tone extra"
+                                            <TabItem Header="Advanced — Common 2"
+                                                     Tag="PCM-SYN-COMMON2"
                                                      IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding PCMSynthToneCommon2Parameters}"
                                                     SearchText="{Binding SearchTextPCMSynthToneCommon2, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="MFX"
+                                            <TabItem Header="Advanced — MFX"
+                                                     Tag="PCM-SYN-MFX"
                                                      IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding PCMSynthToneCommonMFXParameters}"
                                                     SearchText="{Binding SearchTextPCMSynthToneCommonMFX, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="PMT"
+                                            <TabItem Header="Advanced — PMT"
+                                                     Tag="PCM-SYN-PMT"
                                                      IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding PCMSynthTonePMTParameters}"
@@ -346,9 +354,11 @@
                                                     Parameters="{Binding SNDrumKitCompEQParameters}"
                                                     SearchText="{Binding SearchTextSNDrumKitCompEQ, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="Partials"
+                                            <TabItem Header="Advanced — Partials"
+                                                     Tag="PCM-SYN-PARTIALS"
                                                      IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
                                                 <TabControl
+                                                    SelectedIndex="{Binding AdvancedPartialIndex, Mode=TwoWay}"
                                                     ItemsSource="{Binding PcmSynthTonePartialViewModels}"
                                                     TabStripPlacement="Left">
                                                     <TabControl.ItemTemplate>
