@@ -31,6 +31,7 @@ public sealed partial class SNDrumKitEditorViewModel : ViewModelBase, IDisposabl
 
     public ObservableCollection<SNDrumNoteViewModel> Notes { get; } = [];
     public MfxPanelViewModel Mfx { get; }
+    public SNDrumCompEqPanelViewModel CompEq { get; }
 
     public SNDrumKitEditorViewModel(Integra7Domain domain, int partNo,
         Action<string, int?>? navigateToRawTab = null, Func<int, System.Threading.Tasks.Task>? playNote = null)
@@ -60,6 +61,8 @@ public sealed partial class SNDrumKitEditorViewModel : ViewModelBase, IDisposabl
 
         Mfx = new MfxPanelViewModel(domain.SNDrumKitCommonMFX(partNo), _writer,
             () => _navigateToRawTab?.Invoke("SN-D-MFX", null));
+
+        CompEq = new SNDrumCompEqPanelViewModel(domain.SNDrumKitCompEQ(partNo), _writer);
     }
 
     public string KitName => _kitName.StringValue;
@@ -124,6 +127,7 @@ public sealed partial class SNDrumKitEditorViewModel : ViewModelBase, IDisposabl
         _selectedDrumEditor?.Dispose();
         foreach (var w in _wrappers) w.Dispose();
         Mfx.Dispose();
+        CompEq.Dispose();
         _writer.Dispose();
     }
 }
