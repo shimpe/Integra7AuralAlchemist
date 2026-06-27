@@ -21,6 +21,7 @@ public sealed partial class PCMSynthToneEditorViewModel : ViewModelBase, IDispos
     public PCMSynthToneHeaderViewModel Header { get; }
     public ObservableCollection<PCMPartialViewModel> Partials { get; } = [];
     public MfxPanelViewModel Mfx { get; }
+    public PcmPmtPanelViewModel Pmt { get; }
 
     /// <summary>Shared partial copy/paste buffer (path → display value).</summary>
     public IReadOnlyDictionary<string, string>? PartialClipboard { get; set; }
@@ -47,6 +48,8 @@ public sealed partial class PCMSynthToneEditorViewModel : ViewModelBase, IDispos
 
         Mfx = new MfxPanelViewModel(domain.PCMSynthToneCommonMFX(partNo), _writer,
             () => _navigateToRawTab?.Invoke("PCM-SYN-MFX", null));
+
+        Pmt = new PcmPmtPanelViewModel(pmt, pmtByPath, _writer);
     }
 
     private static Dictionary<string, FullyQualifiedParameter> ToDict(DomainBase d)
@@ -135,6 +138,7 @@ public sealed partial class PCMSynthToneEditorViewModel : ViewModelBase, IDispos
         Header.Dispose();
         foreach (var p in Partials) p.Dispose();
         Mfx.Dispose();
+        Pmt.Dispose();
         _writer.Dispose();
     }
 }
