@@ -33,8 +33,34 @@ public static class LfoWaveform
             case "Square": return x < 0.5 ? 1.0 : 0.0;
             case "Sample&Hold": return SampleHoldLevels[StepIndex(x, SampleHoldLevels.Length)];
             case "Random": return RandomLevels[StepIndex(x, RandomLevels.Length)];
-            default: return x < 0.5 ? x * 2.0 : 2.0 - x * 2.0; // Triangle
+            case "Bend Up": return Math.Sin(Math.PI / 2.0 * x);     // eased rise 0 -> 1
+            case "Bend Down": return Math.Cos(Math.PI / 2.0 * x);   // eased fall 1 -> 0
+            case "Variable Sine":                                   // a fuller / sharper sine
+            {
+                var s = Math.Sin(2 * Math.PI * x);
+                return 0.5 + 0.5 * Math.Sign(s) * Math.Pow(Math.Abs(s), 0.6);
+            }
+            case "Triangle Pulse": return TrianglePulse(x);         // trapezoid: rise / hold / fall
+            case "Chiff": return Chiff(x);                          // brief spike near the onset
+            case "Step": return StepIndex(x, 5) / 4.0;              // 5-level rising staircase
+            default: return x < 0.5 ? x * 2.0 : 2.0 - x * 2.0;      // Triangle / Triangular
         }
+    }
+
+    // A trapezoid: ramp up over the first quarter, hold high, ramp down, then hold low.
+    private static double TrianglePulse(double x)
+    {
+        if (x < 0.25) return x / 0.25;
+        if (x < 0.5) return 1.0;
+        if (x < 0.75) return 1.0 - (x - 0.5) / 0.25;
+        return 0.0;
+    }
+
+    // A short breath-like spike just after the onset, otherwise near the floor.
+    private static double Chiff(double x)
+    {
+        var d = (x - 0.08) / 0.06;
+        return 0.12 + 0.88 * Math.Exp(-d * d);
     }
 
     private static int StepIndex(double x, int len)
