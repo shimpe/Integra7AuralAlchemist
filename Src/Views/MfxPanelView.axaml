@@ -67,7 +67,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:MfxParamDisplay">
-                        <StackPanel Width="240" Spacing="2" Margin="0,0,12,10">
+                        <StackPanel Width="300" Spacing="2" Margin="0,0,12,10">
                             <TextBlock Classes="sliderLabel" Text="{Binding Label}"/>
                             <ContentControl Content="{Binding Param}"
                                             ContentTemplate="{x:Static dataTemplates:DataTemplateProvider.ParameterValueTemplate}"/>

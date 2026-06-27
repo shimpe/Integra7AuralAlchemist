@@ -1,0 +1,150 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             x:DataType="vm:SNAcousticToneEditorViewModel"
+             x:CompileBindings="True"
+             x:Name="Root"
+             x:Class="Integra7AuralAlchemist.Views.SNAcousticToneEditorView">
+
+    <UserControl.Styles>
+        <!-- Reserve a uniform 2-line height for control labels so wrapped labels don't push their
+             slider/combo down — keeps every control in a row vertically aligned. -->
+        <Style Selector="TextBlock.sliderLabel">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="MinHeight" Value="40"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*" Margin="8">
+
+        <!-- ===== Tone Header ===== -->
+        <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,8">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <StackPanel Spacing="2">
+                    <Border Background="{StaticResource SnAccentBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                        <TextBlock Text="SuperNATURAL Acoustic" Foreground="{StaticResource SnBadgeForegroundBrush}" FontSize="11"/>
+                    </Border>
+                    <TextBlock Text="{Binding ToneName.Value}" FontSize="16" FontWeight="Bold"/>
+                </StackPanel>
+
+                <StackPanel Spacing="2" Width="160">
+                    <TextBlock Text="Tone Level"/>
+                    <Slider Minimum="0" Maximum="127" Value="{Binding ToneLevel.Value, Mode=TwoWay}"/>
+                </StackPanel>
+
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Voice" ToolTip.Tip="Mono-Poly"/>
+                    <ComboBox ItemsSource="{Binding MonoPoly.Options}"
+                              SelectedItem="{Binding MonoPoly.Value, Mode=TwoWay}"/>
+                </StackPanel>
+
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Octave Shift" ToolTip.Tip="Octave Shift"/>
+                    <Slider Minimum="-3" Maximum="3" Value="{Binding OctaveShift.Value, Mode=TwoWay}"/>
+                </StackPanel>
+
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Portamento" ToolTip.Tip="Portamento Time Offset"/>
+                    <Slider Minimum="-64" Maximum="63" Value="{Binding PortamentoOffset.Value, Mode=TwoWay}"/>
+                </StackPanel>
+
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Category" ToolTip.Tip="Category"/>
+                    <NumericUpDown Width="110" Minimum="0" Maximum="127" Increment="1" FormatString="0"
+                                   Value="{Binding Category.Value, Mode=TwoWay}"/>
+                </StackPanel>
+            </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ===== Tone / FX ===== -->
+        <TabControl Grid.Row="1">
+            <TabItem Header="Tone">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                    <StackPanel Spacing="12" Margin="0,0,0,8">
+
+                        <!-- Instrument detail section (family picker + per-instrument modify params) -->
+                        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Instrument" FontWeight="Bold"/>
+                                <ContentControl Content="{Binding Instrument}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Character -->
+                        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Character" FontWeight="Bold"/>
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <StackPanel Spacing="2" Width="150">
+                                        <TextBlock Text="Brightness (Cutoff)" Classes="sliderLabel" ToolTip.Tip="Cutoff Offset"/>
+                                        <Slider Minimum="-64" Maximum="63" Value="{Binding CutoffOffset.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="150">
+                                        <TextBlock Text="Resonance" Classes="sliderLabel" ToolTip.Tip="Resonance Offset"/>
+                                        <Slider Minimum="-64" Maximum="63" Value="{Binding ResonanceOffset.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="150">
+                                        <TextBlock Text="Attack" Classes="sliderLabel" ToolTip.Tip="Attack Time Offset"/>
+                                        <Slider Minimum="-64" Maximum="63" Value="{Binding AttackOffset.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="150">
+                                        <TextBlock Text="Release" Classes="sliderLabel" ToolTip.Tip="Release Time Offset"/>
+                                        <Slider Minimum="-64" Maximum="63" Value="{Binding ReleaseOffset.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <StackPanel Spacing="2" Width="150">
+                                        <TextBlock Text="Vibrato Rate" Classes="sliderLabel" ToolTip.Tip="Vibrato Rate"/>
+                                        <Slider Minimum="-64" Maximum="63" Value="{Binding VibratoRate.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="150">
+                                        <TextBlock Text="Vibrato Depth" Classes="sliderLabel" ToolTip.Tip="Vibrato Depth"/>
+                                        <Slider Minimum="-64" Maximum="63" Value="{Binding VibratoDepth.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="150">
+                                        <TextBlock Text="Vibrato Delay" Classes="sliderLabel" ToolTip.Tip="Vibrato Delay"/>
+                                        <Slider Minimum="-64" Maximum="63" Value="{Binding VibratoDelay.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Phrase / Tone FX -->
+                        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Phrase / Tone FX" FontWeight="Bold"/>
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <StackPanel Spacing="2" Width="220">
+                                        <TextBlock Text="Phrase" Classes="sliderLabel" ToolTip.Tip="Phrase Number"/>
+                                        <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch"
+                                                  ItemsSource="{Binding PhraseNumber.Options}"
+                                                  SelectedItem="{Binding PhraseNumber.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2" Width="150">
+                                        <TextBlock Text="Phrase Octave" Classes="sliderLabel" ToolTip.Tip="Phrase Octave Shift"/>
+                                        <Slider Minimum="-3" Maximum="3" Value="{Binding PhraseOctaveShift.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Tone FX" Classes="sliderLabel" ToolTip.Tip="TFX Switch"/>
+                                        <ToggleSwitch OnContent="On" OffContent="Off"
+                                                      IsChecked="{Binding TfxSwitch.Value, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Button HorizontalAlignment="Left" Content="Advanced acoustic parameters…"
+                                Command="{Binding AdvancedAcousticCommand}"/>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="FX">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                    <ContentControl Content="{Binding Mfx}" Margin="0,8,0,0"/>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

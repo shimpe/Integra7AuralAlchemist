@@ -42,7 +42,7 @@ public static class MfxCatalog
 
     /// <summary>Friendly label for a single per-type parameter leaf name.</summary>
     public static string FriendlyParamName(string effectTypeName, string leafName)
-        => StripTyped(effectTypeName, leafName) ?? leafName;
+        => ConditionalParamLabels.FriendlyName(effectTypeName, leafName);
 
     /// <summary>
     /// Friendly labels for all of one effect type's parameter leaf names. Prefers stripping
@@ -50,39 +50,5 @@ public static class MfxCatalog
     /// types) falls back to the longest common word-boundary prefix shared by the set. Never empty.
     /// </summary>
     public static IReadOnlyList<string> FriendlyParamNames(string effectTypeName, IReadOnlyList<string> leafNames)
-    {
-        if (leafNames.Count == 0) return leafNames;
-        var common = CommonWordPrefix(leafNames);
-        return leafNames.Select(n =>
-        {
-            var r = StripTyped(effectTypeName, n)
-                    ?? (common.Length > 0 && n.StartsWith(common, StringComparison.Ordinal)
-                            ? n[common.Length..]
-                            : n);
-            r = r.Trim();
-            return r.Length == 0 ? n : r;
-        }).ToList();
-    }
-
-    // Strips "<effectTypeName> " from the leaf if present; returns null if it doesn't match.
-    private static string? StripTyped(string effectTypeName, string leafName)
-    {
-        var typed = effectTypeName + " ";
-        return leafName.StartsWith(typed, StringComparison.Ordinal) ? leafName[typed.Length..] : null;
-    }
-
-    // Longest common prefix across all names, trimmed back to a whole-word boundary (incl. trailing space).
-    private static string CommonWordPrefix(IReadOnlyList<string> names)
-    {
-        var p = names[0];
-        foreach (var n in names.Skip(1))
-        {
-            var k = 0;
-            while (k < p.Length && k < n.Length && p[k] == n[k]) k++;
-            p = p[..k];
-            if (p.Length == 0) break;
-        }
-        var sp = p.LastIndexOf(' ');
-        return sp < 0 ? "" : p[..(sp + 1)];
-    }
+        => ConditionalParamLabels.FriendlyNames(effectTypeName, leafNames);
 }
