@@ -170,7 +170,17 @@
                                                       ToolTip.Tip="Partial on/off (disabled while auditioning)"/>
                                     </StackPanel>
                                 </DockPanel>
-                                <TextBlock Text="(sound controls in a later phase)" Opacity="0.5" FontSize="11"/>
+                                <TextBlock Text="{Binding WaveSummary}" Opacity="0.8" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="Lvl" Opacity="0.6"/>
+                                    <TextBlock Text="{Binding LevelLabel}"/>
+                                    <TextBlock Text="Pan" Opacity="0.6"/>
+                                    <TextBlock Text="{Binding PanLabel}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="Filter" Opacity="0.6"/>
+                                    <TextBlock Text="{Binding FilterSummary}"/>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </DataTemplate>
