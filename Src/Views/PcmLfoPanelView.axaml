@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             x:DataType="vm:PcmLfoPanelViewModel"
+             x:CompileBindings="True"
+             x:Class="Integra7AuralAlchemist.Views.PcmLfoPanelView">
+    <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+        <StackPanel Spacing="8">
+            <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
+
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Waveform" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Waveform'}"/>
+                    <ComboBox ItemsSource="{Binding Waveform.Options}" SelectedItem="{Binding Waveform.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <controls:LfoWaveformControl Width="90" Height="44" VerticalAlignment="Bottom"
+                    Shape="{Binding Waveform.Value}"
+                    LineBrush="{StaticResource SnLfoWaveformBrush}"
+                    BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                    AxisBrush="{StaticResource SnEnvelopeAxisBrush}"/>
+                <StackPanel Spacing="2" Width="180">
+                    <TextBlock Text="Rate" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Rate'}"/>
+                    <ComboBox MaxDropDownHeight="320" HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding Rate.Options}" SelectedItem="{Binding Rate.Value, Mode=TwoWay}"/>
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <StackPanel Spacing="2" Width="160">
+                    <TextBlock Text="Fade-in" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Fade Time'}"/>
+                    <Slider Minimum="0" Maximum="127" Value="{Binding FadeTime.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Restart on note" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Key Trigger'}"/>
+                    <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding KeyTrigger.Value, Mode=TwoWay}"/>
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock Text="Motion amount (bipolar)" Opacity="0.7"/>
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Vibrato (pitch)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Pitch Depth'}"/>
+                    <Slider Minimum="-63" Maximum="63" Value="{Binding PitchDepth.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Wah (filter)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}TVF Depth'}"/>
+                    <Slider Minimum="-63" Maximum="63" Value="{Binding TvfDepth.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Tremolo (amp)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}TVA Depth'}"/>
+                    <Slider Minimum="-63" Maximum="63" Value="{Binding TvaDepth.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Auto-pan (pan)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Pan Depth'}"/>
+                    <Slider Minimum="-63" Maximum="63" Value="{Binding PanDepth.Value, Mode=TwoWay}"/>
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

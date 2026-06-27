@@ -1,0 +1,96 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             x:DataType="vm:PcmPmtPanelViewModel"
+             x:CompileBindings="True"
+             x:Class="Integra7AuralAlchemist.Views.PcmPmtPanelView">
+    <StackPanel Spacing="12">
+
+        <!-- Structure / Booster / Velocity control -->
+        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Structure" FontWeight="Bold"/>
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Velocity control" ToolTip.Tip="PMT Velocity Control"/>
+                        <ComboBox ItemsSource="{Binding VelocityControl.Options}"
+                                  SelectedItem="{Binding VelocityControl.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Structure 1&amp;2" ToolTip.Tip="Structure Type 1 &amp; 2"/>
+                        <NumericUpDown Width="110" Minimum="1" Maximum="10" Increment="1" FormatString="0"
+                                       Value="{Binding Structure12.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Booster 1&amp;2 (dB)" ToolTip.Tip="Booster 1 &amp; 2"/>
+                        <ComboBox ItemsSource="{Binding Booster12.Options}"
+                                  SelectedItem="{Binding Booster12.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Structure 3&amp;4" ToolTip.Tip="Structure Type 3 &amp; 4"/>
+                        <NumericUpDown Width="110" Minimum="1" Maximum="10" Increment="1" FormatString="0"
+                                       Value="{Binding Structure34.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Booster 3&amp;4 (dB)" ToolTip.Tip="Booster 3 &amp; 4"/>
+                        <ComboBox ItemsSource="{Binding Booster34.Options}"
+                                  SelectedItem="{Binding Booster34.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- 2-D zone map -->
+        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+            <StackPanel Spacing="6">
+                <TextBlock Text="Zones — key (left→right) × velocity (loud at top). Drag to move, drag an edge to resize." Opacity="0.7" FontSize="11"/>
+                <controls:PmtZoneEditorControl Height="280" Width="760" HorizontalAlignment="Left"
+                    Partial1On="{Binding Zone1.On.Value}" Key1Lo="{Binding Zone1.KeyLo.Value, Mode=TwoWay}" Key1Hi="{Binding Zone1.KeyHi.Value, Mode=TwoWay}" Vel1Lo="{Binding Zone1.VelLo.Value, Mode=TwoWay}" Vel1Hi="{Binding Zone1.VelHi.Value, Mode=TwoWay}"
+                    Partial2On="{Binding Zone2.On.Value}" Key2Lo="{Binding Zone2.KeyLo.Value, Mode=TwoWay}" Key2Hi="{Binding Zone2.KeyHi.Value, Mode=TwoWay}" Vel2Lo="{Binding Zone2.VelLo.Value, Mode=TwoWay}" Vel2Hi="{Binding Zone2.VelHi.Value, Mode=TwoWay}"
+                    Partial3On="{Binding Zone3.On.Value}" Key3Lo="{Binding Zone3.KeyLo.Value, Mode=TwoWay}" Key3Hi="{Binding Zone3.KeyHi.Value, Mode=TwoWay}" Vel3Lo="{Binding Zone3.VelLo.Value, Mode=TwoWay}" Vel3Hi="{Binding Zone3.VelHi.Value, Mode=TwoWay}"
+                    Partial4On="{Binding Zone4.On.Value}" Key4Lo="{Binding Zone4.KeyLo.Value, Mode=TwoWay}" Key4Hi="{Binding Zone4.KeyHi.Value, Mode=TwoWay}" Vel4Lo="{Binding Zone4.VelLo.Value, Mode=TwoWay}" Vel4Hi="{Binding Zone4.VelHi.Value, Mode=TwoWay}"
+                    Zone1Brush="{StaticResource PmtZone1Brush}" Zone2Brush="{StaticResource PmtZone2Brush}"
+                    Zone3Brush="{StaticResource PmtZone3Brush}" Zone4Brush="{StaticResource PmtZone4Brush}"
+                    BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                    GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                    AxisBrush="{StaticResource SnEnvelopeAxisBrush}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Numeric grid -->
+        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+            <StackPanel Spacing="6">
+                <TextBlock Text="Precise values" FontWeight="Bold"/>
+                <Grid ColumnDefinitions="40,60,110,110,110,110,110,110,110,110" ColumnSpacing="6">
+                    <TextBlock Grid.Column="2" Text="Key Lo" Opacity="0.6" FontSize="11"/>
+                    <TextBlock Grid.Column="3" Text="Key Hi" Opacity="0.6" FontSize="11"/>
+                    <TextBlock Grid.Column="4" Text="Key Fade Lo" Opacity="0.6" FontSize="11"/>
+                    <TextBlock Grid.Column="5" Text="Key Fade Hi" Opacity="0.6" FontSize="11"/>
+                    <TextBlock Grid.Column="6" Text="Vel Lo" Opacity="0.6" FontSize="11"/>
+                    <TextBlock Grid.Column="7" Text="Vel Hi" Opacity="0.6" FontSize="11"/>
+                    <TextBlock Grid.Column="8" Text="Vel W Lo" Opacity="0.6" FontSize="11"/>
+                    <TextBlock Grid.Column="9" Text="Vel W Hi" Opacity="0.6" FontSize="11"/>
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Zones}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PcmPmtZoneViewModel">
+                            <Grid ColumnDefinitions="40,60,110,110,110,110,110,110,110,110" ColumnSpacing="6" Margin="0,2">
+                                <TextBlock Grid.Column="0" Text="{Binding Title}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                <ToggleSwitch Grid.Column="1" OnContent="" OffContent="" IsChecked="{Binding On.Value, Mode=TwoWay}" VerticalAlignment="Center"/>
+                                <NumericUpDown Grid.Column="2" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding KeyLo.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Grid.Column="3" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding KeyHi.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Grid.Column="4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding KeyFadeLo.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Grid.Column="5" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding KeyFadeHi.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Grid.Column="6" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding VelLo.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Grid.Column="7" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding VelHi.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Grid.Column="8" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding VelWidthLo.Value, Mode=TwoWay}"/>
+                                <NumericUpDown Grid.Column="9" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding VelWidthHi.Value, Mode=TwoWay}"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

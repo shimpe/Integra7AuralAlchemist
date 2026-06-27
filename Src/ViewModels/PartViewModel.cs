@@ -199,6 +199,7 @@ public partial class PartViewModel : ViewModelBase
     private IDisposable? _cleanupSNSynthToneCommonParams;
     [Reactive] private SNSynthToneEditorViewModel? _sNSynthToneEditor;
     [Reactive] private SNAcousticToneEditorViewModel? _sNAcousticToneEditor;
+    [Reactive] private PCMSynthToneEditorViewModel? _pcmSynthToneEditor;
     private IDisposable? _cleanupStudioSetChorus;
     private IDisposable? _cleanupStudioSetCommon;
     private IDisposable? _cleanupStudioSetMasterEQ;
@@ -1356,6 +1357,18 @@ public partial class PartViewModel : ViewModelBase
             List<FullyQualifiedParameter>
                 p_pcmpmt = _i7domain.PCMSynthTonePMT(PartNo).GetRelevantParameters(true, true);
             _sourceCachePCMSynthTonePMTParameters.AddOrUpdate(p_pcmpmt);
+
+            // Friendly PCM Synth editor for this part. Binds to the same live PCM FQP instances
+            // populated above, so it tracks preset/hardware changes for free. The navigation callback
+            // selects the matching raw "Advanced" tab (clear-then-set so repeat navigations always fire
+            // SelectTabByTag) and carries the selected partial for "Advanced — Partials".
+            _pcmSynthToneEditor?.Dispose();
+            PcmSynthToneEditor = new PCMSynthToneEditorViewModel(_i7domain, PartNo, (tag, partialIdx) =>
+            {
+                if (partialIdx is int idx) AdvancedPartialIndex = idx;
+                ToneTabKey = "";
+                ToneTabKey = tag;
+            });
 
             List<FullyQualifiedParameter>
                 p_pcmdkc = _i7domain.PCMDrumKitCommon(PartNo).GetRelevantParameters(true, true);

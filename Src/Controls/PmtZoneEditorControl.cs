@@ -1,0 +1,304 @@
+using System;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Data;
+using Avalonia.Input;
+using Avalonia.Media;
+using Integra7AuralAlchemist.Models.Services;
+
+namespace Integra7AuralAlchemist.Controls;
+
+/// <summary>
+/// Four key×velocity zone rectangles (one per PCM partial). X is the MIDI key (0..127, left→right),
+/// Y is velocity (0..127, loud at top). Drag a zone body to move it, drag an edge to resize. Pure
+/// geometry and hit-testing are delegated to <see cref="PmtZoneMapping"/>.
+/// </summary>
+public class PmtZoneEditorControl : Control
+{
+    private const double HandleMargin = 6;
+    private const double KeyboardHeight = 30; // bottom strip reserved for the piano keyboard
+
+    private static StyledProperty<int> I(string name) =>
+        AvaloniaProperty.Register<PmtZoneEditorControl, int>(name, 0, defaultBindingMode: BindingMode.TwoWay);
+
+    public static readonly StyledProperty<int> Key1LoProperty = I(nameof(Key1Lo));
+    public static readonly StyledProperty<int> Key1HiProperty = I(nameof(Key1Hi));
+    public static readonly StyledProperty<int> Vel1LoProperty = I(nameof(Vel1Lo));
+    public static readonly StyledProperty<int> Vel1HiProperty = I(nameof(Vel1Hi));
+    public static readonly StyledProperty<int> Key2LoProperty = I(nameof(Key2Lo));
+    public static readonly StyledProperty<int> Key2HiProperty = I(nameof(Key2Hi));
+    public static readonly StyledProperty<int> Vel2LoProperty = I(nameof(Vel2Lo));
+    public static readonly StyledProperty<int> Vel2HiProperty = I(nameof(Vel2Hi));
+    public static readonly StyledProperty<int> Key3LoProperty = I(nameof(Key3Lo));
+    public static readonly StyledProperty<int> Key3HiProperty = I(nameof(Key3Hi));
+    public static readonly StyledProperty<int> Vel3LoProperty = I(nameof(Vel3Lo));
+    public static readonly StyledProperty<int> Vel3HiProperty = I(nameof(Vel3Hi));
+    public static readonly StyledProperty<int> Key4LoProperty = I(nameof(Key4Lo));
+    public static readonly StyledProperty<int> Key4HiProperty = I(nameof(Key4Hi));
+    public static readonly StyledProperty<int> Vel4LoProperty = I(nameof(Vel4Lo));
+    public static readonly StyledProperty<int> Vel4HiProperty = I(nameof(Vel4Hi));
+
+    public static readonly StyledProperty<bool> Partial1OnProperty =
+        AvaloniaProperty.Register<PmtZoneEditorControl, bool>(nameof(Partial1On));
+    public static readonly StyledProperty<bool> Partial2OnProperty =
+        AvaloniaProperty.Register<PmtZoneEditorControl, bool>(nameof(Partial2On));
+    public static readonly StyledProperty<bool> Partial3OnProperty =
+        AvaloniaProperty.Register<PmtZoneEditorControl, bool>(nameof(Partial3On));
+    public static readonly StyledProperty<bool> Partial4OnProperty =
+        AvaloniaProperty.Register<PmtZoneEditorControl, bool>(nameof(Partial4On));
+
+    /// <summary>When true, render as a non-interactive preview: no labels, no pointer input.</summary>
+    public static readonly StyledProperty<bool> PreviewProperty =
+        AvaloniaProperty.Register<PmtZoneEditorControl, bool>(nameof(Preview));
+
+    private static StyledProperty<IBrush> B(string name, IBrush def) =>
+        AvaloniaProperty.Register<PmtZoneEditorControl, IBrush>(name, def);
+
+    public static readonly StyledProperty<IBrush> Zone1BrushProperty = B(nameof(Zone1Brush), new SolidColorBrush(Color.Parse("#6b8dff")));
+    public static readonly StyledProperty<IBrush> Zone2BrushProperty = B(nameof(Zone2Brush), new SolidColorBrush(Color.Parse("#ff9e6b")));
+    public static readonly StyledProperty<IBrush> Zone3BrushProperty = B(nameof(Zone3Brush), new SolidColorBrush(Color.Parse("#7ad19a")));
+    public static readonly StyledProperty<IBrush> Zone4BrushProperty = B(nameof(Zone4Brush), new SolidColorBrush(Color.Parse("#d18ad1")));
+    public static readonly StyledProperty<IBrush> BackgroundBrushProperty = B(nameof(BackgroundBrush), new SolidColorBrush(Color.Parse("#1B1F22")));
+    public static readonly StyledProperty<IBrush> GridBrushProperty = B(nameof(GridBrush), new SolidColorBrush(Color.FromArgb(0x22, 0xff, 0xff, 0xff)));
+    public static readonly StyledProperty<IBrush> AxisBrushProperty = B(nameof(AxisBrush), new SolidColorBrush(Color.FromArgb(0x55, 0xff, 0xff, 0xff)));
+    public static readonly StyledProperty<IBrush> LabelBrushProperty = B(nameof(LabelBrush), Brushes.White);
+    public static readonly StyledProperty<IBrush> WhiteKeyBrushProperty = B(nameof(WhiteKeyBrush), new SolidColorBrush(Color.Parse("#c8ccce")));
+    public static readonly StyledProperty<IBrush> BlackKeyBrushProperty = B(nameof(BlackKeyBrush), new SolidColorBrush(Color.Parse("#15181a")));
+
+    public int Key1Lo { get => GetValue(Key1LoProperty); set => SetValue(Key1LoProperty, value); }
+    public int Key1Hi { get => GetValue(Key1HiProperty); set => SetValue(Key1HiProperty, value); }
+    public int Vel1Lo { get => GetValue(Vel1LoProperty); set => SetValue(Vel1LoProperty, value); }
+    public int Vel1Hi { get => GetValue(Vel1HiProperty); set => SetValue(Vel1HiProperty, value); }
+    public int Key2Lo { get => GetValue(Key2LoProperty); set => SetValue(Key2LoProperty, value); }
+    public int Key2Hi { get => GetValue(Key2HiProperty); set => SetValue(Key2HiProperty, value); }
+    public int Vel2Lo { get => GetValue(Vel2LoProperty); set => SetValue(Vel2LoProperty, value); }
+    public int Vel2Hi { get => GetValue(Vel2HiProperty); set => SetValue(Vel2HiProperty, value); }
+    public int Key3Lo { get => GetValue(Key3LoProperty); set => SetValue(Key3LoProperty, value); }
+    public int Key3Hi { get => GetValue(Key3HiProperty); set => SetValue(Key3HiProperty, value); }
+    public int Vel3Lo { get => GetValue(Vel3LoProperty); set => SetValue(Vel3LoProperty, value); }
+    public int Vel3Hi { get => GetValue(Vel3HiProperty); set => SetValue(Vel3HiProperty, value); }
+    public int Key4Lo { get => GetValue(Key4LoProperty); set => SetValue(Key4LoProperty, value); }
+    public int Key4Hi { get => GetValue(Key4HiProperty); set => SetValue(Key4HiProperty, value); }
+    public int Vel4Lo { get => GetValue(Vel4LoProperty); set => SetValue(Vel4LoProperty, value); }
+    public int Vel4Hi { get => GetValue(Vel4HiProperty); set => SetValue(Vel4HiProperty, value); }
+    public bool Partial1On { get => GetValue(Partial1OnProperty); set => SetValue(Partial1OnProperty, value); }
+    public bool Partial2On { get => GetValue(Partial2OnProperty); set => SetValue(Partial2OnProperty, value); }
+    public bool Partial3On { get => GetValue(Partial3OnProperty); set => SetValue(Partial3OnProperty, value); }
+    public bool Partial4On { get => GetValue(Partial4OnProperty); set => SetValue(Partial4OnProperty, value); }
+    public bool Preview { get => GetValue(PreviewProperty); set => SetValue(PreviewProperty, value); }
+    public IBrush Zone1Brush { get => GetValue(Zone1BrushProperty); set => SetValue(Zone1BrushProperty, value); }
+    public IBrush Zone2Brush { get => GetValue(Zone2BrushProperty); set => SetValue(Zone2BrushProperty, value); }
+    public IBrush Zone3Brush { get => GetValue(Zone3BrushProperty); set => SetValue(Zone3BrushProperty, value); }
+    public IBrush Zone4Brush { get => GetValue(Zone4BrushProperty); set => SetValue(Zone4BrushProperty, value); }
+    public IBrush BackgroundBrush { get => GetValue(BackgroundBrushProperty); set => SetValue(BackgroundBrushProperty, value); }
+    public IBrush GridBrush { get => GetValue(GridBrushProperty); set => SetValue(GridBrushProperty, value); }
+    public IBrush AxisBrush { get => GetValue(AxisBrushProperty); set => SetValue(AxisBrushProperty, value); }
+    public IBrush LabelBrush { get => GetValue(LabelBrushProperty); set => SetValue(LabelBrushProperty, value); }
+    public IBrush WhiteKeyBrush { get => GetValue(WhiteKeyBrushProperty); set => SetValue(WhiteKeyBrushProperty, value); }
+    public IBrush BlackKeyBrush { get => GetValue(BlackKeyBrushProperty); set => SetValue(BlackKeyBrushProperty, value); }
+
+    private int _dragZone = -1;
+    private PmtZoneMapping.Handle _dragHandle;
+    private Point _dragOrigPos;                       // pointer position at press
+    private int _origLo, _origHi, _origVlo, _origVhi; // dragged zone's bounds at press (for body moves)
+    private int _tipNote = int.MinValue;             // last note shown in the hover tooltip
+
+    static PmtZoneEditorControl()
+    {
+        AffectsRender<PmtZoneEditorControl>(
+            Key1LoProperty, Key1HiProperty, Vel1LoProperty, Vel1HiProperty,
+            Key2LoProperty, Key2HiProperty, Vel2LoProperty, Vel2HiProperty,
+            Key3LoProperty, Key3HiProperty, Vel3LoProperty, Vel3HiProperty,
+            Key4LoProperty, Key4HiProperty, Vel4LoProperty, Vel4HiProperty,
+            Partial1OnProperty, Partial2OnProperty, Partial3OnProperty, Partial4OnProperty,
+            PreviewProperty,
+            Zone1BrushProperty, Zone2BrushProperty, Zone3BrushProperty, Zone4BrushProperty,
+            BackgroundBrushProperty, GridBrushProperty, AxisBrushProperty, LabelBrushProperty,
+            WhiteKeyBrushProperty, BlackKeyBrushProperty);
+        FocusableProperty.OverrideDefaultValue<PmtZoneEditorControl>(true);
+    }
+
+    private (int lo, int hi, int vlo, int vhi, bool on, IBrush brush) Zone(int i) => i switch
+    {
+        1 => (Key1Lo, Key1Hi, Vel1Lo, Vel1Hi, Partial1On, Zone1Brush),
+        2 => (Key2Lo, Key2Hi, Vel2Lo, Vel2Hi, Partial2On, Zone2Brush),
+        3 => (Key3Lo, Key3Hi, Vel3Lo, Vel3Hi, Partial3On, Zone3Brush),
+        4 => (Key4Lo, Key4Hi, Vel4Lo, Vel4Hi, Partial4On, Zone4Brush),
+        _ => (0, 0, 0, 0, false, Zone1Brush),
+    };
+
+    private PmtZoneMapping.Rect RectOf(int i, double w, double h)
+    {
+        var z = Zone(i);
+        return PmtZoneMapping.ToRect(z.lo, z.hi, z.vlo, z.vhi, w, h);
+    }
+
+    public override void Render(DrawingContext context)
+    {
+        double w = Bounds.Width, h = Bounds.Height;
+        var mapH = h - KeyboardHeight; // velocity axis area; the keyboard strip sits below it
+        context.FillRectangle(BackgroundBrush, new Rect(0, 0, w, h));
+
+        var gridPen = new Pen(GridBrush);
+        var axisPen = new Pen(AxisBrush);
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+
+        // Vertical key grid lines every 12 keys (one octave).
+        for (var k = 0; k <= 127; k += 12)
+        {
+            var x = PmtZoneMapping.KeyToX(k, w);
+            context.DrawLine(gridPen, new Point(x, 0), new Point(x, mapH));
+        }
+
+        // Horizontal velocity grid lines + value ticks every 16 (loud at top).
+        for (var v = 0; v <= 127; v += 16)
+        {
+            var y = PmtZoneMapping.VelToY(v, mapH);
+            context.DrawLine(gridPen, new Point(0, y), new Point(w, y));
+            var vt = new FormattedText(v.ToString(culture), culture, FlowDirection.LeftToRight,
+                Typeface.Default, 9, AxisBrush);
+            context.DrawText(vt, new Point(2, y + 1));
+        }
+
+        // Frame the map area (left / right / top / bottom).
+        context.DrawLine(axisPen, new Point(0, 0), new Point(0, mapH));
+        context.DrawLine(axisPen, new Point(w, 0), new Point(w, mapH));
+        context.DrawLine(axisPen, new Point(0, 0), new Point(w, 0));
+        context.DrawLine(axisPen, new Point(0, mapH), new Point(w, mapH));
+
+        DrawKeyboard(context, w, mapH, culture);
+
+        for (var i = 1; i <= 4; i++)
+        {
+            var z = Zone(i);
+            if (!z.on) continue;
+            var r = RectOf(i, w, mapH);
+            var rect = new Rect(r.X, r.Y, r.W, r.H);
+            using (context.PushOpacity(0.22))
+                context.FillRectangle(z.brush, rect);
+            context.DrawRectangle(null, new Pen(z.brush, 2), rect);
+
+            if (!Preview && r.W >= 40 && r.H >= 18)
+            {
+                int klo = Math.Min(z.lo, z.hi), khi = Math.Max(z.lo, z.hi);
+                int vmin = Math.Min(z.vlo, z.vhi), vmax = Math.Max(z.vlo, z.vhi);
+                var text = $"P{i}  vel {vmin}-{vmax}  key {klo} ({MidiNote.Name(klo)})-{khi} ({MidiNote.Name(khi)})";
+                var ft = new FormattedText(text, culture, FlowDirection.LeftToRight, Typeface.Default, 11, LabelBrush);
+                context.DrawText(ft, new Point(r.X + 4, r.Y + 3));
+            }
+        }
+    }
+
+    // A 0..127 piano keyboard in the bottom strip: white background, dark accidental keys, an octave
+    // divider + "C{octave}" label at every C.
+    private void DrawKeyboard(DrawingContext context, double w, double mapH, System.Globalization.CultureInfo culture)
+    {
+        var top = mapH;
+        var kbH = KeyboardHeight;
+        context.FillRectangle(WhiteKeyBrush, new Rect(0, top, w, kbH));
+        var octavePen = new Pen(BlackKeyBrush);
+        for (var n = 0; n <= 127; n++)
+        {
+            var x = PmtZoneMapping.KeyToX(n, w);
+            var xNext = Math.Min(PmtZoneMapping.KeyToX(n + 1, w), w);
+            if (MidiNote.IsBlack(n))
+                context.FillRectangle(BlackKeyBrush, new Rect(x, top, Math.Max(1, xNext - x), kbH * 0.6));
+            if (MidiNote.IsC(n))
+            {
+                context.DrawLine(octavePen, new Point(x, top), new Point(x, top + kbH));
+                var lt = new FormattedText(MidiNote.Name(n), culture, FlowDirection.LeftToRight,
+                    Typeface.Default, 9, BlackKeyBrush);
+                context.DrawText(lt, new Point(x + 1, top + kbH - 12));
+            }
+        }
+    }
+
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+        if (Preview) return; // previews are non-interactive
+        Focus();
+        var pos = e.GetPosition(this);
+        double w = Bounds.Width, mapH = Bounds.Height - KeyboardHeight;
+        for (var i = 4; i >= 1; i--)
+        {
+            var z = Zone(i);
+            if (!z.on) continue;
+            var hit = PmtZoneMapping.HitRect(pos.X, pos.Y, RectOf(i, w, mapH), HandleMargin);
+            if (hit != PmtZoneMapping.Handle.None)
+            {
+                _dragZone = i;
+                _dragHandle = hit;
+                _dragOrigPos = pos;
+                _origLo = z.lo; _origHi = z.hi; _origVlo = z.vlo; _origVhi = z.vhi;
+                e.Pointer.Capture(this);
+                e.Handled = true;
+                InvalidateVisual();
+                return;
+            }
+        }
+    }
+
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+        var pos = e.GetPosition(this);
+        double w = Bounds.Width, mapH = Bounds.Height - KeyboardHeight;
+
+        // Hover tooltip: show the note name under the cursor, updating as it crosses keys.
+        var note = PmtZoneMapping.XToKey(pos.X, w);
+        if (note != _tipNote)
+        {
+            _tipNote = note;
+            ToolTip.SetTip(this, MidiNote.Name(note));
+        }
+
+        if (_dragZone < 1) return;
+        int z = _dragZone;
+        var cur = Zone(z);
+
+        switch (_dragHandle)
+        {
+            case PmtZoneMapping.Handle.Left:
+                SetKeyLo(z, Math.Min(PmtZoneMapping.XToKey(pos.X, w), cur.hi));
+                break;
+            case PmtZoneMapping.Handle.Right:
+                SetKeyHi(z, Math.Max(PmtZoneMapping.XToKey(pos.X, w), cur.lo));
+                break;
+            case PmtZoneMapping.Handle.Top:
+                SetVelHi(z, Math.Max(PmtZoneMapping.YToVel(pos.Y, mapH), cur.vlo));
+                break;
+            case PmtZoneMapping.Handle.Bottom:
+                SetVelLo(z, Math.Min(PmtZoneMapping.YToVel(pos.Y, mapH), cur.vhi));
+                break;
+            case PmtZoneMapping.Handle.Body:
+                // Cumulative move from the press point, quantised once here and applied to the bounds
+                // captured at press — so slow sub-key drags accumulate instead of rounding to nothing.
+                var dKey = (int)Math.Round((pos.X - _dragOrigPos.X) / w * 127.0, MidpointRounding.AwayFromZero);
+                var dVel = -(int)Math.Round((pos.Y - _dragOrigPos.Y) / mapH * 127.0, MidpointRounding.AwayFromZero);
+                if (_origLo + dKey < 0) dKey = -_origLo;
+                if (_origHi + dKey > 127) dKey = 127 - _origHi;
+                if (_origVlo + dVel < 0) dVel = -_origVlo;
+                if (_origVhi + dVel > 127) dVel = 127 - _origVhi;
+                SetKeyLo(z, _origLo + dKey); SetKeyHi(z, _origHi + dKey);
+                SetVelLo(z, _origVlo + dVel); SetVelHi(z, _origVhi + dVel);
+                break;
+        }
+
+        e.Handled = true;
+
+        void SetKeyLo(int i, int v) { switch (i) { case 1: Key1Lo = v; break; case 2: Key2Lo = v; break; case 3: Key3Lo = v; break; case 4: Key4Lo = v; break; } }
+        void SetKeyHi(int i, int v) { switch (i) { case 1: Key1Hi = v; break; case 2: Key2Hi = v; break; case 3: Key3Hi = v; break; case 4: Key4Hi = v; break; } }
+        void SetVelLo(int i, int v) { switch (i) { case 1: Vel1Lo = v; break; case 2: Vel2Lo = v; break; case 3: Vel3Lo = v; break; case 4: Vel4Lo = v; break; } }
+        void SetVelHi(int i, int v) { switch (i) { case 1: Vel1Hi = v; break; case 2: Vel2Hi = v; break; case 3: Vel3Hi = v; break; case 4: Vel4Hi = v; break; } }
+    }
+
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+        if (_dragZone < 1) return;
+        e.Pointer.Capture(null);
+        _dragZone = -1;
+        e.Handled = true;
+    }
+}

@@ -56,4 +56,70 @@ public class LfoWaveformTests
         Assert.That(a.Select(p => p.Y), Is.EqualTo(b.Select(p => p.Y)));
         Assert.That(a.All(p => p.Y is >= 0 and <= 1), Is.True);
     }
+
+    [Test]
+    public void SawUp_ramps_up()
+    {
+        var pts = LfoWaveform.Sample("Saw Up", 5);
+        Assert.That(pts[0].Y, Is.EqualTo(0).Within(1e-9));
+        Assert.That(pts[^1].Y, Is.EqualTo(1).Within(1e-9));
+    }
+
+    [Test]
+    public void SawDown_ramps_down()
+    {
+        var pts = LfoWaveform.Sample("Saw Down", 5);
+        Assert.That(pts[0].Y, Is.EqualTo(1).Within(1e-9));
+        Assert.That(pts[^1].Y, Is.EqualTo(0).Within(1e-9));
+    }
+
+    [Test]
+    public void BendUp_rises_from_zero_to_one()
+    {
+        var pts = LfoWaveform.Sample("Bend Up", 9);
+        Assert.That(pts[0].Y, Is.EqualTo(0).Within(1e-9));
+        Assert.That(pts[^1].Y, Is.EqualTo(1).Within(1e-9));
+        Assert.That(pts[4].Y, Is.GreaterThan(0).And.LessThan(1));
+    }
+
+    [Test]
+    public void BendDown_falls_from_one_to_zero()
+    {
+        var pts = LfoWaveform.Sample("Bend Down", 9);
+        Assert.That(pts[0].Y, Is.EqualTo(1).Within(1e-9));
+        Assert.That(pts[^1].Y, Is.EqualTo(0).Within(1e-9));
+    }
+
+    [Test]
+    public void Step_is_a_rising_staircase()
+    {
+        var pts = LfoWaveform.Sample("Step", 11); // x = 0, .1, .2, … 1
+        Assert.That(pts[0].Y, Is.EqualTo(0).Within(1e-9));
+        Assert.That(pts[3].Y, Is.EqualTo(0.25).Within(1e-9)); // x = 0.3
+        Assert.That(pts[5].Y, Is.EqualTo(0.5).Within(1e-9));  // x = 0.5
+        Assert.That(pts[^1].Y, Is.EqualTo(1).Within(1e-9));   // x = 1
+    }
+
+    [Test]
+    public void TrianglePulse_has_a_flat_top()
+    {
+        var pts = LfoWaveform.Sample("Triangle Pulse", 9); // x step 0.125
+        Assert.That(pts[3].Y, Is.EqualTo(1).Within(1e-9));  // x = 0.375, on the plateau
+        Assert.That(pts[^1].Y, Is.EqualTo(0).Within(1e-9));
+    }
+
+    [Test]
+    public void Chiff_spikes_near_the_onset_then_stays_low()
+    {
+        var pts = LfoWaveform.Sample("Chiff", 11); // x step 0.1
+        Assert.That(pts[1].Y, Is.GreaterThan(0.7)); // x = 0.1, near the peak
+        Assert.That(pts[^1].Y, Is.LessThan(0.3));   // x = 1, low
+    }
+
+    [Test]
+    public void VariableSine_is_centered_at_start()
+    {
+        var pts = LfoWaveform.Sample("Variable Sine", 9);
+        Assert.That(pts[0].Y, Is.EqualTo(0.5).Within(1e-9));
+    }
 }

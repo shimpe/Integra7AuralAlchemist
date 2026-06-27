@@ -65,4 +65,24 @@ public class TestPartialAudition
         Assert.That(PartialAudition.IsAuditioning(new[] { false, true, false }, new[] { false, false, false }), Is.True);
         Assert.That(PartialAudition.IsAuditioning(new[] { false, false, false }, new[] { true, false, false }), Is.True);
     }
+
+    [Test]
+    public void Mute_silences_only_that_partial_with_four()
+    {
+        var saved = new[] { true, true, false, true };
+        var solo = new[] { false, false, false, false };
+        var mute = new[] { false, true, false, false };
+        Assert.That(PartialAudition.Effective(saved, solo, mute),
+            Is.EqualTo(new[] { true, false, false, true }));
+    }
+
+    [Test]
+    public void Solo_isolates_among_four_partials()
+    {
+        var saved = new[] { true, true, true, true };
+        var solo = new[] { false, false, true, false };
+        var mute = new[] { false, false, false, false };
+        Assert.That(PartialAudition.Effective(saved, solo, mute),
+            Is.EqualTo(new[] { false, false, true, false }));
+    }
 }
