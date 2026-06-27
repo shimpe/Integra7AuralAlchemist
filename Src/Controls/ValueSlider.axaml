@@ -1,0 +1,14 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="Root"
+             x:Class="Integra7AuralAlchemist.Controls.ValueSlider">
+    <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+        <Slider Grid.Column="0" VerticalAlignment="Center"
+                Minimum="{Binding #Root.Minimum}"
+                Maximum="{Binding #Root.Maximum}"
+                Value="{Binding #Root.Value, Mode=TwoWay}"/>
+        <TextBlock Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,0"
+                   MinWidth="34" TextAlignment="Right" Opacity="0.75"
+                   Text="{Binding #Root.ValueText}"/>
+    </Grid>
+</UserControl>
