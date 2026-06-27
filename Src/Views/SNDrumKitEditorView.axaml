@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
              x:DataType="vm:SNDrumKitEditorViewModel"
              x:CompileBindings="True"
              x:Name="Root"
@@ -30,11 +31,11 @@
                 </StackPanel>
                 <StackPanel Spacing="2" Width="160">
                     <TextBlock Text="Kit Level"/>
-                    <Slider Minimum="0" Maximum="127" Value="{Binding KitLevel.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding KitLevel.Value, Mode=TwoWay}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="160">
                     <TextBlock Text="Ambience" ToolTip.Tip="Ambience Level"/>
-                    <Slider Minimum="0" Maximum="127" Value="{Binding AmbienceLevel.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding AmbienceLevel.Value, Mode=TwoWay}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="260">
                     <TextBlock Text="Phrase" ToolTip.Tip="Phrase Number"/>

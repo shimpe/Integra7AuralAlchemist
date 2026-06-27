@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
              x:DataType="vm:SNAcousticToneEditorViewModel"
              x:CompileBindings="True"
              x:Name="Root"
@@ -31,7 +32,7 @@
 
                 <StackPanel Spacing="2" Width="160">
                     <TextBlock Text="Tone Level"/>
-                    <Slider Minimum="0" Maximum="127" Value="{Binding ToneLevel.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding ToneLevel.Value, Mode=TwoWay}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2">
@@ -42,12 +43,12 @@
 
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Octave Shift" ToolTip.Tip="Octave Shift"/>
-                    <Slider Minimum="-3" Maximum="3" Value="{Binding OctaveShift.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="-3" Maximum="3" Value="{Binding OctaveShift.Value, Mode=TwoWay}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Portamento" ToolTip.Tip="Portamento Time Offset"/>
-                    <Slider Minimum="-64" Maximum="63" Value="{Binding PortamentoOffset.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding PortamentoOffset.Value, Mode=TwoWay}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2">
@@ -96,33 +97,33 @@
                                 <StackPanel Orientation="Horizontal" Spacing="16">
                                     <StackPanel Spacing="2" Width="150">
                                         <TextBlock Text="Brightness (Cutoff)" Classes="sliderLabel" ToolTip.Tip="Cutoff Offset"/>
-                                        <Slider Minimum="-64" Maximum="63" Value="{Binding CutoffOffset.Value, Mode=TwoWay}"/>
+                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding CutoffOffset.Value, Mode=TwoWay}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="2" Width="150">
                                         <TextBlock Text="Resonance" Classes="sliderLabel" ToolTip.Tip="Resonance Offset"/>
-                                        <Slider Minimum="-64" Maximum="63" Value="{Binding ResonanceOffset.Value, Mode=TwoWay}"/>
+                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding ResonanceOffset.Value, Mode=TwoWay}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="2" Width="150">
                                         <TextBlock Text="Attack" Classes="sliderLabel" ToolTip.Tip="Attack Time Offset"/>
-                                        <Slider Minimum="-64" Maximum="63" Value="{Binding AttackOffset.Value, Mode=TwoWay}"/>
+                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding AttackOffset.Value, Mode=TwoWay}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="2" Width="150">
                                         <TextBlock Text="Release" Classes="sliderLabel" ToolTip.Tip="Release Time Offset"/>
-                                        <Slider Minimum="-64" Maximum="63" Value="{Binding ReleaseOffset.Value, Mode=TwoWay}"/>
+                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding ReleaseOffset.Value, Mode=TwoWay}"/>
                                     </StackPanel>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="16">
                                     <StackPanel Spacing="2" Width="150">
                                         <TextBlock Text="Vibrato Rate" Classes="sliderLabel" ToolTip.Tip="Vibrato Rate"/>
-                                        <Slider Minimum="-64" Maximum="63" Value="{Binding VibratoRate.Value, Mode=TwoWay}"/>
+                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding VibratoRate.Value, Mode=TwoWay}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="2" Width="150">
                                         <TextBlock Text="Vibrato Depth" Classes="sliderLabel" ToolTip.Tip="Vibrato Depth"/>
-                                        <Slider Minimum="-64" Maximum="63" Value="{Binding VibratoDepth.Value, Mode=TwoWay}"/>
+                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding VibratoDepth.Value, Mode=TwoWay}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="2" Width="150">
                                         <TextBlock Text="Vibrato Delay" Classes="sliderLabel" ToolTip.Tip="Vibrato Delay"/>
-                                        <Slider Minimum="-64" Maximum="63" Value="{Binding VibratoDelay.Value, Mode=TwoWay}"/>
+                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding VibratoDelay.Value, Mode=TwoWay}"/>
                                     </StackPanel>
                                 </StackPanel>
                             </StackPanel>

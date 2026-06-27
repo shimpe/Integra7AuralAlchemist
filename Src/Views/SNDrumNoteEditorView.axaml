@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
              x:DataType="vm:SNDrumNoteEditorViewModel"
              x:CompileBindings="True"
              x:Class="Integra7AuralAlchemist.Views.SNDrumNoteEditorView">
@@ -46,43 +47,43 @@
                 <WrapPanel Orientation="Horizontal">
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Level" Classes="sliderLabel"/>
-                        <Slider Minimum="0" Maximum="127" Value="{Binding Level.Value, Mode=TwoWay}"/>
+                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding Level.Value, Mode=TwoWay}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Pan (L / C / R)" Classes="sliderLabel"/>
-                        <Slider Minimum="-64" Maximum="63" Value="{Binding Pan.Value, Mode=TwoWay}"/>
+                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding Pan.Value, Mode=TwoWay}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="200" Margin="0,0,16,8">
                         <TextBlock Text="Tune (cents)" Classes="sliderLabel"/>
-                        <Slider Minimum="-1200" Maximum="1200" Value="{Binding Tune.Value, Mode=TwoWay}"/>
+                        <controls:ValueSlider Minimum="-1200" Maximum="1200" Value="{Binding Tune.Value, Mode=TwoWay}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Attack (%)" Classes="sliderLabel"/>
-                        <Slider Minimum="0" Maximum="100" Value="{Binding Attack.Value, Mode=TwoWay}"/>
+                        <controls:ValueSlider Minimum="0" Maximum="100" Value="{Binding Attack.Value, Mode=TwoWay}" Unit="%"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Decay" Classes="sliderLabel"/>
-                        <Slider Minimum="-63" Maximum="0" Value="{Binding Decay.Value, Mode=TwoWay}"/>
+                        <controls:ValueSlider Minimum="-63" Maximum="0" Value="{Binding Decay.Value, Mode=TwoWay}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Brilliance" Classes="sliderLabel"/>
-                        <Slider Minimum="-15" Maximum="12" Value="{Binding Brilliance.Value, Mode=TwoWay}"/>
+                        <controls:ValueSlider Minimum="-15" Maximum="12" Value="{Binding Brilliance.Value, Mode=TwoWay}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Dynamic Range" Classes="sliderLabel"/>
-                        <Slider Minimum="0" Maximum="63" Value="{Binding DynamicRange.Value, Mode=TwoWay}"/>
+                        <controls:ValueSlider Minimum="0" Maximum="63" Value="{Binding DynamicRange.Value, Mode=TwoWay}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Stereo Width" Classes="sliderLabel"/>
-                        <Slider Minimum="0" Maximum="127" Value="{Binding StereoWidth.Value, Mode=TwoWay}"/>
+                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding StereoWidth.Value, Mode=TwoWay}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Chorus Send" Classes="sliderLabel"/>
-                        <Slider Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}"/>
+                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Reverb Send" Classes="sliderLabel"/>
-                        <Slider Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}"/>
+                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}"/>
                     </StackPanel>
                 </WrapPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8">

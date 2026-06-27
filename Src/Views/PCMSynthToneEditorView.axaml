@@ -36,7 +36,7 @@
 
                 <StackPanel Spacing="2" Width="160">
                     <TextBlock Text="Tone Level"/>
-                    <Slider Minimum="0" Maximum="127" Value="{Binding Header.ToneLevel.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding Header.ToneLevel.Value, Mode=TwoWay}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2">
@@ -50,13 +50,13 @@
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Glide" ToolTip.Tip="Portamento"/>
                     <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding Header.Portamento.Value, Mode=TwoWay}"/>
-                    <Slider Minimum="0" Maximum="127" Value="{Binding Header.PortamentoTime.Value, Mode=TwoWay}"
+                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding Header.PortamentoTime.Value, Mode=TwoWay}"
                             IsEnabled="{Binding Header.Portamento.Value}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Vintage Drift" ToolTip.Tip="Analog Feel"/>
-                    <Slider Minimum="0" Maximum="127" Value="{Binding Header.AnalogFeel.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding Header.AnalogFeel.Value, Mode=TwoWay}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2">
@@ -73,19 +73,19 @@
               <StackPanel Orientation="Horizontal" Spacing="16">
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Brightness (Cutoff)" Classes="sliderLabel" ToolTip.Tip="Cutoff Offset"/>
-                    <Slider Minimum="-63" Maximum="63" Value="{Binding Header.CutoffOffset.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding Header.CutoffOffset.Value, Mode=TwoWay}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Resonance" Classes="sliderLabel" ToolTip.Tip="Resonance Offset"/>
-                    <Slider Minimum="-63" Maximum="63" Value="{Binding Header.ResonanceOffset.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding Header.ResonanceOffset.Value, Mode=TwoWay}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Attack" Classes="sliderLabel" ToolTip.Tip="Attack Time Offset"/>
-                    <Slider Minimum="-63" Maximum="63" Value="{Binding Header.AttackOffset.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding Header.AttackOffset.Value, Mode=TwoWay}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Release" Classes="sliderLabel" ToolTip.Tip="Release Time Offset"/>
-                    <Slider Minimum="-63" Maximum="63" Value="{Binding Header.ReleaseOffset.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding Header.ReleaseOffset.Value, Mode=TwoWay}"/>
                 </StackPanel>
               </StackPanel>
 
@@ -246,7 +246,7 @@
                                             </StackPanel>
                                             <StackPanel Spacing="2" Width="150">
                                                 <TextBlock Text="FXM Depth" Classes="sliderLabel" ToolTip.Tip="Wave FXM Depth"/>
-                                                <Slider Minimum="0" Maximum="16" Value="{Binding WaveFxmDepth.Value, Mode=TwoWay}"
+                                                <controls:ValueSlider Minimum="0" Maximum="16" Value="{Binding WaveFxmDepth.Value, Mode=TwoWay}"
                                                         IsEnabled="{Binding WaveFxmSwitch.Value}"/>
                                             </StackPanel>
                                         </StackPanel>
@@ -396,19 +396,19 @@
                                         <StackPanel Orientation="Horizontal" Spacing="16">
                                             <StackPanel Spacing="2" Width="150">
                                                 <TextBlock Text="Level" Classes="sliderLabel" ToolTip.Tip="Partial Level"/>
-                                                <Slider Minimum="0" Maximum="127" Value="{Binding PartialLevel.Value, Mode=TwoWay}"/>
+                                                <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding PartialLevel.Value, Mode=TwoWay}"/>
                                             </StackPanel>
                                             <StackPanel Spacing="2" Width="150">
                                                 <TextBlock Text="Pan (L / C / R)" Classes="sliderLabel" ToolTip.Tip="Partial Pan"/>
-                                                <Slider Minimum="-64" Maximum="63" Value="{Binding PartialPan.Value, Mode=TwoWay}"/>
+                                                <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding PartialPan.Value, Mode=TwoWay}"/>
                                             </StackPanel>
                                             <StackPanel Spacing="2" Width="150">
                                                 <TextBlock Text="Chorus Send" Classes="sliderLabel" ToolTip.Tip="Partial Chorus Send Level"/>
-                                                <Slider Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}"/>
+                                                <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}"/>
                                             </StackPanel>
                                             <StackPanel Spacing="2" Width="150">
                                                 <TextBlock Text="Reverb Send" Classes="sliderLabel" ToolTip.Tip="Partial Reverb Send Level"/>
-                                                <Slider Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}"/>
+                                                <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}"/>
                                             </StackPanel>
                                         </StackPanel>
                                         <controls:MultiStageEnvelopeControl Height="120" FixedEndpoints="True"
@@ -447,11 +447,11 @@
                                         <StackPanel Orientation="Horizontal" Spacing="16">
                                             <StackPanel Spacing="2" Width="150">
                                                 <TextBlock Text="Bias Level" Classes="sliderLabel" ToolTip.Tip="Bias Level"/>
-                                                <Slider Minimum="-100" Maximum="100" Value="{Binding BiasLevel.Value, Mode=TwoWay}"/>
+                                                <controls:ValueSlider Minimum="-100" Maximum="100" Value="{Binding BiasLevel.Value, Mode=TwoWay}"/>
                                             </StackPanel>
                                             <StackPanel Spacing="2" Width="150">
                                                 <TextBlock Text="Bias Position" Classes="sliderLabel" ToolTip.Tip="Bias Position"/>
-                                                <Slider Minimum="0" Maximum="127" Value="{Binding BiasPosition.Value, Mode=TwoWay}"/>
+                                                <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding BiasPosition.Value, Mode=TwoWay}"/>
                                             </StackPanel>
                                             <StackPanel Spacing="2">
                                                 <TextBlock Text="Bias Dir" ToolTip.Tip="Bias Direction"/>
@@ -504,13 +504,13 @@
 
                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Velocity" VerticalAlignment="Center"
                                                    ToolTip.Tip="How hard you play"/>
-                                        <Slider Grid.Row="1" Grid.Column="1" Minimum="-63" Maximum="63"
+                                        <controls:ValueSlider Grid.Row="1" Grid.Column="1" Minimum="-63" Maximum="63"
                                                 ToolTip.Tip="TVF Cutoff Velocity Sens"
                                                 Value="{Binding TvfCutoffVeloSens.Value, Mode=TwoWay}"/>
-                                        <Slider Grid.Row="1" Grid.Column="2" Minimum="-63" Maximum="63"
+                                        <controls:ValueSlider Grid.Row="1" Grid.Column="2" Minimum="-63" Maximum="63"
                                                 ToolTip.Tip="TVA Velocity Sens"
                                                 Value="{Binding TvaVeloSens.Value, Mode=TwoWay}"/>
-                                        <Slider Grid.Row="1" Grid.Column="3" Minimum="-63" Maximum="63"
+                                        <controls:ValueSlider Grid.Row="1" Grid.Column="3" Minimum="-63" Maximum="63"
                                                 ToolTip.Tip="Pitch Env Velocity Sens"
                                                 Value="{Binding PitchEnvVeloSens.Value, Mode=TwoWay}"/>
 
@@ -527,10 +527,10 @@
 
                                         <TextBlock Grid.Row="3" Grid.Column="0" Text="Key position" VerticalAlignment="Center"
                                                    ToolTip.Tip="Higher vs lower notes (keyfollow)"/>
-                                        <Slider Grid.Row="3" Grid.Column="1" Minimum="-200" Maximum="200"
+                                        <controls:ValueSlider Grid.Row="3" Grid.Column="1" Minimum="-200" Maximum="200"
                                                 ToolTip.Tip="TVF Cutoff Keyfollow"
                                                 Value="{Binding TvfCutoffKeyfollow.Value, Mode=TwoWay}"/>
-                                        <Slider Grid.Row="3" Grid.Column="3" Minimum="-200" Maximum="200"
+                                        <controls:ValueSlider Grid.Row="3" Grid.Column="3" Minimum="-200" Maximum="200"
                                                 ToolTip.Tip="Wave Pitch Keyfollow"
                                                 Value="{Binding WavePitchKeyfollow.Value, Mode=TwoWay}"/>
                                     </Grid>
