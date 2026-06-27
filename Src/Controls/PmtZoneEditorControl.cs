@@ -94,7 +94,8 @@ public class PmtZoneEditorControl : Control
 
     private int _dragZone = -1;
     private PmtZoneMapping.Handle _dragHandle;
-    private Point _lastPos;
+    private Point _dragOrigPos;                       // pointer position at press
+    private int _origLo, _origHi, _origVlo, _origVhi; // dragged zone's bounds at press (for body moves)
 
     static PmtZoneEditorControl()
     {
@@ -147,9 +148,11 @@ public class PmtZoneEditorControl : Control
             context.DrawLine(gridPen, new Point(0, y), new Point(w, y));
         }
 
-        // Left axis and bottom axis.
+        // Frame the map (left / bottom / right / top).
         context.DrawLine(axisPen, new Point(0, 0), new Point(0, h));
         context.DrawLine(axisPen, new Point(0, h), new Point(w, h));
+        context.DrawLine(axisPen, new Point(w, 0), new Point(w, h));
+        context.DrawLine(axisPen, new Point(0, 0), new Point(w, 0));
 
         for (var i = 1; i <= 4; i++)
         {
@@ -163,7 +166,7 @@ public class PmtZoneEditorControl : Control
 
             if (!Preview && r.W >= 40 && r.H >= 18)
             {
-                var text = $"P{i}  vel {z.vlo}-{z.vhi}  key {z.lo}-{z.hi}";
+                var text = $"P{i}  vel {Math.Min(z.vlo, z.vhi)}-{Math.Max(z.vlo, z.vhi)}  key {Math.Min(z.lo, z.hi)}-{Math.Max(z.lo, z.hi)}";
                 var ft = new FormattedText(text, System.Globalization.CultureInfo.CurrentCulture,
                     FlowDirection.LeftToRight, Typeface.Default, 11, LabelBrush);
                 context.DrawText(ft, new Point(r.X + 4, r.Y + 3));
@@ -187,7 +190,8 @@ public class PmtZoneEditorControl : Control
             {
                 _dragZone = i;
                 _dragHandle = hit;
-                _lastPos = pos;
+                _dragOrigPos = pos;
+                _origLo = z.lo; _origHi = z.hi; _origVlo = z.vlo; _origVhi = z.vhi;
                 e.Pointer.Capture(this);
                 e.Handled = true;
                 InvalidateVisual();
@@ -220,19 +224,19 @@ public class PmtZoneEditorControl : Control
                 SetVelLo(z, Math.Min(PmtZoneMapping.YToVel(pos.Y, h), cur.vhi));
                 break;
             case PmtZoneMapping.Handle.Body:
-                var dKey = PmtZoneMapping.XToKey(pos.X, w) - PmtZoneMapping.XToKey(_lastPos.X, w);
-                var dVel = PmtZoneMapping.YToVel(pos.Y, h) - PmtZoneMapping.YToVel(_lastPos.Y, h);
-                // clamp dKey/dVel so the zone stays fully within 0..127 without resizing
-                if (cur.lo + dKey < 0) dKey = -cur.lo;
-                if (cur.hi + dKey > 127) dKey = 127 - cur.hi;
-                if (cur.vlo + dVel < 0) dVel = -cur.vlo;
-                if (cur.vhi + dVel > 127) dVel = 127 - cur.vhi;
-                SetKeyLo(z, cur.lo + dKey); SetKeyHi(z, cur.hi + dKey);
-                SetVelLo(z, cur.vlo + dVel); SetVelHi(z, cur.vhi + dVel);
+                // Cumulative move from the press point, quantised once here and applied to the bounds
+                // captured at press — so slow sub-key drags accumulate instead of rounding to nothing.
+                var dKey = (int)Math.Round((pos.X - _dragOrigPos.X) / w * 127.0, MidpointRounding.AwayFromZero);
+                var dVel = -(int)Math.Round((pos.Y - _dragOrigPos.Y) / h * 127.0, MidpointRounding.AwayFromZero);
+                if (_origLo + dKey < 0) dKey = -_origLo;
+                if (_origHi + dKey > 127) dKey = 127 - _origHi;
+                if (_origVlo + dVel < 0) dVel = -_origVlo;
+                if (_origVhi + dVel > 127) dVel = 127 - _origVhi;
+                SetKeyLo(z, _origLo + dKey); SetKeyHi(z, _origHi + dKey);
+                SetVelLo(z, _origVlo + dVel); SetVelHi(z, _origVhi + dVel);
                 break;
         }
 
-        _lastPos = pos;
         e.Handled = true;
 
         void SetKeyLo(int i, int v) { switch (i) { case 1: Key1Lo = v; break; case 2: Key2Lo = v; break; case 3: Key3Lo = v; break; case 4: Key4Lo = v; break; } }
