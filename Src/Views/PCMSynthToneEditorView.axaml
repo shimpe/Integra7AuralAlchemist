@@ -1,0 +1,210 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             x:DataType="vm:PCMSynthToneEditorViewModel"
+             x:CompileBindings="True"
+             x:Name="Root"
+             x:Class="Integra7AuralAlchemist.Views.PCMSynthToneEditorView">
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.sliderLabel">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="MinHeight" Value="40"/>
+        </Style>
+        <Style Selector="ToggleButton.solo:checked">
+            <Setter Property="Background" Value="{StaticResource SnSoloBrush}"/>
+        </Style>
+        <Style Selector="ToggleButton.mute:checked">
+            <Setter Property="Background" Value="{StaticResource SnMuteBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,*" Margin="8">
+
+        <!-- ===== Tone Header ===== -->
+        <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,8">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="8">
+              <StackPanel Orientation="Horizontal" Spacing="16">
+                <StackPanel Spacing="2">
+                    <Border Background="{StaticResource SnAccentBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                        <TextBlock Text="PCM Synth" Foreground="{StaticResource SnBadgeForegroundBrush}" FontSize="11"/>
+                    </Border>
+                    <TextBlock Text="{Binding Header.ToneName}" FontSize="16" FontWeight="Bold"/>
+                </StackPanel>
+
+                <StackPanel Spacing="2" Width="160">
+                    <TextBlock Text="Tone Level"/>
+                    <Slider Minimum="0" Maximum="127" Value="{Binding Header.ToneLevel.Value, Mode=TwoWay}"/>
+                </StackPanel>
+
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Voice" ToolTip.Tip="Mono-Poly"/>
+                    <ComboBox ItemsSource="{Binding Header.MonoPoly.Options}"
+                              SelectedItem="{Binding Header.MonoPoly.Value, Mode=TwoWay}"/>
+                    <ToggleSwitch OnContent="Legato" OffContent="Legato"
+                                  IsChecked="{Binding Header.Legato.Value, Mode=TwoWay}"/>
+                </StackPanel>
+
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Glide" ToolTip.Tip="Portamento"/>
+                    <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding Header.Portamento.Value, Mode=TwoWay}"/>
+                    <Slider Minimum="0" Maximum="127" Value="{Binding Header.PortamentoTime.Value, Mode=TwoWay}"
+                            IsEnabled="{Binding Header.Portamento.Value}"/>
+                </StackPanel>
+
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Vintage Drift" ToolTip.Tip="Analog Feel"/>
+                    <Slider Minimum="0" Maximum="127" Value="{Binding Header.AnalogFeel.Value, Mode=TwoWay}"/>
+                </StackPanel>
+
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Octave" ToolTip.Tip="Octave Shift"/>
+                    <NumericUpDown Width="100" Minimum="-3" Maximum="3" Increment="1" FormatString="0"
+                                   Value="{Binding Header.OctaveShift.Value, Mode=TwoWay}"/>
+                </StackPanel>
+
+                <Button VerticalAlignment="Bottom" Content="Advanced common parameters…"
+                        Command="{Binding AdvancedCommonCommand}"/>
+              </StackPanel>
+
+              <!-- Character (tone-wide offsets) -->
+              <StackPanel Orientation="Horizontal" Spacing="16">
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Brightness (Cutoff)" Classes="sliderLabel" ToolTip.Tip="Cutoff Offset"/>
+                    <Slider Minimum="-63" Maximum="63" Value="{Binding Header.CutoffOffset.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Resonance" Classes="sliderLabel" ToolTip.Tip="Resonance Offset"/>
+                    <Slider Minimum="-63" Maximum="63" Value="{Binding Header.ResonanceOffset.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Attack" Classes="sliderLabel" ToolTip.Tip="Attack Time Offset"/>
+                    <Slider Minimum="-63" Maximum="63" Value="{Binding Header.AttackOffset.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2" Width="150">
+                    <TextBlock Text="Release" Classes="sliderLabel" ToolTip.Tip="Release Time Offset"/>
+                    <Slider Minimum="-63" Maximum="63" Value="{Binding Header.ReleaseOffset.Value, Mode=TwoWay}"/>
+                </StackPanel>
+              </StackPanel>
+
+              <!-- Phrase (arpeggio) on its own row -->
+              <StackPanel Orientation="Horizontal" Spacing="16">
+                <StackPanel Spacing="2" Width="260">
+                    <TextBlock Text="Phrase (arpeggio)" ToolTip.Tip="Phrase Number"/>
+                    <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding Header.PhraseNumber.Options}"
+                              SelectedItem="{Binding Header.PhraseNumber.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Phrase Octave" ToolTip.Tip="Phrase Octave Shift"/>
+                    <NumericUpDown Width="110" Minimum="-3" Maximum="3" Increment="1" FormatString="0"
+                                   Value="{Binding Header.PhraseOctaveShift.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Category" ToolTip.Tip="Tone Category"/>
+                    <ComboBox MaxDropDownHeight="300"
+                              ItemsSource="{Binding Header.Category.Options}"
+                              SelectedItem="{Binding Header.Category.Value, Mode=TwoWay}"/>
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ===== Rack + Selected partial ===== -->
+        <Grid Grid.Row="1" ColumnDefinitions="240,*">
+
+            <Grid Grid.Column="0" Margin="0,0,8,0" RowDefinitions="Auto,*">
+              <Border Grid.Row="0" IsVisible="{Binding IsAuditioning}" Margin="0,0,0,8"
+                      Background="{StaticResource SnAuditionBannerBrush}" CornerRadius="6" Padding="8">
+                  <StackPanel Spacing="6">
+                      <TextBlock Text="Auditioning (solo/mute) — restore before saving"
+                                 TextWrapping="Wrap" FontSize="12"/>
+                      <Button Content="Restore" HorizontalAlignment="Left" Command="{Binding ClearAuditionCommand}"/>
+                  </StackPanel>
+              </Border>
+              <ListBox Grid.Row="1"
+                     ItemsSource="{Binding Partials}"
+                     SelectedItem="{Binding SelectedPartial, Mode=TwoWay}">
+                <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="2"/>
+                    </Style>
+                    <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+                        <Setter Property="Background" Value="Transparent"/>
+                    </Style>
+                    <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                        <Setter Property="Background" Value="Transparent"/>
+                    </Style>
+                    <Style Selector="ListBoxItem Border#CardRoot">
+                        <Setter Property="Background" Value="{StaticResource SnCardBackgroundBrush}"/>
+                        <Setter Property="BorderThickness" Value="2"/>
+                        <Setter Property="BorderBrush" Value="Transparent"/>
+                    </Style>
+                    <Style Selector="ListBoxItem:pointerover Border#CardRoot">
+                        <Setter Property="Background" Value="{StaticResource SnCardHoverBackgroundBrush}"/>
+                    </Style>
+                    <Style Selector="ListBoxItem:selected Border#CardRoot">
+                        <Setter Property="Background" Value="{StaticResource SnCardSelectedBackgroundBrush}"/>
+                        <Setter Property="BorderBrush" Value="{StaticResource SnCardSelectedBorderBrush}"/>
+                    </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PCMPartialViewModel">
+                        <Border x:Name="CardRoot" Padding="8" CornerRadius="6">
+                            <StackPanel Spacing="4">
+                                <DockPanel>
+                                    <TextBlock Text="{Binding Title}" FontWeight="Bold" VerticalAlignment="Center"/>
+                                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4"
+                                                VerticalAlignment="Center">
+                                        <ToggleButton Classes="solo" Content="S" MinWidth="26" Width="26" Padding="0"
+                                                      FontSize="11" IsChecked="{Binding Solo, Mode=TwoWay}"
+                                                      ToolTip.Tip="Solo (audition)"/>
+                                        <ToggleButton Classes="mute" Content="M" MinWidth="26" Width="26" Padding="0"
+                                                      FontSize="11" IsChecked="{Binding Mute, Mode=TwoWay}"
+                                                      ToolTip.Tip="Mute (audition)"/>
+                                        <ToggleSwitch OnContent="" OffContent=""
+                                                      IsChecked="{Binding IsOn.Value, Mode=TwoWay}"
+                                                      IsEnabled="{Binding !#Root.((vm:PCMSynthToneEditorViewModel)DataContext).IsAuditioning}"
+                                                      ToolTip.Tip="Partial on/off (disabled while auditioning)"/>
+                                    </StackPanel>
+                                </DockPanel>
+                                <TextBlock Text="(sound controls in a later phase)" Opacity="0.5" FontSize="11"/>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            </Grid>
+
+            <!-- Right column: tab shell + Copy/Paste/Init -->
+            <Grid Grid.Column="1" RowDefinitions="*,Auto">
+                <TabControl Grid.Row="0">
+                    <TabItem Header="Sound">
+                        <TextBlock Margin="12" Opacity="0.6" Text="Sound — wave, filter, amp, envelopes (Phase 2)."/>
+                    </TabItem>
+                    <TabItem Header="Motion">
+                        <TextBlock Margin="12" Opacity="0.6" Text="Motion — LFO 1 + LFO 2 (Phase 3)."/>
+                    </TabItem>
+                    <TabItem Header="Zones">
+                        <TextBlock Margin="12" Opacity="0.6" Text="Zones — PMT key/velocity map (Phase 4)."/>
+                    </TabItem>
+                    <TabItem Header="FX">
+                        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                            <ContentControl Content="{Binding Mfx}" Margin="0,8,0,0"/>
+                        </ScrollViewer>
+                    </TabItem>
+                    <TabItem Header="Response">
+                        <TextBlock Margin="12" Opacity="0.6" Text="Response — velocity / aftertouch / keyfollow (Phase 5)."/>
+                    </TabItem>
+                </TabControl>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                    <Button Content="Copy partial" Command="{Binding CopyPartialCommand}"/>
+                    <Button Content="Paste partial" Command="{Binding PastePartialCommand}"/>
+                    <Button Content="Init partial" Command="{Binding InitPartialCommand}"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>
