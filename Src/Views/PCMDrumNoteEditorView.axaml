@@ -70,7 +70,15 @@
                                     Level0="0"
                                     Level1="{Binding TvaEnvLevel1.Value, Mode=TwoWay}"
                                     Level2="{Binding TvaEnvLevel2.Value, Mode=TwoWay}"
-                                    Level3="{Binding TvaEnvLevel3.Value, Mode=TwoWay}"/>
+                                    Level3="{Binding TvaEnvLevel3.Value, Mode=TwoWay}"
+                                    Level4="0"
+                                    LineBrush="{StaticResource SnAmpEnvelopeBrush}"
+                                    FillBrush="{StaticResource SnAmpEnvelopeFillBrush}"
+                                    BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                                    GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                                    AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
+                                    HandleBrush="{StaticResource SnEnvelopeHandleBrush}"
+                                    FocusBrush="{StaticResource SnEnvelopeFocusBrush}"/>
                                 <WrapPanel Orientation="Horizontal">
                                     <StackPanel Spacing="2" Margin="0,0,12,4">
                                         <TextBlock Text="Times (T1-T4)" Opacity="0.7"/>
