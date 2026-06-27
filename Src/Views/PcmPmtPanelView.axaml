@@ -45,7 +45,7 @@
         <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
             <StackPanel Spacing="6">
                 <TextBlock Text="Zones — key (left→right) × velocity (loud at top). Drag to move, drag an edge to resize." Opacity="0.7" FontSize="11"/>
-                <controls:PmtZoneEditorControl Height="240" Width="760" HorizontalAlignment="Left"
+                <controls:PmtZoneEditorControl Height="280" Width="760" HorizontalAlignment="Left"
                     Partial1On="{Binding Zone1.On.Value}" Key1Lo="{Binding Zone1.KeyLo.Value, Mode=TwoWay}" Key1Hi="{Binding Zone1.KeyHi.Value, Mode=TwoWay}" Vel1Lo="{Binding Zone1.VelLo.Value, Mode=TwoWay}" Vel1Hi="{Binding Zone1.VelHi.Value, Mode=TwoWay}"
                     Partial2On="{Binding Zone2.On.Value}" Key2Lo="{Binding Zone2.KeyLo.Value, Mode=TwoWay}" Key2Hi="{Binding Zone2.KeyHi.Value, Mode=TwoWay}" Vel2Lo="{Binding Zone2.VelLo.Value, Mode=TwoWay}" Vel2Hi="{Binding Zone2.VelHi.Value, Mode=TwoWay}"
                     Partial3On="{Binding Zone3.On.Value}" Key3Lo="{Binding Zone3.KeyLo.Value, Mode=TwoWay}" Key3Hi="{Binding Zone3.KeyHi.Value, Mode=TwoWay}" Vel3Lo="{Binding Zone3.VelLo.Value, Mode=TwoWay}" Vel3Hi="{Binding Zone3.VelHi.Value, Mode=TwoWay}"

@@ -16,6 +16,7 @@ namespace Integra7AuralAlchemist.Controls;
 public class PmtZoneEditorControl : Control
 {
     private const double HandleMargin = 6;
+    private const double KeyboardHeight = 30; // bottom strip reserved for the piano keyboard
 
     private static StyledProperty<int> I(string name) =>
         AvaloniaProperty.Register<PmtZoneEditorControl, int>(name, 0, defaultBindingMode: BindingMode.TwoWay);
@@ -61,6 +62,8 @@ public class PmtZoneEditorControl : Control
     public static readonly StyledProperty<IBrush> GridBrushProperty = B(nameof(GridBrush), new SolidColorBrush(Color.FromArgb(0x22, 0xff, 0xff, 0xff)));
     public static readonly StyledProperty<IBrush> AxisBrushProperty = B(nameof(AxisBrush), new SolidColorBrush(Color.FromArgb(0x55, 0xff, 0xff, 0xff)));
     public static readonly StyledProperty<IBrush> LabelBrushProperty = B(nameof(LabelBrush), Brushes.White);
+    public static readonly StyledProperty<IBrush> WhiteKeyBrushProperty = B(nameof(WhiteKeyBrush), new SolidColorBrush(Color.Parse("#c8ccce")));
+    public static readonly StyledProperty<IBrush> BlackKeyBrushProperty = B(nameof(BlackKeyBrush), new SolidColorBrush(Color.Parse("#15181a")));
 
     public int Key1Lo { get => GetValue(Key1LoProperty); set => SetValue(Key1LoProperty, value); }
     public int Key1Hi { get => GetValue(Key1HiProperty); set => SetValue(Key1HiProperty, value); }
@@ -91,11 +94,14 @@ public class PmtZoneEditorControl : Control
     public IBrush GridBrush { get => GetValue(GridBrushProperty); set => SetValue(GridBrushProperty, value); }
     public IBrush AxisBrush { get => GetValue(AxisBrushProperty); set => SetValue(AxisBrushProperty, value); }
     public IBrush LabelBrush { get => GetValue(LabelBrushProperty); set => SetValue(LabelBrushProperty, value); }
+    public IBrush WhiteKeyBrush { get => GetValue(WhiteKeyBrushProperty); set => SetValue(WhiteKeyBrushProperty, value); }
+    public IBrush BlackKeyBrush { get => GetValue(BlackKeyBrushProperty); set => SetValue(BlackKeyBrushProperty, value); }
 
     private int _dragZone = -1;
     private PmtZoneMapping.Handle _dragHandle;
     private Point _dragOrigPos;                       // pointer position at press
     private int _origLo, _origHi, _origVlo, _origVhi; // dragged zone's bounds at press (for body moves)
+    private int _tipNote = int.MinValue;             // last note shown in the hover tooltip
 
     static PmtZoneEditorControl()
     {
@@ -107,7 +113,8 @@ public class PmtZoneEditorControl : Control
             Partial1OnProperty, Partial2OnProperty, Partial3OnProperty, Partial4OnProperty,
             PreviewProperty,
             Zone1BrushProperty, Zone2BrushProperty, Zone3BrushProperty, Zone4BrushProperty,
-            BackgroundBrushProperty, GridBrushProperty, AxisBrushProperty, LabelBrushProperty);
+            BackgroundBrushProperty, GridBrushProperty, AxisBrushProperty, LabelBrushProperty,
+            WhiteKeyBrushProperty, BlackKeyBrushProperty);
         FocusableProperty.OverrideDefaultValue<PmtZoneEditorControl>(true);
     }
 
@@ -129,36 +136,43 @@ public class PmtZoneEditorControl : Control
     public override void Render(DrawingContext context)
     {
         double w = Bounds.Width, h = Bounds.Height;
+        var mapH = h - KeyboardHeight; // velocity axis area; the keyboard strip sits below it
         context.FillRectangle(BackgroundBrush, new Rect(0, 0, w, h));
 
         var gridPen = new Pen(GridBrush);
         var axisPen = new Pen(AxisBrush);
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
 
         // Vertical key grid lines every 12 keys (one octave).
         for (var k = 0; k <= 127; k += 12)
         {
             var x = PmtZoneMapping.KeyToX(k, w);
-            context.DrawLine(gridPen, new Point(x, 0), new Point(x, h));
+            context.DrawLine(gridPen, new Point(x, 0), new Point(x, mapH));
         }
 
-        // Horizontal velocity grid lines every 16.
+        // Horizontal velocity grid lines + value ticks every 16 (loud at top).
         for (var v = 0; v <= 127; v += 16)
         {
-            var y = PmtZoneMapping.VelToY(v, h);
+            var y = PmtZoneMapping.VelToY(v, mapH);
             context.DrawLine(gridPen, new Point(0, y), new Point(w, y));
+            var vt = new FormattedText(v.ToString(culture), culture, FlowDirection.LeftToRight,
+                Typeface.Default, 9, AxisBrush);
+            context.DrawText(vt, new Point(2, y + 1));
         }
 
-        // Frame the map (left / bottom / right / top).
-        context.DrawLine(axisPen, new Point(0, 0), new Point(0, h));
-        context.DrawLine(axisPen, new Point(0, h), new Point(w, h));
-        context.DrawLine(axisPen, new Point(w, 0), new Point(w, h));
+        // Frame the map area (left / right / top / bottom).
+        context.DrawLine(axisPen, new Point(0, 0), new Point(0, mapH));
+        context.DrawLine(axisPen, new Point(w, 0), new Point(w, mapH));
         context.DrawLine(axisPen, new Point(0, 0), new Point(w, 0));
+        context.DrawLine(axisPen, new Point(0, mapH), new Point(w, mapH));
+
+        DrawKeyboard(context, w, mapH, culture);
 
         for (var i = 1; i <= 4; i++)
         {
             var z = Zone(i);
             if (!z.on) continue;
-            var r = RectOf(i, w, h);
+            var r = RectOf(i, w, mapH);
             var rect = new Rect(r.X, r.Y, r.W, r.H);
             using (context.PushOpacity(0.22))
                 context.FillRectangle(z.brush, rect);
@@ -167,9 +181,32 @@ public class PmtZoneEditorControl : Control
             if (!Preview && r.W >= 40 && r.H >= 18)
             {
                 var text = $"P{i}  vel {Math.Min(z.vlo, z.vhi)}-{Math.Max(z.vlo, z.vhi)}  key {Math.Min(z.lo, z.hi)}-{Math.Max(z.lo, z.hi)}";
-                var ft = new FormattedText(text, System.Globalization.CultureInfo.CurrentCulture,
-                    FlowDirection.LeftToRight, Typeface.Default, 11, LabelBrush);
+                var ft = new FormattedText(text, culture, FlowDirection.LeftToRight, Typeface.Default, 11, LabelBrush);
                 context.DrawText(ft, new Point(r.X + 4, r.Y + 3));
+            }
+        }
+    }
+
+    // A 0..127 piano keyboard in the bottom strip: white background, dark accidental keys, an octave
+    // divider + "C{octave}" label at every C.
+    private void DrawKeyboard(DrawingContext context, double w, double mapH, System.Globalization.CultureInfo culture)
+    {
+        var top = mapH;
+        var kbH = KeyboardHeight;
+        context.FillRectangle(WhiteKeyBrush, new Rect(0, top, w, kbH));
+        var octavePen = new Pen(BlackKeyBrush);
+        for (var n = 0; n <= 127; n++)
+        {
+            var x = PmtZoneMapping.KeyToX(n, w);
+            var xNext = Math.Min(PmtZoneMapping.KeyToX(n + 1, w), w);
+            if (MidiNote.IsBlack(n))
+                context.FillRectangle(BlackKeyBrush, new Rect(x, top, Math.Max(1, xNext - x), kbH * 0.6));
+            if (MidiNote.IsC(n))
+            {
+                context.DrawLine(octavePen, new Point(x, top), new Point(x, top + kbH));
+                var lt = new FormattedText(MidiNote.Name(n), culture, FlowDirection.LeftToRight,
+                    Typeface.Default, 9, BlackKeyBrush);
+                context.DrawText(lt, new Point(x + 1, top + kbH - 12));
             }
         }
     }
@@ -180,12 +217,12 @@ public class PmtZoneEditorControl : Control
         if (Preview) return; // previews are non-interactive
         Focus();
         var pos = e.GetPosition(this);
-        double w = Bounds.Width, h = Bounds.Height;
+        double w = Bounds.Width, mapH = Bounds.Height - KeyboardHeight;
         for (var i = 4; i >= 1; i--)
         {
             var z = Zone(i);
             if (!z.on) continue;
-            var hit = PmtZoneMapping.HitRect(pos.X, pos.Y, RectOf(i, w, h), HandleMargin);
+            var hit = PmtZoneMapping.HitRect(pos.X, pos.Y, RectOf(i, w, mapH), HandleMargin);
             if (hit != PmtZoneMapping.Handle.None)
             {
                 _dragZone = i;
@@ -203,9 +240,18 @@ public class PmtZoneEditorControl : Control
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (_dragZone < 1) return;
         var pos = e.GetPosition(this);
-        double w = Bounds.Width, h = Bounds.Height;
+        double w = Bounds.Width, mapH = Bounds.Height - KeyboardHeight;
+
+        // Hover tooltip: show the note name under the cursor, updating as it crosses keys.
+        var note = PmtZoneMapping.XToKey(pos.X, w);
+        if (note != _tipNote)
+        {
+            _tipNote = note;
+            ToolTip.SetTip(this, MidiNote.Name(note));
+        }
+
+        if (_dragZone < 1) return;
         int z = _dragZone;
         var cur = Zone(z);
 
@@ -218,16 +264,16 @@ public class PmtZoneEditorControl : Control
                 SetKeyHi(z, Math.Max(PmtZoneMapping.XToKey(pos.X, w), cur.lo));
                 break;
             case PmtZoneMapping.Handle.Top:
-                SetVelHi(z, Math.Max(PmtZoneMapping.YToVel(pos.Y, h), cur.vlo));
+                SetVelHi(z, Math.Max(PmtZoneMapping.YToVel(pos.Y, mapH), cur.vlo));
                 break;
             case PmtZoneMapping.Handle.Bottom:
-                SetVelLo(z, Math.Min(PmtZoneMapping.YToVel(pos.Y, h), cur.vhi));
+                SetVelLo(z, Math.Min(PmtZoneMapping.YToVel(pos.Y, mapH), cur.vhi));
                 break;
             case PmtZoneMapping.Handle.Body:
                 // Cumulative move from the press point, quantised once here and applied to the bounds
                 // captured at press — so slow sub-key drags accumulate instead of rounding to nothing.
                 var dKey = (int)Math.Round((pos.X - _dragOrigPos.X) / w * 127.0, MidpointRounding.AwayFromZero);
-                var dVel = -(int)Math.Round((pos.Y - _dragOrigPos.Y) / h * 127.0, MidpointRounding.AwayFromZero);
+                var dVel = -(int)Math.Round((pos.Y - _dragOrigPos.Y) / mapH * 127.0, MidpointRounding.AwayFromZero);
                 if (_origLo + dKey < 0) dKey = -_origLo;
                 if (_origHi + dKey > 127) dKey = 127 - _origHi;
                 if (_origVlo + dVel < 0) dVel = -_origVlo;
