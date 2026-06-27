@@ -57,6 +57,7 @@ public sealed partial class PCMDrumKitEditorViewModel : ViewModelBase, IDisposab
         for (var i = Constants.NO_OF_PARTIALS_PCM_DRUM - 1; i >= 0; i--)
             Notes.Add(Track(new PCMDrumNoteViewModel(domain.PCMDrumKitPartial(partNo, i), i)));
         _selectedNote = Notes.Count > 0 ? Notes[0] : null;
+        RebuildDrumEditor();
 
         Mfx = new MfxPanelViewModel(domain.PCMDrumKitCommonMFX(partNo), _writer,
             () => _navigateToRawTab?.Invoke("PCMD-MFX", null));
@@ -78,7 +79,27 @@ public sealed partial class PCMDrumKitEditorViewModel : ViewModelBase, IDisposab
         {
             if (ReferenceEquals(value, _selectedNote)) return;
             this.RaiseAndSetIfChanged(ref _selectedNote, value);
+            RebuildDrumEditor();
         }
+    }
+
+    private PCMDrumNoteEditorViewModel? _selectedDrumEditor;
+    /// <summary>The Drum-tab editor for the selected note (rebuilt on each selection change).</summary>
+    public PCMDrumNoteEditorViewModel? SelectedDrumEditor
+    {
+        get => _selectedDrumEditor;
+        private set => this.RaiseAndSetIfChanged(ref _selectedDrumEditor, value);
+    }
+
+    /// <summary>Shared drum copy/paste buffer (path → display value).</summary>
+    public IReadOnlyDictionary<string, string>? DrumClipboard { get; set; }
+
+    private void RebuildDrumEditor()
+    {
+        _selectedDrumEditor?.Dispose();
+        SelectedDrumEditor = _selectedNote is { } n
+            ? new PCMDrumNoteEditorViewModel(this, n.PartialDomain, _writer)
+            : null;
     }
 
     [ReactiveCommand] public void AdvancedCommon() => _navigateToRawTab?.Invoke("PCMD-KIT", null);
@@ -101,6 +122,7 @@ public sealed partial class PCMDrumKitEditorViewModel : ViewModelBase, IDisposab
     public void Dispose()
     {
         _kitName.PropertyChanged -= OnKitNameChanged;
+        _selectedDrumEditor?.Dispose();
         foreach (var w in _wrappers) w.Dispose();
         Mfx.Dispose();
         _writer.Dispose();
