@@ -198,19 +198,29 @@
                                             </TabItem>
                                         </TabControl>
                                     </StackPanel>
-                                    <StackPanel Orientation="Horizontal"
-                                                Margin="10,5,0,0"
-                                                Spacing="50"
-                                                IsVisible="{Binding IsPartTab}">
+                                    <Grid Margin="10,5,0,0"
+                                          IsVisible="{Binding IsPartTab}"
+                                          ColumnDefinitions="Auto,*">
 
-                                        <local:PresetSelector SearchText="{Binding SearchTextPreset, Mode=TwoWay}"
-                                                              Presets="{Binding Presets}"
-                                                              SelectedPreset="{Binding SelectedPreset, Mode=TwoWay}"
-                                                              VerticalAlignment="Stretch"
-                                                              VerticalContentAlignment="Stretch"
-                                                              IsVisible="{Binding IsPartTab}" />
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8">
+                                            <ToggleButton x:Name="PresetToggle"
+                                                          IsChecked="True"
+                                                          VerticalAlignment="Top"
+                                                          Padding="6,2"
+                                                          ToolTip.Tip="Show / hide the preset list"
+                                                          Content="☰" />
+                                            <local:PresetSelector SearchText="{Binding SearchTextPreset, Mode=TwoWay}"
+                                                                  Presets="{Binding Presets}"
+                                                                  SelectedPreset="{Binding SelectedPreset, Mode=TwoWay}"
+                                                                  MaxWidth="640"
+                                                                  VerticalAlignment="Stretch"
+                                                                  VerticalContentAlignment="Stretch"
+                                                                  IsVisible="{Binding #PresetToggle.IsChecked}" />
+                                        </StackPanel>
 
-                                        <TabControl TabStripPlacement="Top"
+                                        <TabControl Grid.Column="1"
+                                                    Margin="8,0,0,0"
+                                                    TabStripPlacement="Top"
                                                     VerticalAlignment="Stretch"
                                                     VerticalContentAlignment="Stretch"
                                                     behaviors:TabControlBehaviors.SelectTabByTag="{Binding ToneTabKey}">
@@ -414,7 +424,7 @@
                                                 </TabControl>
                                             </TabItem>
                                         </TabControl>
-                                    </StackPanel>
+                                    </Grid>
                                 </Panel>
                             </DataTemplate>
                         </TabControl.ContentTemplate>

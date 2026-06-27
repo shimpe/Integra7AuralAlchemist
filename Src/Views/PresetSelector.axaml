@@ -10,22 +10,25 @@
              x:DataType="vm:MainWindowViewModel"
              x:Name="PresetSelectorControl">
 
-    <StackPanel Orientation="Vertical" Spacing="10" Margin="10" Height="700">
+    <!-- Fill the available space (no fixed heights) so the DataGrid's own scrollbars engage:
+         vertical when the rows overflow a short window, horizontal when the columns overflow a
+         narrow one. The host (MainWindow) bounds the width via MaxWidth. -->
+    <Grid Margin="10" RowDefinitions="Auto,*" RowSpacing="10" MinWidth="280">
 
-        <TextBox PlaceholderText="Filter Presets..."
+        <TextBox Grid.Row="0"
+                 PlaceholderText="Filter Presets..."
                  Background="#3c4043"
-                 Width="600"
-                 HorizontalAlignment="Left"
+                 HorizontalAlignment="Stretch"
                  Text="{Binding #PresetSelectorControl.SearchText}" />
 
-        <DataGrid Name="PresetDataGrid"
+        <DataGrid Grid.Row="1"
+                  Name="PresetDataGrid"
                   SelectionMode="Single"
                   ItemsSource="{Binding #PresetSelectorControl.Presets}"
-                  HorizontalAlignment="Center"
-                  VerticalAlignment="Center"
+                  HorizontalAlignment="Stretch"
+                  VerticalAlignment="Stretch"
                   SelectedItem="{Binding #PresetSelectorControl.SelectedPreset, Mode=OneWay}"
-                  CellPointerPressed="PresetDataGrid_CellPointerPressed"
-                  Height="650">
+                  CellPointerPressed="PresetDataGrid_CellPointerPressed">
 
             <DataGrid.Styles>
                 <Style Selector="DataGridCell:current /template/ Grid#FocusVisual">
@@ -46,6 +49,6 @@
                                     Binding="{Binding CategoryStr}" />
             </DataGrid.Columns>
         </DataGrid>
-    </StackPanel>
+    </Grid>
 
 </UserControl>
