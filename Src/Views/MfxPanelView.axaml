@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
              x:DataType="vm:MfxPanelViewModel"
              x:CompileBindings="True"
              x:Class="Integra7AuralAlchemist.Views.MfxPanelView">
@@ -30,11 +31,11 @@
             <StackPanel Orientation="Horizontal" Spacing="16">
                 <StackPanel Spacing="2" Width="200">
                     <TextBlock Classes="sliderLabel" Text="Chorus send" ToolTip.Tip="MFX Chorus Send Level"/>
-                    <Slider Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="200">
                     <TextBlock Classes="sliderLabel" Text="Reverb send" ToolTip.Tip="MFX Reverb Send Level"/>
-                    <Slider Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}"/>
                 </StackPanel>
             </StackPanel>
 
