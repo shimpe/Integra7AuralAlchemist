@@ -97,10 +97,13 @@ public class MultiStageEnvelopeControl : Control
         var gridPen = new Pen(GridBrush);
         var axisPen = new Pen(AxisBrush);
 
-        // Horizontal grid lines every 16 levels (0..127), with a short axis tick at the left.
-        for (var level = 0; level <= 127; level += 16)
+        // Horizontal grid lines every 16 levels, with a short axis tick at the left. Use the same
+        // polarity/range as the envelope so the lines cover the full height (bipolar spans −63..+63).
+        var levelMin = Bipolar ? -PcmEnvelopeMapping.BipolarMax : 0;
+        var levelMax = Bipolar ? PcmEnvelopeMapping.BipolarMax : PcmEnvelopeMapping.Max;
+        for (var level = levelMin; level <= levelMax; level += 16)
         {
-            var y = PcmEnvelopeMapping.LevelToY(level, h, false);
+            var y = PcmEnvelopeMapping.LevelToY(level, h, Bipolar);
             context.DrawLine(gridPen, new Point(0, y), new Point(w, y));
             context.DrawLine(axisPen, new Point(0, y), new Point(6, y));
         }
