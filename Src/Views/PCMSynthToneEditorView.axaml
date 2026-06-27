@@ -476,7 +476,9 @@
                         </ScrollViewer>
                     </TabItem>
                     <TabItem Header="Zones">
-                        <TextBlock Margin="12" Opacity="0.6" Text="Zones — PMT key/velocity map (Phase 4)."/>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                            <ContentControl Content="{Binding Pmt}" Margin="0,8,0,0"/>
+                        </ScrollViewer>
                     </TabItem>
                     <TabItem Header="FX">
                         <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
