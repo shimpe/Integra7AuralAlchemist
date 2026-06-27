@@ -266,7 +266,24 @@
                                                                Value="{Binding PitchEnvDepth.Value, Mode=TwoWay}"/>
                                             </StackPanel>
                                         </StackPanel>
-                                        <TextBlock Text="Pitch envelope — times / levels (graphical editor in a later phase)" Opacity="0.6" FontSize="11"/>
+                                        <controls:MultiStageEnvelopeControl Height="120" Bipolar="True"
+                                            Time1="{Binding PitchEnvTime1.Value, Mode=TwoWay}"
+                                            Time2="{Binding PitchEnvTime2.Value, Mode=TwoWay}"
+                                            Time3="{Binding PitchEnvTime3.Value, Mode=TwoWay}"
+                                            Time4="{Binding PitchEnvTime4.Value, Mode=TwoWay}"
+                                            Level0="{Binding PitchEnvLevel0.Value, Mode=TwoWay}"
+                                            Level1="{Binding PitchEnvLevel1.Value, Mode=TwoWay}"
+                                            Level2="{Binding PitchEnvLevel2.Value, Mode=TwoWay}"
+                                            Level3="{Binding PitchEnvLevel3.Value, Mode=TwoWay}"
+                                            Level4="{Binding PitchEnvLevel4.Value, Mode=TwoWay}"
+                                            LineBrush="{StaticResource SnPitchEnvelopeBrush}"
+                                            FillBrush="{StaticResource SnPitchEnvelopeFillBrush}"
+                                            BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                                            GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                                            AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
+                                            HandleBrush="{StaticResource SnEnvelopeHandleBrush}"
+                                            FocusBrush="{StaticResource SnEnvelopeFocusBrush}"/>
+                                        <TextBlock Text="Pitch envelope — drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
                                         <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Times" VerticalAlignment="Center" Opacity="0.7"/>
                                             <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="6">
@@ -326,7 +343,24 @@
                                                                Value="{Binding TvfEnvDepth.Value, Mode=TwoWay}"/>
                                             </StackPanel>
                                         </StackPanel>
-                                        <TextBlock Text="Filter envelope — times / levels (graphical editor in a later phase)" Opacity="0.6" FontSize="11"/>
+                                        <controls:MultiStageEnvelopeControl Height="120"
+                                            Time1="{Binding TvfEnvTime1.Value, Mode=TwoWay}"
+                                            Time2="{Binding TvfEnvTime2.Value, Mode=TwoWay}"
+                                            Time3="{Binding TvfEnvTime3.Value, Mode=TwoWay}"
+                                            Time4="{Binding TvfEnvTime4.Value, Mode=TwoWay}"
+                                            Level0="{Binding TvfEnvLevel0.Value, Mode=TwoWay}"
+                                            Level1="{Binding TvfEnvLevel1.Value, Mode=TwoWay}"
+                                            Level2="{Binding TvfEnvLevel2.Value, Mode=TwoWay}"
+                                            Level3="{Binding TvfEnvLevel3.Value, Mode=TwoWay}"
+                                            Level4="{Binding TvfEnvLevel4.Value, Mode=TwoWay}"
+                                            LineBrush="{StaticResource SnFilterEnvelopeBrush}"
+                                            FillBrush="{StaticResource SnFilterEnvelopeFillBrush}"
+                                            BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                                            GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                                            AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
+                                            HandleBrush="{StaticResource SnEnvelopeHandleBrush}"
+                                            FocusBrush="{StaticResource SnEnvelopeFocusBrush}"/>
+                                        <TextBlock Text="Filter envelope — drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
                                         <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Times" VerticalAlignment="Center" Opacity="0.7"/>
                                             <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="6">
@@ -369,7 +403,24 @@
                                                 <Slider Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}"/>
                                             </StackPanel>
                                         </StackPanel>
-                                        <TextBlock Text="Amp envelope — times / levels (graphical editor in a later phase)" Opacity="0.6" FontSize="11"/>
+                                        <controls:MultiStageEnvelopeControl Height="120" FixedEndpoints="True"
+                                            Time1="{Binding TvaEnvTime1.Value, Mode=TwoWay}"
+                                            Time2="{Binding TvaEnvTime2.Value, Mode=TwoWay}"
+                                            Time3="{Binding TvaEnvTime3.Value, Mode=TwoWay}"
+                                            Time4="{Binding TvaEnvTime4.Value, Mode=TwoWay}"
+                                            Level0="0"
+                                            Level1="{Binding TvaEnvLevel1.Value, Mode=TwoWay}"
+                                            Level2="{Binding TvaEnvLevel2.Value, Mode=TwoWay}"
+                                            Level3="{Binding TvaEnvLevel3.Value, Mode=TwoWay}"
+                                            Level4="0"
+                                            LineBrush="{StaticResource SnAmpEnvelopeBrush}"
+                                            FillBrush="{StaticResource SnAmpEnvelopeFillBrush}"
+                                            BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                                            GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                                            AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
+                                            HandleBrush="{StaticResource SnEnvelopeHandleBrush}"
+                                            FocusBrush="{StaticResource SnEnvelopeFocusBrush}"/>
+                                        <TextBlock Text="Amp envelope — drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
                                         <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Times" VerticalAlignment="Center" Opacity="0.7"/>
                                             <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="6">
