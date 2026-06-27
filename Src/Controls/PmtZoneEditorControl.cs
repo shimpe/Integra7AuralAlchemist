@@ -180,7 +180,9 @@ public class PmtZoneEditorControl : Control
 
             if (!Preview && r.W >= 40 && r.H >= 18)
             {
-                var text = $"P{i}  vel {Math.Min(z.vlo, z.vhi)}-{Math.Max(z.vlo, z.vhi)}  key {Math.Min(z.lo, z.hi)}-{Math.Max(z.lo, z.hi)}";
+                int klo = Math.Min(z.lo, z.hi), khi = Math.Max(z.lo, z.hi);
+                int vmin = Math.Min(z.vlo, z.vhi), vmax = Math.Max(z.vlo, z.vhi);
+                var text = $"P{i}  vel {vmin}-{vmax}  key {klo} ({MidiNote.Name(klo)})-{khi} ({MidiNote.Name(khi)})";
                 var ft = new FormattedText(text, culture, FlowDirection.LeftToRight, Typeface.Default, 11, LabelBrush);
                 context.DrawText(ft, new Point(r.X + 4, r.Y + 3));
             }
