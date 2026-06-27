@@ -191,12 +191,18 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
     public string PanLabel => PartialPan.Value == 0 ? "C" : PartialPan.Value < 0 ? $"L{-PartialPan.Value}" : $"R{PartialPan.Value}";
     public string FilterSummary => $"{PcmTvfRules.Abbrev(TvfFilterType.Value)} {TvfCutoff.Value}";
 
+    // FilterCurveControl reads a mode string + steep flag; derive them from the TVF filter type.
+    public string FilterCurveMode => PcmTvfRules.CurveMode(TvfFilterType.Value);
+    public bool FilterCurveSteep => PcmTvfRules.CurveSteep(TvfFilterType.Value);
+
     private void OnSummaryChanged(object? s, PropertyChangedEventArgs e)
     {
         this.RaisePropertyChanged(nameof(WaveSummary));
         this.RaisePropertyChanged(nameof(LevelLabel));
         this.RaisePropertyChanged(nameof(PanLabel));
         this.RaisePropertyChanged(nameof(FilterSummary));
+        this.RaisePropertyChanged(nameof(FilterCurveMode));
+        this.RaisePropertyChanged(nameof(FilterCurveSteep));
     }
 
     // --- Audition (transient solo/mute; coordinated by the parent editor VM) ---
