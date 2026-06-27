@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.ComponentModel;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
@@ -85,6 +86,10 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
     /// <summary>Card on/off — the PMT per-partial switch (audition saves/restores this).</summary>
     public ParamBool IsOn { get; }
 
+    // --- Motion (two LFOs) ---
+    public PcmLfoPanelViewModel Lfo1 { get; }
+    public PcmLfoPanelViewModel Lfo2 { get; }
+
     private readonly IReadOnlyList<IParam> _editable;
 
     public PCMPartialViewModel(PCMSynthToneEditorViewModel parent, DomainBase partialDomain,
@@ -154,6 +159,9 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
 
         IsOn = Track(new ParamBool(pmtDomain, pmtByPath[PMT + $"PMT {index + 1} Partial Switch"], writer));
 
+        Lfo1 = Track(new PcmLfoPanelViewModel(partialDomain, byPath, writer, "LFO1 ", "LFO 1"));
+        Lfo2 = Track(new PcmLfoPanelViewModel(partialDomain, byPath, writer, "LFO2 ", "LFO 2"));
+
         _editable = new IParam[]
         {
             WaveGroupType, WaveNumberL, WaveNumberR, WaveGain, WaveFxmSwitch, WaveFxmColor, WaveFxmDepth,
@@ -166,7 +174,8 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
             TvaEnvTime1, TvaEnvTime2, TvaEnvTime3, TvaEnvTime4,
             TvaEnvLevel1, TvaEnvLevel2, TvaEnvLevel3,
             BiasLevel, BiasPosition, BiasDirection,
-        };
+        }
+        .Concat(Lfo1.Params).Concat(Lfo2.Params).ToArray();
 
         // Card summaries follow the wave / level / pan / filter the user actually sees on the card.
         WaveNumberL.PropertyChanged += OnSummaryChanged;
