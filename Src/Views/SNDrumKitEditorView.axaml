@@ -6,6 +6,16 @@
              x:Name="Root"
              x:Class="Integra7AuralAlchemist.Views.SNDrumKitEditorView">
 
+    <UserControl.Styles>
+        <!-- Note-rail key cell: white by default, dark when the row is a black key. -->
+        <Style Selector="Border.key">
+            <Setter Property="Background" Value="{StaticResource DrumWhiteKeyBrush}"/>
+        </Style>
+        <Style Selector="Border.key.black">
+            <Setter Property="Background" Value="{StaticResource DrumBlackKeyBrush}"/>
+        </Style>
+    </UserControl.Styles>
+
     <Grid RowDefinitions="Auto,*" Margin="8">
 
         <!-- ===== Kit Header ===== -->
@@ -58,16 +68,11 @@
                 <ListBox.ItemTemplate>
                     <DataTemplate x:DataType="vm:SNDrumNoteViewModel">
                         <Grid ColumnDefinitions="54,*" Height="22">
-                            <Border Grid.Column="0" Background="{StaticResource DrumWhiteKeyBrush}"
+                            <Border Grid.Column="0" Classes="key" Classes.black="{Binding IsBlack}"
                                     BorderBrush="#888" BorderThickness="0,0,1,1">
-                                <Panel>
-                                    <!-- Black keys are shorter: a narrower dark block on the left edge. -->
-                                    <Border Background="{StaticResource DrumBlackKeyBrush}" Width="34"
-                                            HorizontalAlignment="Left" IsVisible="{Binding IsBlack}"/>
-                                    <TextBlock Text="{Binding CLabel}" Foreground="{StaticResource DrumBlackKeyBrush}"
-                                               FontSize="9" FontWeight="Bold" VerticalAlignment="Center"
-                                               HorizontalAlignment="Right" Margin="0,0,4,0"/>
-                                </Panel>
+                                <TextBlock Text="{Binding CLabel}" Foreground="{StaticResource DrumBlackKeyBrush}"
+                                           FontSize="9" FontWeight="Bold" VerticalAlignment="Center"
+                                           HorizontalAlignment="Right" Margin="0,0,4,0"/>
                             </Border>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="6,0">
                                 <TextBlock Text="{Binding NoteName}" Opacity="0.45" FontSize="10" Width="34"/>
