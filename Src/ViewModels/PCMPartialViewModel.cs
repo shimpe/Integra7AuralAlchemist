@@ -26,7 +26,7 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
     // Params copied/pasted/initialised (empty until later phases add Sound/Motion controls).
     private readonly IReadOnlyList<IParam> _editable = Array.Empty<IParam>();
 
-    public PCMPartialViewModel(PCMSynthToneEditorViewModel parent, DomainBase partialDomain,
+    public PCMPartialViewModel(PCMSynthToneEditorViewModel parent,
         DomainBase pmtDomain, IReadOnlyDictionary<string, FullyQualifiedParameter> pmtByPath,
         int index, ThrottledParameterWriter writer)
     {
