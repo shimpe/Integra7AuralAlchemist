@@ -87,7 +87,9 @@
             <!-- Right: Drum / Comp-EQ / FX -->
             <TabControl Grid.Column="1">
                 <TabItem Header="Drum">
-                    <TextBlock Margin="12" Opacity="0.6" Text="Drum — selected note's sound + tweaks (Phase 2)."/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ContentControl Content="{Binding SelectedDrumEditor}" Margin="0,8,0,0"/>
+                    </ScrollViewer>
                 </TabItem>
                 <TabItem Header="Comp-EQ">
                     <TextBlock Margin="12" Opacity="0.6" Text="Comp-EQ — 6-unit compressor / EQ (Phase 3)."/>
