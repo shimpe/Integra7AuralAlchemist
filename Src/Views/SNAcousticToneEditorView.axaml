@@ -61,7 +61,7 @@
         <!-- ===== Tone / FX ===== -->
         <TabControl Grid.Row="1">
             <TabItem Header="Tone">
-                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="12" Margin="0,0,0,8">
 
                         <!-- Instrument detail section (family picker + per-instrument modify params) -->
@@ -141,7 +141,7 @@
                 </ScrollViewer>
             </TabItem>
             <TabItem Header="FX">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                     <ContentControl Content="{Binding Mfx}" Margin="0,8,0,0"/>
                 </ScrollViewer>
             </TabItem>

@@ -482,7 +482,9 @@
                         </ScrollViewer>
                     </TabItem>
                     <TabItem Header="FX">
-                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                        <!-- Horizontal-disabled so the MFX param WrapPanel grid wraps (vertical scroll)
+                             instead of running off the right edge. -->
+                        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                             <ContentControl Content="{Binding Mfx}" Margin="0,8,0,0"/>
                         </ScrollViewer>
                     </TabItem>
