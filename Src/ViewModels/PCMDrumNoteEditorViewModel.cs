@@ -36,6 +36,14 @@ public sealed partial class PCMDrumNoteEditorViewModel : ViewModelBase, IDisposa
     public ParamInt ChorusSend { get; }
     public ParamInt ReverbSend { get; }
 
+    // --- Wave (WMT) ---
+    public ParamString WmtVelocityControl { get; }
+    public PCMDrumWmtLayerViewModel Wmt1 { get; }
+    public PCMDrumWmtLayerViewModel Wmt2 { get; }
+    public PCMDrumWmtLayerViewModel Wmt3 { get; }
+    public PCMDrumWmtLayerViewModel Wmt4 { get; }
+    public IReadOnlyList<PCMDrumWmtLayerViewModel> Wmts { get; }
+
     // --- Amp (TVA) ---
     public ParamInt Level { get; }
     public ParamString TvaVeloCurve { get; }
@@ -95,14 +103,24 @@ public sealed partial class PCMDrumNoteEditorViewModel : ViewModelBase, IDisposa
         TvaEnvLevel2 = PI("TVA Env Level 2", 0, 127);
         TvaEnvLevel3 = PI("TVA Env Level 3", 0, 127);
 
-        _editable = new IParam[]
+        // Wave (WMT): four velocity-switched layers + the shared velocity-control mode.
+        WmtVelocityControl = PS("WMT Velocity Control");
+        var wmts = new PCMDrumWmtLayerViewModel[4];
+        for (var i = 0; i < 4; i++) wmts[i] = Track(new PCMDrumWmtLayerViewModel(partialDomain, byPath, writer, i + 1));
+        Wmts = wmts;
+        Wmt1 = wmts[0]; Wmt2 = wmts[1]; Wmt3 = wmts[2]; Wmt4 = wmts[3];
+
+        var editable = new List<IParam>
         {
             PartialName, AssignType, MuteGroup, EnvMode, OneShot, PitchBendRange,
             ReceiveExpression, ReceiveSustain, Pan, CoarseTune, FineTune, RandomPitchDepth,
             RandomPanDepth, AlternatePanDepth, OutputAssign, OutputLevel, ChorusSend, ReverbSend,
             Level, TvaVeloCurve, TvaVeloSens, TvaEnvTime1VeloSens, TvaEnvTime4VeloSens,
             TvaEnvTime1, TvaEnvTime2, TvaEnvTime3, TvaEnvTime4, TvaEnvLevel1, TvaEnvLevel2, TvaEnvLevel3,
+            WmtVelocityControl,
         };
+        foreach (var wmt in wmts) editable.AddRange(wmt.Params);
+        _editable = editable;
     }
 
     private static Dictionary<string, FullyQualifiedParameter> ToDict(DomainBase d)
@@ -118,6 +136,21 @@ public sealed partial class PCMDrumNoteEditorViewModel : ViewModelBase, IDisposa
     [ReactiveCommand] public void CopyDrum() => _parent.DrumClipboard = SnsPartialClipboard.Snapshot(_editable);
     [ReactiveCommand] public void PasteDrum() { if (_parent.DrumClipboard is { } data) SnsPartialClipboard.Apply(_editable, data); }
     [ReactiveCommand] public void InitDrum() => SnsPartialClipboard.Apply(_editable, InitDefaults);
+
+    private int _selectedWmtIndex;
+    /// <summary>The WMT layer (0..3) shown in the detail panel; also driven by the velocity map.</summary>
+    public int SelectedWmtIndex
+    {
+        get => _selectedWmtIndex;
+        set
+        {
+            var clamped = value < 0 ? 0 : value > 3 ? 3 : value;
+            if (clamped == _selectedWmtIndex) return;
+            this.RaiseAndSetIfChanged(ref _selectedWmtIndex, clamped);
+            this.RaisePropertyChanged(nameof(SelectedWmt));
+        }
+    }
+    public PCMDrumWmtLayerViewModel SelectedWmt => Wmts[_selectedWmtIndex];
 
     // Neutral reset of the continuous tweaks (leaves the envelope, enums, name, velocity sens).
     private static readonly Dictionary<string, string> InitDefaults = new()
