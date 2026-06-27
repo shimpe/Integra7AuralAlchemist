@@ -29,6 +29,8 @@ public sealed class SNSynthToneHeaderViewModel : ViewModelBase, IDisposable
     public ParamInt OctaveShift { get; }
     public ParamInt PitchBendUp { get; }
     public ParamInt PitchBendDown { get; }
+    public ParamString PhraseNumber { get; }   // arpeggio/phrase (enum)
+    public ParamInt PhraseOctaveShift { get; }
 
     public SNSynthToneHeaderViewModel(DomainBase common,
         IReadOnlyDictionary<string, FullyQualifiedParameter> byPath, ThrottledParameterWriter writer)
@@ -49,6 +51,8 @@ public sealed class SNSynthToneHeaderViewModel : ViewModelBase, IDisposable
         OctaveShift = PI("Octave Shift", -3, 3);
         PitchBendUp = PI("Pitch Bend Range Up", 0, 24);
         PitchBendDown = PI("Pitch Bend Range Down", 0, 24);
+        PhraseNumber = PS("Phrase Number");
+        PhraseOctaveShift = PI("Phrase Octave Shift", -3, 3);
 
         _toneName = byPath[CP + "Tone Name"];
         _toneName.PropertyChanged += OnToneNameChanged;

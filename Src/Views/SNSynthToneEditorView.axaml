@@ -75,6 +75,18 @@
                     <ComboBox ItemsSource="{Binding Header.Ring.Options}"
                               SelectedItem="{Binding Header.Ring.Value, Mode=TwoWay}"/>
                 </StackPanel>
+
+                <StackPanel Spacing="2" Width="200">
+                    <TextBlock Text="Phrase (arpeggio)" ToolTip.Tip="Phrase Number"/>
+                    <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding Header.PhraseNumber.Options}"
+                              SelectedItem="{Binding Header.PhraseNumber.Value, Mode=TwoWay}"/>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Octave" VerticalAlignment="Center" ToolTip.Tip="Phrase Octave Shift"/>
+                        <NumericUpDown Width="110" Minimum="-3" Maximum="3" Increment="1" FormatString="0"
+                                       Value="{Binding Header.PhraseOctaveShift.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                </StackPanel>
                 <Button VerticalAlignment="Bottom" Content="Advanced common parameters…"
                         Command="{Binding AdvancedCommonCommand}"/>
             </StackPanel>
