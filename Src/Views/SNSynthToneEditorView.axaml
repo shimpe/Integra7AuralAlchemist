@@ -26,7 +26,9 @@
 
         <!-- ===== Tone Header ===== -->
         <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,8">
-            <StackPanel Orientation="Horizontal" Spacing="16">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <StackPanel Spacing="8">
+              <StackPanel Orientation="Horizontal" Spacing="16">
                 <StackPanel Spacing="2">
                     <Border Background="{StaticResource SnAccentBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
                         <TextBlock Text="SuperNATURAL Synth" Foreground="{StaticResource SnBadgeForegroundBrush}" FontSize="11"/>
@@ -77,7 +79,24 @@
                 </StackPanel>
                 <Button VerticalAlignment="Bottom" Content="Advanced common parameters…"
                         Command="{Binding AdvancedCommonCommand}"/>
+              </StackPanel>
+
+              <!-- Phrase (arpeggio) on its own row -->
+              <StackPanel Orientation="Horizontal" Spacing="16">
+                <StackPanel Spacing="2" Width="260">
+                    <TextBlock Text="Phrase (arpeggio)" ToolTip.Tip="Phrase Number"/>
+                    <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch"
+                              ItemsSource="{Binding Header.PhraseNumber.Options}"
+                              SelectedItem="{Binding Header.PhraseNumber.Value, Mode=TwoWay}"/>
+                </StackPanel>
+                <StackPanel Spacing="2">
+                    <TextBlock Text="Phrase Octave" ToolTip.Tip="Phrase Octave Shift"/>
+                    <NumericUpDown Width="110" Minimum="-3" Maximum="3" Increment="1" FormatString="0"
+                                   Value="{Binding Header.PhraseOctaveShift.Value, Mode=TwoWay}"/>
+                </StackPanel>
+              </StackPanel>
             </StackPanel>
+            </ScrollViewer>
         </Border>
 
         <!-- ===== Rack + Selected partial ===== -->
@@ -185,7 +204,7 @@
                 <TabControl Grid.Row="0">
                     <TabItem Header="Sound">
                         <ScrollViewer Name="SoundScroll"
-                                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                             <!-- MinHeight = viewport so the envelope row (*) fills a tall window. -->
                             <Grid DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
                                   MinHeight="{Binding #SoundScroll.Bounds.Height}"
@@ -454,7 +473,7 @@
                         </ScrollViewer>
                     </TabItem>
                     <TabItem Header="Motion">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                             <StackPanel DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
                                         Spacing="12" Margin="0,0,0,8">
                                 <ContentControl Content="{Binding AutomaticMotion}"/>
@@ -463,12 +482,12 @@
                         </ScrollViewer>
                     </TabItem>
                     <TabItem Header="FX">
-                        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                             <ContentControl Content="{Binding Mfx}" Margin="0,8,0,0"/>
                         </ScrollViewer>
                     </TabItem>
                     <TabItem Header="Response">
-                        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
                             <Border DataContext="{Binding SelectedPartial}" x:DataType="vm:SNSPartialViewModel"
                                     Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6"
                                     Padding="10" Margin="0,8,0,0" VerticalAlignment="Top">
