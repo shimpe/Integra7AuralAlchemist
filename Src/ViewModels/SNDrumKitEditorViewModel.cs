@@ -56,6 +56,7 @@ public sealed partial class SNDrumKitEditorViewModel : ViewModelBase, IDisposabl
         for (var i = Constants.NO_OF_PARTIALS_SN_DRUM - 1; i >= 0; i--)
             Notes.Add(Track(new SNDrumNoteViewModel(domain.SNDrumKitPartial(partNo, i), i)));
         _selectedNote = Notes.Count > 0 ? Notes[0] : null;
+        RebuildDrumEditor();
 
         Mfx = new MfxPanelViewModel(domain.SNDrumKitCommonMFX(partNo), _writer,
             () => _navigateToRawTab?.Invoke("SN-D-MFX", null));
@@ -73,7 +74,31 @@ public sealed partial class SNDrumKitEditorViewModel : ViewModelBase, IDisposabl
     public SNDrumNoteViewModel? SelectedNote
     {
         get => _selectedNote;
-        set { if (ReferenceEquals(value, _selectedNote)) return; this.RaiseAndSetIfChanged(ref _selectedNote, value); }
+        set
+        {
+            if (ReferenceEquals(value, _selectedNote)) return;
+            this.RaiseAndSetIfChanged(ref _selectedNote, value);
+            RebuildDrumEditor();
+        }
+    }
+
+    private SNDrumNoteEditorViewModel? _selectedDrumEditor;
+    /// <summary>The Drum-tab editor for the selected note (rebuilt on each selection change).</summary>
+    public SNDrumNoteEditorViewModel? SelectedDrumEditor
+    {
+        get => _selectedDrumEditor;
+        private set => this.RaiseAndSetIfChanged(ref _selectedDrumEditor, value);
+    }
+
+    /// <summary>Shared drum copy/paste buffer (path → display value).</summary>
+    public IReadOnlyDictionary<string, string>? DrumClipboard { get; set; }
+
+    private void RebuildDrumEditor()
+    {
+        _selectedDrumEditor?.Dispose();
+        SelectedDrumEditor = _selectedNote is { } n
+            ? new SNDrumNoteEditorViewModel(this, n.PartialDomain, _writer)
+            : null;
     }
 
     [ReactiveCommand] public void AdvancedCommon() => _navigateToRawTab?.Invoke("SN-D-KIT", null);
@@ -96,6 +121,7 @@ public sealed partial class SNDrumKitEditorViewModel : ViewModelBase, IDisposabl
     public void Dispose()
     {
         _kitName.PropertyChanged -= OnKitNameChanged;
+        _selectedDrumEditor?.Dispose();
         foreach (var w in _wrappers) w.Dispose();
         Mfx.Dispose();
         _writer.Dispose();
