@@ -25,7 +25,7 @@
                 </StackPanel>
                 <StackPanel Spacing="2" Width="160" IsVisible="{Binding !TempoSync.Value}">
                     <TextBlock Text="Rate" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Rate'}"/>
-                    <Slider Minimum="0" Maximum="127" Value="{Binding Rate.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding Rate.Value, Mode=TwoWay}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" IsVisible="{Binding TempoSync.Value}">
                     <TextBlock Text="Note" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Tempo Sync Note'}"/>
@@ -36,7 +36,7 @@
             <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding HasFade}">
                 <StackPanel Spacing="2" Width="160">
                     <TextBlock Text="Fade-in" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Fade Time'}"/>
-                    <Slider Minimum="0" Maximum="127" Value="{Binding FadeTime.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding FadeTime.Value, Mode=TwoWay}"/>
                 </StackPanel>
                 <StackPanel Spacing="2">
                     <TextBlock Text="Restart on note" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Key Trigger'}"/>
@@ -46,26 +46,26 @@
 
             <StackPanel Spacing="2" Width="220" IsVisible="{Binding HasRateControl}">
                 <TextBlock Text="Wheel changes speed" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Rate Control'}"/>
-                <Slider Minimum="-63" Maximum="63" Value="{Binding RateControl.Value, Mode=TwoWay}"/>
+                <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding RateControl.Value, Mode=TwoWay}"/>
             </StackPanel>
 
             <TextBlock Text="Motion amount (bipolar)" Opacity="0.7"/>
             <StackPanel Orientation="Horizontal" Spacing="16">
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Vibrato (pitch)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Pitch Depth'}"/>
-                    <Slider Minimum="-63" Maximum="63" Value="{Binding PitchDepth.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding PitchDepth.Value, Mode=TwoWay}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Wah (filter)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Filter Depth'}"/>
-                    <Slider Minimum="-63" Maximum="63" Value="{Binding FilterDepth.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding FilterDepth.Value, Mode=TwoWay}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Tremolo (amp)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}AMP Depth'}"/>
-                    <Slider Minimum="-63" Maximum="63" Value="{Binding AmpDepth.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding AmpDepth.Value, Mode=TwoWay}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Auto-pan (pan)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Pan Depth'}"/>
-                    <Slider Minimum="-63" Maximum="63" Value="{Binding PanDepth.Value, Mode=TwoWay}"/>
+                    <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding PanDepth.Value, Mode=TwoWay}"/>
                 </StackPanel>
             </StackPanel>
         </StackPanel>

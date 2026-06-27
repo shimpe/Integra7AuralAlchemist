@@ -1,0 +1,106 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             x:DataType="vm:SNDrumCompEqPanelViewModel"
+             x:CompileBindings="True"
+             x:Class="Integra7AuralAlchemist.Views.SNDrumCompEqPanelView">
+    <StackPanel Spacing="12" Margin="0,0,0,8">
+
+        <!-- Unit selector -->
+        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Comp / EQ unit" VerticalAlignment="Center"/>
+                <ComboBox ItemsSource="{Binding Units}" SelectedItem="{Binding SelectedUnit, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SNDrumCompEqUnitViewModel">
+                            <TextBlock Text="{Binding Title}"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </StackPanel>
+        </Border>
+
+        <!-- Compressor (bound to the selected unit) -->
+        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10"
+                DataContext="{Binding SelectedUnit}" x:DataType="vm:SNDrumCompEqUnitViewModel">
+            <StackPanel Spacing="8">
+                <DockPanel>
+                    <TextBlock Text="Compressor" FontWeight="Bold"/>
+                    <ToggleSwitch DockPanel.Dock="Right" OnContent="On" OffContent="Off"
+                                  IsChecked="{Binding CompSwitch.Value, Mode=TwoWay}"/>
+                </DockPanel>
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Ratio" ToolTip.Tip="Compressor Ratio"/>
+                        <ComboBox ItemsSource="{Binding CompRatio.Options}" SelectedItem="{Binding CompRatio.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Attack" ToolTip.Tip="Attack Time"/>
+                        <ComboBox ItemsSource="{Binding CompAttack.Options}" SelectedItem="{Binding CompAttack.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Release" ToolTip.Tip="Release Time"/>
+                        <ComboBox ItemsSource="{Binding CompRelease.Options}" SelectedItem="{Binding CompRelease.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <StackPanel Spacing="2" Width="200">
+                        <TextBlock Text="Threshold"/>
+                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding CompThreshold.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="200">
+                        <TextBlock Text="Output Gain"/>
+                        <controls:ValueSlider Minimum="0" Maximum="24" Unit="dB" Value="{Binding CompGain.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- EQ (bound to the selected unit) -->
+        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10"
+                DataContext="{Binding SelectedUnit}" x:DataType="vm:SNDrumCompEqUnitViewModel">
+            <StackPanel Spacing="8">
+                <DockPanel>
+                    <TextBlock Text="EQ (3-band)" FontWeight="Bold"/>
+                    <ToggleSwitch DockPanel.Dock="Right" OnContent="On" OffContent="Off"
+                                  IsChecked="{Binding EqSwitch.Value, Mode=TwoWay}"/>
+                </DockPanel>
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Low Freq (Hz)"/>
+                        <ComboBox ItemsSource="{Binding EqLowFreq.Options}" SelectedItem="{Binding EqLowFreq.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="200">
+                        <TextBlock Text="Low Gain"/>
+                        <controls:ValueSlider Minimum="-15" Maximum="15" Unit="dB" Value="{Binding EqLowGain.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Mid Freq (Hz)"/>
+                        <ComboBox ItemsSource="{Binding EqMidFreq.Options}" SelectedItem="{Binding EqMidFreq.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="Mid Q"/>
+                        <ComboBox ItemsSource="{Binding EqMidQ.Options}" SelectedItem="{Binding EqMidQ.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="200">
+                        <TextBlock Text="Mid Gain"/>
+                        <controls:ValueSlider Minimum="-15" Maximum="15" Unit="dB" Value="{Binding EqMidGain.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <StackPanel Spacing="2">
+                        <TextBlock Text="High Freq (Hz)"/>
+                        <ComboBox ItemsSource="{Binding EqHighFreq.Options}" SelectedItem="{Binding EqHighFreq.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="200">
+                        <TextBlock Text="High Gain"/>
+                        <controls:ValueSlider Minimum="-15" Maximum="15" Unit="dB" Value="{Binding EqHighGain.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

@@ -335,20 +335,27 @@
                                                     Parameters="{Binding SNAcousticToneCommonMFXParameters}"
                                                     SearchText="{Binding SearchTextSNAcousticToneCommonMFX, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="Kit"
+                                            <TabItem Header="Editor"
                                                      Tag="SN-D"
+                                                     IsVisible="{Binding SelectedPresetIsSNDrumKit}">
+                                                <local:SNDrumKitEditorView DataContext="{Binding SNDrumKitEditor}" />
+                                            </TabItem>
+                                            <TabItem Header="Advanced — Kit"
+                                                     Tag="SN-D-KIT"
                                                      IsVisible="{Binding SelectedPresetIsSNDrumKit}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding SNDrumKitCommonParameters}"
                                                     SearchText="{Binding SearchTextSNDrumKitCommon, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="MFX"
+                                            <TabItem Header="Advanced — MFX"
+                                                     Tag="SN-D-MFX"
                                                      IsVisible="{Binding SelectedPresetIsSNDrumKit}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding SNDrumKitCommonMFXParameters}"
                                                     SearchText="{Binding SearchTextSNDrumKitCommonMFX, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="Comp-EQ"
+                                            <TabItem Header="Advanced — Comp-EQ"
+                                                     Tag="SN-D-COMPEQ"
                                                      IsVisible="{Binding SelectedPresetIsSNDrumKit}">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding SNDrumKitCompEQParameters}"
@@ -415,8 +422,9 @@
                                                 </TabControl>
                                             </TabItem>
                                             <!-- SNAcoustic doesn't have partials -->
-                                            <TabItem Header="Partials" IsVisible="{Binding SelectedPresetIsSNDrumKit}">
+                                            <TabItem Header="Advanced — Partials" Tag="SN-D-PARTIALS" IsVisible="{Binding SelectedPresetIsSNDrumKit}">
                                                 <TabControl
+                                                    SelectedIndex="{Binding AdvancedPartialIndex, Mode=TwoWay}"
                                                     ItemsSource="{Binding SNDrumKitPartialViewModels}"
                                                     TabStripPlacement="Left">
                                                     <TabControl.ItemTemplate>
