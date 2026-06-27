@@ -53,7 +53,7 @@
         </Border>
 
         <!-- ===== Rail + selected drum ===== -->
-        <Grid Grid.Row="1" ColumnDefinitions="240,*">
+        <Grid Grid.Row="1" ColumnDefinitions="340,*">
 
             <!-- Note rail: low note at the bottom (VM orders 88 -> 27) -->
             <ListBox Grid.Column="0" Margin="0,0,8,0"
@@ -76,7 +76,7 @@
                             </Border>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center" Margin="6,0">
                                 <TextBlock Text="{Binding NoteName}" Opacity="0.45" FontSize="10" Width="34"/>
-                                <TextBlock Text="{Binding InstName}" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding InstName}"/>
                             </StackPanel>
                         </Grid>
                     </DataTemplate>
