@@ -40,7 +40,8 @@ public sealed partial class PCMSynthToneEditorViewModel : ViewModelBase, IDispos
         Header = new PCMSynthToneHeaderViewModel(common, commonByPath, common2, common2ByPath, _writer);
 
         for (var i = 0; i < Constants.NO_OF_PARTIALS_PCM_SYNTH_TONE; i++)
-            Partials.Add(new PCMPartialViewModel(this, pmt, pmtByPath, i, _writer));
+            Partials.Add(new PCMPartialViewModel(this, domain.PCMSynthTonePartial(partNo, i),
+                pmt, pmtByPath, i, _writer));
 
         _selectedPartial = Partials[0];
 
