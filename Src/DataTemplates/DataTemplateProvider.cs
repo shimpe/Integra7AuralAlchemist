@@ -114,7 +114,16 @@ public static class DataTemplateProvider
                     if (suppressPush) return;
                     MessageBus.Current.SendMessage(new UpdateMessageSpec(p, $"{e.AddedItems[0]}"), "ui2hw");
                 };
-                BindToModel(c, p, () => c.SelectedItem = p.StringValue, () => suppressPush, v => suppressPush = v);
+                BindToModel(c, p, () =>
+                {
+                    var cur = p.EffectiveRepr ?? p.ParSpec.Repr;
+                    if (cur != null && c.Items.Count != cur.Count)
+                    {
+                        c.Items.Clear();
+                        foreach (var el in cur) c.Items.Add(el.Value);
+                    }
+                    c.SelectedItem = p.StringValue;
+                }, () => suppressPush, v => suppressPush = v);
                 return c;
             }
         }
