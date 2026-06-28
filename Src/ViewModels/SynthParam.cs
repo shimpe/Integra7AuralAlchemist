@@ -72,7 +72,11 @@ public sealed class ParamInt : ReactiveObject, IParam, IDisposable
         // A parent param reinterprets dependent slots on the hardware; re-read so dependent controls
         // show correct values (mirrors the advanced view's IsParent resync). See memory
         // conditional-parameters-and-write-races.
-        if (_p.ParSpec.IsParent) await _domain.ReadFromIntegraAsync();
+        if (_p.ParSpec.IsParent)
+        {
+            await WaveOutOfRangeReset.ApplyAsync(_domain, _p, WaveformBanks.Default);
+            await _domain.ReadFromIntegraAsync();
+        }
     });
 
     public string Snapshot() => _value.ToString(CultureInfo.InvariantCulture);
@@ -144,7 +148,11 @@ public sealed class ParamString : ReactiveObject, IParam, IDisposable
             if (!_suppress) _writer.Enqueue(_key, async () =>
             {
                 await _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value);
-                if (_p.ParSpec.IsParent) await _domain.ReadFromIntegraAsync(); // resync dependents
+                if (_p.ParSpec.IsParent)
+                {
+                    await WaveOutOfRangeReset.ApplyAsync(_domain, _p, WaveformBanks.Default);
+                    await _domain.ReadFromIntegraAsync(); // resync dependents
+                }
             });
         }
     }
