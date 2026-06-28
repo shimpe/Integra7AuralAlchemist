@@ -117,10 +117,15 @@ public static class DataTemplateProvider
                 BindToModel(c, p, () =>
                 {
                     var cur = p.EffectiveRepr ?? p.ParSpec.Repr;
-                    if (cur != null && c.Items.Count != cur.Count)
+                    if (cur != null)
                     {
-                        c.Items.Clear();
-                        foreach (var el in cur) c.Items.Add(el.Value);
+                        var want = cur.Select(kv => kv.Value).ToList();
+                        var have = c.Items.Cast<object?>().Select(o => o?.ToString()).ToList();
+                        if (!have.SequenceEqual(want))
+                        {
+                            c.Items.Clear();
+                            foreach (var v in want) c.Items.Add(v);
+                        }
                     }
                     c.SelectedItem = p.StringValue;
                 }, () => suppressPush, v => suppressPush = v);
