@@ -86,7 +86,7 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
     public bool Solo
     {
         get => _solo;
-        set { if (_solo == value) return; this.RaiseAndSetIfChanged(ref _solo, value); _parent.RecomputeAudition(); }
+        set { if (_solo == value) return; this.RaiseAndSetIfChanged(ref _solo, value); _parent.RecomputeAudition(); _parent.SelectedPartial = this; }
     }
 
     private bool _mute;
