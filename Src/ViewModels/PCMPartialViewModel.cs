@@ -96,6 +96,16 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
     /// <summary>Card on/off — the PMT per-partial switch (audition saves/restores this).</summary>
     public ParamBool IsOn { get; }
 
+    /// <summary>The card on/off switch as a bindable property. A USER toggle (target→source binding)
+    /// runs this setter, which also selects this partial — mirroring <see cref="Solo"/>. Programmatic
+    /// IsOn.Value changes (audition recompute, preset load) go through IsOn.Value directly and never call
+    /// this setter, so they don't move the selection. The switch stays in sync via OnIsOnChanged.</summary>
+    public bool Enabled
+    {
+        get => IsOn.Value;
+        set { IsOn.Value = value; _parent.SelectedPartial = this; }
+    }
+
     // --- Motion (two LFOs) ---
     public PcmLfoPanelViewModel Lfo1 { get; }
     public PcmLfoPanelViewModel Lfo2 { get; }
@@ -205,6 +215,7 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
         PartialPan.PropertyChanged += OnSummaryChanged;
         TvfFilterType.PropertyChanged += OnSummaryChanged;
         TvfCutoff.PropertyChanged += OnSummaryChanged;
+        IsOn.PropertyChanged += OnIsOnChanged;
     }
 
     private static Dictionary<string, FullyQualifiedParameter> ToDict(DomainBase d)
@@ -238,6 +249,11 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
         this.RaisePropertyChanged(nameof(FilterCurveMode));
         this.RaisePropertyChanged(nameof(FilterCurveSteep));
         this.RaisePropertyChanged(nameof(IsSrx));
+    }
+
+    private void OnIsOnChanged(object? s, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ParamBool.Value)) this.RaisePropertyChanged(nameof(Enabled));
     }
 
     // --- Audition (transient solo/mute; coordinated by the parent editor VM) ---
@@ -319,6 +335,7 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
         PartialPan.PropertyChanged -= OnSummaryChanged;
         TvfFilterType.PropertyChanged -= OnSummaryChanged;
         TvfCutoff.PropertyChanged -= OnSummaryChanged;
+        IsOn.PropertyChanged -= OnIsOnChanged;
         foreach (var w in _wrappers) w.Dispose();
     }
 }

@@ -168,7 +168,7 @@
                                                       FontSize="11" IsChecked="{Binding Mute, Mode=TwoWay}"
                                                       ToolTip.Tip="Mute (audition)"/>
                                         <ToggleSwitch OnContent="" OffContent=""
-                                                      IsChecked="{Binding IsOn.Value, Mode=TwoWay}"
+                                                      IsChecked="{Binding Enabled, Mode=TwoWay}"
                                                       IsEnabled="{Binding !#Root.((vm:PCMSynthToneEditorViewModel)DataContext).IsAuditioning}"
                                                       ToolTip.Tip="Partial on/off (disabled while auditioning)"/>
                                     </StackPanel>
