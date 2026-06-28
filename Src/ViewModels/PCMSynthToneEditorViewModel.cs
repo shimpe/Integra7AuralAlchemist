@@ -28,10 +28,11 @@ public sealed partial class PCMSynthToneEditorViewModel : ViewModelBase, IDispos
     public IReadOnlyDictionary<string, string>? PartialClipboard { get; set; }
 
     public PCMSynthToneEditorViewModel(Integra7Domain domain, int partNo,
-        Action<string, int?>? navigateToRawTab = null, Func<int, System.Threading.Tasks.Task>? playNote = null)
+        Action<string, int?>? navigateToRawTab = null,
+        Func<int, System.Threading.Tasks.Task>? noteOn = null, Func<int, System.Threading.Tasks.Task>? noteOff = null)
     {
         _navigateToRawTab = navigateToRawTab;
-        NoteRail = new ToneNoteRailViewModel(playNote);
+        NoteRail = new ToneNoteRailViewModel(noteOn, noteOff);
 
         var common = domain.PCMSynthToneCommon(partNo);
         var commonByPath = ToDict(common);
@@ -133,6 +134,19 @@ public sealed partial class PCMSynthToneEditorViewModel : ViewModelBase, IDispos
         foreach (var p in Partials) p.SetAuditionFlags(false, false);
         _suppressRecompute = false;
         RecomputeAudition();
+    }
+
+    /// <summary>Restore the pre-audition partial on/off switches to hardware (awaited) and clear all
+    /// solo/mute. No-op when not auditioning. Called before a preset change so the patch is restored first.</summary>
+    public async System.Threading.Tasks.Task RestoreAuditionAsync()
+    {
+        if (!_auditing) return;
+        _suppressRecompute = true;
+        foreach (var p in Partials) p.SetAuditionFlags(false, false);
+        for (var i = 0; i < Partials.Count; i++) await Partials[i].IsOn.WriteImmediateAsync(_savedSwitches[i]);
+        _suppressRecompute = false;
+        _auditing = false;
+        IsAuditioning = false;
     }
 
     public void Dispose()
