@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
@@ -58,6 +59,43 @@ public sealed partial class PCMDrumNoteEditorViewModel : ViewModelBase, IDisposa
     public ParamInt TvaEnvLevel2 { get; }
     public ParamInt TvaEnvLevel3 { get; }
 
+    // --- Pitch envelope (5-level / 4-time, bipolar) ---
+    public ParamInt PitchEnvDepth { get; }
+    public ParamInt PitchEnvVeloSens { get; }
+    public ParamInt PitchEnvTime1VeloSens { get; }
+    public ParamInt PitchEnvTime4VeloSens { get; }
+    public ParamInt PitchEnvTime1 { get; }
+    public ParamInt PitchEnvTime2 { get; }
+    public ParamInt PitchEnvTime3 { get; }
+    public ParamInt PitchEnvTime4 { get; }
+    public ParamInt PitchEnvLevel0 { get; }
+    public ParamInt PitchEnvLevel1 { get; }
+    public ParamInt PitchEnvLevel2 { get; }
+    public ParamInt PitchEnvLevel3 { get; }
+    public ParamInt PitchEnvLevel4 { get; }
+
+    // --- Filter (TVF) ---
+    public ParamString TvfFilterType { get; }
+    public ParamInt TvfCutoff { get; }
+    public ParamString TvfCutoffVeloCurve { get; }
+    public ParamInt TvfCutoffVeloSens { get; }
+    public ParamInt TvfResonance { get; }
+    public ParamInt TvfResonanceVeloSens { get; }
+    public ParamInt TvfEnvDepth { get; }
+    public ParamString TvfEnvVeloCurve { get; }
+    public ParamInt TvfEnvVeloSens { get; }
+    public ParamInt TvfEnvTime1VeloSens { get; }
+    public ParamInt TvfEnvTime4VeloSens { get; }
+    public ParamInt TvfEnvTime1 { get; }
+    public ParamInt TvfEnvTime2 { get; }
+    public ParamInt TvfEnvTime3 { get; }
+    public ParamInt TvfEnvTime4 { get; }
+    public ParamInt TvfEnvLevel0 { get; }
+    public ParamInt TvfEnvLevel1 { get; }
+    public ParamInt TvfEnvLevel2 { get; }
+    public ParamInt TvfEnvLevel3 { get; }
+    public ParamInt TvfEnvLevel4 { get; }
+
     private readonly IReadOnlyList<IParam> _editable;
 
     public PCMDrumNoteEditorViewModel(PCMDrumKitEditorViewModel parent, DomainBase partialDomain,
@@ -103,6 +141,44 @@ public sealed partial class PCMDrumNoteEditorViewModel : ViewModelBase, IDisposa
         TvaEnvLevel2 = PI("TVA Env Level 2", 0, 127);
         TvaEnvLevel3 = PI("TVA Env Level 3", 0, 127);
 
+        // Pitch envelope (5-level / 4-time, bipolar).
+        PitchEnvDepth = PI("Pitch Env Depth", -12, 12);
+        PitchEnvVeloSens = PI("Pitch Env Velocity Sens", -63, 63);
+        PitchEnvTime1VeloSens = PI("Pitch Env Time 1 Velocity Sens", -63, 63);
+        PitchEnvTime4VeloSens = PI("Pitch Env Time 4 Velocity Sens", -63, 63);
+        PitchEnvTime1 = PI("Pitch Env Time 1", 0, 127);
+        PitchEnvTime2 = PI("Pitch Env Time 2", 0, 127);
+        PitchEnvTime3 = PI("Pitch Env Time 3", 0, 127);
+        PitchEnvTime4 = PI("Pitch Env Time 4", 0, 127);
+        PitchEnvLevel0 = PI("Pitch Env Level 0", -63, 63);
+        PitchEnvLevel1 = PI("Pitch Env Level 1", -63, 63);
+        PitchEnvLevel2 = PI("Pitch Env Level 2", -63, 63);
+        PitchEnvLevel3 = PI("Pitch Env Level 3", -63, 63);
+        PitchEnvLevel4 = PI("Pitch Env Level 4", -63, 63);
+
+        // Filter (TVF): cutoff/resonance + 5-level / 4-time envelope.
+        TvfFilterType = PS("TVF Filter Type");
+        TvfCutoff = PI("TVF Cutoff Frequency", 0, 127);
+        TvfCutoffVeloCurve = PS("TVF Cutoff Velocity Curve");
+        TvfCutoffVeloSens = PI("TVF Cutoff Velocity Sens", -63, 63);
+        TvfResonance = PI("TVF Resonance", 0, 127);
+        TvfResonanceVeloSens = PI("TVF Resonance Velocity Sens", -63, 63);
+        TvfEnvDepth = PI("TVF Env Depth", -63, 63);
+        TvfEnvVeloCurve = PS("TVF Env Velocity Curve");
+        TvfEnvVeloSens = PI("TVF Env Velocity Sens", -63, 63);
+        TvfEnvTime1VeloSens = PI("TVF Env Time 1 Velocity Sens", -63, 63);
+        TvfEnvTime4VeloSens = PI("TVF Env Time 4 Velocity Sens", -63, 63);
+        TvfEnvTime1 = PI("TVF Env Time 1", 0, 127);
+        TvfEnvTime2 = PI("TVF Env Time 2", 0, 127);
+        TvfEnvTime3 = PI("TVF Env Time 3", 0, 127);
+        TvfEnvTime4 = PI("TVF Env Time 4", 0, 127);
+        TvfEnvLevel0 = PI("TVF Env Level 0", 0, 127);
+        TvfEnvLevel1 = PI("TVF Env Level 1", 0, 127);
+        TvfEnvLevel2 = PI("TVF Env Level 2", 0, 127);
+        TvfEnvLevel3 = PI("TVF Env Level 3", 0, 127);
+        TvfEnvLevel4 = PI("TVF Env Level 4", 0, 127);
+        TvfFilterType.PropertyChanged += OnFilterTypeChanged;
+
         // Wave (WMT): four velocity-switched layers + the shared velocity-control mode.
         WmtVelocityControl = PS("WMT Velocity Control");
         var wmts = new PCMDrumWmtLayerViewModel[4];
@@ -120,6 +196,16 @@ public sealed partial class PCMDrumNoteEditorViewModel : ViewModelBase, IDisposa
             WmtVelocityControl,
         };
         foreach (var wmt in wmts) editable.AddRange(wmt.Params);
+        editable.AddRange(new IParam[]
+        {
+            PitchEnvDepth, PitchEnvVeloSens, PitchEnvTime1VeloSens, PitchEnvTime4VeloSens,
+            PitchEnvTime1, PitchEnvTime2, PitchEnvTime3, PitchEnvTime4,
+            PitchEnvLevel0, PitchEnvLevel1, PitchEnvLevel2, PitchEnvLevel3, PitchEnvLevel4,
+            TvfFilterType, TvfCutoff, TvfCutoffVeloCurve, TvfCutoffVeloSens, TvfResonance, TvfResonanceVeloSens,
+            TvfEnvDepth, TvfEnvVeloCurve, TvfEnvVeloSens, TvfEnvTime1VeloSens, TvfEnvTime4VeloSens,
+            TvfEnvTime1, TvfEnvTime2, TvfEnvTime3, TvfEnvTime4,
+            TvfEnvLevel0, TvfEnvLevel1, TvfEnvLevel2, TvfEnvLevel3, TvfEnvLevel4,
+        });
         _editable = editable;
     }
 
@@ -152,6 +238,16 @@ public sealed partial class PCMDrumNoteEditorViewModel : ViewModelBase, IDisposa
     }
     public PCMDrumWmtLayerViewModel SelectedWmt => Wmts[_selectedWmtIndex];
 
+    // FilterCurveControl reads a mode string + steep flag; derive them from the TVF filter type.
+    public string FilterCurveMode => PcmTvfRules.CurveMode(TvfFilterType.Value);
+    public bool FilterCurveSteep => PcmTvfRules.CurveSteep(TvfFilterType.Value);
+
+    private void OnFilterTypeChanged(object? s, PropertyChangedEventArgs e)
+    {
+        this.RaisePropertyChanged(nameof(FilterCurveMode));
+        this.RaisePropertyChanged(nameof(FilterCurveSteep));
+    }
+
     // Neutral reset of the continuous tweaks (leaves the envelope, enums, name, velocity sens).
     private static readonly Dictionary<string, string> InitDefaults = new()
     {
@@ -166,5 +262,9 @@ public sealed partial class PCMDrumNoteEditorViewModel : ViewModelBase, IDisposa
         [PP + "Partial Random Pan Depth"] = "0",
     };
 
-    public void Dispose() { foreach (var w in _wrappers) w.Dispose(); }
+    public void Dispose()
+    {
+        TvfFilterType.PropertyChanged -= OnFilterTypeChanged;
+        foreach (var w in _wrappers) w.Dispose();
+    }
 }
