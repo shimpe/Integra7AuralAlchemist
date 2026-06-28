@@ -44,11 +44,13 @@ public sealed partial class SNAcousticToneEditorViewModel : ViewModelBase, IDisp
     // --- Instrument detail section (shared component) + MFX ---
     public DiscriminatedParamSectionViewModel Instrument { get; }
     public MfxPanelViewModel Mfx { get; }
+    public ToneNoteRailViewModel NoteRail { get; }
 
     public SNAcousticToneEditorViewModel(Integra7Domain domain, int partNo,
-        Action<string, int?>? navigateToRawTab = null)
+        Action<string, int?>? navigateToRawTab = null, Func<int, System.Threading.Tasks.Task>? playNote = null)
     {
         _navigateToRawTab = navigateToRawTab;
+        NoteRail = new ToneNoteRailViewModel(playNote);
 
         var common = domain.SNAcousticToneCommon(partNo);
         var byPath = ToDict(common);
@@ -109,6 +111,7 @@ public sealed partial class SNAcousticToneEditorViewModel : ViewModelBase, IDisp
     public void Dispose()
     {
         foreach (var w in _wrappers) w.Dispose();
+        NoteRail.Dispose();
         _writer.Dispose();
     }
 }
