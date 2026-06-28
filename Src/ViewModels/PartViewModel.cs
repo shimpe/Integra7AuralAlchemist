@@ -1372,12 +1372,12 @@ public partial class PartViewModel : ViewModelBase
                 ToneTabKey = tag;
             }, async note =>
             {
-                try
-                {
-                    await _i7Api.NoteOnAsync((byte)PartNo, (byte)note, 100);
-                    await Task.Delay(300);
-                    await _i7Api.NoteOffAsync((byte)PartNo, (byte)note);
-                }
+                // Press-and-hold: note-on on pointer-down, note-off on pointer-up (long notes).
+                try { await _i7Api.NoteOnAsync((byte)PartNo, (byte)note, 100); }
+                catch { /* ignore — auditioning is non-essential */ }
+            }, async note =>
+            {
+                try { await _i7Api.NoteOffAsync((byte)PartNo, (byte)note); }
                 catch { /* ignore — auditioning is non-essential */ }
             });
 
@@ -1438,12 +1438,12 @@ public partial class PartViewModel : ViewModelBase
                 ToneTabKey = tag;
             }, async note =>
             {
-                try
-                {
-                    await _i7Api.NoteOnAsync((byte)PartNo, (byte)note, 100);
-                    await Task.Delay(300);
-                    await _i7Api.NoteOffAsync((byte)PartNo, (byte)note);
-                }
+                // Press-and-hold: note-on on pointer-down, note-off on pointer-up (long notes).
+                try { await _i7Api.NoteOnAsync((byte)PartNo, (byte)note, 100); }
+                catch { /* ignore — auditioning is non-essential */ }
+            }, async note =>
+            {
+                try { await _i7Api.NoteOffAsync((byte)PartNo, (byte)note); }
                 catch { /* ignore — auditioning is non-essential */ }
             });
 
@@ -1464,12 +1464,12 @@ public partial class PartViewModel : ViewModelBase
                 ToneTabKey = tag;
             }, async note =>
             {
-                try
-                {
-                    await _i7Api.NoteOnAsync((byte)PartNo, (byte)note, 100);
-                    await Task.Delay(300);
-                    await _i7Api.NoteOffAsync((byte)PartNo, (byte)note);
-                }
+                // Press-and-hold: note-on on pointer-down, note-off on pointer-up (long notes).
+                try { await _i7Api.NoteOnAsync((byte)PartNo, (byte)note, 100); }
+                catch { /* ignore — auditioning is non-essential */ }
+            }, async note =>
+            {
+                try { await _i7Api.NoteOffAsync((byte)PartNo, (byte)note); }
                 catch { /* ignore — auditioning is non-essential */ }
             });
 

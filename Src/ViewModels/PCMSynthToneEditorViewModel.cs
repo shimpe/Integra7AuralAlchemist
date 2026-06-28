@@ -28,10 +28,11 @@ public sealed partial class PCMSynthToneEditorViewModel : ViewModelBase, IDispos
     public IReadOnlyDictionary<string, string>? PartialClipboard { get; set; }
 
     public PCMSynthToneEditorViewModel(Integra7Domain domain, int partNo,
-        Action<string, int?>? navigateToRawTab = null, Func<int, System.Threading.Tasks.Task>? playNote = null)
+        Action<string, int?>? navigateToRawTab = null,
+        Func<int, System.Threading.Tasks.Task>? noteOn = null, Func<int, System.Threading.Tasks.Task>? noteOff = null)
     {
         _navigateToRawTab = navigateToRawTab;
-        NoteRail = new ToneNoteRailViewModel(playNote);
+        NoteRail = new ToneNoteRailViewModel(noteOn, noteOff);
 
         var common = domain.PCMSynthToneCommon(partNo);
         var commonByPath = ToDict(common);

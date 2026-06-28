@@ -34,7 +34,9 @@
         <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:ToneNoteViewModel">
                 <Grid ColumnDefinitions="32,*" Height="22" Background="Transparent"
-                      PointerPressed="NoteRow_PointerPressed">
+                      PointerPressed="NoteRow_PointerPressed"
+                      PointerReleased="NoteRow_PointerReleased"
+                      PointerCaptureLost="NoteRow_PointerCaptureLost">
                     <Border Grid.Column="0" Classes="key" Classes.black="{Binding IsBlack}"
                             Classes.outOfRange="{Binding !InPianoRange}"
                             BorderBrush="{StaticResource DrumKeyBorderBrush}" BorderThickness="0,0,1,1">
