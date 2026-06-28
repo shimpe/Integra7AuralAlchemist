@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Globalization;
+using Integra7AuralAlchemist.Models.Data;
 
 namespace Integra7AuralAlchemist.Models.Services;
 
@@ -30,5 +31,27 @@ public static class SrxGroupIdResolution
         foreach (var b in VisibleBoards(loaded, current))
             dict[b] = b.ToString(CultureInfo.InvariantCulture);
         return dict;
+    }
+
+    /// <summary>For each distinct Wave Group ID param (paired with its Wave Group Type via
+    /// <see cref="WaveBankRegistry"/>), set its EffectiveRepr from the loaded set + current board, then
+    /// re-fire StringValue so the friendly ParamString.Options and the advanced-grid combo refresh
+    /// (the read's StringValue notification fired before this pass set EffectiveRepr).</summary>
+    public static void Apply(IReadOnlyList<FullyQualifiedParameter> ps, IReadOnlyCollection<int> loaded)
+    {
+        var byPath = new Dictionary<string, FullyQualifiedParameter>(ps.Count);
+        foreach (var p in ps) byPath[p.ParSpec.Path] = p;
+
+        var seen = new HashSet<string>();
+        foreach (var sib in WaveBankRegistry.Entries.Values)
+        {
+            if (!seen.Add(sib.IdPath)) continue; // each (Type, Id) pair once
+            if (!byPath.TryGetValue(sib.IdPath, out var id) || !byPath.TryGetValue(sib.TypePath, out var type))
+                continue;
+
+            id.EffectiveRepr = BuildRepr(type.StringValue, loaded, (int)id.RawNumericValue);
+            var refire = id.StringValue;
+            id.StringValue = refire; // notify listeners now that EffectiveRepr changed
+        }
     }
 }
