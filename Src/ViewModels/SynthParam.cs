@@ -118,15 +118,21 @@ public sealed class ParamString : ReactiveObject, IParam, IDisposable
     {
         _domain = domain; _p = p; _writer = writer;
         _key = $"{domain.StartAddressName}|{domain.Offset2AddressName}|{p.ParSpec.Path}";
-        Options = options
+        _staticOptions = options
             ?? (p.ParSpec.Repr?.OrderBy(kv => kv.Key).Select(kv => kv.Value).ToList()
                 ?? new List<string>());
+        _options = _staticOptions;
         ApplyFromModel();
         _p.PropertyChanged += OnModelChanged;
     }
 
     public string Path => _p.ParSpec.Path;
-    public IReadOnlyList<string> Options { get; }
+
+    private readonly IReadOnlyList<string> _staticOptions;
+    private IReadOnlyList<string> _options;
+    /// <summary>Allowed values. For a bank-selected parameter this reflects the FQP's EffectiveRepr and
+    /// refreshes when the parameter is re-read; otherwise it is the static repr/explicit list.</summary>
+    public IReadOnlyList<string> Options { get => _options; private set => this.RaiseAndSetIfChanged(ref _options, value); }
 
     public string Value
     {
@@ -155,7 +161,13 @@ public sealed class ParamString : ReactiveObject, IParam, IDisposable
     private void ApplyFromModel()
     {
         _suppress = true;
-        try { Value = _p.StringValue; }
+        try
+        {
+            Value = _p.StringValue;
+            Options = _p.EffectiveRepr is { } er
+                ? er.OrderBy(kv => kv.Key).Select(kv => kv.Value).ToList()
+                : _staticOptions;
+        }
         finally { _suppress = false; }
     }
 
