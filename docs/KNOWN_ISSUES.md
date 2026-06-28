@@ -2,7 +2,7 @@
 
 ## Waveform name list ignores the Wave Group Type / Group ID dependency
 
-**Status:** Resolved (2026-06-28). Wave names now resolve per Wave Group Type/ID via the reverse-engineered per-bank lists (`PartialWaveForms_{INT,SRX1..12}.csv`) loaded by the `WaveformBanks` service and surfaced through `FullyQualifiedParameter.EffectiveRepr` in both the advanced parameter tabs and the friendly editors. (Bank-switch-in-editor reactivity + the out-of-range reset land in Phase 2b.)
+**Status:** Resolved (2026-06-28). Wave names resolve per Wave Group Type/ID via the reverse-engineered per-bank lists (`PartialWaveForms_{INT,SRX1..12}.csv`) loaded by the `WaveformBanks` service and surfaced through `FullyQualifiedParameter.EffectiveRepr` in both the advanced parameter tabs and the friendly editors. Bank-switch reactivity (advanced combo refresh + friendly live update), the out-of-range "reset to the bank's first wave" on a Type/ID change (both surfaces), and a friendly SRX-board selector are all in place.
 
 **Reported:** 2026-06-28 (during PCM Drums editor Phase 3).
 
