@@ -28,6 +28,11 @@
                         <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding WaveGroupType.Options}"
                                   SelectedItem="{Binding WaveGroupType.Value, Mode=TwoWay}"/>
                     </StackPanel>
+                    <StackPanel Spacing="2" Width="150" Margin="0,0,16,8" IsVisible="{Binding IsSrx}">
+                        <TextBlock Text="SRX" Classes="sliderLabel" ToolTip.Tip="Wave Group ID (SRX board)"/>
+                        <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch" ItemsSource="{Binding WaveGroupID.Options}"
+                                  SelectedItem="{Binding WaveGroupID.Value, Mode=TwoWay}"/>
+                    </StackPanel>
                     <StackPanel Spacing="2" Margin="0,0,16,8">
                         <TextBlock Text="Wave (type to find)" Classes="sliderLabel" ToolTip.Tip="Wave Number L (Mono)"/>
                         <StackPanel Orientation="Horizontal" Spacing="2">

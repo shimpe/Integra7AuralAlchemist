@@ -21,6 +21,7 @@ public sealed class PCMDrumWmtLayerViewModel : ViewModelBase, IDisposable
 
     public ParamBool WaveSwitch { get; }
     public ParamString WaveGroupType { get; }
+    public ParamString WaveGroupID { get; }
     public ParamString WaveNumberL { get; }
     public ParamString WaveNumberR { get; }
     public ParamString WaveGain { get; }
@@ -53,6 +54,7 @@ public sealed class PCMDrumWmtLayerViewModel : ViewModelBase, IDisposable
 
         WaveSwitch = PB("Wave Switch");
         WaveGroupType = PS("Wave Group Type");
+        WaveGroupID = PS("Wave Group ID", new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12" });
         WaveNumberL = PS("Wave Number L (Mono)");
         WaveNumberR = PS("Wave Number R");
         WaveGain = PS("Wave Gain", new[] { "-6", "0", "6", "12" });
@@ -73,14 +75,18 @@ public sealed class PCMDrumWmtLayerViewModel : ViewModelBase, IDisposable
 
         Params = new IParam[]
         {
-            WaveSwitch, WaveGroupType, WaveNumberL, WaveNumberR, WaveGain, Level, Pan, CoarseTune,
+            WaveSwitch, WaveGroupType, WaveGroupID, WaveNumberL, WaveNumberR, WaveGain, Level, Pan, CoarseTune,
             FineTune, FxmSwitch, FxmColor, FxmDepth, TempoSync, RandomPanSwitch, AlternatePanSwitch,
             RangeLower, RangeUpper, FadeLower, FadeUpper,
         };
 
         WaveSwitch.PropertyChanged += OnLayerSummaryChanged;
+        WaveGroupType.PropertyChanged += OnLayerSummaryChanged;
         WaveNumberL.PropertyChanged += OnLayerSummaryChanged;
     }
+
+    /// <summary>True when the wave bank is an SRX board (controls the SRX-board selector's visibility).</summary>
+    public bool IsSrx => WaveGroupType.Value == "SRX";
 
     /// <summary>Short label for the WMT selector (e.g. "WMT1: 808 Kick" / "WMT1: off").</summary>
     public string Summary => WaveSwitch.Value ? $"{Title}: {WaveNumberL.Value}" : $"{Title}: off";
@@ -88,7 +94,11 @@ public sealed class PCMDrumWmtLayerViewModel : ViewModelBase, IDisposable
     private void OnLayerSummaryChanged(object? s, PropertyChangedEventArgs e)
     {
         if (e.PropertyName is not (nameof(ParamBool.Value) or nameof(ParamString.Value))) return;
-        Dispatcher.UIThread.Post(() => this.RaisePropertyChanged(nameof(Summary)));
+        Dispatcher.UIThread.Post(() =>
+        {
+            this.RaisePropertyChanged(nameof(Summary));
+            this.RaisePropertyChanged(nameof(IsSrx));
+        });
     }
 
     private T Track<T>(T w) where T : IDisposable { _wrappers.Add(w); return w; }
@@ -96,6 +106,7 @@ public sealed class PCMDrumWmtLayerViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         WaveSwitch.PropertyChanged -= OnLayerSummaryChanged;
+        WaveGroupType.PropertyChanged -= OnLayerSummaryChanged;
         WaveNumberL.PropertyChanged -= OnLayerSummaryChanged;
         foreach (var w in _wrappers) w.Dispose();
     }
