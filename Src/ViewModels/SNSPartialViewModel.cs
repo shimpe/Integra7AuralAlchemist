@@ -81,6 +81,16 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
     // --- Card on/off (Common Partial{n} Switch) ---
     public ParamBool IsOn { get; }
 
+    /// <summary>The card on/off switch as a bindable property. A USER toggle (target→source binding)
+    /// runs this setter, which also selects this partial — mirroring <see cref="Solo"/>. Programmatic
+    /// IsOn.Value changes (audition recompute, preset load) go through IsOn.Value directly and never call
+    /// this setter, so they don't move the selection. The switch stays in sync via OnIsOnChanged.</summary>
+    public bool Enabled
+    {
+        get => IsOn.Value;
+        set { IsOn.Value = value; _parent.SelectedPartial = this; }
+    }
+
     // --- Audition (transient solo/mute; coordinated by the parent editor VM, not sent as params) ---
     private bool _solo;
     public bool Solo
@@ -181,6 +191,7 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
         OscWave.PropertyChanged += OnOscWaveChanged;
         AmpLevel.PropertyChanged += OnSummaryChanged;
         AmpPan.PropertyChanged += OnSummaryChanged;
+        IsOn.PropertyChanged += OnIsOnChanged;
         FilterMode.PropertyChanged += OnFilterSummaryChanged;
         FilterCutoff.PropertyChanged += OnFilterSummaryChanged;
     }
@@ -217,6 +228,11 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
 
     private void OnFilterSummaryChanged(object? s, System.ComponentModel.PropertyChangedEventArgs e)
         => this.RaisePropertyChanged(nameof(FilterSummary));
+
+    private void OnIsOnChanged(object? s, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(ParamBool.Value)) this.RaisePropertyChanged(nameof(Enabled));
+    }
 
     // --- Card summary ---
     public string WaveSummary => OscWave.Value;
@@ -295,6 +311,7 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
         OscWave.PropertyChanged -= OnOscWaveChanged;
         AmpLevel.PropertyChanged -= OnSummaryChanged;
         AmpPan.PropertyChanged -= OnSummaryChanged;
+        IsOn.PropertyChanged -= OnIsOnChanged;
         FilterMode.PropertyChanged -= OnFilterSummaryChanged;
         FilterCutoff.PropertyChanged -= OnFilterSummaryChanged;
         foreach (var w in _wrappers) w.Dispose();
