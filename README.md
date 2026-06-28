@@ -74,15 +74,45 @@ dotnet run --project Src -c Release
 The build automatically (re)generates the embedded parameter database whenever its sources change. Run
 the tests with `dotnet test`.
 
-## Some screenshots
+## Screenshots
 
-> Note: the app has gained many friendly visual editors since these were taken — the live UI shows more.
+### Friendly editors
 
-Example of how parameters are exposed for a SuperNATURAL Drum kit (the other types of instruments are supported too)
+> The images below are **placeholders** — capture the described view and save it as the named file under
+> `Screenshot/` (e.g. `Screenshot/PcmSynthEditor.png`) and it will show up here.
+
+**Friendly PCM Synth Tone editor** — the partial rack (cards with live envelope/filter preview
+thumbnails and a playable note rail) next to the Sound tab with its interactive wave / pitch / filter /
+amp controls.
+<img src="https://github.com/shimpe/Integra7AuralAlchemist/blob/main/Screenshot/PcmSynthEditor.png?raw=true" width="800"/>
+
+**Interactive envelope & filter graphs** — dragging a multi-stage TVF/TVA envelope and the
+filter-response curve (and, on SuperNATURAL tones, the amp + filter ADSR overlaid on shared axes).
+<img src="https://github.com/shimpe/Integra7AuralAlchemist/blob/main/Screenshot/EnvelopeEditor.png?raw=true" width="800"/>
+
+**Partial cards with preview thumbnails** — a close-up of the per-partial cards showing the colour-coded
+pitch (purple) / filter (amber) / amp (blue) preview graphs.
+<img src="https://github.com/shimpe/Integra7AuralAlchemist/blob/main/Screenshot/PartialPreviews.png?raw=true" width="420"/>
+
+**Motional Surround** — the 2D spatial editor with draggable per-part sound positions.
+<img src="https://github.com/shimpe/Integra7AuralAlchemist/blob/main/Screenshot/MotionalSurround.png?raw=true" width="800"/>
+
+**PCM Drum Kit editor** — the named, click-to-audition drum rail alongside the per-note editor and the
+WMT key × velocity zone map.
+<img src="https://github.com/shimpe/Integra7AuralAlchemist/blob/main/Screenshot/PcmDrumKit.png?raw=true" width="800"/>
+
+**SuperNATURAL-Acoustic instrument picker** — the two-step family → instrument chooser, with the
+"Expansion" family showing only the ExSN instruments that are currently loaded.
+<img src="https://github.com/shimpe/Integra7AuralAlchemist/blob/main/Screenshot/SnAcousticInstrument.png?raw=true" width="800"/>
+
+### Raw parameters, expansions & filtering
+
+Every documented parameter, now grouped under the **Advanced** tab (shown here for a SuperNATURAL Drum
+kit; all instrument types are supported):
 <img src="https://github.com/shimpe/Integra7AuralAlchemist/blob/main/Screenshot/Parameters.png?raw=true" width="800"/>
 
-Example of the SRX selection screen
+The SRX / ExSN expansion loader:
 <img src="https://github.com/shimpe/Integra7AuralAlchemist/blob/main/Screenshot/SrxLoader.png?raw=true" width="800"/>
 
-Example of how you can filter presets and parameters in the ui
+Filtering presets and parameters:
 <img src="https://github.com/shimpe/Integra7AuralAlchemist/blob/main/Screenshot/Filtering.png?raw=true" width="800"/>
