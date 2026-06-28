@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Avalonia.Threading;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
@@ -18,6 +19,7 @@ public sealed partial class SNAcousticToneEditorViewModel : ViewModelBase, IDisp
     private readonly ThrottledParameterWriter _writer = new();
     private readonly Action<string, int?>? _navigateToRawTab;
     private readonly List<IDisposable> _wrappers = [];
+    private readonly Action _onLoadedSrxChanged;
 
     // --- Header ---
     public ParamString ToneName { get; }       // display-only ASCII name
@@ -81,11 +83,29 @@ public sealed partial class SNAcousticToneEditorViewModel : ViewModelBase, IDisp
         PhraseOctaveShift = PI("Phrase Octave Shift", -3, 3);
         TfxSwitch = PB("TFX Switch");
 
+        // The full instrument-name list (INSTRUMENT_VARIATIONS order) drives ExSN board parsing.
+        // The Instrument param is discrete, so ParSpec.Discrete is non-null here.
+        var instrumentNames = byPath[CP + "Instrument"].ParSpec.Discrete!.Select(d => d.Item2).ToList();
+        var familyNames = InstrumentCatalog.Families.Select(f => f.Name).ToList();
+        var notLoaded = SrxGroupIdResolution.NotLoadedSuffix;
+
         Instrument = Track(new DiscriminatedParamSectionViewModel(common, _writer,
             "Instrument", "/Modify Parameter ",
-            InstrumentCatalog.Families.Select(f => f.Name).ToList(),
-            InstrumentCatalog.FamilyOf, InstrumentCatalog.ValuesIn,
-            ConditionalParamLabels.FriendlyNames));
+            familyNames,
+            InstrumentCatalog.FamilyOf,
+            family => family == ExSnInstrumentFilter.ExpansionFamily
+                ? ExSnInstrumentFilter.LoadedExpansionIndices(
+                    InstrumentCatalog.ValuesIn(ExSnInstrumentFilter.ExpansionFamily), instrumentNames,
+                    LoadedSrxState.Default.ExSnBoards)
+                : InstrumentCatalog.ValuesIn(family),
+            ConditionalParamLabels.FriendlyNames,
+            familiesSupplier: () => ExSnInstrumentFilter.VisibleFamilies(familyNames, LoadedSrxState.Default.ExSnBoards),
+            displayName: (_, name) => ExSnInstrumentFilter.DisplayName(name, LoadedSrxState.Default.ExSnBoards),
+            toRealValue: d => d.EndsWith(notLoaded) ? d[..^notLoaded.Length] : d));
+
+        // Live-refresh the instrument picker when expansions are (re)loaded.
+        _onLoadedSrxChanged = () => Dispatcher.UIThread.Post(Instrument.Reproject);
+        LoadedSrxState.Default.Changed += _onLoadedSrxChanged;
 
         Mfx = Track(new MfxPanelViewModel(domain.SNAcousticToneCommonMFX(partNo), _writer,
             () => _navigateToRawTab?.Invoke("SN-A-MFX", null)));
@@ -110,6 +130,7 @@ public sealed partial class SNAcousticToneEditorViewModel : ViewModelBase, IDisp
 
     public void Dispose()
     {
+        LoadedSrxState.Default.Changed -= _onLoadedSrxChanged;
         foreach (var w in _wrappers) w.Dispose();
         NoteRail.Dispose();
         _writer.Dispose();

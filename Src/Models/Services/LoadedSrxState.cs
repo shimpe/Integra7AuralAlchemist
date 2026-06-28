@@ -11,16 +11,27 @@ namespace Integra7AuralAlchemist.Models.Services;
 public sealed class LoadedSrxState
 {
     private int[] _boards = Array.Empty<int>();
+    private int[] _exSnBoards = Array.Empty<int>();
 
     /// <summary>The loaded SRX board numbers (1..12), distinct. Empty when none loaded.</summary>
     public IReadOnlyCollection<int> Boards => _boards;
 
-    /// <summary>Recompute the loaded set from the 4 raw slot values (keeps only 1..12, deduped).</summary>
+    /// <summary>The loaded ExSN board numbers (1..6, from slot values 13..18), distinct. The SN-Acoustic
+    /// catalog only references ExSN1..5.</summary>
+    public IReadOnlyCollection<int> ExSnBoards => _exSnBoards;
+
+    /// <summary>Raised after the loaded sets are recomputed, so loaded-aware UI can refresh.</summary>
+    public event Action? Changed;
+
+    /// <summary>Recompute the loaded sets from the 4 raw slot values: SRX boards (1..12) and ExSN boards
+    /// (slot 13..18 -> board 1..6), deduped; then raise <see cref="Changed"/>.</summary>
     public void SetFromSlots(int slot1, int slot2, int slot3, int slot4)
-        => _boards = new[] { slot1, slot2, slot3, slot4 }
-            .Where(v => v is >= 1 and <= 12)
-            .Distinct()
-            .ToArray();
+    {
+        var slots = new[] { slot1, slot2, slot3, slot4 };
+        _boards = slots.Where(v => v is >= 1 and <= 12).Distinct().ToArray();
+        _exSnBoards = slots.Where(v => v is >= 13 and <= 18).Select(v => v - 12).Distinct().ToArray();
+        Changed?.Invoke();
+    }
 
     /// <summary>Shared instance consulted by the domain read path.</summary>
     public static LoadedSrxState Default { get; } = new();
