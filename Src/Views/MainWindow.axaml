@@ -244,212 +244,218 @@
                                                      IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
                                                 <local:PCMSynthToneEditorView DataContext="{Binding PcmSynthToneEditor}" />
                                             </TabItem>
-                                            <TabItem Header="Advanced — Common"
-                                                     Tag="PCM-SYN-COMMON"
-                                                     IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding PCMSynthToneCommonParameters}"
-                                                    SearchText="{Binding SearchTextPCMSynthToneCommon, Mode=TwoWay}" />
-                                            </TabItem>
-                                            <TabItem Header="Advanced — Common 2"
-                                                     Tag="PCM-SYN-COMMON2"
-                                                     IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding PCMSynthToneCommon2Parameters}"
-                                                    SearchText="{Binding SearchTextPCMSynthToneCommon2, Mode=TwoWay}" />
-                                            </TabItem>
-                                            <TabItem Header="Advanced — MFX"
-                                                     Tag="PCM-SYN-MFX"
-                                                     IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding PCMSynthToneCommonMFXParameters}"
-                                                    SearchText="{Binding SearchTextPCMSynthToneCommonMFX, Mode=TwoWay}" />
-                                            </TabItem>
-                                            <TabItem Header="Advanced — PMT"
-                                                     Tag="PCM-SYN-PMT"
-                                                     IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding PCMSynthTonePMTParameters}"
-                                                    SearchText="{Binding SearchTextPCMSynthTonePMT, Mode=TwoWay}" />
-                                            </TabItem>
                                             <TabItem Header="Editor"
                                                      Tag="PCMD"
                                                      IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
                                                 <local:PCMDrumKitEditorView DataContext="{Binding PcmDrumKitEditor}" />
-                                            </TabItem>
-                                            <TabItem Header="Advanced — Kit"
-                                                     Tag="PCMD-KIT"
-                                                     IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding PCMDrumKitCommonParameters}"
-                                                    SearchText="{Binding SearchTextPCMDrumKitCommon, Mode=TwoWay}" />
-                                            </TabItem>
-                                            <TabItem Header="Advanced — Kit extra"
-                                                     Tag="PCMD-KIT2"
-                                                     IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding PCMDrumKitCommon2Parameters}"
-                                                    SearchText="{Binding SearchTextPCMDrumKitCommon2, Mode=TwoWay}" />
-                                            </TabItem>
-                                            <TabItem Header="Advanced — MFX"
-                                                     Tag="PCMD-MFX"
-                                                     IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding PCMDrumKitCommonMFXParameters}"
-                                                    SearchText="{Binding SearchTextPCMDrumKitCommonMFX, Mode=TwoWay}" />
-                                            </TabItem>
-                                            <TabItem Header="Advanced — Comp-EQ"
-                                                     Tag="PCMD-COMPEQ"
-                                                     IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding PCMDrumKitCompEQParameters}"
-                                                    SearchText="{Binding SearchTextPCMDrumKitCompEQ, Mode=TwoWay}" />
                                             </TabItem>
                                             <TabItem Header="Editor"
                                                      Tag="SN-S"
                                                      IsVisible="{Binding SelectedPresetIsSNSynthTone}">
                                                 <local:SNSynthToneEditorView DataContext="{Binding SNSynthToneEditor}" />
                                             </TabItem>
-                                            <TabItem Header="Advanced — Common"
-                                                     Tag="SN-S-COMMON"
-                                                     IsVisible="{Binding SelectedPresetIsSNSynthTone}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding SNSynthToneCommonParameters}"
-                                                    SearchText="{Binding SearchTextSNSynthToneCommon, Mode=TwoWay}" />
-                                            </TabItem>
-                                            <TabItem Header="Advanced — MFX"
-                                                     Tag="SN-S-MFX"
-                                                     IsVisible="{Binding SelectedPresetIsSNSynthTone}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding SNSynthToneCommonMFXParameters}"
-                                                    SearchText="{Binding SearchTextSNSynthToneCommonMFX, Mode=TwoWay}" />
-                                            </TabItem>
                                             <TabItem Header="Editor"
                                                      Tag="SN-A"
                                                      IsVisible="{Binding SelectedPresetIsSNAcousticTone}">
                                                 <local:SNAcousticToneEditorView DataContext="{Binding SNAcousticToneEditor}" />
-                                            </TabItem>
-                                            <TabItem Header="Advanced — Tone"
-                                                     Tag="SN-A-TONE"
-                                                     IsVisible="{Binding SelectedPresetIsSNAcousticTone}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding SNAcousticToneCommonParameters}"
-                                                    SearchText="{Binding SearchTextSNAcousticToneCommon, Mode=TwoWay}" />
-                                            </TabItem>
-                                            <TabItem Header="Advanced — MFX"
-                                                     Tag="SN-A-MFX"
-                                                     IsVisible="{Binding SelectedPresetIsSNAcousticTone}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding SNAcousticToneCommonMFXParameters}"
-                                                    SearchText="{Binding SearchTextSNAcousticToneCommonMFX, Mode=TwoWay}" />
                                             </TabItem>
                                             <TabItem Header="Editor"
                                                      Tag="SN-D"
                                                      IsVisible="{Binding SelectedPresetIsSNDrumKit}">
                                                 <local:SNDrumKitEditorView DataContext="{Binding SNDrumKitEditor}" />
                                             </TabItem>
-                                            <TabItem Header="Advanced — Kit"
-                                                     Tag="SN-D-KIT"
-                                                     IsVisible="{Binding SelectedPresetIsSNDrumKit}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding SNDrumKitCommonParameters}"
-                                                    SearchText="{Binding SearchTextSNDrumKitCommon, Mode=TwoWay}" />
-                                            </TabItem>
-                                            <TabItem Header="Advanced — MFX"
-                                                     Tag="SN-D-MFX"
-                                                     IsVisible="{Binding SelectedPresetIsSNDrumKit}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding SNDrumKitCommonMFXParameters}"
-                                                    SearchText="{Binding SearchTextSNDrumKitCommonMFX, Mode=TwoWay}" />
-                                            </TabItem>
-                                            <TabItem Header="Advanced — Comp-EQ"
-                                                     Tag="SN-D-COMPEQ"
-                                                     IsVisible="{Binding SelectedPresetIsSNDrumKit}">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding SNDrumKitCompEQParameters}"
-                                                    SearchText="{Binding SearchTextSNDrumKitCompEQ, Mode=TwoWay}" />
-                                            </TabItem>
-                                            <TabItem Header="Advanced — Partials"
-                                                     Tag="PCM-SYN-PARTIALS"
-                                                     IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
-                                                <TabControl
-                                                    SelectedIndex="{Binding AdvancedPartialIndex, Mode=TwoWay}"
-                                                    ItemsSource="{Binding PcmSynthTonePartialViewModels}"
-                                                    TabStripPlacement="Left">
-                                                    <TabControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding Header}" />
-                                                        </DataTemplate>
-                                                    </TabControl.ItemTemplate>
-                                                    <TabControl.ContentTemplate>
-                                                        <DataTemplate DataType="vm:PartialViewModel">
-                                                            <local:ParameterCollection
-                                                                Parameters="{Binding PartialParameters}"
-                                                                SearchText="{Binding SearchTextPartial, Mode=TwoWay}" />
-                                                        </DataTemplate>
-                                                    </TabControl.ContentTemplate>
-                                                </TabControl>
-                                            </TabItem>
-                                            <TabItem Header="Advanced — Partials"
-                                                     Tag="PCMD-PARTIALS"
-                                                     IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
-                                                <TabControl
-                                                    SelectedIndex="{Binding AdvancedPartialIndex, Mode=TwoWay}"
-                                                    ItemsSource="{Binding PcmDrumKitPartialViewModels}"
-                                                    TabStripPlacement="Left">
-                                                    <TabControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding Header}" />
-                                                        </DataTemplate>
-                                                    </TabControl.ItemTemplate>
-                                                    <TabControl.ContentTemplate>
-                                                        <DataTemplate DataType="vm:PartialViewModel">
-                                                            <local:ParameterCollection
-                                                                Parameters="{Binding PartialParameters}"
-                                                                SearchText="{Binding SearchTextPartial, Mode=TwoWay}" />
-                                                        </DataTemplate>
-                                                    </TabControl.ContentTemplate>
-                                                </TabControl>
-                                            </TabItem>
-                                            <TabItem Header="Advanced — Partials"
-                                                     Tag="SN-S-PARTIALS"
-                                                     IsVisible="{Binding SelectedPresetIsSNSynthTone}">
-                                                <TabControl
-                                                    ItemsSource="{Binding SNSynthTonePartialViewModels}"
-                                                    SelectedIndex="{Binding AdvancedPartialIndex, Mode=TwoWay}"
-                                                    TabStripPlacement="Left">
-                                                    <TabControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding Header}" />
-                                                        </DataTemplate>
-                                                    </TabControl.ItemTemplate>
-                                                    <TabControl.ContentTemplate>
-                                                        <DataTemplate DataType="vm:PartialViewModel">
-                                                            <local:ParameterCollection
-                                                                Parameters="{Binding PartialParameters}"
-                                                                SearchText="{Binding SearchTextPartial, Mode=TwoWay}" />
-                                                        </DataTemplate>
-                                                    </TabControl.ContentTemplate>
-                                                </TabControl>
-                                            </TabItem>
-                                            <!-- SNAcoustic doesn't have partials -->
-                                            <TabItem Header="Advanced — Partials" Tag="SN-D-PARTIALS" IsVisible="{Binding SelectedPresetIsSNDrumKit}">
-                                                <TabControl
-                                                    SelectedIndex="{Binding AdvancedPartialIndex, Mode=TwoWay}"
-                                                    ItemsSource="{Binding SNDrumKitPartialViewModels}"
-                                                    TabStripPlacement="Left">
-                                                    <TabControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding Header}" />
-                                                        </DataTemplate>
-                                                    </TabControl.ItemTemplate>
-                                                    <TabControl.ContentTemplate>
-                                                        <DataTemplate DataType="vm:PartialViewModel">
-                                                            <local:ParameterCollection
-                                                                Parameters="{Binding PartialParameters}"
-                                                                SearchText="{Binding SearchTextPartial, Mode=TwoWay}" />
-                                                        </DataTemplate>
-                                                    </TabControl.ContentTemplate>
+                                            <TabItem Header="Advanced">
+                                                <TabControl TabStripPlacement="Top"
+                                                            VerticalAlignment="Stretch"
+                                                            VerticalContentAlignment="Stretch">
+                                                    <TabItem Header="Common"
+                                                             Tag="PCM-SYN-COMMON"
+                                                             IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding PCMSynthToneCommonParameters}"
+                                                            SearchText="{Binding SearchTextPCMSynthToneCommon, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="Common 2"
+                                                             Tag="PCM-SYN-COMMON2"
+                                                             IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding PCMSynthToneCommon2Parameters}"
+                                                            SearchText="{Binding SearchTextPCMSynthToneCommon2, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="MFX"
+                                                             Tag="PCM-SYN-MFX"
+                                                             IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding PCMSynthToneCommonMFXParameters}"
+                                                            SearchText="{Binding SearchTextPCMSynthToneCommonMFX, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="PMT"
+                                                             Tag="PCM-SYN-PMT"
+                                                             IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding PCMSynthTonePMTParameters}"
+                                                            SearchText="{Binding SearchTextPCMSynthTonePMT, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="Kit"
+                                                             Tag="PCMD-KIT"
+                                                             IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding PCMDrumKitCommonParameters}"
+                                                            SearchText="{Binding SearchTextPCMDrumKitCommon, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="Kit extra"
+                                                             Tag="PCMD-KIT2"
+                                                             IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding PCMDrumKitCommon2Parameters}"
+                                                            SearchText="{Binding SearchTextPCMDrumKitCommon2, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="MFX"
+                                                             Tag="PCMD-MFX"
+                                                             IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding PCMDrumKitCommonMFXParameters}"
+                                                            SearchText="{Binding SearchTextPCMDrumKitCommonMFX, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="Comp-EQ"
+                                                             Tag="PCMD-COMPEQ"
+                                                             IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding PCMDrumKitCompEQParameters}"
+                                                            SearchText="{Binding SearchTextPCMDrumKitCompEQ, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="Common"
+                                                             Tag="SN-S-COMMON"
+                                                             IsVisible="{Binding SelectedPresetIsSNSynthTone}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding SNSynthToneCommonParameters}"
+                                                            SearchText="{Binding SearchTextSNSynthToneCommon, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="MFX"
+                                                             Tag="SN-S-MFX"
+                                                             IsVisible="{Binding SelectedPresetIsSNSynthTone}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding SNSynthToneCommonMFXParameters}"
+                                                            SearchText="{Binding SearchTextSNSynthToneCommonMFX, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="Tone"
+                                                             Tag="SN-A-TONE"
+                                                             IsVisible="{Binding SelectedPresetIsSNAcousticTone}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding SNAcousticToneCommonParameters}"
+                                                            SearchText="{Binding SearchTextSNAcousticToneCommon, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="MFX"
+                                                             Tag="SN-A-MFX"
+                                                             IsVisible="{Binding SelectedPresetIsSNAcousticTone}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding SNAcousticToneCommonMFXParameters}"
+                                                            SearchText="{Binding SearchTextSNAcousticToneCommonMFX, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="Kit"
+                                                             Tag="SN-D-KIT"
+                                                             IsVisible="{Binding SelectedPresetIsSNDrumKit}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding SNDrumKitCommonParameters}"
+                                                            SearchText="{Binding SearchTextSNDrumKitCommon, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="MFX"
+                                                             Tag="SN-D-MFX"
+                                                             IsVisible="{Binding SelectedPresetIsSNDrumKit}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding SNDrumKitCommonMFXParameters}"
+                                                            SearchText="{Binding SearchTextSNDrumKitCommonMFX, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="Comp-EQ"
+                                                             Tag="SN-D-COMPEQ"
+                                                             IsVisible="{Binding SelectedPresetIsSNDrumKit}">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding SNDrumKitCompEQParameters}"
+                                                            SearchText="{Binding SearchTextSNDrumKitCompEQ, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="Partials"
+                                                             Tag="PCM-SYN-PARTIALS"
+                                                             IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
+                                                        <TabControl
+                                                            SelectedIndex="{Binding AdvancedPartialIndex, Mode=TwoWay}"
+                                                            ItemsSource="{Binding PcmSynthTonePartialViewModels}"
+                                                            TabStripPlacement="Left">
+                                                            <TabControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Text="{Binding Header}" />
+                                                                </DataTemplate>
+                                                            </TabControl.ItemTemplate>
+                                                            <TabControl.ContentTemplate>
+                                                                <DataTemplate DataType="vm:PartialViewModel">
+                                                                    <local:ParameterCollection
+                                                                        Parameters="{Binding PartialParameters}"
+                                                                        SearchText="{Binding SearchTextPartial, Mode=TwoWay}" />
+                                                                </DataTemplate>
+                                                            </TabControl.ContentTemplate>
+                                                        </TabControl>
+                                                    </TabItem>
+                                                    <TabItem Header="Partials"
+                                                             Tag="PCMD-PARTIALS"
+                                                             IsVisible="{Binding SelectedPresetIsPCMDrumKit}">
+                                                        <TabControl
+                                                            SelectedIndex="{Binding AdvancedPartialIndex, Mode=TwoWay}"
+                                                            ItemsSource="{Binding PcmDrumKitPartialViewModels}"
+                                                            TabStripPlacement="Left">
+                                                            <TabControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Text="{Binding Header}" />
+                                                                </DataTemplate>
+                                                            </TabControl.ItemTemplate>
+                                                            <TabControl.ContentTemplate>
+                                                                <DataTemplate DataType="vm:PartialViewModel">
+                                                                    <local:ParameterCollection
+                                                                        Parameters="{Binding PartialParameters}"
+                                                                        SearchText="{Binding SearchTextPartial, Mode=TwoWay}" />
+                                                                </DataTemplate>
+                                                            </TabControl.ContentTemplate>
+                                                        </TabControl>
+                                                    </TabItem>
+                                                    <TabItem Header="Partials"
+                                                             Tag="SN-S-PARTIALS"
+                                                             IsVisible="{Binding SelectedPresetIsSNSynthTone}">
+                                                        <TabControl
+                                                            ItemsSource="{Binding SNSynthTonePartialViewModels}"
+                                                            SelectedIndex="{Binding AdvancedPartialIndex, Mode=TwoWay}"
+                                                            TabStripPlacement="Left">
+                                                            <TabControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Text="{Binding Header}" />
+                                                                </DataTemplate>
+                                                            </TabControl.ItemTemplate>
+                                                            <TabControl.ContentTemplate>
+                                                                <DataTemplate DataType="vm:PartialViewModel">
+                                                                    <local:ParameterCollection
+                                                                        Parameters="{Binding PartialParameters}"
+                                                                        SearchText="{Binding SearchTextPartial, Mode=TwoWay}" />
+                                                                </DataTemplate>
+                                                            </TabControl.ContentTemplate>
+                                                        </TabControl>
+                                                    </TabItem>
+                                                    <!-- SNAcoustic doesn't have partials -->
+                                                    <TabItem Header="Partials" Tag="SN-D-PARTIALS" IsVisible="{Binding SelectedPresetIsSNDrumKit}">
+                                                        <TabControl
+                                                            SelectedIndex="{Binding AdvancedPartialIndex, Mode=TwoWay}"
+                                                            ItemsSource="{Binding SNDrumKitPartialViewModels}"
+                                                            TabStripPlacement="Left">
+                                                            <TabControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <TextBlock Text="{Binding Header}" />
+                                                                </DataTemplate>
+                                                            </TabControl.ItemTemplate>
+                                                            <TabControl.ContentTemplate>
+                                                                <DataTemplate DataType="vm:PartialViewModel">
+                                                                    <local:ParameterCollection
+                                                                        Parameters="{Binding PartialParameters}"
+                                                                        SearchText="{Binding SearchTextPartial, Mode=TwoWay}" />
+                                                                </DataTemplate>
+                                                            </TabControl.ContentTemplate>
+                                                        </TabControl>
+                                                    </TabItem>
                                                 </TabControl>
                                             </TabItem>
                                         </TabControl>
