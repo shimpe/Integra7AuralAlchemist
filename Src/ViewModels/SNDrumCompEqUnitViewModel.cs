@@ -6,10 +6,10 @@ using Integra7AuralAlchemist.Models.Services;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
-/// <summary>One SN-Drums Comp-EQ unit (1..6): a compressor + a 3-band EQ over the shared Comp-EQ domain.</summary>
+/// <summary>One drum Comp-EQ unit (1..6): a compressor + a 3-band EQ. Shared by the SuperNATURAL and
+/// PCM drum kits — the caller supplies the domain-path prefix.</summary>
 public sealed class SNDrumCompEqUnitViewModel : ViewModelBase, IDisposable
 {
-    private const string PP = "SuperNATURAL Drum Kit Common Comp-EQ/";
     private readonly List<IDisposable> _wrappers = [];
 
     public int Index { get; }            // 1..6
@@ -34,14 +34,15 @@ public sealed class SNDrumCompEqUnitViewModel : ViewModelBase, IDisposable
     public ParamInt EqHighGain { get; }      // -15..15 dB
 
     public SNDrumCompEqUnitViewModel(DomainBase domain,
-        IReadOnlyDictionary<string, FullyQualifiedParameter> byPath, ThrottledParameterWriter writer, int index)
+        IReadOnlyDictionary<string, FullyQualifiedParameter> byPath, ThrottledParameterWriter writer, int index,
+        string pathPrefix)
     {
         Index = index;
         var c = $"Comp{index} ";
         var q = $"EQ{index} ";
-        ParamInt PI(string n, int min, int max) => Track(new ParamInt(domain, byPath[PP + n], writer, min, max));
-        ParamString PS(string n, IReadOnlyList<string>? o = null) => Track(new ParamString(domain, byPath[PP + n], writer, o));
-        ParamBool PB(string n) => Track(new ParamBool(domain, byPath[PP + n], writer));
+        ParamInt PI(string n, int min, int max) => Track(new ParamInt(domain, byPath[pathPrefix + n], writer, min, max));
+        ParamString PS(string n, IReadOnlyList<string>? o = null) => Track(new ParamString(domain, byPath[pathPrefix + n], writer, o));
+        ParamBool PB(string n) => Track(new ParamBool(domain, byPath[pathPrefix + n], writer));
 
         CompSwitch = PB(c + "Switch");
         CompAttack = PS(c + "Attack Time");
