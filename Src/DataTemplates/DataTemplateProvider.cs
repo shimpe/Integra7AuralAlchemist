@@ -86,7 +86,9 @@ public static class DataTemplateProvider
         var repr = p.EffectiveRepr ?? p.ParSpec.Repr;
         if (repr != null)
         {
-            if (repr.Count == 2 && repr[0].ToUpper() == "OFF" && repr[1].ToUpper() == "ON")
+            if (repr.Count == 2
+                && repr.TryGetValue(0, out var off) && off.ToUpper() == "OFF"
+                && repr.TryGetValue(1, out var on) && on.ToUpper() == "ON")
             {
                 ToggleSwitch c = new();
                 c.IsChecked = p.StringValue == repr[1];
