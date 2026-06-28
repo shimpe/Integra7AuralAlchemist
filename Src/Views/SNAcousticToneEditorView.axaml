@@ -77,7 +77,9 @@
         </Border>
 
         <!-- ===== Tone / FX ===== -->
-        <TabControl Grid.Row="1">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,*">
+            <ContentControl Grid.Column="0" Content="{Binding NoteRail}" Margin="0,0,8,0"/>
+            <TabControl Grid.Column="1">
             <TabItem Header="Tone">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="12" Margin="0,0,0,8">
@@ -152,5 +154,6 @@
                 </ScrollViewer>
             </TabItem>
         </TabControl>
+        </Grid>
     </Grid>
 </UserControl>
