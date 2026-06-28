@@ -182,6 +182,13 @@
                                     BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}" GridBrush="{StaticResource SnEnvelopeGridBrush}"
                                     AxisBrush="{StaticResource SnEnvelopeAxisBrush}"/>
                                 <TextBlock Text="filter shape (preview)" FontSize="10" Opacity="0.45" HorizontalAlignment="Center"/>
+                                <!-- Pitch envelope preview (purple), consistent with the PCM Synth cards. -->
+                                <controls:PitchEnvelopeControl Height="40" Preview="True" IsHitTestVisible="False" Opacity="0.85"
+                                    Attack="{Binding PitchEnvAttack.Value}" Decay="{Binding PitchEnvDecay.Value}" Depth="{Binding PitchEnvDepth.Value}"
+                                    LineBrush="{StaticResource SnPitchEnvelopeBrush}" FillBrush="{StaticResource SnPitchEnvelopeFillBrush}"
+                                    BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}" GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                                    AxisBrush="{StaticResource SnEnvelopeAxisBrush}"/>
+                                <TextBlock Text="pitch env (preview)" FontSize="10" Opacity="0.45" HorizontalAlignment="Center"/>
                                 <!-- Row 2: amp + filter envelopes overlaid on shared axes. -->
                                 <controls:DualAdsrEnvelopeControl Height="44" Preview="True" IsHitTestVisible="False" Opacity="0.85"
                                     AmpAttack="{Binding AmpEnvAttack.Value}" AmpDecay="{Binding AmpEnvDecay.Value}"
