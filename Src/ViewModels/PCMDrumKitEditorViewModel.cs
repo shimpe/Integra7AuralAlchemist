@@ -12,7 +12,7 @@ using ReactiveUI.SourceGenerators;
 namespace Integra7AuralAlchemist.ViewModels;
 
 /// <summary>Friendly PCM Drum Kit editor for ONE part: header, an 88-note navigation rail with
-/// click-to-audition, and the shared MFX panel. The Drum and Comp-EQ tab bodies are filled in later phases.</summary>
+/// click-to-audition, the per-key Drum editor, the Comp-EQ panel, and the shared MFX panel.</summary>
 public sealed partial class PCMDrumKitEditorViewModel : ViewModelBase, IDisposable
 {
     private const string CP = "PCM Drum Kit Common/";
