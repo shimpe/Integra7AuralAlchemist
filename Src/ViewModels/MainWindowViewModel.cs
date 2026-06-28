@@ -153,7 +153,11 @@ public partial class MainWindowViewModel : ViewModelBase
     public async Task LoadSrx()
     {
         if (_connected)
+        {
             await Integra7?.SendLoadSrxAsync((byte)_srxSlot1, (byte)_srxSlot2, (byte)_srxSlot3, (byte)_srxSlot4);
+            LoadedSrxState.Default.SetFromSlots(_srxSlot1, _srxSlot2, _srxSlot3, _srxSlot4);
+            await ResyncAllPartsAsync(); // re-runs the read path -> refreshes Wave Group ID options
+        }
     }
 
     private void SignalStartSync()
@@ -189,6 +193,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 SignalStartSync();
                 SyncInfo = "Fetch loaded SRX...";
                 (SrxSlot1, SrxSlot2, SrxSlot3, SrxSlot4) = await integra7Api.GetLoadedSrxAsync();
+                LoadedSrxState.Default.SetFromSlots(SrxSlot1, SrxSlot2, SrxSlot3, SrxSlot4);
                 Log.Information("Connected to Integra7");
                 MidiDevices = "Connected to: " + INTEGRA_CONNECTION_STRING + " with device id " +
                               integra7Api.DeviceId().ToString("x2");
@@ -597,6 +602,25 @@ public partial class MainWindowViewModel : ViewModelBase
         if (PartViewModels != null)
             foreach (var pvm in PartViewModels)
                 pvm.ForceUiRefresh(StartAddressName, OffsetAddressName, Offset2AddressName, ParPath, ResyncNeeded);
+    }
+
+    private async Task ResyncAllPartsAsync()
+    {
+        try
+        {
+            SignalStartSync();
+            if (PartViewModels != null)
+                foreach (var pvm in PartViewModels)
+                {
+                    SyncInfo = $"Resync part {pvm.PartNo}";
+                    await pvm.EnsurePreselectIsNotNullAsync();
+                    await pvm.ResyncPartAsync((byte)pvm.PartNo);
+                }
+        }
+        finally
+        {
+            SignalStopSync();
+        }
     }
 
     private async Task ResyncPartAsync(byte part)
