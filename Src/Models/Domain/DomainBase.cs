@@ -53,6 +53,8 @@ public class DomainBase
             _domainParameters.Last().ParSpec);
         await r.RetrieveFromIntegraAsync(_integra7Api, _startAddresses, _parameters);
         for (var i = 0; i < r.Range.Count; i++) _domainParameters[i].CopyParsedDataFrom(r.Range[i]);
+        // Resolve bank-selected waveform names (no-op for domains without wave params).
+        WaveNameResolution.Apply(_domainParameters, WaveformBanks.Default);
     }
 
     public async Task WriteToIntegraAsync()
