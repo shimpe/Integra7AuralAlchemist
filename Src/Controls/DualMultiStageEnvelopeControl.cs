@@ -107,9 +107,10 @@ public class DualMultiStageEnvelopeControl : Control
         context.DrawLine(axisPen, new Point(0, 0), new Point(0, h));
         context.DrawLine(axisPen, new Point(0, h), new Point(w, h));
 
-        // Filter behind, amp in front (both shown equally — a thumbnail).
-        DrawEnvelope(context, FilterPoints(w, h), FilterLineBrush, FilterFillBrush, h);
+        // Amp behind, filter in front — same z-order as the SN-S DualAdsrEnvelopeControl preview, so the
+        // two editors' overlays look identical. Both fills are semi-transparent, so both stay visible.
         DrawEnvelope(context, AmpPoints(w, h), AmpLineBrush, AmpFillBrush, h);
+        DrawEnvelope(context, FilterPoints(w, h), FilterLineBrush, FilterFillBrush, h);
     }
 
     private static void DrawEnvelope(DrawingContext ctx, PcmEnvelopeMapping.Point[] p, IBrush line, IBrush fill, double h)
