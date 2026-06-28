@@ -19,13 +19,16 @@ public sealed partial class SNSynthToneEditorViewModel : ViewModelBase, IDisposa
     public SNSynthToneHeaderViewModel Header { get; }
     public ObservableCollection<SNSPartialViewModel> Partials { get; } = [];
     public MfxPanelViewModel Mfx { get; }
+    public ToneNoteRailViewModel NoteRail { get; }
 
     /// <summary>Shared partial copy/paste buffer (path → display value).</summary>
     public IReadOnlyDictionary<string, string>? PartialClipboard { get; set; }
 
-    public SNSynthToneEditorViewModel(Integra7Domain domain, int partNo, Action<string, int?>? navigateToRawTab = null)
+    public SNSynthToneEditorViewModel(Integra7Domain domain, int partNo, Action<string, int?>? navigateToRawTab = null,
+        Func<int, System.Threading.Tasks.Task>? playNote = null)
     {
         _navigateToRawTab = navigateToRawTab;
+        NoteRail = new ToneNoteRailViewModel(playNote);
 
         var common = domain.SNSynthToneCommon(partNo);
         var commonByPath = ToDict(common);
@@ -130,6 +133,7 @@ public sealed partial class SNSynthToneEditorViewModel : ViewModelBase, IDisposa
         Header.Dispose();
         foreach (var p in Partials) p.Dispose();
         Mfx.Dispose();
+        NoteRail.Dispose();
         _writer.Dispose();
     }
 }

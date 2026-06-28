@@ -43,6 +43,8 @@
             <SolidColorBrush x:Key="DrumWhiteKeyBrush" Color="#c8ccce"/>
             <SolidColorBrush x:Key="DrumBlackKeyBrush" Color="#23262a"/>
             <SolidColorBrush x:Key="DrumKeyBorderBrush" Color="#888888"/>
+            <SolidColorBrush x:Key="ToneKeyOutOfRangeWhiteBrush" Color="#9a9ea1"/>
+            <SolidColorBrush x:Key="ToneKeyOutOfRangeBlackBrush" Color="#34383c"/>
         </ResourceDictionary>
     </Application.Resources>
 

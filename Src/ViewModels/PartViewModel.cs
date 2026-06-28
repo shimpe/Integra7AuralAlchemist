@@ -1370,6 +1370,15 @@ public partial class PartViewModel : ViewModelBase
                 if (partialIdx is int idx) AdvancedPartialIndex = idx;
                 ToneTabKey = "";
                 ToneTabKey = tag;
+            }, async note =>
+            {
+                try
+                {
+                    await _i7Api.NoteOnAsync((byte)PartNo, (byte)note, 100);
+                    await Task.Delay(300);
+                    await _i7Api.NoteOffAsync((byte)PartNo, (byte)note);
+                }
+                catch { /* ignore — auditioning is non-essential */ }
             });
 
             List<FullyQualifiedParameter>
@@ -1427,6 +1436,15 @@ public partial class PartViewModel : ViewModelBase
                 // Clearing first (the behavior ignores empty, so no flicker) guarantees the assign fires.
                 ToneTabKey = "";
                 ToneTabKey = tag;
+            }, async note =>
+            {
+                try
+                {
+                    await _i7Api.NoteOnAsync((byte)PartNo, (byte)note, 100);
+                    await Task.Delay(300);
+                    await _i7Api.NoteOffAsync((byte)PartNo, (byte)note);
+                }
+                catch { /* ignore — auditioning is non-essential */ }
             });
 
             List<FullyQualifiedParameter> p_snatc =
@@ -1444,6 +1462,15 @@ public partial class PartViewModel : ViewModelBase
             {
                 ToneTabKey = "";
                 ToneTabKey = tag;
+            }, async note =>
+            {
+                try
+                {
+                    await _i7Api.NoteOnAsync((byte)PartNo, (byte)note, 100);
+                    await Task.Delay(300);
+                    await _i7Api.NoteOffAsync((byte)PartNo, (byte)note);
+                }
+                catch { /* ignore — auditioning is non-essential */ }
             });
 
             List<FullyQualifiedParameter> p_sndkc = _i7domain.SNDrumKitCommon(PartNo).GetRelevantParameters(true, true);

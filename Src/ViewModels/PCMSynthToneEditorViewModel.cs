@@ -22,14 +22,16 @@ public sealed partial class PCMSynthToneEditorViewModel : ViewModelBase, IDispos
     public ObservableCollection<PCMPartialViewModel> Partials { get; } = [];
     public MfxPanelViewModel Mfx { get; }
     public PcmPmtPanelViewModel Pmt { get; }
+    public ToneNoteRailViewModel NoteRail { get; }
 
     /// <summary>Shared partial copy/paste buffer (path → display value).</summary>
     public IReadOnlyDictionary<string, string>? PartialClipboard { get; set; }
 
     public PCMSynthToneEditorViewModel(Integra7Domain domain, int partNo,
-        Action<string, int?>? navigateToRawTab = null)
+        Action<string, int?>? navigateToRawTab = null, Func<int, System.Threading.Tasks.Task>? playNote = null)
     {
         _navigateToRawTab = navigateToRawTab;
+        NoteRail = new ToneNoteRailViewModel(playNote);
 
         var common = domain.PCMSynthToneCommon(partNo);
         var commonByPath = ToDict(common);
@@ -139,6 +141,7 @@ public sealed partial class PCMSynthToneEditorViewModel : ViewModelBase, IDispos
         foreach (var p in Partials) p.Dispose();
         Mfx.Dispose();
         Pmt.Dispose();
+        NoteRail.Dispose();
         _writer.Dispose();
     }
 }
