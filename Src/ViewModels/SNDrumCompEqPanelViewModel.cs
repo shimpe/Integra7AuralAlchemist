@@ -7,7 +7,8 @@ using ReactiveUI;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
-/// <summary>The kit's Comp-EQ section: six compressor/EQ units, one shown at a time.</summary>
+/// <summary>A drum kit's Comp-EQ section: six compressor/EQ units, one shown at a time. Shared by the
+/// SuperNATURAL and PCM drum kits — the caller supplies the domain and its path prefix.</summary>
 public sealed class SNDrumCompEqPanelViewModel : ViewModelBase, IDisposable
 {
     private const int UnitCount = 6;
@@ -22,11 +23,11 @@ public sealed class SNDrumCompEqPanelViewModel : ViewModelBase, IDisposable
         set { if (ReferenceEquals(value, _selectedUnit) || value is null) return; this.RaiseAndSetIfChanged(ref _selectedUnit, value); }
     }
 
-    public SNDrumCompEqPanelViewModel(DomainBase compEqDomain, ThrottledParameterWriter writer)
+    public SNDrumCompEqPanelViewModel(DomainBase compEqDomain, ThrottledParameterWriter writer, string pathPrefix)
     {
         var byPath = ToDict(compEqDomain);
         var units = new List<SNDrumCompEqUnitViewModel>(UnitCount);
-        for (var i = 1; i <= UnitCount; i++) units.Add(Track(new SNDrumCompEqUnitViewModel(compEqDomain, byPath, writer, i)));
+        for (var i = 1; i <= UnitCount; i++) units.Add(Track(new SNDrumCompEqUnitViewModel(compEqDomain, byPath, writer, i, pathPrefix)));
         Units = units;
         _selectedUnit = units[0];
     }

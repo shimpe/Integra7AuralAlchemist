@@ -62,7 +62,7 @@ public sealed partial class SNDrumKitEditorViewModel : ViewModelBase, IDisposabl
         Mfx = new MfxPanelViewModel(domain.SNDrumKitCommonMFX(partNo), _writer,
             () => _navigateToRawTab?.Invoke("SN-D-MFX", null));
 
-        CompEq = new SNDrumCompEqPanelViewModel(domain.SNDrumKitCompEQ(partNo), _writer);
+        CompEq = new SNDrumCompEqPanelViewModel(domain.SNDrumKitCompEQ(partNo), _writer, "SuperNATURAL Drum Kit Common Comp-EQ/");
     }
 
     public string KitName => _kitName.StringValue;

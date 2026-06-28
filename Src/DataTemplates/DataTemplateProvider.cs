@@ -83,13 +83,13 @@ public static class DataTemplateProvider
             return c;
         }
 
-        if (p.ParSpec.Repr != null)
+        var repr = p.EffectiveRepr ?? p.ParSpec.Repr;
+        if (repr != null)
         {
-            if (p.ParSpec.Repr.Count == 2 && p.ParSpec.Repr[0].ToUpper() == "OFF" &&
-                p.ParSpec.Repr[1].ToUpper() == "ON")
+            if (repr.Count == 2 && repr[0].ToUpper() == "OFF" && repr[1].ToUpper() == "ON")
             {
                 ToggleSwitch c = new();
-                c.IsChecked = p.StringValue == p.ParSpec.Repr[1];
+                c.IsChecked = p.StringValue == repr[1];
                 c.IsCheckedChanged += (s, e) =>
                 {
                     if (suppressPush) return;
@@ -100,21 +100,30 @@ public static class DataTemplateProvider
                         MessageBus.Current.SendMessage(new UpdateMessageSpec(p, msg), "ui2hw");
                     }
                 };
-                BindToModel(c, p, () => c.IsChecked = p.StringValue == p.ParSpec.Repr[1],
+                BindToModel(c, p, () => c.IsChecked = p.StringValue == repr[1],
                     () => suppressPush, v => suppressPush = v);
                 return c;
             }
             else
             {
                 ComboBox c = new();
-                foreach (var el in p.ParSpec.Repr) c.Items.Add(el.Value);
+                foreach (var el in repr) c.Items.Add(el.Value);
                 c.SelectedItem = p.StringValue;
                 c.SelectionChanged += (s, e) =>
                 {
                     if (suppressPush) return;
                     MessageBus.Current.SendMessage(new UpdateMessageSpec(p, $"{e.AddedItems[0]}"), "ui2hw");
                 };
-                BindToModel(c, p, () => c.SelectedItem = p.StringValue, () => suppressPush, v => suppressPush = v);
+                BindToModel(c, p, () =>
+                {
+                    var cur = p.EffectiveRepr ?? p.ParSpec.Repr;
+                    if (cur != null && c.Items.Count != cur.Count)
+                    {
+                        c.Items.Clear();
+                        foreach (var el in cur) c.Items.Add(el.Value);
+                    }
+                    c.SelectedItem = p.StringValue;
+                }, () => suppressPush, v => suppressPush = v);
                 return c;
             }
         }

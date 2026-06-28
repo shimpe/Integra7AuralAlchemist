@@ -72,6 +72,11 @@ public class FullyQualifiedParameter : INotifyPropertyChanged
         }
     }
 
+    /// <summary>When set, the name list to use instead of <see cref="ParSpec"/>.Repr (e.g. a wave bank
+    /// selected by sibling Group Type/ID). Null for ordinary parameters. Callers use
+    /// EffectiveRepr ?? ParSpec.Repr. Set by the domain's post-read resolution pass.</summary>
+    public IDictionary<int, string>? EffectiveRepr { get; set; }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public bool ValidInContext(ParserContext ctx)

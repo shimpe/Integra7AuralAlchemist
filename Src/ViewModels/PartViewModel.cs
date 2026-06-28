@@ -200,6 +200,7 @@ public partial class PartViewModel : ViewModelBase
     [Reactive] private SNSynthToneEditorViewModel? _sNSynthToneEditor;
     [Reactive] private SNAcousticToneEditorViewModel? _sNAcousticToneEditor;
     [Reactive] private PCMSynthToneEditorViewModel? _pcmSynthToneEditor;
+    [Reactive] private PCMDrumKitEditorViewModel? _pcmDrumKitEditor;
     [Reactive] private SNDrumKitEditorViewModel? _sNDrumKitEditor;
     private IDisposable? _cleanupStudioSetChorus;
     private IDisposable? _cleanupStudioSetCommon;
@@ -1383,6 +1384,27 @@ public partial class PartViewModel : ViewModelBase
             List<FullyQualifiedParameter> p_pcmcompeq =
                 _i7domain.PCMDrumKitCompEQ(PartNo).GetRelevantParameters(true, true);
             _sourceCachePCMDrumKitCompEQParameters.AddOrUpdate(p_pcmcompeq);
+
+            // Friendly PCM Drum Kit editor for this part. Binds to the live PCM-D FQP instances
+            // populated above; the nav callback clear-then-sets ToneTabKey so repeat "Advanced …"
+            // navigations fire SelectTabByTag, and carries the selected note for "Advanced — Partials".
+            _pcmDrumKitEditor?.Dispose();
+            PcmDrumKitEditor = new PCMDrumKitEditorViewModel(_i7domain, PartNo, (tag, partialIdx) =>
+            {
+                if (partialIdx is int idx) AdvancedPartialIndex = idx;
+                ToneTabKey = "";
+                ToneTabKey = tag;
+            }, async note =>
+            {
+                // Audition the clicked drum on this part's MIDI channel (best-effort).
+                try
+                {
+                    await _i7Api.NoteOnAsync((byte)PartNo, (byte)note, 100);
+                    await Task.Delay(300);
+                    await _i7Api.NoteOffAsync((byte)PartNo, (byte)note);
+                }
+                catch { /* ignore — auditioning is non-essential */ }
+            });
 
             List<FullyQualifiedParameter>
                 p_snstc = _i7domain.SNSynthToneCommon(PartNo).GetRelevantParameters(true, true);

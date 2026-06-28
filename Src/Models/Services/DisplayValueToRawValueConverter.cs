@@ -11,9 +11,10 @@ public class DisplayValueToRawValueConverter
     {
         if (p.IsNumeric)
         {
-            if (p.ParSpec.Repr != null)
+            var repr = p.EffectiveRepr ?? p.ParSpec.Repr;
+            if (repr != null)
             {
-                var key = p.ParSpec.Repr
+                var key = repr
                     .Where(keyvaluepair => keyvaluepair.Value == displayValue)
                     .Select(keyvaluepair => keyvaluepair.Key)
                     .ToList();
@@ -33,7 +34,7 @@ public class DisplayValueToRawValueConverter
                 p.ParSpec.IMin2 != p.ParSpec.OMin2 || p.ParSpec.IMax2 != p.ParSpec.OMax2)
             {
                 // need to unmap mapped value to raw value
-                if (p.ParSpec.Repr != null)
+                if (repr != null)
                 {
                     double unmapped = p.RawNumericValue;
                     if (!float.IsNaN(p.ParSpec.IMin2) && !float.IsNaN(p.ParSpec.IMax2) &&
@@ -56,7 +57,7 @@ public class DisplayValueToRawValueConverter
             }
             else
             {
-                if (p.ParSpec.Repr == null) // otherwise p.RawNumericValue is already found in the previous paragraph
+                if (repr == null) // otherwise p.RawNumericValue is already found in the previous paragraph
                     p.RawNumericValue = (long)Math.Round(double.Parse(displayValue));
             }
 

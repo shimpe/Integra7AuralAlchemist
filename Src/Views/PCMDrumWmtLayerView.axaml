@@ -1,0 +1,144 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             x:DataType="vm:PCMDrumWmtLayerViewModel"
+             x:CompileBindings="True"
+             x:Class="Integra7AuralAlchemist.Views.PCMDrumWmtLayerView">
+    <UserControl.Styles>
+        <Style Selector="TextBlock.sliderLabel">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="MinHeight" Value="34"/>
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Spacing="12" Margin="0,8,0,8">
+
+        <!-- Wave -->
+        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+            <StackPanel Spacing="8">
+                <DockPanel>
+                    <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
+                    <ToggleSwitch DockPanel.Dock="Right" OnContent="On" OffContent="Off"
+                                  IsChecked="{Binding WaveSwitch.Value, Mode=TwoWay}"/>
+                </DockPanel>
+                <WrapPanel Orientation="Horizontal">
+                    <StackPanel Spacing="2" Width="150" Margin="0,0,16,8">
+                        <TextBlock Text="Bank" Classes="sliderLabel" ToolTip.Tip="Wave Group Type"/>
+                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding WaveGroupType.Options}"
+                                  SelectedItem="{Binding WaveGroupType.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="150" Margin="0,0,16,8" IsVisible="{Binding IsSrx}">
+                        <TextBlock Text="SRX" Classes="sliderLabel" ToolTip.Tip="Wave Group ID (SRX board)"/>
+                        <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch" ItemsSource="{Binding WaveGroupID.Options}"
+                                  SelectedItem="{Binding WaveGroupID.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Margin="0,0,16,8">
+                        <TextBlock Text="Wave (type to find)" Classes="sliderLabel" ToolTip.Tip="Wave Number L (Mono)"/>
+                        <StackPanel Orientation="Horizontal" Spacing="2">
+                            <AutoCompleteBox x:Name="WaveLBox" Width="240" MaxDropDownHeight="320"
+                                             MinimumPrefixLength="0" FilterMode="Contains"
+                                             ItemsSource="{Binding WaveNumberL.Options}"
+                                             SelectedItem="{Binding WaveNumberL.Value, Mode=TwoWay}"/>
+                            <Button Content="▾" Padding="8,4" VerticalAlignment="Center"
+                                    Click="BrowseWaveL" ToolTip.Tip="Browse all waves"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="150" Margin="0,0,16,8">
+                        <TextBlock Text="Gain (dB)" Classes="sliderLabel" ToolTip.Tip="Wave Gain"/>
+                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding WaveGain.Options}"
+                                  SelectedItem="{Binding WaveGain.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Margin="0,0,16,8">
+                        <TextBlock Text="Wave R (type to find)" Classes="sliderLabel" ToolTip.Tip="Wave Number R"/>
+                        <StackPanel Orientation="Horizontal" Spacing="2">
+                            <AutoCompleteBox x:Name="WaveRBox" Width="240" MaxDropDownHeight="320"
+                                             MinimumPrefixLength="0" FilterMode="Contains"
+                                             ItemsSource="{Binding WaveNumberR.Options}"
+                                             SelectedItem="{Binding WaveNumberR.Value, Mode=TwoWay}"/>
+                            <Button Content="▾" Padding="8,4" VerticalAlignment="Center"
+                                    Click="BrowseWaveR" ToolTip.Tip="Browse all waves"/>
+                        </StackPanel>
+                    </StackPanel>
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Tweaks -->
+        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Tweaks" FontWeight="Bold"/>
+                <WrapPanel Orientation="Horizontal">
+                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                        <TextBlock Text="Level" Classes="sliderLabel"/>
+                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding Level.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                        <TextBlock Text="Pan (L / C / R)" Classes="sliderLabel"/>
+                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding Pan.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                        <TextBlock Text="Coarse Tune" Classes="sliderLabel"/>
+                        <controls:ValueSlider Minimum="-48" Maximum="48" Value="{Binding CoarseTune.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                        <TextBlock Text="Fine Tune" Classes="sliderLabel"/>
+                        <controls:ValueSlider Minimum="-50" Maximum="50" Value="{Binding FineTune.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Margin="0,0,16,8">
+                        <TextBlock Text="Metallic (FXM)" ToolTip.Tip="Wave FXM Switch"/>
+                        <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding FxmSwitch.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                        <TextBlock Text="FXM Color" Classes="sliderLabel"/>
+                        <controls:ValueSlider Minimum="1" Maximum="4" Value="{Binding FxmColor.Value, Mode=TwoWay}"
+                                              IsEnabled="{Binding FxmSwitch.Value}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                        <TextBlock Text="FXM Depth" Classes="sliderLabel"/>
+                        <controls:ValueSlider Minimum="0" Maximum="16" Value="{Binding FxmDepth.Value, Mode=TwoWay}"
+                                              IsEnabled="{Binding FxmSwitch.Value}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Margin="0,0,16,8">
+                        <TextBlock Text="Tempo Sync" ToolTip.Tip="Wave Tempo Sync"/>
+                        <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding TempoSync.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Margin="0,0,16,8">
+                        <TextBlock Text="Random Pan" ToolTip.Tip="Random Pan Switch"/>
+                        <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding RandomPanSwitch.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                        <TextBlock Text="Alternate Pan" Classes="sliderLabel" ToolTip.Tip="Alternate Pan Switch"/>
+                        <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding AlternatePanSwitch.Options}"
+                                  SelectedItem="{Binding AlternatePanSwitch.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- Velocity -->
+        <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Velocity range" FontWeight="Bold"/>
+                <WrapPanel Orientation="Horizontal">
+                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                        <TextBlock Text="Range Lower" Classes="sliderLabel"/>
+                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding RangeLower.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                        <TextBlock Text="Range Upper" Classes="sliderLabel"/>
+                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding RangeUpper.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                        <TextBlock Text="Fade Lower" Classes="sliderLabel"/>
+                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding FadeLower.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
+                        <TextBlock Text="Fade Upper" Classes="sliderLabel"/>
+                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding FadeUpper.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

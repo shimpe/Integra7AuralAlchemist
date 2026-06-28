@@ -25,6 +25,7 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
 
     // --- Wave ---
     public ParamString WaveGroupType { get; }   // Internal / SRX
+    public ParamString WaveGroupID { get; }     // SRX board 1..12 (Internal = 0)
     public ParamString WaveNumberL { get; }     // wave name (mono / left)
     public ParamString WaveNumberR { get; }     // wave name (right, stereo)
     public ParamString WaveGain { get; }        // -6 / 0 / 6 / 12 dB
@@ -114,6 +115,7 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
         ParamBool PB(string n) => Track(new ParamBool(partialDomain, byPath[PP + n], writer));
 
         WaveGroupType = PS("Wave Group Type");
+        WaveGroupID = PS("Wave Group ID", new[] { "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12" });
         WaveNumberL = PS("Wave Number L (Mono)");
         WaveNumberR = PS("Wave Number R");
         WaveGain = PS("Wave Gain", new[] { "-6", "0", "6", "12" });
@@ -181,7 +183,7 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
 
         _editable = new IParam[]
         {
-            WaveGroupType, WaveNumberL, WaveNumberR, WaveGain, WaveFxmSwitch, WaveFxmColor, WaveFxmDepth,
+            WaveGroupType, WaveGroupID, WaveNumberL, WaveNumberR, WaveGain, WaveFxmSwitch, WaveFxmColor, WaveFxmDepth,
             PartialLevel, PartialPan, CoarseTune, FineTune, ChorusSend, ReverbSend,
             TvfFilterType, TvfCutoff, TvfResonance, TvfEnvDepth,
             PitchEnvDepth, PitchEnvTime1, PitchEnvTime2, PitchEnvTime3, PitchEnvTime4,
@@ -197,6 +199,7 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
         .Concat(Lfo1.Params).Concat(Lfo2.Params).ToArray();
 
         // Card summaries follow the wave / level / pan / filter the user actually sees on the card.
+        WaveGroupType.PropertyChanged += OnSummaryChanged;
         WaveNumberL.PropertyChanged += OnSummaryChanged;
         PartialLevel.PropertyChanged += OnSummaryChanged;
         PartialPan.PropertyChanged += OnSummaryChanged;
@@ -223,6 +226,9 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
     public string FilterCurveMode => PcmTvfRules.CurveMode(TvfFilterType.Value);
     public bool FilterCurveSteep => PcmTvfRules.CurveSteep(TvfFilterType.Value);
 
+    /// <summary>True when the wave bank is an SRX board (controls the SRX-board selector's visibility).</summary>
+    public bool IsSrx => WaveGroupType.Value == "SRX";
+
     private void OnSummaryChanged(object? s, PropertyChangedEventArgs e)
     {
         this.RaisePropertyChanged(nameof(WaveSummary));
@@ -231,6 +237,7 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
         this.RaisePropertyChanged(nameof(FilterSummary));
         this.RaisePropertyChanged(nameof(FilterCurveMode));
         this.RaisePropertyChanged(nameof(FilterCurveSteep));
+        this.RaisePropertyChanged(nameof(IsSrx));
     }
 
     // --- Audition (transient solo/mute; coordinated by the parent editor VM) ---
@@ -306,6 +313,7 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        WaveGroupType.PropertyChanged -= OnSummaryChanged;
         WaveNumberL.PropertyChanged -= OnSummaryChanged;
         PartialLevel.PropertyChanged -= OnSummaryChanged;
         PartialPan.PropertyChanged -= OnSummaryChanged;

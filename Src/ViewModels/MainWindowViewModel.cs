@@ -541,7 +541,12 @@ public partial class MainWindowViewModel : ViewModelBase
         await _integra7Communicator?.WriteSingleParameterToIntegraAsync(p);
         if (p.ParSpec.IsParent)
         {
-            await _integra7Communicator?.GetDomain(p).ReadFromIntegraAsync();
+            var resetDomain = _integra7Communicator?.GetDomain(p);
+            if (resetDomain != null)
+            {
+                await WaveOutOfRangeReset.ApplyAsync(resetDomain, p, WaveformBanks.Default);
+                await resetDomain.ReadFromIntegraAsync();
+            }
             ForceUiRefresh(p);
         }
     }
