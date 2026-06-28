@@ -20,6 +20,12 @@ public sealed record DisplayParam(FullyQualifiedParameter Param, string Label);
 /// DataTemplateProvider.ParameterValueTemplate. Recomputes only on discriminator changes (UI-thread).
 /// Used by the friendly MFX panel and the SN-A instrument detail. Catalog is supplied as delegates so
 /// the engine catalogs (MfxCatalog / InstrumentCatalog) need no shared base type.
+///
+/// Optional loaded-aware hooks (all default to identity, so MFX is unaffected): a <c>familiesSupplier</c>
+/// for a dynamic family list, a <c>displayName</c>/<c>toRealValue</c> pair so the instrument combo can
+/// show a transformed label (e.g. "(not loaded)") while still writing the real discrete value, and a
+/// public <see cref="Reproject"/> to refresh after the loaded set changes. The VM always keeps the
+/// current selection's family and value visible so a filtered list can never blank the selection.
 /// </summary>
 public sealed class DiscriminatedParamSectionViewModel : ViewModelBase, IDisposable
 {
@@ -28,15 +34,16 @@ public sealed class DiscriminatedParamSectionViewModel : ViewModelBase, IDisposa
     private readonly List<FullyQualifiedParameter> _discriminators;
     private readonly IDisposable _valueSub;
     private readonly string _gridPathSegment;
-    private readonly IReadOnlyList<string> _families;
+    private readonly Func<IReadOnlyList<string>> _familiesSupplier;
     private readonly Func<int, string> _familyOf;
     private readonly Func<string, IReadOnlyList<int>> _valuesIn;
     private readonly Func<string, IReadOnlyList<string>, IReadOnlyList<string>> _friendlyLabels;
+    private readonly Func<int, string, string> _displayName;
+    private readonly Func<string, string> _toRealValue;
     private bool _syncing;
 
     /// <summary>The discriminator wrapper (e.g. MFX Type / Instrument). Exposed for engine-specific extras.</summary>
     public ParamString Discriminator { get; }
-    public IReadOnlyList<string> Families => _families;
     public ObservableCollection<DisplayParam> Params { get; } = [];
     public bool HasParams => Params.Count > 0;
 
@@ -44,11 +51,17 @@ public sealed class DiscriminatedParamSectionViewModel : ViewModelBase, IDisposa
         string discriminatorLeafName, string gridPathSegment,
         IReadOnlyList<string> families, Func<int, string> familyOf,
         Func<string, IReadOnlyList<int>> valuesIn,
-        Func<string, IReadOnlyList<string>, IReadOnlyList<string>> friendlyLabels)
+        Func<string, IReadOnlyList<string>, IReadOnlyList<string>> friendlyLabels,
+        Func<IReadOnlyList<string>>? familiesSupplier = null,
+        Func<int, string, string>? displayName = null,
+        Func<string, string>? toRealValue = null)
     {
         _domain = domain;
         _gridPathSegment = gridPathSegment;
-        _families = families; _familyOf = familyOf; _valuesIn = valuesIn; _friendlyLabels = friendlyLabels;
+        _familiesSupplier = familiesSupplier ?? (() => families);
+        _familyOf = familyOf; _valuesIn = valuesIn; _friendlyLabels = friendlyLabels;
+        _displayName = displayName ?? ((_, name) => name);
+        _toRealValue = toRealValue ?? (d => d);
         _allParams = domain.GetRelevantParameters(true, true);
 
         var disc = _allParams.First(p => p.ParSpec.Name == discriminatorLeafName);
@@ -57,6 +70,8 @@ public sealed class DiscriminatedParamSectionViewModel : ViewModelBase, IDisposa
                    ?? disc.ParSpec.Discrete?.Select(d => d.Item2).ToList()
                    ?? new List<string>();
         Discriminator = new ParamString(domain, disc, writer, opts);
+
+        _families = BuildFamilies();
 
         var parentPaths = _allParams
             .SelectMany(p => new[] { p.ParSpec.ParentCtrl, p.ParSpec.ParentCtrl2 })
@@ -68,6 +83,11 @@ public sealed class DiscriminatedParamSectionViewModel : ViewModelBase, IDisposa
         Recompute();
     }
 
+    private IReadOnlyList<string> _families = [];
+    /// <summary>Selectable families (loaded-aware via the supplier; always includes the current
+    /// selection's family).</summary>
+    public IReadOnlyList<string> Families { get => _families; private set => this.RaiseAndSetIfChanged(ref _families, value); }
+
     private string _selectedFamily = "";
     public string SelectedFamily
     {
@@ -76,7 +96,7 @@ public sealed class DiscriminatedParamSectionViewModel : ViewModelBase, IDisposa
         {
             if (_selectedFamily == value) return;
             this.RaiseAndSetIfChanged(ref _selectedFamily, value);
-            ValuesInFamily = _valuesIn(value).Select(i => Discriminator.Options[i]).ToList();
+            ValuesInFamily = BuildValuesInFamily(value);
             this.RaisePropertyChanged(nameof(ValuesInFamily));
             if (!_syncing && ValuesInFamily.Count > 0 && !ValuesInFamily.Contains(SelectedValue))
                 SelectedValue = ValuesInFamily[0];
@@ -94,8 +114,44 @@ public sealed class DiscriminatedParamSectionViewModel : ViewModelBase, IDisposa
         {
             if (value is null || _selectedValue == value) return;
             this.RaiseAndSetIfChanged(ref _selectedValue, value);
-            if (!_syncing) Discriminator.Value = value;
+            if (!_syncing) Discriminator.Value = _toRealValue(value);
         }
+    }
+
+    /// <summary>Recompute the family list + current family's values from the live loaded set and
+    /// discriminator value. Call after the loaded ExSN/SRX set changes.</summary>
+    public void Reproject()
+    {
+        Families = BuildFamilies();
+        SyncPickerFromValue(Discriminator.Value);
+    }
+
+    /// <summary>Families from the supplier, plus the current selection's family if the supplier dropped it
+    /// (so an unloaded-board patch never blanks the family combo).</summary>
+    private IReadOnlyList<string> BuildFamilies()
+    {
+        var fams = _familiesSupplier().ToList();
+        var idx = IndexOf(Discriminator.Value);
+        if (idx >= 0)
+        {
+            var cf = _familyOf(idx);
+            if (!fams.Contains(cf)) fams.Add(cf);
+        }
+        return fams;
+    }
+
+    /// <summary>The (display-transformed) value names in a family, plus the current selection's display if
+    /// the filter dropped it (so the value combo never blanks the current selection).</summary>
+    private IReadOnlyList<string> BuildValuesInFamily(string family)
+    {
+        var list = _valuesIn(family).Select(i => _displayName(i, Discriminator.Options[i])).ToList();
+        var idx = IndexOf(Discriminator.Value);
+        if (idx >= 0 && _familyOf(idx) == family)
+        {
+            var cur = _displayName(idx, Discriminator.Options[idx]);
+            if (!list.Contains(cur)) list.Add(cur);
+        }
+        return list;
     }
 
     private void SyncPickerFromValue(string valueName)
@@ -106,13 +162,21 @@ public sealed class DiscriminatedParamSectionViewModel : ViewModelBase, IDisposa
             var idx = Discriminator.Options is { Count: > 0 } ? IndexOf(valueName) : -1;
             if (idx >= 0)
             {
-                SelectedFamily = _familyOf(idx);
-                if (!ValuesInFamily.Contains(valueName))
+                var family = _familyOf(idx);
+                if (_selectedFamily != family)
                 {
-                    ValuesInFamily = _valuesIn(SelectedFamily).Select(i => Discriminator.Options[i]).ToList();
+                    _selectedFamily = family;
+                    this.RaisePropertyChanged(nameof(SelectedFamily));
+                }
+                // Rebuild only when the (loaded-aware) list actually changed — keeps MFX churn-free and
+                // makes Reproject() refresh when the loaded set changes the filtered/labelled list.
+                var values = BuildValuesInFamily(family);
+                if (!values.SequenceEqual(_valuesInFamily))
+                {
+                    ValuesInFamily = values;
                     this.RaisePropertyChanged(nameof(ValuesInFamily));
                 }
-                SelectedValue = valueName;
+                SelectedValue = _displayName(idx, Discriminator.Options[idx]);
             }
         }
         finally { _syncing = false; }
