@@ -10,6 +10,22 @@ Group Type = `SRX`) should list **only the SRX boards currently loaded** into th
 expansion slots — instead of always offering the full `1..12`. This applies to both the friendly
 PCM editors and the raw "Advanced" parameter grid.
 
+## Scope & phasing
+
+The broader goal is to filter **everywhere expansion-loaded content is shown** to only what's
+loaded. An inventory found three categories:
+
+- **Already filtered:** the preset/tone browser — `FilterProvider.PresetFilter(search, srx1..4)`
+  already hides presets whose `ToneBankStr` (SRX01–12 / ExSN1–6 / ExPCM) isn't in a loaded slot.
+- **Not actually slot-gated (no work):** SN-Synth oscillator waves, SN-Drum sound list, and the
+  phrase/arpeggio lists are internal and do not depend on loaded expansions.
+- **Unfiltered, needs work:** (1) the **SRX Wave Group ID** selector — *this spec*; and (2) the
+  **ExSN SN-Acoustic instrument picker** — *Phase 2*, a separate design (different, index-based
+  mechanism; see the Phase 2 section at the end).
+
+**This document is Phase 1 (SRX wave groups).** Phase 2 (ExSN instruments) is brainstormed and
+specced separately after Phase 1 ships.
+
 ## Background — what's already there
 
 - The INTEGRA-7 has **4 SRX slots**. The loaded set is read from the device at connect via
@@ -139,8 +155,8 @@ preset change / resync / connect read ─▶ DomainBase.ReadFromIntegraAsync
 
 - The Group **Type** "SRX" option is left available even when no SRX is loaded (selecting it then
   yields an ID list of just the current board, or empty). Not hidden.
-- ExSN / HQ slots and the SN (SuperNATURAL) editors are untouched — they use instrument variations,
-  not SRX wave groups.
+- ExSN SN-Acoustic instrument filtering is deferred to **Phase 2** (separate design); HQ slots are
+  not relevant to SRX wave groups.
 - No change to how SRX boards are *loaded* (the `SrxSelector` still lists all boards — that is the
   loader UI, not a sound editor).
 
@@ -168,3 +184,30 @@ Pure unit tests (no hardware), in the existing NUnit project:
   after `LoadSrx`), `Src/DataTemplates/DataTemplateProvider.cs` (content-aware combo refresh, §3a).
 - **Unchanged:** the friendly partial VMs, the reverse converter — they already honor
   `EffectiveRepr`.
+
+---
+
+## Phase 2 (follow-up): ExSN SN-Acoustic instrument filtering
+
+*Intent recorded here; to be brainstormed/specced separately after Phase 1.*
+
+**Surface.** The SN-Acoustic editor's instrument picker (`SNAcousticToneEditorViewModel.Instrument`,
+a `DiscriminatedParamSectionViewModel` over the `SuperNATURAL Acoustic Tone Common/Instrument`
+discriminator). Its "Expansion" family (`InstrumentCatalog`, indices 77–126) lists every ExSN1–5
+instrument (labelled `"ExSN{k} NNN: …"` in `INSTRUMENT_VARIATIONS`) regardless of which ExSN boards
+are loaded.
+
+**Goal.** Show only ExSN instruments whose board is loaded; hide the "Expansion" family entirely when
+no ExSN1–5 board is loaded; keep the patch's currently-selected instrument visible even if its board
+is unloaded (consistent with Phase 1's "keep current visible"). Loaded ExSN set comes from the same
+`LoadedSrxState` (slot values 13–17 → ExSN1–5; ExSN6 is not in the acoustic catalog).
+
+**Why it's a separate design (open questions):**
+- `DiscriminatedParamSectionViewModel` is **shared with the friendly MFX panel** — filtering must be
+  done without disturbing the generic VM (likely via loaded-aware catalog delegates / a filtered
+  Families+ValuesIn projection supplied only by the SN-A editor).
+- The catalog is **index-based** (`ValuesIn(family)` returns positions into the full Options list);
+  filtering must preserve the index↔name mapping or move off positional indices.
+- **Live refresh on Load SRX:** unlike Phase 1, this picker isn't refreshed by a domain re-read (the
+  family/value projection is captured at construction). Phase 2 must define how the picker re-projects
+  when `LoadedSrxState` changes (rebuild the SN-A picker, or make the projection reactive).
