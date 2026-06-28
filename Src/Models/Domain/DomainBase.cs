@@ -55,6 +55,8 @@ public class DomainBase
         for (var i = 0; i < r.Range.Count; i++) _domainParameters[i].CopyParsedDataFrom(r.Range[i]);
         // Resolve bank-selected waveform names (no-op for domains without wave params).
         WaveNameResolution.Apply(_domainParameters, WaveformBanks.Default);
+        // Filter the Wave Group ID (SRX board) options to the currently-loaded SRX boards.
+        SrxGroupIdResolution.Apply(_domainParameters, LoadedSrxState.Default.Boards);
     }
 
     public async Task WriteToIntegraAsync()

@@ -171,10 +171,14 @@ public sealed class ParamString : ReactiveObject, IParam, IDisposable
         _suppress = true;
         try
         {
-            Value = _p.StringValue;
+            // Update Options (the ComboBox ItemsSource) BEFORE Value (its SelectedItem). If Value were
+            // set first while the old Options didn't yet contain it — e.g. a bank switch landing on
+            // "1 (not loaded)" — the ComboBox would clear its selection and not re-select once Options
+            // caught up, leaving the box blank even though the entry is listed.
             Options = _p.EffectiveRepr is { } er
                 ? er.OrderBy(kv => kv.Key).Select(kv => kv.Value).ToList()
                 : _staticOptions;
+            Value = _p.StringValue;
         }
         finally { _suppress = false; }
     }

@@ -86,7 +86,9 @@ public static class DataTemplateProvider
         var repr = p.EffectiveRepr ?? p.ParSpec.Repr;
         if (repr != null)
         {
-            if (repr.Count == 2 && repr[0].ToUpper() == "OFF" && repr[1].ToUpper() == "ON")
+            if (repr.Count == 2
+                && repr.TryGetValue(0, out var off) && off.ToUpper() == "OFF"
+                && repr.TryGetValue(1, out var on) && on.ToUpper() == "ON")
             {
                 ToggleSwitch c = new();
                 c.IsChecked = p.StringValue == repr[1];
@@ -117,10 +119,15 @@ public static class DataTemplateProvider
                 BindToModel(c, p, () =>
                 {
                     var cur = p.EffectiveRepr ?? p.ParSpec.Repr;
-                    if (cur != null && c.Items.Count != cur.Count)
+                    if (cur != null)
                     {
-                        c.Items.Clear();
-                        foreach (var el in cur) c.Items.Add(el.Value);
+                        var want = cur.Select(kv => kv.Value).ToList();
+                        var have = c.Items.Cast<object?>().Select(o => o?.ToString()).ToList();
+                        if (!have.SequenceEqual(want))
+                        {
+                            c.Items.Clear();
+                            foreach (var v in want) c.Items.Add(v);
+                        }
                     }
                     c.SelectedItem = p.StringValue;
                 }, () => suppressPush, v => suppressPush = v);
