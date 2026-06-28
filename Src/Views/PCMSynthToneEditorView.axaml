@@ -184,6 +184,40 @@
                                     <TextBlock Text="Filter" Opacity="0.6"/>
                                     <TextBlock Text="{Binding FilterSummary}"/>
                                 </StackPanel>
+                                <!-- Preview thumbnails (non-interactive), consistent with the SN-S cards.
+                                     IsHitTestVisible=False so clicks pass through to select the card. -->
+                                <controls:FilterCurveControl Height="40" Preview="True" IsHitTestVisible="False" Opacity="0.85"
+                                    Mode="{Binding FilterCurveMode}" Steep="{Binding FilterCurveSteep}"
+                                    Cutoff="{Binding TvfCutoff.Value}" Resonance="{Binding TvfResonance.Value}"
+                                    LineBrush="{StaticResource SnFilterEnvelopeBrush}" FillBrush="{StaticResource SnFilterEnvelopeFillBrush}"
+                                    BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}" GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                                    AxisBrush="{StaticResource SnEnvelopeAxisBrush}"/>
+                                <TextBlock Text="filter shape (preview)" FontSize="10" Opacity="0.45" HorizontalAlignment="Center"/>
+                                <controls:MultiStageEnvelopeControl Height="40" Bipolar="True" Preview="True" IsHitTestVisible="False" Opacity="0.85"
+                                    Time1="{Binding PitchEnvTime1.Value}" Time2="{Binding PitchEnvTime2.Value}"
+                                    Time3="{Binding PitchEnvTime3.Value}" Time4="{Binding PitchEnvTime4.Value}"
+                                    Level0="{Binding PitchEnvLevel0.Value}" Level1="{Binding PitchEnvLevel1.Value}"
+                                    Level2="{Binding PitchEnvLevel2.Value}" Level3="{Binding PitchEnvLevel3.Value}"
+                                    Level4="{Binding PitchEnvLevel4.Value}"
+                                    LineBrush="{StaticResource SnPitchEnvelopeBrush}" FillBrush="{StaticResource SnPitchEnvelopeFillBrush}"
+                                    BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}" GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                                    AxisBrush="{StaticResource SnEnvelopeAxisBrush}"/>
+                                <TextBlock Text="pitch env (preview)" FontSize="10" Opacity="0.45" HorizontalAlignment="Center"/>
+                                <controls:DualMultiStageEnvelopeControl Height="44" IsHitTestVisible="False" Opacity="0.85"
+                                    AmpTime1="{Binding TvaEnvTime1.Value}" AmpTime2="{Binding TvaEnvTime2.Value}"
+                                    AmpTime3="{Binding TvaEnvTime3.Value}" AmpTime4="{Binding TvaEnvTime4.Value}"
+                                    AmpLevel0="0" AmpLevel1="{Binding TvaEnvLevel1.Value}" AmpLevel2="{Binding TvaEnvLevel2.Value}"
+                                    AmpLevel3="{Binding TvaEnvLevel3.Value}" AmpLevel4="0"
+                                    FilterTime1="{Binding TvfEnvTime1.Value}" FilterTime2="{Binding TvfEnvTime2.Value}"
+                                    FilterTime3="{Binding TvfEnvTime3.Value}" FilterTime4="{Binding TvfEnvTime4.Value}"
+                                    FilterLevel0="{Binding TvfEnvLevel0.Value}" FilterLevel1="{Binding TvfEnvLevel1.Value}"
+                                    FilterLevel2="{Binding TvfEnvLevel2.Value}" FilterLevel3="{Binding TvfEnvLevel3.Value}"
+                                    FilterLevel4="{Binding TvfEnvLevel4.Value}"
+                                    AmpLineBrush="{StaticResource SnAmpEnvelopeBrush}" AmpFillBrush="{StaticResource SnAmpEnvelopeFillBrush}"
+                                    FilterLineBrush="{StaticResource SnFilterEnvelopeBrush}" FilterFillBrush="{StaticResource SnFilterEnvelopeFillBrush}"
+                                    BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}" GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                                    AxisBrush="{StaticResource SnEnvelopeAxisBrush}"/>
+                                <TextBlock Text="amp (blue) + filter (amber) env (preview)" FontSize="10" Opacity="0.45" HorizontalAlignment="Center"/>
                             </StackPanel>
                         </Border>
                     </DataTemplate>
