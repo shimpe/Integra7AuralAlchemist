@@ -227,6 +227,10 @@ public sealed class ParamBool : ReactiveObject, IParam, IDisposable
         _suppress = true;
         try { this.RaiseAndSetIfChanged(ref _value, value); }
         finally { _suppress = false; }
+        // Supersede any throttled write still pending for this key (e.g. an audition write enqueued
+        // when the user toggled solo/mute moments ago) with a no-op, so it cannot fire ~THROTTLE ms
+        // later — after a following program change — and stamp this value onto the new preset.
+        _writer.Enqueue(_key, () => System.Threading.Tasks.Task.CompletedTask);
         await _domain.WriteToIntegraAsync(_p.ParSpec.Path, value ? _on : _off);
     }
 
