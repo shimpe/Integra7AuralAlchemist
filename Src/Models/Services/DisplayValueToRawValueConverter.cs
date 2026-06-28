@@ -11,9 +11,10 @@ public class DisplayValueToRawValueConverter
     {
         if (p.IsNumeric)
         {
-            if (p.ParSpec.Repr != null)
+            var repr = p.EffectiveRepr ?? p.ParSpec.Repr;
+            if (repr != null)
             {
-                var key = p.ParSpec.Repr
+                var key = repr
                     .Where(keyvaluepair => keyvaluepair.Value == displayValue)
                     .Select(keyvaluepair => keyvaluepair.Key)
                     .ToList();
