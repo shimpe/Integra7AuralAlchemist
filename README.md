@@ -86,10 +86,6 @@ thumbnails and a playable note rail) next to the Sound tab with its interactive 
 amp controls.
 <img src="https://github.com/shimpe/Integra7AuralAlchemist/blob/main/Screenshot/PcmSynthEditor.png?raw=true" width="800"/>
 
-**Interactive envelope & filter graphs** — dragging a multi-stage TVF/TVA envelope and the
-filter-response curve (and, on SuperNATURAL tones, the amp + filter ADSR overlaid on shared axes).
-<img src="https://github.com/shimpe/Integra7AuralAlchemist/blob/main/Screenshot/EnvelopeEditor.png?raw=true" width="800"/>
-
 **Partial cards with preview thumbnails** — a close-up of the per-partial cards showing the colour-coded
 pitch (purple) / filter (amber) / amp (blue) preview graphs.
 <img src="https://github.com/shimpe/Integra7AuralAlchemist/blob/main/Screenshot/PartialPreviews.png?raw=true" width="420"/>
