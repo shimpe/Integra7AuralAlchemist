@@ -135,6 +135,19 @@ public sealed partial class PCMSynthToneEditorViewModel : ViewModelBase, IDispos
         RecomputeAudition();
     }
 
+    /// <summary>Restore the pre-audition partial on/off switches to hardware (awaited) and clear all
+    /// solo/mute. No-op when not auditioning. Called before a preset change so the patch is restored first.</summary>
+    public async System.Threading.Tasks.Task RestoreAuditionAsync()
+    {
+        if (!_auditing) return;
+        _suppressRecompute = true;
+        foreach (var p in Partials) p.SetAuditionFlags(false, false);
+        for (var i = 0; i < Partials.Count; i++) await Partials[i].IsOn.WriteImmediateAsync(_savedSwitches[i]);
+        _suppressRecompute = false;
+        _auditing = false;
+        IsAuditioning = false;
+    }
+
     public void Dispose()
     {
         Header.Dispose();

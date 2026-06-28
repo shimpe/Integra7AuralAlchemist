@@ -1540,6 +1540,11 @@ public partial class PartViewModel : ViewModelBase
     [ReactiveCommand]
     public async Task ChangePresetAsync()
     {
+        // Restore any active solo/mute audition (put partial on/off switches back) BEFORE the patch
+        // changes, so the outgoing tone is left intact rather than its audition state. No-op otherwise.
+        if (PcmSynthToneEditor is { } pcmEditor) await pcmEditor.RestoreAuditionAsync();
+        if (SNSynthToneEditor is { } snsEditor) await snsEditor.RestoreAuditionAsync();
+
         var CurrentSelection = _selectedPreset;
         if (CurrentSelection != null)
             await _i7Api.ChangePresetAsync(PartNo, CurrentSelection.Msb, CurrentSelection.Lsb, CurrentSelection.Pc);

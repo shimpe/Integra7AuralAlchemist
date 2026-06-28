@@ -219,6 +219,17 @@ public sealed class ParamBool : ReactiveObject, IParam, IDisposable
         }
     }
 
+    /// <summary>Write the value to hardware immediately (awaited, bypassing the per-key throttle) and
+    /// reflect it locally without echoing. Used when a restore must finish before a following action
+    /// (e.g. restoring an audition before a program change).</summary>
+    public async System.Threading.Tasks.Task WriteImmediateAsync(bool value)
+    {
+        _suppress = true;
+        try { this.RaiseAndSetIfChanged(ref _value, value); }
+        finally { _suppress = false; }
+        await _domain.WriteToIntegraAsync(_p.ParSpec.Path, value ? _on : _off);
+    }
+
     public string Snapshot() => _value ? _on : _off;
     public void ApplyDisplay(string display) => Value = string.Equals(display, _on, StringComparison.OrdinalIgnoreCase);
 
