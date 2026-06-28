@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Globalization;
 using Integra7AuralAlchemist.Models.Data;
 
 namespace Integra7AuralAlchemist.Models.Services;
@@ -28,11 +27,11 @@ public static class WaveNameResolution
                 || !byPath.TryGetValue(sib.IdPath, out var id))
                 continue;
 
-            if (!int.TryParse(wave.StringValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number))
-                continue; // wave StringValue is the raw number until we override it below
-
-            if (!int.TryParse(id.StringValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var groupId))
-                groupId = 0;
+            // Use the raw decoded indices (not StringValue): a wave param's StringValue may be a display
+            // name (e.g. while PARTIAL_WAVEFORMS is still attached), but RawNumericValue is always the raw
+            // wave/group index regardless of which repr is in effect.
+            var number = (int)wave.RawNumericValue;
+            var groupId = (int)id.RawNumericValue;
 
             var (bank, display) = Resolve(banks, type.StringValue, groupId, number);
             wave.EffectiveRepr = bank;
