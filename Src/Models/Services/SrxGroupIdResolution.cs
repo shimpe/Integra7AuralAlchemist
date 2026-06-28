@@ -21,22 +21,33 @@ public static class SrxGroupIdResolution
         return new List<int>(set);
     }
 
-    /// <summary>The EffectiveRepr (board number -> its string) for a Wave Group ID whose sibling Wave
-    /// Group Type is <paramref name="groupType"/>: the filtered board list when SRX, otherwise null
-    /// (leaving the param as its plain numeric field, unchanged from today).</summary>
+    /// <summary>Suffix shown after a board number that the patch references but that isn't loaded.</summary>
+    public const string NotLoadedSuffix = " (not loaded)";
+
+    /// <summary>The EffectiveRepr (board number -> its display string) for a Wave Group ID whose sibling
+    /// Wave Group Type is <paramref name="groupType"/>: the filtered board list when SRX, otherwise null
+    /// (leaving the param as its plain numeric field, unchanged from today). A board that is in the list
+    /// but NOT loaded — i.e. the patch's own current board when its SRX isn't installed — is labelled
+    /// "{n} (not loaded)" so it stays visible/selectable but is clearly flagged.</summary>
     public static IDictionary<int, string>? BuildRepr(string groupType, IReadOnlyCollection<int> loaded, int current)
     {
         if (groupType != WaveBankResolver.TypeSrx) return null;
+        var loadedSet = new HashSet<int>(loaded);
         var dict = new Dictionary<int, string>();
         foreach (var b in VisibleBoards(loaded, current))
-            dict[b] = b.ToString(CultureInfo.InvariantCulture);
+        {
+            var n = b.ToString(CultureInfo.InvariantCulture);
+            dict[b] = loadedSet.Contains(b) ? n : n + NotLoadedSuffix;
+        }
         return dict;
     }
 
     /// <summary>For each distinct Wave Group ID param (paired with its Wave Group Type via
     /// <see cref="WaveBankRegistry"/>), set its EffectiveRepr from the loaded set + current board, then
     /// re-fire StringValue so the friendly ParamString.Options and the advanced-grid combo refresh
-    /// (the read's StringValue notification fired before this pass set EffectiveRepr).</summary>
+    /// (the read's StringValue notification fired before this pass set EffectiveRepr). When filtered,
+    /// StringValue is aligned with the current board's (possibly "(not loaded)"-labelled) display so the
+    /// combo's selection matches an option rather than going blank.</summary>
     public static void Apply(IReadOnlyList<FullyQualifiedParameter> ps, IReadOnlyCollection<int> loaded)
     {
         var byPath = new Dictionary<string, FullyQualifiedParameter>(ps.Count);
@@ -49,9 +60,12 @@ public static class SrxGroupIdResolution
             if (!byPath.TryGetValue(sib.IdPath, out var id) || !byPath.TryGetValue(sib.TypePath, out var type))
                 continue;
 
-            id.EffectiveRepr = BuildRepr(type.StringValue, loaded, (int)id.RawNumericValue);
-            var refire = id.StringValue;
-            id.StringValue = refire; // notify listeners now that EffectiveRepr changed
+            var current = (int)id.RawNumericValue;
+            var repr = BuildRepr(type.StringValue, loaded, current);
+            id.EffectiveRepr = repr;
+            // Re-fire StringValue (always notifies); align it with the labelled display for the current
+            // board when filtered, so the combo's SelectedItem matches one of its options.
+            id.StringValue = repr != null && repr.TryGetValue(current, out var display) ? display : id.StringValue;
         }
     }
 }

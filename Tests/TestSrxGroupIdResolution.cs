@@ -23,12 +23,13 @@ public class TestSrxGroupIdResolution
         => Assert.That(SrxGroupIdResolution.VisibleBoards(new[] { 0, 13, 19 }, 0), Is.Empty);
 
     [Test]
-    public void BuildRepr_Srx_ReturnsFilteredBoardDict()
+    public void BuildRepr_Srx_LoadedBoardsAreUnlabelled()
     {
-        var repr = SrxGroupIdResolution.BuildRepr("SRX", new[] { 2, 6 }, 5);
+        var repr = SrxGroupIdResolution.BuildRepr("SRX", new[] { 2, 6 }, 6); // current is loaded
         Assert.That(repr, Is.Not.Null);
-        Assert.That(repr!.Keys, Is.EquivalentTo(new[] { 2, 5, 6 }));
-        Assert.That(repr[5], Is.EqualTo("5"));
+        Assert.That(repr!.Keys, Is.EquivalentTo(new[] { 2, 6 }));
+        Assert.That(repr[2], Is.EqualTo("2"));
+        Assert.That(repr[6], Is.EqualTo("6"));
     }
 
     [Test]
@@ -36,9 +37,11 @@ public class TestSrxGroupIdResolution
         => Assert.That(SrxGroupIdResolution.BuildRepr("Internal", new[] { 2, 6 }, 5), Is.Null);
 
     [Test]
-    public void BuildRepr_KeepsUnloadedCurrentBoardVisible()
+    public void BuildRepr_KeepsUnloadedCurrentBoard_LabelledNotLoaded()
     {
-        var repr = SrxGroupIdResolution.BuildRepr("SRX", new[] { 2, 6 }, 9); // SRX9 not loaded
+        var repr = SrxGroupIdResolution.BuildRepr("SRX", new[] { 2, 6 }, 9); // SRX9 referenced but not loaded
         Assert.That(repr!.ContainsKey(9), Is.True);
+        Assert.That(repr[9], Is.EqualTo("9 (not loaded)"));
+        Assert.That(repr[2], Is.EqualTo("2")); // loaded boards stay unlabelled
     }
 }
