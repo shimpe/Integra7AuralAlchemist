@@ -11,7 +11,7 @@
         xmlns:behaviors="using:Integra7AuralAlchemist.Behaviors"
         xmlns:conv="using:Avalonia.Data.Converters"
         x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
+        Icon="/Assets/integra7-icon.ico"
         Title="Integra-7 Aural Alchemist">
     <Design.DataContext>
         <!-- This only sets the DataContext for the previewer in an IDE,

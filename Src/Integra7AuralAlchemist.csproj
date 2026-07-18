@@ -6,6 +6,9 @@
         <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+        <!-- Icon of the executable itself (Explorer, taskbar, Alt-Tab). The window icon is set
+             separately in MainWindow.axaml, which is what non-Windows platforms use. -->
+        <ApplicationIcon>Assets\integra7-icon.ico</ApplicationIcon>
     </PropertyGroup>
     <ItemGroup>
         <AvaloniaResource Include="Assets\**"/>
