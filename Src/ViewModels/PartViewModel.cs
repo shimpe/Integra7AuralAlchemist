@@ -1075,6 +1075,9 @@ public partial class PartViewModel : ViewModelBase
         {
             if (_selectedPreset != value && value is not null)
             {
+                UserActionLog.Action(
+                    $"part {PartNo}: select preset '{value.Name}' ({value.ToneTypeStr} {value.InternalUserDefinedStr}, " +
+                    $"msb {value.Msb} lsb {value.Lsb} pc {value.Pc})");
                 _selectedPreset = value;
                 ChangePresetAsync();
                 this.RaisePropertyChanged();

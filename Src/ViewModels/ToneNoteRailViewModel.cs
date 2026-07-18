@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Integra7AuralAlchemist.Models.Services;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
@@ -27,6 +28,7 @@ public sealed class ToneNoteRailViewModel : ViewModelBase, IDisposable
     /// <summary>Start sounding a note (pointer-down) at the given velocity. Best-effort.</summary>
     public void NoteDown(int note, int velocity)
     {
+        UserActionLog.Action($"note rail: press {MidiNote.Name(note)} ({note}) velocity {velocity}");
         if (_noteOn is not null) _ = _noteOn(note, velocity);
     }
 

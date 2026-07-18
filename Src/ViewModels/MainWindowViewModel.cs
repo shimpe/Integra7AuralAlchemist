@@ -67,6 +67,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ReactiveCommand]
     public async Task SaveUserTone()
     {
+        UserActionLog.Action("button: Save User Tone");
         if (_currentPartSelection == 0)
             return;
 
@@ -114,6 +115,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ReactiveCommand]
     public async Task PlayNoteAsync()
     {
+        UserActionLog.Action("button: Play Note");
         byte zeroBasedMidiChannel = 0;
         if (_currentPartSelection is > 0 and < 17) zeroBasedMidiChannel = (byte)(_currentPartSelection - 1);
 
@@ -125,6 +127,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ReactiveCommand]
     public async Task PlayPhraseAsync()
     {
+        UserActionLog.Action("button: Play Phrase");
         byte zeroBasedMidiChannel = 0;
         if (_currentPartSelection is > 0 and < 17) zeroBasedMidiChannel = (byte)(_currentPartSelection - 1);
 
@@ -135,12 +138,14 @@ public partial class MainWindowViewModel : ViewModelBase
     [ReactiveCommand]
     public async Task StopPhraseAsync()
     {
+        UserActionLog.Action("button: Stop Phrase");
         await Integra7?.SendStopPreviewPhraseMsgAsync();
     }
 
     [ReactiveCommand]
     public async Task PanicAsync()
     {
+        UserActionLog.Action("button: Panic");
         await Integra7?.AllNotesOffAsync();
         await Integra7?.SendStopPreviewPhraseMsgAsync();
     }
@@ -148,6 +153,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ReactiveCommand]
     public async Task RescanMidiDevicesAsync()
     {
+        UserActionLog.Action("button: Rescan MIDI devices");
         MotionalSurroundVm?.Dispose();
         MotionalSurroundVm = null;
         Integra7 = new Integra7Api(new MidiOut(INTEGRA_CONNECTION_STRING), new MidiIn(INTEGRA_CONNECTION_STRING),
@@ -165,6 +171,7 @@ public partial class MainWindowViewModel : ViewModelBase
     [ReactiveCommand]
     public async Task LoadSrx()
     {
+        UserActionLog.Action($"button: Load SRX (slots {_srxSlot1}, {_srxSlot2}, {_srxSlot3}, {_srxSlot4})");
         if (_connected)
         {
             await Integra7?.SendLoadSrxAsync((byte)_srxSlot1, (byte)_srxSlot2, (byte)_srxSlot3, (byte)_srxSlot4);
@@ -566,6 +573,7 @@ public partial class MainWindowViewModel : ViewModelBase
         get => _currentPartSelection;
         set
         {
+            UserActionLog.Action($"select tab index {value} ({(value == 0 ? "Common" : $"Part {value}")})");
             this.RaiseAndSetIfChanged(ref _currentPartSelection, value);
             this.RaisePropertyChanged(nameof(CurrentPartIsNotCommonPart));
             // Opening a part's tab is what pays for the rest of its state. EnsureInitializedAsync is
@@ -586,11 +594,13 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             BackgroundInfo = $"Loading part {tabIndex}...";
+            UserActionLog.Begin($"initialize part {tabIndex}");
             await pvm.EnsureInitializedAsync();
+            UserActionLog.End($"initialize part {tabIndex}");
         }
         catch (Exception e)
         {
-            Log.Error($"Failed to initialize part {tabIndex}: {e.Message}");
+            UserActionLog.Failed($"initialize part {tabIndex}", e.ToString());
         }
         finally
         {
@@ -652,6 +662,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private async Task UpdateIntegraFromUiAsync(UpdateMessageSpec s)
     {
         var p = s.Par;
+        UserActionLog.Action($"edit parameter '{p.ParSpec.Path}' -> '{s.DisplayValue}'");
         p.StringValue = s.DisplayValue;
         await _integra7Communicator?.WriteSingleParameterToIntegraAsync(p);
         if (p.ParSpec.IsParent)
