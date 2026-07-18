@@ -15,6 +15,11 @@ public class Integra7Parameters
     private readonly ParameterStore _store;
     private readonly Dictionary<string, int> _index = new();
 
+    /// <summary>Results of <see cref="GetParametersWithPrefix"/>, keyed by prefix. Building the domains
+    /// asks for ~3000 prefix lookups but uses only ~29 distinct prefixes (the prefix names a kind of
+    /// domain, not a part), so without this every part re-scans all ~14000 parameters.</summary>
+    private readonly Dictionary<string, List<Integra7ParameterSpec>> _prefixCache = new(StringComparer.Ordinal);
+
     public Integra7Parameters()
         : this(AssetLoader.Open(new Uri("avares://Integra7AuralAlchemist/Assets/parameters.bin")))
     {
@@ -53,12 +58,29 @@ public class Integra7Parameters
         return result;
     }
 
+    /// <summary>All parameters whose path starts with <paramref name="prefix"/>, in store order.
+    /// The scan runs once per distinct prefix; later calls copy the cached result.</summary>
     public List<Integra7ParameterSpec> GetParametersWithPrefix(string prefix)
     {
-        var result = new List<Integra7ParameterSpec>();
-        for (var i = 0; i < _store.Count; i++)
-            if (_store.Str(_store.PathIds[i]).StartsWith(prefix))
-                result.Add(_store.Get(i));
-        return result;
+        List<Integra7ParameterSpec> cached;
+        // Domains are built on one thread today, but the cache is cheap to guard and a torn dictionary
+        // would be a miserable bug to chase.
+        lock (_prefixCache)
+        {
+            if (!_prefixCache.TryGetValue(prefix, out cached))
+            {
+                cached = [];
+                for (var i = 0; i < _store.Count; i++)
+                    // Ordinal: paths are ASCII identifiers, and the culture-sensitive default is both
+                    // slower and the wrong question to ask of them.
+                    if (_store.Str(_store.PathIds[i]).StartsWith(prefix, StringComparison.Ordinal))
+                        cached.Add(_store.Get(i));
+                _prefixCache[prefix] = cached;
+            }
+        }
+
+        // Hand back a copy so callers keep owning their list, as they did when every call rescanned.
+        // Integra7ParameterSpec is a readonly struct, so this shares nothing mutable.
+        return new List<Integra7ParameterSpec>(cached);
     }
 }
