@@ -264,6 +264,9 @@ public partial class PartViewModel : ViewModelBase
     /// and as the handle concurrent callers await, so the work happens exactly once per part.</summary>
     private Task? _deferredInit;
 
+    /// <summary>Cancels the deferred initialization when the part's preset changes underneath it.</summary>
+    private CancellationTokenSource? _initCts;
+
     //
 
     //
@@ -1078,7 +1081,22 @@ public partial class PartViewModel : ViewModelBase
                 UserActionLog.Action(
                     $"part {PartNo}: select preset '{value.Name}' ({value.ToneTypeStr} {value.InternalUserDefinedStr}, " +
                     $"msb {value.Msb} lsb {value.Lsb} pc {value.Pc})");
+
+                // Only a part that has been opened has deferred state; the startup preselect sets this
+                // property for all 16 parts and must not drag them all into initializing.
+                var wasInitializing = _deferredInit is not null;
+
                 _selectedPreset = value;
+
+                if (wasInitializing)
+                {
+                    // The running initialization is reading the outgoing tone's domains. Stop it and
+                    // start one for the tone that is arriving, otherwise its remaining reads go to a
+                    // tone the device no longer holds and every one of them waits out its timeout.
+                    CancelDeferredInit();
+                    _ = EnsureInitializedAsync();
+                }
+
                 ChangePresetAsync();
                 this.RaisePropertyChanged();
             }
@@ -1281,7 +1299,21 @@ public partial class PartViewModel : ViewModelBase
     public Task EnsureInitializedAsync()
     {
         if (_i7domain is null || IsCommonTab) return Task.CompletedTask;
-        return _deferredInit ??= RunDeferredInitAsync();
+        if (_deferredInit is not null) return _deferredInit;
+
+        _initCts?.Dispose();
+        _initCts = new CancellationTokenSource();
+        _deferredInit = RunDeferredInitAsync(_initCts.Token);
+        return _deferredInit;
+    }
+
+    /// <summary>Abandon an initialization that is reading the wrong tone. The device answers reads only
+    /// for the tone a part currently holds, so once the preset changes, every remaining read of the old
+    /// tone's domains goes unanswered and costs a 1.5s timeout — 62 of them for a drum kit.</summary>
+    private void CancelDeferredInit()
+    {
+        _initCts?.Cancel();
+        _deferredInit = null;
     }
 
     /// <summary>True once the deferred work has finished. Callers that only want to refresh a part
@@ -1289,11 +1321,20 @@ public partial class PartViewModel : ViewModelBase
     /// opened, so refreshing them early would spend round trips on data nobody is looking at.</summary>
     public bool IsInitialized => _deferredInit is { IsCompletedSuccessfully: true };
 
-    private async Task RunDeferredInitAsync()
+    private async Task RunDeferredInitAsync(CancellationToken token)
     {
+        // Never run synchronously: EnsureInitializedAsync assigns _deferredInit from the return value,
+        // so a body that reset the field before that assignment would have its reset overwritten.
+        await Task.Yield();
+
         try
         {
-            await InitializeDeferredPartStateAsync();
+            await InitializeDeferredPartStateAsync(token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a preset change; the fresh initialization it started owns the part now.
+            UserActionLog.Action($"part {PartNo}: initialization abandoned, the preset changed");
         }
         catch
         {
@@ -1303,7 +1344,7 @@ public partial class PartViewModel : ViewModelBase
         }
     }
 
-    private async Task InitializeDeferredPartStateAsync()
+    private async Task InitializeDeferredPartStateAsync(CancellationToken token)
     {
         if (_i7domain is not null)
         {
@@ -1312,6 +1353,7 @@ public partial class PartViewModel : ViewModelBase
             // hardware read could build the tone domains for one tone and the partials for another.
             var toneType = _selectedPreset?.ToneTypeStr;
 
+            token.ThrowIfCancellationRequested();
             await _i7domain.StudioSetMidi(PartNo).ReadFromIntegraAsync();
             List<FullyQualifiedParameter> p_mid = _i7domain.StudioSetMidi(PartNo).GetRelevantParameters(true, true);
             _sourceCacheStudioSetMidiParameters.AddOrUpdate(p_mid);
@@ -1320,6 +1362,10 @@ public partial class PartViewModel : ViewModelBase
             List<FullyQualifiedParameter>
                 p_parteq = _i7domain.StudioSetPartEQ(PartNo).GetRelevantParameters(true, true);
             _sourceCacheStudioSetPartEQParameters.AddOrUpdate(p_parteq);
+
+            // From here on every read is specific to `toneType`. The device answers only for the tone a
+            // part currently holds, so if the preset has changed these reads would all go unanswered.
+            token.ThrowIfCancellationRequested();
 
             if (toneType == "PCMS")
             {
@@ -1355,6 +1401,7 @@ public partial class PartViewModel : ViewModelBase
             ObservableCollection<PartialViewModel> pvm = [];
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_PCM_SYNTH_TONE; i++)
             {
+                token.ThrowIfCancellationRequested();
                 var vm = new PCMSynthTonePartialViewModel(this, PartNo, i,
                     toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
@@ -1371,6 +1418,7 @@ public partial class PartViewModel : ViewModelBase
             ObservableCollection<PartialViewModel> pvm2 = [];
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_PCM_DRUM; i++)
             {
+                token.ThrowIfCancellationRequested();
                 var vm = new PCMDrumKitPartialViewModel(this, PartNo, i,
                     toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
@@ -1384,6 +1432,7 @@ public partial class PartViewModel : ViewModelBase
             ObservableCollection<PartialViewModel> pvm3 = [];
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_SN_SYNTH_TONE; i++)
             {
+                token.ThrowIfCancellationRequested();
                 var vm = new SNSynthTonePartialViewModel(this, PartNo, i,
                     toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
@@ -1397,6 +1446,7 @@ public partial class PartViewModel : ViewModelBase
             ObservableCollection<PartialViewModel> pvm4 = [];
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_SN_DRUM; i++)
             {
+                token.ThrowIfCancellationRequested();
                 var vm = new SNDrumKitPartialViewModel(this, PartNo, i,
                     toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
