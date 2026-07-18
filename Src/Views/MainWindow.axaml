@@ -70,11 +70,16 @@
             <TabItem Header="Parameters">
                 <Grid ColumnDefinitions="*"
                       RowDefinitions="Auto,Auto,*">
-                    <TextBlock Grid.Column="0"
-                               Grid.Row="0"
-                               Text="{Binding MidiDevices}"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="0" Grid.Row="0"
+                                Orientation="Horizontal" Spacing="12"
+                                HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding MidiDevices}" VerticalAlignment="Center" />
+                        <!-- Progress of the user tone names, which load after the window is usable.
+                             Collapses to nothing once they are in. -->
+                        <TextBlock Text="{Binding BackgroundInfo}" VerticalAlignment="Center"
+                                   Foreground="{StaticResource SnMutedTextBrush}"
+                                   IsVisible="{Binding BackgroundInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                    </StackPanel>
                     <StackPanel Grid.Row="1"
                                 Orientation="Horizontal"
                                 Spacing="20">
