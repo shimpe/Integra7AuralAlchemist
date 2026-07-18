@@ -109,6 +109,7 @@ public sealed partial class SNDrumKitEditorViewModel : ViewModelBase, IDisposabl
     /// <summary>Audition a drum by sending its MIDI note at the given velocity (note-on/off handled by the host).</summary>
     public void PlayNote(int note, int velocity)
     {
+        UserActionLog.Action($"SN drum rail: hit note {note} velocity {velocity}");
         if (_playNote is not null) _ = _playNote(note, velocity);
     }
 
