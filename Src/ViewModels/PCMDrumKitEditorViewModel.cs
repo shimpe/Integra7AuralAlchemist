@@ -20,7 +20,7 @@ public sealed partial class PCMDrumKitEditorViewModel : ViewModelBase, IDisposab
 
     private readonly ThrottledParameterWriter _writer = new();
     private readonly Action<string, int?>? _navigateToRawTab;
-    private readonly Func<int, System.Threading.Tasks.Task>? _playNote;
+    private readonly Func<int, int, System.Threading.Tasks.Task>? _playNote;
     private readonly List<IDisposable> _wrappers = [];
     private readonly FullyQualifiedParameter _kitName;
 
@@ -34,7 +34,7 @@ public sealed partial class PCMDrumKitEditorViewModel : ViewModelBase, IDisposab
     public SNDrumCompEqPanelViewModel CompEq { get; }
 
     public PCMDrumKitEditorViewModel(Integra7Domain domain, int partNo,
-        Action<string, int?>? navigateToRawTab = null, Func<int, System.Threading.Tasks.Task>? playNote = null)
+        Action<string, int?>? navigateToRawTab = null, Func<int, int, System.Threading.Tasks.Task>? playNote = null)
     {
         _navigateToRawTab = navigateToRawTab;
         _playNote = playNote;
@@ -107,10 +107,10 @@ public sealed partial class PCMDrumKitEditorViewModel : ViewModelBase, IDisposab
 
     [ReactiveCommand] public void AdvancedCommon() => _navigateToRawTab?.Invoke("PCMD-KIT", null);
 
-    /// <summary>Audition a drum by sending its MIDI note (note-on/off handled by the host).</summary>
-    public void PlayNote(int note)
+    /// <summary>Audition a drum by sending its MIDI note at the given velocity (note-on/off handled by the host).</summary>
+    public void PlayNote(int note, int velocity)
     {
-        if (_playNote is not null) _ = _playNote(note);
+        if (_playNote is not null) _ = _playNote(note, velocity);
     }
 
     private static Dictionary<string, FullyQualifiedParameter> ToDict(DomainBase d)

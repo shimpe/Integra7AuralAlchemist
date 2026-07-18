@@ -26,6 +26,8 @@ hardware over MIDI/SysEx.
 ### Play & audition
 - A **playable note rail** beside the tone editors (press-and-hold to sustain a note) and
   **click-to-audition** drum rails labelled with each kit's drum names.
+- **Velocity-sensitive keys**: where you click along a key sets the velocity — the left edge plays at 1,
+  the right edge at 127, linearly interpolated in between.
 
 ### Expansion-aware (SRX / ExSN)
 - Load **SRX** and **ExSN** expansions from the UI into the unit's four slots.

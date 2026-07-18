@@ -50,7 +50,7 @@ public sealed partial class SNAcousticToneEditorViewModel : ViewModelBase, IDisp
 
     public SNAcousticToneEditorViewModel(Integra7Domain domain, int partNo,
         Action<string, int?>? navigateToRawTab = null,
-        Func<int, System.Threading.Tasks.Task>? noteOn = null, Func<int, System.Threading.Tasks.Task>? noteOff = null)
+        Func<int, int, System.Threading.Tasks.Task>? noteOn = null, Func<int, System.Threading.Tasks.Task>? noteOff = null)
     {
         _navigateToRawTab = navigateToRawTab;
         NoteRail = new ToneNoteRailViewModel(noteOn, noteOff);
