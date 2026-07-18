@@ -36,6 +36,8 @@
             <SolidColorBrush x:Key="SnAuditionBannerBrush" Color="#5A4A1E"/>
             <!-- De-emphasised text: secondary status that should not compete with the real content. -->
             <SolidColorBrush x:Key="SnMutedTextBrush" Color="#9AA2A8"/>
+            <!-- Hairline separating the status bar from the content above it. -->
+            <SolidColorBrush x:Key="SnStatusBarBorderBrush" Color="#33FFFFFF"/>
             <!-- PCM Synth PMT zone palette. -->
             <SolidColorBrush x:Key="PmtZone1Brush" Color="#6b8dff"/>
             <SolidColorBrush x:Key="PmtZone2Brush" Color="#ff9e6b"/>
