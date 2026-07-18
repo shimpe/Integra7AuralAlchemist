@@ -522,7 +522,7 @@ public class Integra7Api : IIntegra7Api
             var totalRepliesReceived = 0;
             _midiOut?.SafeSend(msg);
             var continueReading = true;
-            while (continueReading) // concatenate multiple incoming replies 
+            while (continueReading) // concatenate multiple incoming replies
             {
                 var localReply = await mi.WaitForMidiMessageAsyncExpectingMultipleInARow();
                 if (localReply.Length != 0)
@@ -534,7 +534,17 @@ public class Integra7Api : IIntegra7Api
                         {
                             allReplies.Add(r);
                             totalRepliesReceived += 1;
-                            //ByteStreamDisplay.Display($"partial reply #{totalRepliesReceived}:", r); 
+                            //ByteStreamDisplay.Display($"partial reply #{totalRepliesReceived}:", r);
+                            // The device closes the burst with an empty-name reply. Stopping on it
+                            // returns at once instead of idling for the inactivity timeout. The
+                            // timeout below still applies when that reply never arrives. Note a
+                            // single read can carry several messages, so the check belongs here,
+                            // after the split, rather than on the raw chunk.
+                            if (NameListEndMarker.IsEndOfBurst(r))
+                            {
+                                continueReading = false;
+                                mi.CleanupAfterTimeOut();
+                            }
                         }
                 }
                 else
