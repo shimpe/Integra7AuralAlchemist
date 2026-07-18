@@ -13,6 +13,10 @@ public interface IMidiIn
 {
     public void ConfigureHandler(EventHandler<MidiReceivedEventArgs> handler);
     public void ConfigureDefaultHandler();
+
+    /// <summary>Hand the port back, but only if <paramref name="handler"/> is still the one installed.
+    /// A reader that finishes late must not detach a handler another reader has since installed.</summary>
+    public void RemoveHandler(EventHandler<MidiReceivedEventArgs> handler);
     public byte[] GetReply();
     public void AnnounceIntentionToManuallyHandleReply();
     public void RestoreAutomaticHandling();
@@ -88,6 +92,26 @@ public class MidiIn : IMidiIn
         _manualReplyHandling = false;
     }
 
+    /// <summary>Restore the default handler on behalf of <paramref name="handler"/>. Ignored when some
+    /// other reader owns the port: the single _lastEventHandler slot means an unconditional restore
+    /// would silently detach that reader, which then waits for a reply it can no longer receive and
+    /// times out — and every read after it does the same, because the pairing never recovers.</summary>
+    public void RemoveHandler(EventHandler<MidiReceivedEventArgs> handler)
+    {
+        if (_access == null)
+            return;
+
+        if (!MidiHandlerOwnership.MayRestoreDefault(_lastEventHandler, handler))
+        {
+            // Worth shouting about: it means two readers overlapped, which the MIDI semaphore is
+            // supposed to prevent.
+            Log.Warning("Not restoring the default MIDI handler: another reader owns the port.");
+            return;
+        }
+
+        ConfigureDefaultHandler();
+    }
+
     public void ConfigureHandler(EventHandler<MidiReceivedEventArgs> handler)
     {
         if (_access == null)
@@ -95,6 +119,10 @@ public class MidiIn : IMidiIn
             Log.Information("No midi handler configured because no Integra-7 hardware found.");
             return;
         }
+
+        // Installing over another reader is the condition that used to break the pairing, so say so.
+        if (!Equals(_lastEventHandler, (EventHandler<MidiReceivedEventArgs>)DefaultHandler))
+            Log.Warning("Installing a MIDI reader while another reader is still waiting for its reply.");
 
         Log.Debug("Remove last configured midi handler");
         _access.MessageReceived -= _lastEventHandler;
