@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Input;
+using Integra7AuralAlchemist.Models.Services;
 using Integra7AuralAlchemist.ViewModels;
 
 namespace Integra7AuralAlchemist.Views;
@@ -15,14 +16,15 @@ public partial class ToneNoteRailView : UserControl
 
     // Press-and-hold: pointer-down sounds the note (and captures the pointer so the release reaches us
     // even if the cursor leaves the row); pointer-up / capture-lost stops it. The capture guard prevents
-    // a stuck note if the window loses focus mid-press.
+    // a stuck note if the window loses focus mid-press. How far along the row the press landed sets the
+    // velocity — left edge is soft, right edge is hard.
     private void NoteRow_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (sender is Control { DataContext: ToneNoteViewModel note } row &&
             DataContext is ToneNoteRailViewModel vm)
         {
             _activeNote = note.Note;
-            vm.NoteDown(note.Note);
+            vm.NoteDown(note.Note, VelocityMapping.FromPointerX(e.GetPosition(row).X, row.Bounds.Width));
             e.Pointer.Capture(row);
             e.Handled = true;
         }

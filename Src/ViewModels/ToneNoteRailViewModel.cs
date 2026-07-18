@@ -6,15 +6,16 @@ namespace Integra7AuralAlchemist.ViewModels;
 
 /// <summary>The playable note rail shared by the friendly tone editors: 128 note rows (note 127 at
 /// top → 0 at bottom, so low notes sit at the bottom). Press-and-hold: <see cref="NoteDown"/> on
-/// pointer-down, <see cref="NoteUp"/> on pointer-up, so notes sustain for as long as the button is held.</summary>
+/// pointer-down, <see cref="NoteUp"/> on pointer-up, so notes sustain for as long as the button is held.
+/// The velocity comes from where along the key the pointer landed (see the view).</summary>
 public sealed class ToneNoteRailViewModel : ViewModelBase, IDisposable
 {
-    private readonly Func<int, Task>? _noteOn;
+    private readonly Func<int, int, Task>? _noteOn;
     private readonly Func<int, Task>? _noteOff;
 
     public IReadOnlyList<ToneNoteViewModel> Notes { get; }
 
-    public ToneNoteRailViewModel(Func<int, Task>? noteOn = null, Func<int, Task>? noteOff = null)
+    public ToneNoteRailViewModel(Func<int, int, Task>? noteOn = null, Func<int, Task>? noteOff = null)
     {
         _noteOn = noteOn;
         _noteOff = noteOff;
@@ -23,10 +24,10 @@ public sealed class ToneNoteRailViewModel : ViewModelBase, IDisposable
         Notes = notes;
     }
 
-    /// <summary>Start sounding a note (pointer-down). Best-effort.</summary>
-    public void NoteDown(int note)
+    /// <summary>Start sounding a note (pointer-down) at the given velocity. Best-effort.</summary>
+    public void NoteDown(int note, int velocity)
     {
-        if (_noteOn is not null) _ = _noteOn(note);
+        if (_noteOn is not null) _ = _noteOn(note, velocity);
     }
 
     /// <summary>Stop sounding a note (pointer-up / capture lost). Best-effort.</summary>
