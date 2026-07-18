@@ -1088,16 +1088,16 @@ public partial class PartViewModel : ViewModelBase
 
                 _selectedPreset = value;
 
-                if (wasInitializing)
-                {
-                    // The running initialization is reading the outgoing tone's domains. Stop it and
-                    // start one for the tone that is arriving, otherwise its remaining reads go to a
-                    // tone the device no longer holds and every one of them waits out its timeout.
-                    CancelDeferredInit();
-                    _ = EnsureInitializedAsync();
-                }
+                // Stop an initialization that is reading the outgoing tone's domains: those reads go to
+                // a tone the device is about to stop holding, and each one waits out its timeout.
+                //
+                // Do NOT start the replacement here. The program change below has not been sent yet,
+                // let alone acted on, so reading now would return the outgoing patch's data — answered
+                // promptly and completely wrong. The device echoes the change when it has actually
+                // switched, and the resync that follows re-initializes the part then.
+                if (wasInitializing) CancelDeferredInit();
 
-                ChangePresetAsync();
+                _ = ChangePresetAndReloadAsync(wasInitializing);
                 this.RaisePropertyChanged();
             }
         }
@@ -1301,6 +1301,7 @@ public partial class PartViewModel : ViewModelBase
         if (_i7domain is null || IsCommonTab) return Task.CompletedTask;
         if (_deferredInit is not null) return _deferredInit;
 
+        _everOpened = true;
         _initCts?.Dispose();
         _initCts = new CancellationTokenSource();
         _deferredInit = RunDeferredInitAsync(_initCts.Token);
@@ -1321,6 +1322,15 @@ public partial class PartViewModel : ViewModelBase
     /// opened, so refreshing them early would spend round trips on data nobody is looking at.</summary>
     public bool IsInitialized => _deferredInit is { IsCompletedSuccessfully: true };
 
+    /// <summary>True for a part that was opened and then had its initialization cancelled by a preset
+    /// change. It has no usable tone state, so a refresh must re-initialize it rather than skip it the
+    /// way it skips parts nobody ever opened.</summary>
+    public bool NeedsReinitialization => _everOpened && _deferredInit is null;
+
+    /// <summary>Whether this part's tab has ever been opened, which is what separates "never loaded, so
+    /// leave it alone" from "loaded once, so keep it current".</summary>
+    private bool _everOpened;
+
     private async Task RunDeferredInitAsync(CancellationToken token)
     {
         // Never run synchronously: EnsureInitializedAsync assigns _deferredInit from the return value,
@@ -1329,7 +1339,11 @@ public partial class PartViewModel : ViewModelBase
 
         try
         {
+            // Bracketed here rather than at the call site, so a re-initialization triggered by a preset
+            // change is traced too — not just the one a tab click starts.
+            UserActionLog.Begin($"initialize part {PartNo}");
             await InitializeDeferredPartStateAsync(token);
+            UserActionLog.End($"initialize part {PartNo}");
         }
         catch (OperationCanceledException)
         {
@@ -1656,6 +1670,18 @@ public partial class PartViewModel : ViewModelBase
     }
 
     [ReactiveCommand]
+    /// <summary>Send the program change, then reload the part if it had been open.
+    ///
+    /// The order is the whole point: reading before the device has switched returns the outgoing
+    /// patch, promptly and wrongly. Nothing else reloads it either — the resync that a preset change
+    /// normally triggers is driven by the device echoing a change made on its own panel, which does
+    /// not happen for a change this application sent.</summary>
+    private async Task ChangePresetAndReloadAsync(bool reload)
+    {
+        await ChangePresetAsync();
+        if (reload) await EnsureInitializedAsync();
+    }
+
     public async Task ChangePresetAsync()
     {
         // Restore any active solo/mute audition (put partial on/off switches back) BEFORE the patch

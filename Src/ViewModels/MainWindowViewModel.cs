@@ -594,9 +594,8 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             BackgroundInfo = $"Loading part {tabIndex}...";
-            UserActionLog.Begin($"initialize part {tabIndex}");
+            // The BEGIN/END pair is logged inside the part itself, so every initialization is bracketed.
             await pvm.EnsureInitializedAsync();
-            UserActionLog.End($"initialize part {tabIndex}");
         }
         catch (Exception e)
         {
@@ -735,7 +734,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 {
                     // A part that was never opened has nothing to refresh: it reads the current state
                     // when it is first opened, so resyncing it now would only spend round trips.
-                    if (!pvm.IsCommonTab && !pvm.IsInitialized) continue;
+                    if (!pvm.IsCommonTab && !pvm.IsInitialized && !pvm.NeedsReinitialization) continue;
                     SyncInfo = $"Resync part {pvm.PartNo}";
                     await pvm.EnsurePreselectIsNotNullAsync();
                     await pvm.ResyncPartAsync((byte)pvm.PartNo);
@@ -761,7 +760,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     i++;
                     // Same reasoning as ResyncAllPartsAsync: an unopened part refreshes itself when
                     // opened. ResyncPartAsync below ignores every part except `part` anyway.
-                    if (!pvm.IsCommonTab && !pvm.IsInitialized) continue;
+                    if (!pvm.IsCommonTab && !pvm.IsInitialized && !pvm.NeedsReinitialization) continue;
                     await pvm.EnsurePreselectIsNotNullAsync();
                     await pvm.ResyncPartAsync(part);
                 }
@@ -789,7 +788,11 @@ public partial class MainWindowViewModel : ViewModelBase
                         await b.ReadFromIntegraAsync();
                         pvm.PreSelectConfiguredPreset(b);
                         // The full resync is not, since an unopened part reads everything when opened.
-                        if (pvm.IsCommonTab || pvm.IsInitialized) await pvm.ResyncPartAsync(part);
+                        // A part whose initialization was cancelled by this very preset change does
+                        // need it though: ResyncPartAsync re-initializes it, now that the device has
+                        // confirmed the new tone.
+                        if (pvm.IsCommonTab || pvm.IsInitialized || pvm.NeedsReinitialization)
+                            await pvm.ResyncPartAsync(part);
                     }
         }
         finally
