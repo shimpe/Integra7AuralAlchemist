@@ -1021,13 +1021,37 @@ public partial class PartViewModel : ViewModelBase
     public ReadOnlyObservableCollection<FullyQualifiedParameter> SNSynthToneCommonMFXParameters =>
         _SNSynthToneCommonMFXParameters;
 
-    public ReadOnlyObservableCollection<PartialViewModel>? PcmSynthTonePartialViewModels { get; private set; }
+    // These four are null until the part loads and are what the "Advanced — Partials" tab strips bind
+    // to. They must announce their assignment: a plain auto-property binds once, reads null, and is
+    // never told otherwise, which left those tab strips — and so the whole Partials tab — empty.
+    private ReadOnlyObservableCollection<PartialViewModel>? _pcmSynthTonePartialViewModels;
+    private ReadOnlyObservableCollection<PartialViewModel>? _pcmDrumKitPartialViewModels;
+    private ReadOnlyObservableCollection<PartialViewModel>? _snSynthTonePartialViewModels;
+    private ReadOnlyObservableCollection<PartialViewModel>? _snDrumKitPartialViewModels;
 
-    public ReadOnlyObservableCollection<PartialViewModel>? PcmDrumKitPartialViewModels { get; private set; }
+    public ReadOnlyObservableCollection<PartialViewModel>? PcmSynthTonePartialViewModels
+    {
+        get => _pcmSynthTonePartialViewModels;
+        private set => this.RaiseAndSetIfChanged(ref _pcmSynthTonePartialViewModels, value);
+    }
 
-    public ReadOnlyObservableCollection<PartialViewModel>? SNSynthTonePartialViewModels { get; private set; }
+    public ReadOnlyObservableCollection<PartialViewModel>? PcmDrumKitPartialViewModels
+    {
+        get => _pcmDrumKitPartialViewModels;
+        private set => this.RaiseAndSetIfChanged(ref _pcmDrumKitPartialViewModels, value);
+    }
 
-    public ReadOnlyObservableCollection<PartialViewModel>? SNDrumKitPartialViewModels { get; private set; }
+    public ReadOnlyObservableCollection<PartialViewModel>? SNSynthTonePartialViewModels
+    {
+        get => _snSynthTonePartialViewModels;
+        private set => this.RaiseAndSetIfChanged(ref _snSynthTonePartialViewModels, value);
+    }
+
+    public ReadOnlyObservableCollection<PartialViewModel>? SNDrumKitPartialViewModels
+    {
+        get => _snDrumKitPartialViewModels;
+        private set => this.RaiseAndSetIfChanged(ref _snDrumKitPartialViewModels, value);
+    }
 
     public ReadOnlyObservableCollection<FullyQualifiedParameter> SNAcousticToneCommonParameters =>
         _SNAcousticToneCommonParameters;
