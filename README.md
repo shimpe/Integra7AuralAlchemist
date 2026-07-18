@@ -78,9 +78,6 @@ the tests with `dotnet test`.
 
 ### Friendly editors
 
-> The images below are **placeholders** — capture the described view and save it as the named file under
-> `Screenshot/` (e.g. `Screenshot/PcmSynthEditor.png`) and it will show up here.
-
 **Friendly PCM Synth Tone editor** — the partial rack (cards with live envelope/filter preview
 thumbnails and a playable note rail) next to the Sound tab with its interactive wave / pitch / filter /
 amp controls.
