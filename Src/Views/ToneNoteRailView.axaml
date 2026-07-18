@@ -24,7 +24,7 @@
         </Style>
     </UserControl.Styles>
 
-    <ListBox Width="88" ItemsSource="{Binding Notes}" Background="Transparent">
+    <ListBox Name="NoteList" Width="88" ItemsSource="{Binding Notes}" Background="Transparent">
         <ListBox.Styles>
             <Style Selector="ListBoxItem">
                 <Setter Property="Padding" Value="0"/>
