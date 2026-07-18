@@ -1314,8 +1314,8 @@ public partial class PartViewModel : ViewModelBase
         _everOpened = true;
         _initCts?.Dispose();
         _initCts = new CancellationTokenSource();
+        IsLoading = true;
         _deferredInit = RunDeferredInitAsync(_initCts.Token);
-        this.RaisePropertyChanged(nameof(IsLoading));
         return _deferredInit;
     }
 
@@ -1326,7 +1326,7 @@ public partial class PartViewModel : ViewModelBase
     {
         _initCts?.Cancel();
         _deferredInit = null;
-        this.RaisePropertyChanged(nameof(IsLoading));
+        IsLoading = false;
     }
 
     /// <summary>True once the deferred work has finished. Callers that only want to refresh a part
@@ -1336,8 +1336,18 @@ public partial class PartViewModel : ViewModelBase
 
     /// <summary>True while this part is loading. The preset list is disabled meanwhile: changing the
     /// preset mid-load means the load is reading a tone the device is about to drop, and the recovery
-    /// (cancel, re-send, re-read) runs concurrently with the resync the change itself triggers.</summary>
-    public bool IsLoading => _deferredInit is { IsCompleted: false };
+    /// (cancel, re-send, re-read) runs concurrently with the resync the change itself triggers.
+    ///
+    /// Held as a field rather than derived from the load task. The task only completes once the method
+    /// producing it returns, which is after its own finally block — so a notification raised there would
+    /// still report loading, and the list would stay disabled until something else re-evaluated it.</summary>
+    public bool IsLoading
+    {
+        get => _isLoading;
+        private set => this.RaiseAndSetIfChanged(ref _isLoading, value);
+    }
+
+    private bool _isLoading;
 
     /// <summary>True for a part that was opened and then had its initialization cancelled by a preset
     /// change. It has no usable tone state, so a refresh must re-initialize it rather than skip it the
@@ -1376,7 +1386,7 @@ public partial class PartViewModel : ViewModelBase
         finally
         {
             // Re-enables the preset list, whether the load finished, failed or was abandoned.
-            this.RaisePropertyChanged(nameof(IsLoading));
+            IsLoading = false;
         }
     }
 
