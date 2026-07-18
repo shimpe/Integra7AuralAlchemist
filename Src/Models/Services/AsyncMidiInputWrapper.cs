@@ -12,10 +12,16 @@ public class AsyncMidiInputWrapper
     private readonly Channel<byte[]> _channel = Channel.CreateUnbounded<byte[]>();
     private readonly IMidiIn _midiInput;
 
+    /// <summary>This reader's handler, kept so the port can be handed back by identity. Restoring the
+    /// default handler unconditionally would detach whichever reader happens to be installed, not
+    /// necessarily this one.</summary>
+    private readonly EventHandler<MidiReceivedEventArgs> _handler;
+
     public AsyncMidiInputWrapper(IMidiIn midiIn)
     {
         _midiInput = midiIn;
-        _midiInput.ConfigureHandler(OnMidiMessageReceived);
+        _handler = OnMidiMessageReceived;
+        _midiInput.ConfigureHandler(_handler);
     }
 
     private void OnMidiMessageReceived(object? sender, MidiReceivedEventArgs e)
@@ -39,12 +45,12 @@ public class AsyncMidiInputWrapper
         {
             var message = await _channel.Reader.ReadAsync(cts.Token);
             await cts.CancelAsync();
-            _midiInput.ConfigureDefaultHandler();
+            _midiInput.RemoveHandler(_handler);
             return message;
         }
 
         await cts.CancelAsync();
-        _midiInput.ConfigureDefaultHandler();
+        _midiInput.RemoveHandler(_handler);
         return [];
     }
 
@@ -67,7 +73,7 @@ public class AsyncMidiInputWrapper
 
     public void CleanupAfterTimeOut()
     {
-        _midiInput.ConfigureDefaultHandler();
+        _midiInput.RemoveHandler(_handler);
         _midiInput.RestoreAutomaticHandling();
         _channel.Writer.TryComplete();
     }
