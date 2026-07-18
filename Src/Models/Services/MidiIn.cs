@@ -103,9 +103,14 @@ public class MidiIn : IMidiIn
 
         if (!MidiHandlerOwnership.MayRestoreDefault(_lastEventHandler, handler))
         {
-            // Worth shouting about: it means two readers overlapped, which the MIDI semaphore is
-            // supposed to prevent.
-            Log.Warning("Not restoring the default MIDI handler: another reader owns the port.");
+            if (Equals(_lastEventHandler, (EventHandler<MidiReceivedEventArgs>)DefaultHandler))
+                // Ordinary: a read hands the port back when it completes, and its caller's cleanup
+                // then asks again. Nobody is waiting, so there is nothing to protect.
+                Log.Debug("MIDI handler already handed back.");
+            else
+                // This one matters: another reader is mid-request, which the MIDI semaphore is
+                // supposed to make impossible. Restoring here would strand it.
+                Log.Warning("Not restoring the default MIDI handler: another reader owns the port.");
             return;
         }
 

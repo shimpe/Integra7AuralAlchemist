@@ -39,7 +39,9 @@ public class TestMidiHandlerOwnership
             // logic rather than a copy of it.
             if (!MidiHandlerOwnership.MayRestoreDefault(Installed, handler))
             {
-                Warnings.Add("refused to detach another reader");
+                // Mirrors MidiIn: only a *different reader* holding the port is noteworthy; the port
+                // already being back on the default handler is the ordinary double-hand-back.
+                if (!DefaultIsInstalled) Warnings.Add("refused to detach another reader");
                 return;
             }
 
@@ -89,9 +91,11 @@ public class TestMidiHandlerOwnership
 
         midi.ConfigureHandler(reader);
         midi.RemoveHandler(reader);
-        midi.RemoveHandler(reader);   // the timeout path removes, then CleanupAfterTimeOut removes again
+        midi.RemoveHandler(reader);   // the read hands the port back, then its caller's cleanup asks again
 
         Assert.That(midi.DefaultIsInstalled, Is.True);
+        Assert.That(midi.Warnings, Is.Empty,
+            "handing back a port that is already handed back is routine, not a conflict worth warning about");
     }
 
     [Test]
