@@ -32,9 +32,30 @@ public sealed class TabControlBehaviors
     public static string? GetSelectTabByTag(TabControl control) =>
         control.GetValue(SelectTabByTagProperty);
 
+    /// <summary>Bind to a value that changes whenever which tabs are visible changes (e.g. a part's
+    /// tone type). Each change repairs nested selections without navigating anywhere, for the case
+    /// where the selection is stale but the user is not asking to be taken to a particular tab —
+    /// opening a part whose engine differs from whichever sub-tab happened to be selected.</summary>
+    public static readonly AttachedProperty<string?> RepairSelectionsProperty =
+        AvaloniaProperty.RegisterAttached<TabControlBehaviors, TabControl, string?>("RepairSelections");
+
+    public static void SetRepairSelections(TabControl control, string? value) =>
+        control.SetValue(RepairSelectionsProperty, value);
+
+    public static string? GetRepairSelections(TabControl control) =>
+        control.GetValue(RepairSelectionsProperty);
+
     static TabControlBehaviors()
     {
         SelectTabByTagProperty.Changed.AddClassHandler<TabControl>(OnSelectTabByTagChanged);
+        RepairSelectionsProperty.Changed.AddClassHandler<TabControl>(OnRepairSelectionsChanged);
+    }
+
+    private static void OnRepairSelectionsChanged(TabControl control, AvaloniaPropertyChangedEventArgs e)
+    {
+        // Deferred like the repair after a tag selection, so the per-engine IsVisible bindings have
+        // settled before the selections are inspected.
+        Dispatcher.UIThread.Post(() => RepairHiddenSelections(control));
     }
 
     private static void OnSelectTabByTagChanged(TabControl control, AvaloniaPropertyChangedEventArgs e)

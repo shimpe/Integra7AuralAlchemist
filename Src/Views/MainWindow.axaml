@@ -223,7 +223,8 @@
                                                     TabStripPlacement="Top"
                                                     VerticalAlignment="Stretch"
                                                     VerticalContentAlignment="Stretch"
-                                                    behaviors:TabControlBehaviors.SelectTabByTag="{Binding ToneTabKey}">
+                                                    behaviors:TabControlBehaviors.SelectTabByTag="{Binding ToneTabKey}"
+                                                    behaviors:TabControlBehaviors.RepairSelections="{Binding ToneTypeKey}">
                                             <TabItem Header="Midi">
                                                 <local:ParameterCollection
                                                     Parameters="{Binding StudioSetMidiParameters}"

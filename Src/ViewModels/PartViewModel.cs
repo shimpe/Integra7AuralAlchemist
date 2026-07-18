@@ -1334,6 +1334,12 @@ public partial class PartViewModel : ViewModelBase
     /// opened, so refreshing them early would spend round trips on data nobody is looking at.</summary>
     public bool IsInitialized => _deferredInit is { IsCompletedSuccessfully: true };
 
+    /// <summary>This part's tone type, as the key the Advanced tabs repair their selection against.
+    /// Which of those tabs are visible depends on it, and Avalonia keeps rendering a selected tab's
+    /// content after it is hidden (#16879) — so opening a part whose engine differs from the selected
+    /// sub-tab would show the other engine's parameters, which were never read.</summary>
+    public string ToneTypeKey => _selectedPreset?.ToneTypeStr ?? "";
+
     /// <summary>True while this part is loading. The preset list is disabled meanwhile: changing the
     /// preset mid-load means the load is reading a tone the device is about to drop, and the recovery
     /// (cancel, re-send, re-read) runs concurrently with the resync the change itself triggers.
@@ -1664,6 +1670,16 @@ public partial class PartViewModel : ViewModelBase
                 }
                 catch { /* ignore — auditioning is non-essential */ }
             });
+
+            // The per-engine tabs only become visible now that the tone type is known. Announce it so
+            // the Advanced sub-tabs drop a selection belonging to a different engine, whose parameters
+            // this part never reads and would otherwise display at their construction defaults.
+            this.RaisePropertyChanged(nameof(SelectedPresetIsPCMSynthTone));
+            this.RaisePropertyChanged(nameof(SelectedPresetIsPCMDrumKit));
+            this.RaisePropertyChanged(nameof(SelectedPresetIsSNSynthTone));
+            this.RaisePropertyChanged(nameof(SelectedPresetIsSNAcousticTone));
+            this.RaisePropertyChanged(nameof(SelectedPresetIsSNDrumKit));
+            this.RaisePropertyChanged(nameof(ToneTypeKey));
         }
     }
 
