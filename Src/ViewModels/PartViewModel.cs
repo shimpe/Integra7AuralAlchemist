@@ -1307,8 +1307,10 @@ public partial class PartViewModel : ViewModelBase
                 pvm.Add(vm);
             }
 
+            // Each partial is initialized once, in the loop above. Initializing again here would just
+            // repeat its device read: the read is gated on the tone type passed to the constructor, and
+            // the cache write is an idempotent AddOrUpdate.
             PcmSynthTonePartialViewModels = new ReadOnlyObservableCollection<PartialViewModel>(pvm);
-            foreach (var p in PcmSynthTonePartialViewModels) await p.InitializeParameterSourceCachesAsync();
 
             ObservableCollection<PartialViewModel> pvm2 = [];
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_PCM_DRUM; i++)
@@ -1322,7 +1324,6 @@ public partial class PartViewModel : ViewModelBase
             }
 
             PcmDrumKitPartialViewModels = new ReadOnlyObservableCollection<PartialViewModel>(pvm2);
-            foreach (var p in PcmDrumKitPartialViewModels) await p.InitializeParameterSourceCachesAsync();
 
             ObservableCollection<PartialViewModel> pvm3 = [];
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_SN_SYNTH_TONE; i++)
@@ -1336,7 +1337,6 @@ public partial class PartViewModel : ViewModelBase
             }
 
             SNSynthTonePartialViewModels = new ReadOnlyObservableCollection<PartialViewModel>(pvm3);
-            foreach (var p in SNSynthTonePartialViewModels) await p.InitializeParameterSourceCachesAsync();
 
             ObservableCollection<PartialViewModel> pvm4 = [];
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_SN_DRUM; i++)
@@ -1350,7 +1350,6 @@ public partial class PartViewModel : ViewModelBase
             }
 
             SNDrumKitPartialViewModels = new ReadOnlyObservableCollection<PartialViewModel>(pvm4);
-            foreach (var p in SNDrumKitPartialViewModels) await p.InitializeParameterSourceCachesAsync();
 
             List<FullyQualifiedParameter> p_pcmstc =
                 _i7domain.PCMSynthToneCommon(PartNo).GetRelevantParameters(true, true);
