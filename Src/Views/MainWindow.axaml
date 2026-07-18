@@ -28,7 +28,7 @@
                     Value="40" />
         </Style>
     </Window.Styles>
-    <Grid RowDefinitions="Auto,*" ColumnDefinitions="*">
+    <Grid RowDefinitions="Auto,*,Auto" ColumnDefinitions="*">
         <!-- Draggable title-bar strip: FluentAvalonia 3 removed TitleBarHitTestType,
              so with ExtendsContentIntoTitleBar the window is movable only via a
              non-focusable region inside TitleBar.Height (32px). This strip is that
@@ -69,18 +69,8 @@
         <TabControl Grid.Column="0" Grid.Row="1">
             <TabItem Header="Parameters">
                 <Grid ColumnDefinitions="*"
-                      RowDefinitions="Auto,Auto,*">
-                    <StackPanel Grid.Column="0" Grid.Row="0"
-                                Orientation="Horizontal" Spacing="12"
-                                HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding MidiDevices}" VerticalAlignment="Center" />
-                        <!-- Progress of the user tone names, which load after the window is usable.
-                             Collapses to nothing once they are in. -->
-                        <TextBlock Text="{Binding BackgroundInfo}" VerticalAlignment="Center"
-                                   Foreground="{StaticResource SnMutedTextBrush}"
-                                   IsVisible="{Binding BackgroundInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                    </StackPanel>
-                    <StackPanel Grid.Row="1"
+                      RowDefinitions="Auto,*">
+                    <StackPanel Grid.Row="0"
                                 Orientation="Horizontal"
                                 Spacing="20">
                         <Button IsEnabled="{Binding RescanButtonEnabled}"
@@ -148,7 +138,7 @@
                     </StackPanel>
                     <TabControl HorizontalContentAlignment="Left"
                                 TabStripPlacement="Left"
-                                Grid.Row="2"
+                                Grid.Row="1"
                                 Grid.Column="0"
                                 ItemsSource="{Binding PartViewModels}"
                                 SelectedIndex="{Binding CurrentPartSelection, Mode=TwoWay}">
@@ -485,5 +475,22 @@
                 </Panel>
             </TabItem>
         </TabControl>
+
+        <!-- Status bar. Window-level rather than inside the Parameters tab, so the connection state
+             stays visible on the SRX Loader and Motional Surround tabs too. -->
+        <Border Grid.Row="2"
+                Background="{StaticResource SnPanelBackgroundBrush}"
+                BorderBrush="{StaticResource SnStatusBarBorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="10,4">
+            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <TextBlock Text="{Binding MidiDevices}" VerticalAlignment="Center" />
+                <!-- Progress of the user tone names, which load after the window is usable.
+                     Collapses to nothing once they are in. -->
+                <TextBlock Text="{Binding BackgroundInfo}" VerticalAlignment="Center"
+                           Foreground="{StaticResource SnMutedTextBrush}"
+                           IsVisible="{Binding BackgroundInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>
