@@ -204,12 +204,17 @@
                                                           Padding="6,2"
                                                           ToolTip.Tip="Show / hide the preset list"
                                                           Content="☰" />
+                                            <!-- Disabled while the part loads. Changing the preset
+                                                 mid-load leaves the load reading a tone the device is
+                                                 about to drop, and its recovery then races the resync
+                                                 the change itself starts. -->
                                             <local:PresetSelector SearchText="{Binding SearchTextPreset, Mode=TwoWay}"
                                                                   Presets="{Binding Presets}"
                                                                   SelectedPreset="{Binding SelectedPreset, Mode=TwoWay}"
                                                                   MaxWidth="640"
                                                                   VerticalAlignment="Stretch"
                                                                   VerticalContentAlignment="Stretch"
+                                                                  IsEnabled="{Binding !IsLoading}"
                                                                   IsVisible="{Binding #PresetToggle.IsChecked}" />
                                         </StackPanel>
 

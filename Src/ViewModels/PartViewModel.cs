@@ -267,6 +267,13 @@ public partial class PartViewModel : ViewModelBase
     /// <summary>Cancels the deferred initialization when the part's preset changes underneath it.</summary>
     private CancellationTokenSource? _initCts;
 
+    /// <summary>Counts preset changes, so a reload can tell whether it is still the current one.
+    /// Picking presets faster than the device can load them is easy; only the last one should read.</summary>
+    private int _presetGeneration;
+
+    /// <summary>How long to let the device load a patch before reading it back.</summary>
+    private const int PresetSettleMilliseconds = 250;
+
     //
 
     //
@@ -1082,9 +1089,12 @@ public partial class PartViewModel : ViewModelBase
                     $"part {PartNo}: select preset '{value.Name}' ({value.ToneTypeStr} {value.InternalUserDefinedStr}, " +
                     $"msb {value.Msb} lsb {value.Lsb} pc {value.Pc})");
 
-                // Only a part that has been opened has deferred state; the startup preselect sets this
-                // property for all 16 parts and must not drag them all into initializing.
-                var wasInitializing = _deferredInit is not null;
+                // Only a load that is actually running needs interrupting. A part that finished loading
+                // is refreshed by the resync this change triggers, exactly as it was before parts were
+                // loaded lazily; re-running the whole load as well would put two heavy read sequences on
+                // the port at once. The preset list is disabled while loading, so in practice this is
+                // reached only by a preset change that did not come from the list.
+                var wasInitializing = _deferredInit is { IsCompleted: false };
 
                 _selectedPreset = value;
 
@@ -1097,7 +1107,7 @@ public partial class PartViewModel : ViewModelBase
                 // switched, and the resync that follows re-initializes the part then.
                 if (wasInitializing) CancelDeferredInit();
 
-                _ = ChangePresetAndReloadAsync(wasInitializing);
+                _ = ChangePresetAndReloadAsync(wasInitializing, ++_presetGeneration);
                 this.RaisePropertyChanged();
             }
         }
@@ -1305,6 +1315,7 @@ public partial class PartViewModel : ViewModelBase
         _initCts?.Dispose();
         _initCts = new CancellationTokenSource();
         _deferredInit = RunDeferredInitAsync(_initCts.Token);
+        this.RaisePropertyChanged(nameof(IsLoading));
         return _deferredInit;
     }
 
@@ -1315,12 +1326,18 @@ public partial class PartViewModel : ViewModelBase
     {
         _initCts?.Cancel();
         _deferredInit = null;
+        this.RaisePropertyChanged(nameof(IsLoading));
     }
 
     /// <summary>True once the deferred work has finished. Callers that only want to refresh a part
     /// use this to skip parts that were never opened: those read current hardware state when they are
     /// opened, so refreshing them early would spend round trips on data nobody is looking at.</summary>
     public bool IsInitialized => _deferredInit is { IsCompletedSuccessfully: true };
+
+    /// <summary>True while this part is loading. The preset list is disabled meanwhile: changing the
+    /// preset mid-load means the load is reading a tone the device is about to drop, and the recovery
+    /// (cancel, re-send, re-read) runs concurrently with the resync the change itself triggers.</summary>
+    public bool IsLoading => _deferredInit is { IsCompleted: false };
 
     /// <summary>True for a part that was opened and then had its initialization cancelled by a preset
     /// change. It has no usable tone state, so a refresh must re-initialize it rather than skip it the
@@ -1355,6 +1372,11 @@ public partial class PartViewModel : ViewModelBase
             // Let a later open (or resync) try again rather than caching the failure forever.
             _deferredInit = null;
             throw;
+        }
+        finally
+        {
+            // Re-enables the preset list, whether the load finished, failed or was abandoned.
+            this.RaisePropertyChanged(nameof(IsLoading));
         }
     }
 
@@ -1676,10 +1698,24 @@ public partial class PartViewModel : ViewModelBase
     /// patch, promptly and wrongly. Nothing else reloads it either — the resync that a preset change
     /// normally triggers is driven by the device echoing a change made on its own panel, which does
     /// not happen for a change this application sent.</summary>
-    private async Task ChangePresetAndReloadAsync(bool reload)
+    private async Task ChangePresetAndReloadAsync(bool reload, int generation)
     {
         await ChangePresetAsync();
-        if (reload) await EnsureInitializedAsync();
+
+        // Another preset was picked while this one was being sent. That change is doing its own
+        // reload, and this one would read the device before its program change had arrived — the
+        // reads are answered, just for the wrong patch.
+        if (generation != _presetGeneration) return;
+
+        if (!reload) return;
+
+        // The device needs a moment to actually load the patch. Reading the instant the program
+        // change goes out returns the outgoing tone, which is how a part ended up showing a partial
+        // that was never read: correct-looking common values, zeroed partials.
+        await Task.Delay(PresetSettleMilliseconds);
+        if (generation != _presetGeneration) return;
+
+        await EnsureInitializedAsync();
     }
 
     public async Task ChangePresetAsync()
