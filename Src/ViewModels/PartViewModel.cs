@@ -1085,6 +1085,20 @@ public partial class PartViewModel : ViewModelBase
         {
             if (_selectedPreset != value && value is not null)
             {
+                // Refuse a user's preset change while the part is loading. Disabling the list is the
+                // visible half of this rule, but it is only as good as the enabled state — scrolling
+                // the list was enough to get a click through — so the rule is enforced here, where
+                // nothing can route around it. Preset resolution driven by the device is exempt: that
+                // is how the part learns what it is holding, including during a load.
+                if (IsLoading && !_applyingPresetFromDevice)
+                {
+                    UserActionLog.Action(
+                        $"part {PartNo}: ignoring preset '{value.Name}', the part is still loading");
+                    // Snap the list back to what is really selected.
+                    this.RaisePropertyChanged();
+                    return;
+                }
+
                 UserActionLog.Action(
                     $"part {PartNo}: select preset '{value.Name}' ({value.ToneTypeStr} {value.InternalUserDefinedStr}, " +
                     $"msb {value.Msb} lsb {value.Lsb} pc {value.Pc})");
@@ -1137,7 +1151,18 @@ public partial class PartViewModel : ViewModelBase
                 pcstr == $"{p.Pc - 1}") // note: seems like integra-7 sends back a one-based program change (PC)??
             {
                 UpdatePartialViewModelToneTypeStrings(p);
-                SelectedPreset = p;
+
+                // This reflects what the device reports, so it is allowed through even mid-load.
+                _applyingPresetFromDevice = true;
+                try
+                {
+                    SelectedPreset = p;
+                }
+                finally
+                {
+                    _applyingPresetFromDevice = false;
+                }
+
                 return;
             }
     }
@@ -1354,6 +1379,10 @@ public partial class PartViewModel : ViewModelBase
     }
 
     private bool _isLoading;
+
+    /// <summary>Set while a preset is being applied because the device reports holding it, as opposed
+    /// to the user picking one. Only the latter is refused during a load.</summary>
+    private bool _applyingPresetFromDevice;
 
     /// <summary>True for a part that was opened and then had its initialization cancelled by a preset
     /// change. It has no usable tone state, so a refresh must re-initialize it rather than skip it the
