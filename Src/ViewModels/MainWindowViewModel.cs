@@ -82,6 +82,10 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        // Saving reads the part's tone domains, so it cannot run while the part is still loading (the
+        // tab can be clicked and saved faster than initialization completes).
+        await PartViewModels[_currentPartSelection].EnsureInitializedAsync();
+
         List<Integra7Preset> presets = PartViewModels[1].Presets.ToList();
         var preset = PartViewModels[_currentPartSelection].SelectedPreset;
         var toneType = preset.ToneTypeStr;
@@ -559,6 +563,34 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             this.RaiseAndSetIfChanged(ref _currentPartSelection, value);
             this.RaisePropertyChanged(nameof(CurrentPartIsNotCommonPart));
+            // Opening a part's tab is what pays for the rest of its state. EnsureInitializedAsync is
+            // idempotent, so returning to a tab costs nothing.
+            _ = EnsureSelectedPartInitializedAsync(value);
+        }
+    }
+
+    /// <summary>Initializes the part behind a tab index, reporting progress on the status bar. Runs
+    /// unawaited from the selection setter, so it swallows its own failures.</summary>
+    private async Task EnsureSelectedPartInitializedAsync(int tabIndex)
+    {
+        if (PartViewModels is null || tabIndex < 0 || tabIndex >= PartViewModels.Count) return;
+
+        var pvm = PartViewModels[tabIndex];
+        if (pvm.IsCommonTab || pvm.IsInitialized) return;
+
+        try
+        {
+            BackgroundInfo = $"Loading part {tabIndex}...";
+            await pvm.EnsureInitializedAsync();
+        }
+        catch (Exception e)
+        {
+            Log.Error($"Failed to initialize part {tabIndex}: {e.Message}");
+        }
+        finally
+        {
+            // Do not clear a message the background preset loader may have put there in the meantime.
+            if (BackgroundInfo == $"Loading part {tabIndex}...") BackgroundInfo = "";
         }
     }
 
@@ -685,6 +717,9 @@ public partial class MainWindowViewModel : ViewModelBase
             if (PartViewModels != null)
                 foreach (var pvm in PartViewModels)
                 {
+                    // A part that was never opened has nothing to refresh: it reads the current state
+                    // when it is first opened, so resyncing it now would only spend round trips.
+                    if (!pvm.IsCommonTab && !pvm.IsInitialized) continue;
                     SyncInfo = $"Resync part {pvm.PartNo}";
                     await pvm.EnsurePreselectIsNotNullAsync();
                     await pvm.ResyncPartAsync((byte)pvm.PartNo);
@@ -708,6 +743,9 @@ public partial class MainWindowViewModel : ViewModelBase
                 {
                     SyncInfo = $"Resync part {i}";
                     i++;
+                    // Same reasoning as ResyncAllPartsAsync: an unopened part refreshes itself when
+                    // opened. ResyncPartAsync below ignores every part except `part` anyway.
+                    if (!pvm.IsCommonTab && !pvm.IsInitialized) continue;
                     await pvm.EnsurePreselectIsNotNullAsync();
                     await pvm.ResyncPartAsync(part);
                 }
@@ -729,10 +767,13 @@ public partial class MainWindowViewModel : ViewModelBase
                     if (part == pvm.PartNo)
                     {
                         SyncInfo = $"Resync part {pvm.PartNo}";
+                        // The preset itself is refreshed even for a part that was never opened: it is a
+                        // single read, and the preset list and tab visibility show it everywhere.
                         var b = _integra7Communicator.StudioSetPart(part);
                         await b.ReadFromIntegraAsync();
                         pvm.PreSelectConfiguredPreset(b);
-                        await pvm.ResyncPartAsync(part);
+                        // The full resync is not, since an unopened part reads everything when opened.
+                        if (pvm.IsCommonTab || pvm.IsInitialized) await pvm.ResyncPartAsync(part);
                     }
         }
         finally

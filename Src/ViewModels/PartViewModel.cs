@@ -260,6 +260,10 @@ public partial class PartViewModel : ViewModelBase
     [Reactive] private int _advancedPartialIndex;
     private Integra7Preset? _selectedPreset;
 
+    /// <summary>The deferred initialization, once started. Doubles as the "already initialized" flag
+    /// and as the handle concurrent callers await, so the work happens exactly once per part.</summary>
+    private Task? _deferredInit;
+
     //
 
     //
@@ -1244,6 +1248,11 @@ public partial class PartViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Startup initialization. For a part this reads only its Studio Set Part block, which is
+    /// what resolves <see cref="SelectedPreset"/> — the Motional Surround pucks, Save User Tone and the
+    /// per-tone-type tab visibility all need that for every part, opened or not. Everything else costs
+    /// far more and is deferred to <see cref="EnsureInitializedAsync"/>, which runs when the part's tab
+    /// is first opened. The common tab is global state, so it is read in full here.</summary>
     public async Task InitializeParameterSourceCachesAsync()
     {
         if (_i7domain is null)
@@ -1251,14 +1260,53 @@ public partial class PartViewModel : ViewModelBase
 
         if (!IsCommonTab)
         {
-            await _i7domain.StudioSetMidi(PartNo).ReadFromIntegraAsync();
-            List<FullyQualifiedParameter> p_mid = _i7domain.StudioSetMidi(PartNo).GetRelevantParameters(true, true);
-            _sourceCacheStudioSetMidiParameters.AddOrUpdate(p_mid);
-
             await _i7domain.StudioSetPart(PartNo).ReadFromIntegraAsync();
             List<FullyQualifiedParameter> p_part = _i7domain.StudioSetPart(PartNo).GetRelevantParameters(true, true);
             _sourceCacheStudioSetPartParameters.AddOrUpdate(p_part);
             PreSelectConfiguredPreset(_i7domain.StudioSetPart(PartNo));
+        }
+        else
+        {
+            await InitializeCommonTabAsync();
+        }
+    }
+
+    /// <summary>Everything this part needs that its own tab has to be open to show: its MIDI and EQ
+    /// blocks, the tone-type-specific domains, the ~157 partial view models and the friendly editors.
+    /// Runs at most once — callers share the same task, so the tab selection, a resync and a hardware
+    /// message racing to be first all wait on one initialization rather than starting three.</summary>
+    public Task EnsureInitializedAsync()
+    {
+        if (_i7domain is null || IsCommonTab) return Task.CompletedTask;
+        return _deferredInit ??= RunDeferredInitAsync();
+    }
+
+    /// <summary>True once the deferred work has finished. Callers that only want to refresh a part
+    /// use this to skip parts that were never opened: those read current hardware state when they are
+    /// opened, so refreshing them early would spend round trips on data nobody is looking at.</summary>
+    public bool IsInitialized => _deferredInit is { IsCompletedSuccessfully: true };
+
+    private async Task RunDeferredInitAsync()
+    {
+        try
+        {
+            await InitializeDeferredPartStateAsync();
+        }
+        catch
+        {
+            // Let a later open (or resync) try again rather than caching the failure forever.
+            _deferredInit = null;
+            throw;
+        }
+    }
+
+    private async Task InitializeDeferredPartStateAsync()
+    {
+        if (_i7domain is not null)
+        {
+            await _i7domain.StudioSetMidi(PartNo).ReadFromIntegraAsync();
+            List<FullyQualifiedParameter> p_mid = _i7domain.StudioSetMidi(PartNo).GetRelevantParameters(true, true);
+            _sourceCacheStudioSetMidiParameters.AddOrUpdate(p_mid);
 
             await _i7domain.StudioSetPartEQ(PartNo).ReadFromIntegraAsync();
             List<FullyQualifiedParameter>
@@ -1513,7 +1561,10 @@ public partial class PartViewModel : ViewModelBase
                 catch { /* ignore — auditioning is non-essential */ }
             });
         }
-        else
+    }
+
+    private async Task InitializeCommonTabAsync()
+    {
         {
             await _i7domain?.Setup.ReadFromIntegraAsync();
             List<FullyQualifiedParameter> p_s = _i7domain?.Setup.GetRelevantParameters();
@@ -1600,6 +1651,10 @@ public partial class PartViewModel : ViewModelBase
         }
         else
         {
+            // A resync touches the partial view models and the tone domains, none of which exist until
+            // the part has been opened. Make sure they do.
+            await EnsureInitializedAsync();
+
             var midiPart = _i7domain?.StudioSetMidi(part);
             await midiPart.ReadFromIntegraAsync();
             ForceUiRefresh(midiPart.StartAddressName, midiPart.OffsetAddressName, midiPart.Offset2AddressName, "",
@@ -1609,7 +1664,7 @@ public partial class PartViewModel : ViewModelBase
             PreSelectConfiguredPreset(setPart);
             ForceUiRefresh(setPart.StartAddressName, setPart.OffsetAddressName, setPart.Offset2AddressName, "",
                 false /* don't cause inf loop */);
-            if (_selectedPreset.ToneTypeStr == "PCMS")
+            if (_selectedPreset?.ToneTypeStr == "PCMS")
             {
                 var setPCMSTone = _i7domain?.PCMSynthToneCommon(part);
                 await setPCMSTone.ReadFromIntegraAsync();
@@ -1629,7 +1684,7 @@ public partial class PartViewModel : ViewModelBase
                     setPCMSTonePMT.Offset2AddressName, "", false /* don't cause inf loop */);
                 foreach (var p in PcmSynthTonePartialViewModels) await p.ResyncPartAsync(part);
             }
-            else if (_selectedPreset.ToneTypeStr == "PCMD")
+            else if (_selectedPreset?.ToneTypeStr == "PCMD")
             {
                 var setPCMDKit = _i7domain?.PCMDrumKitCommon(part);
                 await setPCMDKit.ReadFromIntegraAsync();
@@ -1649,7 +1704,7 @@ public partial class PartViewModel : ViewModelBase
                     setPCMDCompeq.Offset2AddressName, "", false);
                 foreach (var p in PcmDrumKitPartialViewModels) await p.ResyncPartAsync(part);
             }
-            else if (_selectedPreset.ToneTypeStr == "SN-S")
+            else if (_selectedPreset?.ToneTypeStr == "SN-S")
             {
                 var setSNS = _i7domain?.SNSynthToneCommon(part);
                 await setSNS.ReadFromIntegraAsync();
@@ -1660,7 +1715,7 @@ public partial class PartViewModel : ViewModelBase
                     "", false);
                 foreach (var p in SNSynthTonePartialViewModels) await p.ResyncPartAsync(part);
             }
-            else if (_selectedPreset.ToneTypeStr == "SN-A")
+            else if (_selectedPreset?.ToneTypeStr == "SN-A")
             {
                 var setSNA = _i7domain?.SNAcousticToneCommon(part);
                 await setSNA.ReadFromIntegraAsync();
@@ -1670,7 +1725,7 @@ public partial class PartViewModel : ViewModelBase
                 ForceUiRefresh(setSNAMFX.StartAddressName, setSNAMFX.OffsetAddressName, setSNAMFX.Offset2AddressName,
                     "", false);
             }
-            else if (_selectedPreset.ToneTypeStr == "SN-D")
+            else if (_selectedPreset?.ToneTypeStr == "SN-D")
             {
                 var setSNDKit = _i7domain?.SNDrumKitCommon(part);
                 await setSNDKit.ReadFromIntegraAsync();
