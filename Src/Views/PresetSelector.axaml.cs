@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using Integra7AuralAlchemist.Models.Data;
 
 namespace Integra7AuralAlchemist.Views;
@@ -43,11 +44,7 @@ public partial class PresetSelector : UserControl
     public Integra7Preset SelectedPreset
     {
         get => (Integra7Preset)GetValue(SelectedPresetProperty);
-        set
-        {
-            SetValue(SelectedPresetProperty, value);
-            PresetDataGrid.ScrollIntoView(value, null);
-        }
+        set => SetValue(SelectedPresetProperty, value);
     }
 
     public int SelectedPresetIndex
@@ -60,5 +57,36 @@ public partial class PresetSelector : UserControl
     {
         SelectedPreset = (Integra7Preset)args.Row.DataContext;
         SelectedPresetIndex = args.Row.Index;
+    }
+
+    /// <summary>Keep the selected preset visible. Reacting to the property *change* (rather than to the
+    /// CLR setter) is what makes this work when the values arrive through bindings — switching part tabs
+    /// rebinds Presets/SelectedPreset via SetValue, which never runs the CLR setter.</summary>
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == SelectedPresetProperty || change.Property == PresetsProperty)
+            ScrollToSelected();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        // The template may only be realized after the bindings have already delivered their values.
+        ScrollToSelected();
+    }
+
+    private void ScrollToSelected()
+    {
+        // Deferred: the DataGrid can only scroll to a row once it has been measured and its rows exist.
+        Dispatcher.UIThread.Post(() =>
+        {
+            var selected = SelectedPreset;
+            // Scroll by identity, never by index: the list is filtered (search text, unloaded SRX banks)
+            // and re-sorted, so row indices are not stable. The selection can also be filtered out of the
+            // visible list entirely while remaining the selected preset — nothing to scroll to then.
+            if (selected is null || Presets is null || !Presets.Contains(selected)) return;
+            PresetDataGrid.ScrollIntoView(selected, null);
+        }, DispatcherPriority.Loaded);
     }
 }
