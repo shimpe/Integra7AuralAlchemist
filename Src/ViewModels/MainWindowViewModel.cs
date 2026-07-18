@@ -245,6 +245,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 PartViewModels = new ReadOnlyObservableCollection<PartViewModel>(pvm);
                 this.RaisePropertyChanged(nameof(PartViewModels));
 
+                // A reconnect replaces every part with a fresh, uninitialized instance while the tab
+                // index stays put, so the selection setter never fires and the tab on screen would keep
+                // showing an empty part. Initialize whatever is selected right now.
+                _ = EnsureSelectedPartInitializedAsync(CurrentPartSelection);
+
                 // All Studio Set Part + common Motional Surround domains have now been read,
                 // so the spatial editor can bind to their live values.
                 MotionalSurroundVm?.Dispose();

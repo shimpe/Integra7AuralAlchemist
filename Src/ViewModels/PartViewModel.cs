@@ -1304,6 +1304,11 @@ public partial class PartViewModel : ViewModelBase
     {
         if (_i7domain is not null)
         {
+            // Decide the tone type once. The preset selector is usable as soon as the tab opens, and
+            // the background name loader can resolve a preset too, so re-reading the field after each
+            // hardware read could build the tone domains for one tone and the partials for another.
+            var toneType = _selectedPreset?.ToneTypeStr;
+
             await _i7domain.StudioSetMidi(PartNo).ReadFromIntegraAsync();
             List<FullyQualifiedParameter> p_mid = _i7domain.StudioSetMidi(PartNo).GetRelevantParameters(true, true);
             _sourceCacheStudioSetMidiParameters.AddOrUpdate(p_mid);
@@ -1313,31 +1318,31 @@ public partial class PartViewModel : ViewModelBase
                 p_parteq = _i7domain.StudioSetPartEQ(PartNo).GetRelevantParameters(true, true);
             _sourceCacheStudioSetPartEQParameters.AddOrUpdate(p_parteq);
 
-            if (_selectedPreset?.ToneTypeStr == "PCMS")
+            if (toneType == "PCMS")
             {
                 await _i7domain.PCMSynthToneCommon(PartNo).ReadFromIntegraAsync();
                 await _i7domain.PCMSynthToneCommon2(PartNo).ReadFromIntegraAsync();
                 await _i7domain.PCMSynthToneCommonMFX(PartNo).ReadFromIntegraAsync();
                 await _i7domain.PCMSynthTonePMT(PartNo).ReadFromIntegraAsync();
             }
-            else if (_selectedPreset?.ToneTypeStr == "PCMD")
+            else if (toneType == "PCMD")
             {
                 await _i7domain.PCMDrumKitCommon(PartNo).ReadFromIntegraAsync();
                 await _i7domain.PCMDrumKitCommon2(PartNo).ReadFromIntegraAsync();
                 await _i7domain.PCMDrumKitCommonMFX(PartNo).ReadFromIntegraAsync();
                 await _i7domain.PCMDrumKitCompEQ(PartNo).ReadFromIntegraAsync();
             }
-            else if (_selectedPreset?.ToneTypeStr == "SN-S")
+            else if (toneType == "SN-S")
             {
                 await _i7domain.SNSynthToneCommon(PartNo).ReadFromIntegraAsync();
                 await _i7domain.SNSynthToneCommonMFX(PartNo).ReadFromIntegraAsync();
             }
-            else if (_selectedPreset?.ToneTypeStr == "SN-A")
+            else if (toneType == "SN-A")
             {
                 await _i7domain.SNAcousticToneCommon(PartNo).ReadFromIntegraAsync();
                 await _i7domain.SNAcousticToneCommonMFX(PartNo).ReadFromIntegraAsync();
             }
-            else if (_selectedPreset?.ToneTypeStr == "SN-D")
+            else if (toneType == "SN-D")
             {
                 await _i7domain.SNDrumKitCommon(PartNo).ReadFromIntegraAsync();
                 await _i7domain.SNDrumKitCommonMFX(PartNo).ReadFromIntegraAsync();
@@ -1348,7 +1353,7 @@ public partial class PartViewModel : ViewModelBase
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_PCM_SYNTH_TONE; i++)
             {
                 var vm = new PCMSynthTonePartialViewModel(this, PartNo, i,
-                    _selectedPreset?.ToneTypeStr,
+                    toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
                     _i7domain, _semaphore);
                 await vm.InitializeParameterSourceCachesAsync();
@@ -1364,7 +1369,7 @@ public partial class PartViewModel : ViewModelBase
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_PCM_DRUM; i++)
             {
                 var vm = new PCMDrumKitPartialViewModel(this, PartNo, i,
-                    _selectedPreset?.ToneTypeStr,
+                    toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
                     _i7domain, _semaphore);
                 await vm.InitializeParameterSourceCachesAsync();
@@ -1377,7 +1382,7 @@ public partial class PartViewModel : ViewModelBase
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_SN_SYNTH_TONE; i++)
             {
                 var vm = new SNSynthTonePartialViewModel(this, PartNo, i,
-                    _selectedPreset?.ToneTypeStr,
+                    toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
                     _i7domain, _semaphore);
                 await vm.InitializeParameterSourceCachesAsync();
@@ -1390,7 +1395,7 @@ public partial class PartViewModel : ViewModelBase
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_SN_DRUM; i++)
             {
                 var vm = new SNDrumKitPartialViewModel(this, PartNo, i,
-                    _selectedPreset?.ToneTypeStr,
+                    toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
                     _i7domain, _semaphore);
                 await vm.InitializeParameterSourceCachesAsync();
