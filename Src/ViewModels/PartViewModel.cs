@@ -1078,6 +1078,11 @@ public partial class PartViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Add a preset that arrived after this view model was built (the user tone names are
+    /// fetched in the background). The shared preset list this view model was constructed with is the
+    /// same object the loader appends to, so only the source cache needs the extra row.</summary>
+    public void AddPreset(Integra7Preset p) => _sourceCachePresets.AddOrUpdate(p);
+
     public async Task EnsurePreselectIsNotNullAsync()
     {
         if (_selectedPreset is null && PartNo != 255)
