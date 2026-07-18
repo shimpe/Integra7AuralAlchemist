@@ -128,6 +128,10 @@ public sealed partial class PCMDrumKitPartialViewModel : PartialViewModel
         {
             var b = _i7domain.PCMDrumKitPartial(_zeroBasedPart, _zeroBasedPartial);
             await b.ReadFromIntegraAsync();
+            // Which parameters are relevant depends on values this read just brought in, so
+            // the cache is rebuilt rather than only refreshed. Skipping this leaves a partial
+            // whose cache was built while its domain was unread showing nothing at all.
+            _sourceCachePCMDrumKitPartialParameters.AddOrUpdate(b.GetRelevantParameters(true, true));
             ForceUiRefresh(b.StartAddressName, b.OffsetAddressName, b.Offset2AddressName, "",
                 false /* don't cause inf loop */);
         }

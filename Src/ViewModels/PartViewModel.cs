@@ -264,6 +264,16 @@ public partial class PartViewModel : ViewModelBase
     /// and as the handle concurrent callers await, so the work happens exactly once per part.</summary>
     private Task? _deferredInit;
 
+    /// <summary>Cancels the deferred initialization when the part's preset changes underneath it.</summary>
+    private CancellationTokenSource? _initCts;
+
+    /// <summary>Counts preset changes, so a reload can tell whether it is still the current one.
+    /// Picking presets faster than the device can load them is easy; only the last one should read.</summary>
+    private int _presetGeneration;
+
+    /// <summary>How long to let the device load a patch before reading it back.</summary>
+    private const int PresetSettleMilliseconds = 250;
+
     //
 
     //
@@ -1011,13 +1021,37 @@ public partial class PartViewModel : ViewModelBase
     public ReadOnlyObservableCollection<FullyQualifiedParameter> SNSynthToneCommonMFXParameters =>
         _SNSynthToneCommonMFXParameters;
 
-    public ReadOnlyObservableCollection<PartialViewModel>? PcmSynthTonePartialViewModels { get; private set; }
+    // These four are null until the part loads and are what the "Advanced — Partials" tab strips bind
+    // to. They must announce their assignment: a plain auto-property binds once, reads null, and is
+    // never told otherwise, which left those tab strips — and so the whole Partials tab — empty.
+    private ReadOnlyObservableCollection<PartialViewModel>? _pcmSynthTonePartialViewModels;
+    private ReadOnlyObservableCollection<PartialViewModel>? _pcmDrumKitPartialViewModels;
+    private ReadOnlyObservableCollection<PartialViewModel>? _snSynthTonePartialViewModels;
+    private ReadOnlyObservableCollection<PartialViewModel>? _snDrumKitPartialViewModels;
 
-    public ReadOnlyObservableCollection<PartialViewModel>? PcmDrumKitPartialViewModels { get; private set; }
+    public ReadOnlyObservableCollection<PartialViewModel>? PcmSynthTonePartialViewModels
+    {
+        get => _pcmSynthTonePartialViewModels;
+        private set => this.RaiseAndSetIfChanged(ref _pcmSynthTonePartialViewModels, value);
+    }
 
-    public ReadOnlyObservableCollection<PartialViewModel>? SNSynthTonePartialViewModels { get; private set; }
+    public ReadOnlyObservableCollection<PartialViewModel>? PcmDrumKitPartialViewModels
+    {
+        get => _pcmDrumKitPartialViewModels;
+        private set => this.RaiseAndSetIfChanged(ref _pcmDrumKitPartialViewModels, value);
+    }
 
-    public ReadOnlyObservableCollection<PartialViewModel>? SNDrumKitPartialViewModels { get; private set; }
+    public ReadOnlyObservableCollection<PartialViewModel>? SNSynthTonePartialViewModels
+    {
+        get => _snSynthTonePartialViewModels;
+        private set => this.RaiseAndSetIfChanged(ref _snSynthTonePartialViewModels, value);
+    }
+
+    public ReadOnlyObservableCollection<PartialViewModel>? SNDrumKitPartialViewModels
+    {
+        get => _snDrumKitPartialViewModels;
+        private set => this.RaiseAndSetIfChanged(ref _snDrumKitPartialViewModels, value);
+    }
 
     public ReadOnlyObservableCollection<FullyQualifiedParameter> SNAcousticToneCommonParameters =>
         _SNAcousticToneCommonParameters;
@@ -1075,11 +1109,43 @@ public partial class PartViewModel : ViewModelBase
         {
             if (_selectedPreset != value && value is not null)
             {
+                // Refuse a user's preset change while the part is loading. Disabling the list is the
+                // visible half of this rule, but it is only as good as the enabled state — scrolling
+                // the list was enough to get a click through — so the rule is enforced here, where
+                // nothing can route around it. Preset resolution driven by the device is exempt: that
+                // is how the part learns what it is holding, including during a load.
+                if (IsLoading && !_applyingPresetFromDevice)
+                {
+                    UserActionLog.Action(
+                        $"part {PartNo}: ignoring preset '{value.Name}', the part is still loading");
+                    // Snap the list back to what is really selected.
+                    this.RaisePropertyChanged();
+                    return;
+                }
+
                 UserActionLog.Action(
                     $"part {PartNo}: select preset '{value.Name}' ({value.ToneTypeStr} {value.InternalUserDefinedStr}, " +
                     $"msb {value.Msb} lsb {value.Lsb} pc {value.Pc})");
+
+                // Only a load that is actually running needs interrupting. A part that finished loading
+                // is refreshed by the resync this change triggers, exactly as it was before parts were
+                // loaded lazily; re-running the whole load as well would put two heavy read sequences on
+                // the port at once. The preset list is disabled while loading, so in practice this is
+                // reached only by a preset change that did not come from the list.
+                var wasInitializing = _deferredInit is { IsCompleted: false };
+
                 _selectedPreset = value;
-                ChangePresetAsync();
+
+                // Stop an initialization that is reading the outgoing tone's domains: those reads go to
+                // a tone the device is about to stop holding, and each one waits out its timeout.
+                //
+                // Do NOT start the replacement here. The program change below has not been sent yet,
+                // let alone acted on, so reading now would return the outgoing patch's data — answered
+                // promptly and completely wrong. The device echoes the change when it has actually
+                // switched, and the resync that follows re-initializes the part then.
+                if (wasInitializing) CancelDeferredInit();
+
+                _ = ChangePresetAndReloadAsync(wasInitializing, ++_presetGeneration);
                 this.RaisePropertyChanged();
             }
         }
@@ -1109,7 +1175,18 @@ public partial class PartViewModel : ViewModelBase
                 pcstr == $"{p.Pc - 1}") // note: seems like integra-7 sends back a one-based program change (PC)??
             {
                 UpdatePartialViewModelToneTypeStrings(p);
-                SelectedPreset = p;
+
+                // This reflects what the device reports, so it is allowed through even mid-load.
+                _applyingPresetFromDevice = true;
+                try
+                {
+                    SelectedPreset = p;
+                }
+                finally
+                {
+                    _applyingPresetFromDevice = false;
+                }
+
                 return;
             }
     }
@@ -1281,7 +1358,24 @@ public partial class PartViewModel : ViewModelBase
     public Task EnsureInitializedAsync()
     {
         if (_i7domain is null || IsCommonTab) return Task.CompletedTask;
-        return _deferredInit ??= RunDeferredInitAsync();
+        if (_deferredInit is not null) return _deferredInit;
+
+        _everOpened = true;
+        _initCts?.Dispose();
+        _initCts = new CancellationTokenSource();
+        IsLoading = true;
+        _deferredInit = RunDeferredInitAsync(_initCts.Token);
+        return _deferredInit;
+    }
+
+    /// <summary>Abandon an initialization that is reading the wrong tone. The device answers reads only
+    /// for the tone a part currently holds, so once the preset changes, every remaining read of the old
+    /// tone's domains goes unanswered and costs a 1.5s timeout — 62 of them for a drum kit.</summary>
+    private void CancelDeferredInit()
+    {
+        _initCts?.Cancel();
+        _deferredInit = null;
+        IsLoading = false;
     }
 
     /// <summary>True once the deferred work has finished. Callers that only want to refresh a part
@@ -1289,11 +1383,58 @@ public partial class PartViewModel : ViewModelBase
     /// opened, so refreshing them early would spend round trips on data nobody is looking at.</summary>
     public bool IsInitialized => _deferredInit is { IsCompletedSuccessfully: true };
 
-    private async Task RunDeferredInitAsync()
+    /// <summary>This part's tone type, as the key the Advanced tabs repair their selection against.
+    /// Which of those tabs are visible depends on it, and Avalonia keeps rendering a selected tab's
+    /// content after it is hidden (#16879) — so opening a part whose engine differs from the selected
+    /// sub-tab would show the other engine's parameters, which were never read.</summary>
+    public string ToneTypeKey => _selectedPreset?.ToneTypeStr ?? "";
+
+    /// <summary>True while this part is loading. The preset list is disabled meanwhile: changing the
+    /// preset mid-load means the load is reading a tone the device is about to drop, and the recovery
+    /// (cancel, re-send, re-read) runs concurrently with the resync the change itself triggers.
+    ///
+    /// Held as a field rather than derived from the load task. The task only completes once the method
+    /// producing it returns, which is after its own finally block — so a notification raised there would
+    /// still report loading, and the list would stay disabled until something else re-evaluated it.</summary>
+    public bool IsLoading
     {
+        get => _isLoading;
+        private set => this.RaiseAndSetIfChanged(ref _isLoading, value);
+    }
+
+    private bool _isLoading;
+
+    /// <summary>Set while a preset is being applied because the device reports holding it, as opposed
+    /// to the user picking one. Only the latter is refused during a load.</summary>
+    private bool _applyingPresetFromDevice;
+
+    /// <summary>True for a part that was opened and then had its initialization cancelled by a preset
+    /// change. It has no usable tone state, so a refresh must re-initialize it rather than skip it the
+    /// way it skips parts nobody ever opened.</summary>
+    public bool NeedsReinitialization => _everOpened && _deferredInit is null;
+
+    /// <summary>Whether this part's tab has ever been opened, which is what separates "never loaded, so
+    /// leave it alone" from "loaded once, so keep it current".</summary>
+    private bool _everOpened;
+
+    private async Task RunDeferredInitAsync(CancellationToken token)
+    {
+        // Never run synchronously: EnsureInitializedAsync assigns _deferredInit from the return value,
+        // so a body that reset the field before that assignment would have its reset overwritten.
+        await Task.Yield();
+
         try
         {
-            await InitializeDeferredPartStateAsync();
+            // Bracketed here rather than at the call site, so a re-initialization triggered by a preset
+            // change is traced too — not just the one a tab click starts.
+            UserActionLog.Begin($"initialize part {PartNo}");
+            await InitializeDeferredPartStateAsync(token);
+            UserActionLog.End($"initialize part {PartNo}");
+        }
+        catch (OperationCanceledException)
+        {
+            // Superseded by a preset change; the fresh initialization it started owns the part now.
+            UserActionLog.Action($"part {PartNo}: initialization abandoned, the preset changed");
         }
         catch
         {
@@ -1301,9 +1442,14 @@ public partial class PartViewModel : ViewModelBase
             _deferredInit = null;
             throw;
         }
+        finally
+        {
+            // Re-enables the preset list, whether the load finished, failed or was abandoned.
+            IsLoading = false;
+        }
     }
 
-    private async Task InitializeDeferredPartStateAsync()
+    private async Task InitializeDeferredPartStateAsync(CancellationToken token)
     {
         if (_i7domain is not null)
         {
@@ -1312,6 +1458,7 @@ public partial class PartViewModel : ViewModelBase
             // hardware read could build the tone domains for one tone and the partials for another.
             var toneType = _selectedPreset?.ToneTypeStr;
 
+            token.ThrowIfCancellationRequested();
             await _i7domain.StudioSetMidi(PartNo).ReadFromIntegraAsync();
             List<FullyQualifiedParameter> p_mid = _i7domain.StudioSetMidi(PartNo).GetRelevantParameters(true, true);
             _sourceCacheStudioSetMidiParameters.AddOrUpdate(p_mid);
@@ -1320,6 +1467,10 @@ public partial class PartViewModel : ViewModelBase
             List<FullyQualifiedParameter>
                 p_parteq = _i7domain.StudioSetPartEQ(PartNo).GetRelevantParameters(true, true);
             _sourceCacheStudioSetPartEQParameters.AddOrUpdate(p_parteq);
+
+            // From here on every read is specific to `toneType`. The device answers only for the tone a
+            // part currently holds, so if the preset has changed these reads would all go unanswered.
+            token.ThrowIfCancellationRequested();
 
             if (toneType == "PCMS")
             {
@@ -1355,6 +1506,7 @@ public partial class PartViewModel : ViewModelBase
             ObservableCollection<PartialViewModel> pvm = [];
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_PCM_SYNTH_TONE; i++)
             {
+                token.ThrowIfCancellationRequested();
                 var vm = new PCMSynthTonePartialViewModel(this, PartNo, i,
                     toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
@@ -1371,6 +1523,7 @@ public partial class PartViewModel : ViewModelBase
             ObservableCollection<PartialViewModel> pvm2 = [];
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_PCM_DRUM; i++)
             {
+                token.ThrowIfCancellationRequested();
                 var vm = new PCMDrumKitPartialViewModel(this, PartNo, i,
                     toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
@@ -1384,6 +1537,7 @@ public partial class PartViewModel : ViewModelBase
             ObservableCollection<PartialViewModel> pvm3 = [];
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_SN_SYNTH_TONE; i++)
             {
+                token.ThrowIfCancellationRequested();
                 var vm = new SNSynthTonePartialViewModel(this, PartNo, i,
                     toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
@@ -1397,6 +1551,7 @@ public partial class PartViewModel : ViewModelBase
             ObservableCollection<PartialViewModel> pvm4 = [];
             for (byte i = 0; i < Constants.NO_OF_PARTIALS_SN_DRUM; i++)
             {
+                token.ThrowIfCancellationRequested();
                 var vm = new SNDrumKitPartialViewModel(this, PartNo, i,
                     toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
@@ -1568,6 +1723,16 @@ public partial class PartViewModel : ViewModelBase
                 }
                 catch { /* ignore — auditioning is non-essential */ }
             });
+
+            // The per-engine tabs only become visible now that the tone type is known. Announce it so
+            // the Advanced sub-tabs drop a selection belonging to a different engine, whose parameters
+            // this part never reads and would otherwise display at their construction defaults.
+            this.RaisePropertyChanged(nameof(SelectedPresetIsPCMSynthTone));
+            this.RaisePropertyChanged(nameof(SelectedPresetIsPCMDrumKit));
+            this.RaisePropertyChanged(nameof(SelectedPresetIsSNSynthTone));
+            this.RaisePropertyChanged(nameof(SelectedPresetIsSNAcousticTone));
+            this.RaisePropertyChanged(nameof(SelectedPresetIsSNDrumKit));
+            this.RaisePropertyChanged(nameof(ToneTypeKey));
         }
     }
 
@@ -1606,6 +1771,32 @@ public partial class PartViewModel : ViewModelBase
     }
 
     [ReactiveCommand]
+    /// <summary>Send the program change, then reload the part if it had been open.
+    ///
+    /// The order is the whole point: reading before the device has switched returns the outgoing
+    /// patch, promptly and wrongly. Nothing else reloads it either — the resync that a preset change
+    /// normally triggers is driven by the device echoing a change made on its own panel, which does
+    /// not happen for a change this application sent.</summary>
+    private async Task ChangePresetAndReloadAsync(bool reload, int generation)
+    {
+        await ChangePresetAsync();
+
+        // Another preset was picked while this one was being sent. That change is doing its own
+        // reload, and this one would read the device before its program change had arrived — the
+        // reads are answered, just for the wrong patch.
+        if (generation != _presetGeneration) return;
+
+        if (!reload) return;
+
+        // The device needs a moment to actually load the patch. Reading the instant the program
+        // change goes out returns the outgoing tone, which is how a part ended up showing a partial
+        // that was never read: correct-looking common values, zeroed partials.
+        await Task.Delay(PresetSettleMilliseconds);
+        if (generation != _presetGeneration) return;
+
+        await EnsureInitializedAsync();
+    }
+
     public async Task ChangePresetAsync()
     {
         // Restore any active solo/mute audition (put partial on/off switches back) BEFORE the patch
@@ -1630,31 +1821,38 @@ public partial class PartViewModel : ViewModelBase
         {
             var setup = _i7domain?.Setup;
             await setup?.ReadFromIntegraAsync();
+            _sourceCacheSetupParameters.AddOrUpdate(setup.GetRelevantParameters());
             ForceUiRefresh(setup.StartAddressName, setup.OffsetAddressName, setup.Offset2AddressName, "",
                 false /* don't cause inf loop */);
 
             var system = _i7domain?.System;
             await system?.ReadFromIntegraAsync();
+            _sourceCacheSystem.AddOrUpdate(system.GetRelevantParameters());
             ForceUiRefresh(system.StartAddressName, system.OffsetAddressName, system.Offset2AddressName, "", false);
 
             var setcom = _i7domain?.StudioSetCommon;
             await setcom?.ReadFromIntegraAsync();
+            _sourceCacheStudioSetCommonParameters.AddOrUpdate(setcom.GetRelevantParameters());
             ForceUiRefresh(setcom.StartAddressName, setcom.OffsetAddressName, setcom.Offset2AddressName, "", false);
 
             var setchor = _i7domain?.StudioSetCommonChorus;
             await setchor.ReadFromIntegraAsync();
+            _sourceCacheStudioSetCommonChorusParameters.AddOrUpdate(setchor.GetRelevantParameters(true, true));
             ForceUiRefresh(setchor.StartAddressName, setchor.OffsetAddressName, setchor.Offset2AddressName, "", false);
 
             var setrev = _i7domain?.StudioSetCommonReverb;
             await setrev.ReadFromIntegraAsync();
+            _sourceCacheStudioSetCommonReverbParameters.AddOrUpdate(setrev.GetRelevantParameters(true, true));
             ForceUiRefresh(setrev.StartAddressName, setrev.OffsetAddressName, setrev.Offset2AddressName, "", false);
 
             var setsur = _i7domain?.StudioSetCommonMotionalSurround;
             await setsur.ReadFromIntegraAsync();
+            _sourceCacheStudioSetCommonMotionalSurroundParameters.AddOrUpdate(setsur.GetRelevantParameters(true, true));
             ForceUiRefresh(setsur.StartAddressName, setsur.OffsetAddressName, setsur.Offset2AddressName, "", false);
 
             var seteq = _i7domain?.StudioSetCommonMasterEQ;
             await seteq.ReadFromIntegraAsync();
+            _sourceCacheStudioSetCommonMasterEQParameters.AddOrUpdate(seteq.GetRelevantParameters(true, true));
             ForceUiRefresh(seteq.StartAddressName, seteq.OffsetAddressName, seteq.Offset2AddressName, "", false);
         }
         else
@@ -1665,10 +1863,12 @@ public partial class PartViewModel : ViewModelBase
 
             var midiPart = _i7domain?.StudioSetMidi(part);
             await midiPart.ReadFromIntegraAsync();
+            _sourceCacheStudioSetMidiParameters.AddOrUpdate(midiPart.GetRelevantParameters(true, true));
             ForceUiRefresh(midiPart.StartAddressName, midiPart.OffsetAddressName, midiPart.Offset2AddressName, "",
                 false /* don't cause inf loop */);
             var setPart = _i7domain?.StudioSetPart(part);
             await setPart.ReadFromIntegraAsync();
+            _sourceCacheStudioSetPartParameters.AddOrUpdate(setPart.GetRelevantParameters(true, true));
             PreSelectConfiguredPreset(setPart);
             ForceUiRefresh(setPart.StartAddressName, setPart.OffsetAddressName, setPart.Offset2AddressName, "",
                 false /* don't cause inf loop */);
@@ -1676,18 +1876,22 @@ public partial class PartViewModel : ViewModelBase
             {
                 var setPCMSTone = _i7domain?.PCMSynthToneCommon(part);
                 await setPCMSTone.ReadFromIntegraAsync();
+                _sourceCachePCMSynthToneCommonParameters.AddOrUpdate(setPCMSTone.GetRelevantParameters(true, true));
                 ForceUiRefresh(setPCMSTone.StartAddressName, setPCMSTone.OffsetAddressName,
                     setPCMSTone.Offset2AddressName, "", false /* don't cause inf loop */);
                 var setPCMSTone2 = _i7domain?.PCMSynthToneCommon2(part);
                 await setPCMSTone2.ReadFromIntegraAsync();
+                _sourceCachePCMSynthToneCommon2Parameters.AddOrUpdate(setPCMSTone2.GetRelevantParameters(true, true));
                 ForceUiRefresh(setPCMSTone2.StartAddressName, setPCMSTone2.OffsetAddressName,
                     setPCMSTone2.Offset2AddressName, "", false /* don't cause inf loop */);
                 var setPCMSToneMFX = _i7domain?.PCMSynthToneCommonMFX(part);
                 await setPCMSToneMFX.ReadFromIntegraAsync();
+                _sourceCachePCMSynthToneCommonMFXParameters.AddOrUpdate(setPCMSToneMFX.GetRelevantParameters(true, true));
                 ForceUiRefresh(setPCMSToneMFX.StartAddressName, setPCMSToneMFX.OffsetAddressName,
                     setPCMSToneMFX.Offset2AddressName, "", false /* don't cause inf loop */);
                 var setPCMSTonePMT = _i7domain?.PCMSynthTonePMT(part);
                 await setPCMSTonePMT.ReadFromIntegraAsync();
+                _sourceCachePCMSynthTonePMTParameters.AddOrUpdate(setPCMSTonePMT.GetRelevantParameters(true, true));
                 ForceUiRefresh(setPCMSTonePMT.StartAddressName, setPCMSTonePMT.OffsetAddressName,
                     setPCMSTonePMT.Offset2AddressName, "", false /* don't cause inf loop */);
                 foreach (var p in PcmSynthTonePartialViewModels) await p.ResyncPartAsync(part);
@@ -1696,18 +1900,22 @@ public partial class PartViewModel : ViewModelBase
             {
                 var setPCMDKit = _i7domain?.PCMDrumKitCommon(part);
                 await setPCMDKit.ReadFromIntegraAsync();
+                _sourceCachePCMDrumKitCommonParameters.AddOrUpdate(setPCMDKit.GetRelevantParameters(true, true));
                 ForceUiRefresh(setPCMDKit.StartAddressName, setPCMDKit.OffsetAddressName, setPCMDKit.Offset2AddressName,
                     "", false);
                 var setPCMDKit2 = _i7domain?.PCMDrumKitCommon2(part);
                 await setPCMDKit2.ReadFromIntegraAsync();
+                _sourceCachePCMDrumKitCommon2Parameters.AddOrUpdate(setPCMDKit2.GetRelevantParameters(true, true));
                 ForceUiRefresh(setPCMDKit2.StartAddressName, setPCMDKit2.OffsetAddressName,
                     setPCMDKit2.Offset2AddressName, "", false);
                 var setPCMDMfx = _i7domain?.PCMDrumKitCommonMFX(part);
                 await setPCMDMfx.ReadFromIntegraAsync();
+                _sourceCachePCMDrumKitCommonMFXParameters.AddOrUpdate(setPCMDMfx.GetRelevantParameters(true, true));
                 ForceUiRefresh(setPCMDMfx.StartAddressName, setPCMDMfx.OffsetAddressName, setPCMDMfx.Offset2AddressName,
                     "", false);
                 var setPCMDCompeq = _i7domain?.PCMDrumKitCompEQ(part);
                 await setPCMDCompeq.ReadFromIntegraAsync();
+                _sourceCachePCMDrumKitCompEQParameters.AddOrUpdate(setPCMDCompeq.GetRelevantParameters(true, true));
                 ForceUiRefresh(setPCMDCompeq.StartAddressName, setPCMDCompeq.OffsetAddressName,
                     setPCMDCompeq.Offset2AddressName, "", false);
                 foreach (var p in PcmDrumKitPartialViewModels) await p.ResyncPartAsync(part);
@@ -1716,9 +1924,11 @@ public partial class PartViewModel : ViewModelBase
             {
                 var setSNS = _i7domain?.SNSynthToneCommon(part);
                 await setSNS.ReadFromIntegraAsync();
+                _sourceCacheSNSynthToneCommonParameters.AddOrUpdate(setSNS.GetRelevantParameters(true, true));
                 ForceUiRefresh(setSNS.StartAddressName, setSNS.OffsetAddressName, setSNS.Offset2AddressName, "", false);
                 var setSNSMFX = _i7domain?.SNSynthToneCommonMFX(part);
                 await setSNSMFX.ReadFromIntegraAsync();
+                _sourceCacheSNSynthToneCommonMFXParameters.AddOrUpdate(setSNSMFX.GetRelevantParameters(true, true));
                 ForceUiRefresh(setSNSMFX.StartAddressName, setSNSMFX.OffsetAddressName, setSNSMFX.Offset2AddressName,
                     "", false);
                 foreach (var p in SNSynthTonePartialViewModels) await p.ResyncPartAsync(part);
@@ -1727,9 +1937,11 @@ public partial class PartViewModel : ViewModelBase
             {
                 var setSNA = _i7domain?.SNAcousticToneCommon(part);
                 await setSNA.ReadFromIntegraAsync();
+                _sourceCacheSNAcousticToneCommonParameters.AddOrUpdate(setSNA.GetRelevantParameters(true, true));
                 ForceUiRefresh(setSNA.StartAddressName, setSNA.OffsetAddressName, setSNA.Offset2AddressName, "", false);
                 var setSNAMFX = _i7domain?.SNAcousticToneCommonMFX(part);
                 await setSNAMFX.ReadFromIntegraAsync();
+                _sourceCacheSNAcousticToneCommonMFXParameters.AddOrUpdate(setSNAMFX.GetRelevantParameters(true, true));
                 ForceUiRefresh(setSNAMFX.StartAddressName, setSNAMFX.OffsetAddressName, setSNAMFX.Offset2AddressName,
                     "", false);
             }
@@ -1737,14 +1949,17 @@ public partial class PartViewModel : ViewModelBase
             {
                 var setSNDKit = _i7domain?.SNDrumKitCommon(part);
                 await setSNDKit.ReadFromIntegraAsync();
+                _sourceCacheSNDrumKitCommonParameters.AddOrUpdate(setSNDKit.GetRelevantParameters(true, true));
                 ForceUiRefresh(setSNDKit.StartAddressName, setSNDKit.OffsetAddressName, setSNDKit.Offset2AddressName,
                     "", false);
                 var setSNDMfx = _i7domain?.SNDrumKitCommonMFX(part);
                 await setSNDMfx.ReadFromIntegraAsync();
+                _sourceCacheSNDrumKitCommonMFXParameters.AddOrUpdate(setSNDMfx.GetRelevantParameters(true, true));
                 ForceUiRefresh(setSNDMfx.StartAddressName, setSNDMfx.OffsetAddressName, setSNDMfx.Offset2AddressName,
                     "", false);
                 var setSNDCompeq = _i7domain?.SNDrumKitCompEQ(part);
                 await setSNDCompeq.ReadFromIntegraAsync();
+                _sourceCacheSNDrumKitCompEQParameters.AddOrUpdate(setSNDCompeq.GetRelevantParameters(true, true));
                 ForceUiRefresh(setSNDCompeq.StartAddressName, setSNDCompeq.OffsetAddressName,
                     setSNDCompeq.Offset2AddressName, "", false);
                 foreach (var p in SNDrumKitPartialViewModels) await p.ResyncPartAsync(part);

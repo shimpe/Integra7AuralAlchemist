@@ -51,7 +51,15 @@ public class DomainBase
             _domainParameters[0].Offset2,
             _domainParameters[0].ParSpec,
             _domainParameters.Last().ParSpec);
-        await r.RetrieveFromIntegraAsync(_integra7Api, _startAddresses, _parameters);
+        if (!await r.RetrieveFromIntegraAsync(_integra7Api, _startAddresses, _parameters))
+        {
+            // The read failed, so r.Range holds unparsed defaults. Copying those would replace the
+            // values already on screen with blanks that look like real readings from the device.
+            Log.Warning(
+                $"Keeping the previous values for {_domainParameters[0].ParSpec.Path}..{_domainParameters.Last().ParSpec.Path}: the device did not answer.");
+            return;
+        }
+
         for (var i = 0; i < r.Range.Count; i++) _domainParameters[i].CopyParsedDataFrom(r.Range[i]);
         // Resolve bank-selected waveform names (no-op for domains without wave params).
         WaveNameResolution.Apply(_domainParameters, WaveformBanks.Default);

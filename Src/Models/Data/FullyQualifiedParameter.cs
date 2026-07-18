@@ -131,6 +131,13 @@ public class FullyQualifiedParameter : INotifyPropertyChanged
     {
         var totalAddr = CompleteAddress(startAddresses, parameters);
         var reply = await integra7Api.MakeDataRequestAsync(totalAddr, ParSpec.Bytes);
+        if (reply.Length == 0)
+        {
+            // Parsing an empty reply would overwrite this parameter with a value nobody read.
+            Log.Warning($"Keeping the previous value for {ParSpec.Path}: the device did not answer.");
+            return;
+        }
+
         ParseFromSysexReply(reply, parameters);
     }
 
