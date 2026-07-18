@@ -55,7 +55,10 @@ public class FullyQualifiedParameterRange
         await integra7Api.MakeDataTransmissionAsync(totalAddr, data);
     }
 
-    public async Task RetrieveFromIntegraAsync(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses,
+    /// <summary>Reads the range from the device. Returns false when no reply arrived, in which case
+    /// <see cref="Range"/> holds freshly constructed, unparsed parameters — callers must not treat
+    /// those as values read from the device.</summary>
+    public async Task<bool> RetrieveFromIntegraAsync(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses,
         Integra7Parameters parameters)
     {
         var startAddr = startAddresses.Lookup(_start).Address;
@@ -73,11 +76,15 @@ public class FullyQualifiedParameterRange
         // will be actually used during parsing (based on which value was read for its master control)
         long size = ParameterListSysexSizeCalculator.CalculateSysexSize(allRelevantPars);
         var reply = await integra7Api.MakeDataRequestAsync(totalAddr, size);
-        if (reply.Length > 0)
-            ParseFromSysexReply(reply, parameters, _firstPar);
-        else
+        if (reply.Length == 0)
+        {
             Log.Error(
                 "Unfortunately, no reply received after making a sysex data request. This may indicate a bug in the program, e.g. requesting parameters for a PCM synth tone if no PCM synth patch is active or having multiple instances of the application running at the same time.");
+            return false;
+        }
+
+        ParseFromSysexReply(reply, parameters, _firstPar);
+        return true;
     }
 
     public void ParseFromSysexReply(byte[] reply, Integra7Parameters parameters,
