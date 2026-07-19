@@ -4,7 +4,7 @@
 
 **Goal:** Make one object own the MIDI port, handing out a lease that a conversation holds for its whole duration, so a multi-message sequence cannot be split and bypassing the lock stops being expressible.
 
-**Architecture:** A `MidiPort` owns the `IMidiIn`/`IMidiOut` handles and hands out an `IMidiLease` via `AcquireAsync(what)`. Only the lease exposes send and request. A lease installs one reader for its lifetime, accumulates messages that were not its replies, and dispatches them on release — after the port is free. Reentrancy reuses the lease already held by the current async flow.
+**Architecture:** A `MidiPort` owns the `IMidiIn`/`IMidiOut` handles and hands out an `IMidiLease` via `AcquireAsync(what)`. Only the lease exposes send and request. A lease installs one reader for its lifetime, accumulates messages that were not its replies, and dispatches them on release — after the port is free. There is no reentrancy: a lease is never acquired while one is held, enforced by public methods acquiring and private helpers taking a lease parameter.
 
 **Tech Stack:** .NET 10, C# 13, managed-midi 1.10.1, Serilog, NUnit.
 
@@ -72,7 +72,7 @@ anti-virus lock. Wait a moment and retry the same command.
 | File | Responsibility |
 |---|---|
 | `Src/Models/Services/MidiPort.cs` (create) | `IMidiPort`, `IMidiLease`, `MidiPort` and its private lease. Owns the in/out handles and the exclusion. |
-| `Tests/TestMidiPort.cs` (create) | Exclusivity, reentrancy, disposal, drain-on-release, long-hold warning. |
+| `Tests/TestMidiPort.cs` (create) | Exclusivity, disposal, drain-on-release, the long-hold warning and the hard timeout. |
 | `Src/Models/Services/Integra7Api.cs` (modify) | Every device method becomes acquire-converse-release. |
 | `Src/Models/Services/AsyncMidiOutputWrapper.cs` (delete) | Subsumed by the port. |
 | `Src/Models/Services/MidiHandlerOwnership.cs` (delete) | Subsumed: a single owner makes the desync it guards impossible. |
@@ -80,11 +80,26 @@ anti-virus lock. Wait a moment and retry the same command.
 
 ---
 
-### Task 1: The port, exclusivity and reentrancy
+### Task 1: The port and the lease
 
 **Files:**
 - Create: `Src/Models/Services/MidiPort.cs`
 - Test: `Tests/TestMidiPort.cs`
+
+**There is no reentrancy.** An earlier draft tracked the current flow's lease in an `AsyncLocal` so a
+nested `AcquireAsync` could reuse it. That cannot work: a write to an `AsyncLocal` inside an `async`
+method is not visible to the caller — `ExecutionContext` flows down, never back up — and `AcquireAsync`
+must be async because it awaits the gate. Verified on this runtime:
+
+```
+after async method: 'null'        // write inside an async method, lost to the caller
+after sync method:  'from-sync'   // write inside a sync method, visible
+```
+
+So the rule is: **a lease is never acquired while one is held.** Later tasks enforce it structurally —
+public `Integra7Api` methods acquire, private helpers take an `IMidiLease` parameter, so a missed
+hand-off is a compile error. Task 4 adds a timeout as the escape hatch for a nested acquire written
+anyway.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -92,6 +107,7 @@ Create `Tests/TestMidiPort.cs`:
 
 ```csharp
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Commons.Music.Midi;
 using Integra7AuralAlchemist.Models.Services;
@@ -171,33 +187,27 @@ public class TestMidiPort
     }
 
     [Test]
-    public async Task AcquiringAgainInsideAConversationReusesTheLease()
+    public async Task ConversationsRunOneAtATime()
     {
-        // Without this, any conversation that called a helper which also acquires would block on
-        // itself -- and the request helper is reached from dozens of places.
-        var port = NewPort(out _, out _);
+        // Two conversations racing: whatever order they get the port in, their sends must not
+        // interleave. This is the whole point -- a bank select and its program change must arrive
+        // together.
+        var port = NewPort(out _, out var midiOut);
 
-        await using var outer = await port.AcquireAsync("outer");
-        var inner = await port.AcquireAsync("inner");
+        async Task Converse(string what, byte tag)
+        {
+            await using var lease = await port.AcquireAsync(what);
+            await lease.SendAsync([tag, 1]);
+            await Task.Delay(20);
+            await lease.SendAsync([tag, 2]);
+        }
 
-        Assert.That(inner, Is.SameAs(outer));
-    }
+        await Task.WhenAll(Converse("a", 0xa0), Converse("b", 0xb0));
 
-    [Test]
-    public async Task DisposingTheInnerHandleDoesNotReleaseThePort()
-    {
-        var port = NewPort(out _, out _);
-
-        var outer = await port.AcquireAsync("outer");
-        var inner = await port.AcquireAsync("inner");
-        await inner.DisposeAsync();
-
-        var another = port.AcquireAsync("another");
-        Assert.That(another.IsCompleted, Is.False, "only the outermost dispose releases the port");
-
-        await outer.DisposeAsync();
-        Assert.That(await Task.WhenAny(another, Task.Delay(3000)), Is.SameAs(another));
-        await (await another).DisposeAsync();
+        Assert.That(midiOut.Sent, Has.Count.EqualTo(4));
+        Assert.That(midiOut.Sent[0][0], Is.EqualTo(midiOut.Sent[1][0]),
+            "the first conversation's two sends must be adjacent, not interleaved");
+        Assert.That(midiOut.Sent[2][0], Is.EqualTo(midiOut.Sent[3][0]));
     }
 
     [Test]
@@ -222,15 +232,33 @@ public class TestMidiPort
     [Test]
     public async Task AReleasedLeaseCannotBeUsed()
     {
-        // AsyncLocal flows into fire-and-forget work started inside a conversation, so such a task
-        // would appear to still hold a lease the conversation has released. Throwing makes that loud
-        // instead of letting it write onto a port someone else now owns.
+        // A fire-and-forget task started inside a conversation can outlive it. Throwing makes that
+        // loud instead of letting it write onto a port someone else now owns.
         var port = NewPort(out _, out _);
 
         var lease = await port.AcquireAsync("done");
         await lease.DisposeAsync();
 
         Assert.That(async () => await lease.SendAsync([0x01]), Throws.TypeOf<ObjectDisposedException>());
+    }
+
+    [Test]
+    public async Task DisposingTwiceIsHarmless()
+    {
+        var port = NewPort(out _, out _);
+
+        var lease = await port.AcquireAsync("first");
+        await lease.DisposeAsync();
+        await lease.DisposeAsync();
+
+        // A second dispose must not release the gate again -- that would let two conversations in.
+        var a = await port.AcquireAsync("a");
+        var b = port.AcquireAsync("b");
+
+        Assert.That(b.IsCompleted, Is.False, "the gate was released twice; two conversations got in");
+
+        await a.DisposeAsync();
+        await (await b).DisposeAsync();
     }
 }
 ```
@@ -249,16 +277,19 @@ Create `Src/Models/Services/MidiPort.cs`:
 
 ```csharp
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Serilog;
 
 namespace Integra7AuralAlchemist.Models.Services;
 
 /// <summary>The one owner of the MIDI port. Everything that talks to the device takes a lease first,
 /// and a lease covers a whole conversation rather than a single message -- so a sequence that must
-/// arrive together, like a bank select followed by a program change, cannot be split.</summary>
+/// arrive together, like a bank select followed by a program change, cannot be split.
+///
+/// A lease is never acquired while one is held. There is no reentrancy: a write to an AsyncLocal
+/// inside an async method is not visible to the caller, so the lease cannot be carried implicitly,
+/// and acquiring twice in one flow would simply block on the gate. Public API methods acquire;
+/// helpers take a lease.</summary>
 public interface IMidiPort
 {
     /// <summary>Take exclusive use of the port for one conversation. <paramref name="what"/> names it
@@ -278,10 +309,6 @@ public sealed class MidiPort : IMidiPort
     private readonly IMidiOut _midiOut;
     private readonly IMidiIn _midiIn;
 
-    /// <summary>The lease held by the current async flow, so a nested acquire can reuse it rather than
-    /// block on itself.</summary>
-    private static readonly AsyncLocal<Lease?> Held = new();
-
     public MidiPort(IMidiOut midiOut, IMidiIn midiIn)
     {
         _midiOut = midiOut;
@@ -290,33 +317,23 @@ public sealed class MidiPort : IMidiPort
 
     public async Task<IMidiLease> AcquireAsync(string what)
     {
-        if (Held.Value is { Released: false } already) return already;
-
         await _gate.WaitAsync();
-
-        var lease = new Lease(this, what);
-        Held.Value = lease;
-        return lease;
+        return new Lease(this, what);
     }
 
-    private void Release(Lease lease)
-    {
-        if (Held.Value == lease) Held.Value = null;
-        _gate.Release();
-    }
+    private void Release() => _gate.Release();
 
     private sealed class Lease : IMidiLease
     {
         private readonly MidiPort _port;
         private readonly string _what;
+        private bool _released;
 
         public Lease(MidiPort port, string what)
         {
             _port = port;
             _what = what;
         }
-
-        public bool Released { get; private set; }
 
         public Task SendAsync(byte[] data)
         {
@@ -327,19 +344,18 @@ public sealed class MidiPort : IMidiPort
 
         public ValueTask DisposeAsync()
         {
-            // A nested acquire returns this same lease, and disposing that handle must not release the
-            // port -- only the outermost dispose does. Reaching here twice for the same lease is that
-            // inner dispose, so it is a no-op.
-            if (Released) return ValueTask.CompletedTask;
+            // Guarded: a second dispose must not release the gate again, which would let two
+            // conversations onto the port at once.
+            if (_released) return ValueTask.CompletedTask;
 
-            Released = true;
-            _port.Release(this);
+            _released = true;
+            _port.Release();
             return ValueTask.CompletedTask;
         }
 
         private void ThrowIfReleased()
         {
-            if (Released)
+            if (_released)
                 throw new ObjectDisposedException(nameof(IMidiLease),
                     $"The lease for '{_what}' was released. An async flow started inside that " +
                     "conversation is still using it, which would write onto a port another " +
@@ -355,114 +371,29 @@ public sealed class MidiPort : IMidiPort
 "$LOCALAPPDATA/Microsoft/dotnet/dotnet.exe" test Tests/Tests.csproj --filter "FullyQualifiedName~TestMidiPort"
 ```
 
-Expected: **`Failed: 1, Passed: 5`** — five pass, and
-`DisposingTheInnerHandleDoesNotReleaseThePort` FAILS.
+Expected: `Passed! - Failed: 0, Passed: 6`.
 
-That failure is intended and is what Task 2 fixes. A nested acquire returns the *same object*, so the
-inner `DisposeAsync` sets `Released` and hands the port back while the outer conversation is still
-running. Leave it failing; do not add the depth count here.
+Then the full suite:
 
-If that test unexpectedly PASSES, stop and report — it would mean the implementation differs from the
-one given above, and Task 2's premise no longer holds.
+```bash
+"$LOCALAPPDATA/Microsoft/dotnet/dotnet.exe" test Tests/Tests.csproj
+```
+
+Expected: `Failed: 0, Passed: 393` (387 existing plus 6 new).
+
+**If any test hangs rather than failing**, stop and report which. A hang means something acquires while
+holding, which this design forbids.
 
 - [ ] **Step 5: Commit**
-
-Commit with the nesting test still red — Task 2 is the other half, and keeping the nesting semantics in
-their own commit is deliberate.
 
 ```bash
 git add Src/Models/Services/MidiPort.cs Tests/TestMidiPort.cs
 git commit -m "feat: give the MIDI port a single owner and a per-conversation lease
 
-Nesting is not handled yet: an inner dispose still releases the port, and the
-test for it is red until the next commit.
-
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```
 
 ---
-
-### Task 2: Nesting depth
-
-**Files:**
-- Modify: `Src/Models/Services/MidiPort.cs`
-- Test: `Tests/TestMidiPort.cs`
-
-Task 1's lease releases on the first `DisposeAsync`, so an inner `await using` releases the port while
-the outer conversation is still running. `DisposingTheInnerHandleDoesNotReleaseThePort` will have
-caught this. Fix it with a depth count.
-
-- [ ] **Step 1: Confirm the failing test**
-
-```bash
-"$LOCALAPPDATA/Microsoft/dotnet/dotnet.exe" test Tests/Tests.csproj --filter "FullyQualifiedName~DisposingTheInnerHandleDoesNotReleaseThePort"
-```
-
-Expected: FAIL — the third acquire completes when it should still be waiting.
-
-If it PASSES, stop and report: it would mean Task 1's implementation already handles nesting, and this
-task is unnecessary.
-
-- [ ] **Step 2: Add the depth count**
-
-In `Src/Models/Services/MidiPort.cs`, change `AcquireAsync` and the `Lease` so nesting is counted:
-
-```csharp
-    public async Task<IMidiLease> AcquireAsync(string what)
-    {
-        if (Held.Value is { Released: false } already)
-        {
-            already.Enter();
-            return already;
-        }
-
-        await _gate.WaitAsync();
-
-        var lease = new Lease(this, what);
-        Held.Value = lease;
-        return lease;
-    }
-```
-
-and in `Lease`:
-
-```csharp
-        /// <summary>How many acquires are outstanding on this lease. A nested acquire returns this
-        /// same object, so the port must not be released until as many disposes have come back.</summary>
-        private int _depth = 1;
-
-        public void Enter() => _depth++;
-
-        public ValueTask DisposeAsync()
-        {
-            if (Released) return ValueTask.CompletedTask;
-            if (--_depth > 0) return ValueTask.CompletedTask;
-
-            Released = true;
-            _port.Release(this);
-            return ValueTask.CompletedTask;
-        }
-```
-
-- [ ] **Step 3: Run the tests**
-
-```bash
-"$LOCALAPPDATA/Microsoft/dotnet/dotnet.exe" test Tests/Tests.csproj --filter "FullyQualifiedName~TestMidiPort"
-```
-
-Expected: `Passed! - Failed: 0, Passed: 6`.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add Src/Models/Services/MidiPort.cs
-git commit -m "fix: release the port only when the outermost lease is disposed
-
-Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
-```
-
----
-
 ### Task 3: Requests, the lease's reader, and the drain on release
 
 **Files:**
@@ -695,13 +626,44 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 
 ---
 
-### Task 4: Say who is holding the port
+### Task 4: Say who is holding the port, and give up eventually
 
 **Files:**
 - Modify: `Src/Models/Services/MidiPort.cs`
 - Test: `Tests/TestMidiPort.cs`
 
 Every hang chased during this work presented as a frozen UI with no indication of who held what.
+
+Two thresholds, and the difference matters. A wait that runs long is **warned** about but keeps
+waiting: the name burst legitimately holds the port for several seconds, and a part load queued behind
+it is waiting correctly, not deadlocked. A wait that runs absurdly long **throws**, because at that
+point something acquired while holding — the one thing this design forbids — and hanging forever is
+the failure mode the whole redesign exists to remove.
+
+Add the hard timeout alongside the warning, with this test:
+
+```csharp
+    [Test]
+    public async Task AWaitThatRunsAbsurdlyLongGivesUpAndSaysWho()
+    {
+        // Only reachable if something acquired while already holding, which the design forbids.
+        // Hanging forever is what this whole redesign exists to stop, so give up and name both sides.
+        var port = NewPort(out _, out _);
+        port.SlowAcquireThreshold = TimeSpan.FromMilliseconds(50);
+        port.AcquireTimeout = TimeSpan.FromMilliseconds(200);
+
+        await using var holder = await port.AcquireAsync("user tone names 448-511");
+
+        var boom = Assert.ThrowsAsync<TimeoutException>(async () =>
+            await port.AcquireAsync("part 6 load"));
+
+        Assert.That(boom!.Message, Does.Contain("part 6 load"));
+        Assert.That(boom.Message, Does.Contain("user tone names 448-511"));
+    }
+```
+
+`AcquireTimeout` defaults to `TimeSpan.FromSeconds(60)` — far beyond any legitimate wait, including a
+full eighteen-request name burst.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -746,6 +708,11 @@ In `Src/Models/Services/MidiPort.cs`, add these fields to `MidiPort`:
     /// a test does not have to wait out the real threshold.</summary>
     public TimeSpan SlowAcquireThreshold { get; set; } = TimeSpan.FromSeconds(5);
 
+    /// <summary>How long a conversation may wait before the wait is treated as a bug rather than a
+    /// queue. Far beyond any legitimate wait -- a full eighteen-request name burst is seconds, not
+    /// minutes -- so reaching it means something acquired while already holding.</summary>
+    public TimeSpan AcquireTimeout { get; set; } = TimeSpan.FromSeconds(60);
+
     /// <summary>Called when a conversation waits longer than the threshold: (waiting, holder, heldFor).
     /// Overridable so a test can observe it; it logs by default.</summary>
     public Action<string, string, TimeSpan>? OnSlowAcquire { get; set; }
@@ -759,12 +726,6 @@ and rewrite `AcquireAsync` to time the wait:
 ```csharp
     public async Task<IMidiLease> AcquireAsync(string what)
     {
-        if (Held.Value is { Released: false } already)
-        {
-            already.Enter();
-            return already;
-        }
-
         if (!await _gate.WaitAsync(SlowAcquireThreshold))
         {
             // Name both sides. Every hang chased over this work looked like a frozen UI with no
@@ -777,23 +738,24 @@ and rewrite `AcquireAsync` to time the wait:
                             "'{Holder}' for {HeldFor:0}s.", SlowAcquireThreshold.TotalSeconds, what,
                     holder, heldFor.TotalSeconds);
 
-            await _gate.WaitAsync();
+            if (!await _gate.WaitAsync(AcquireTimeout - SlowAcquireThreshold))
+                throw new TimeoutException(
+                    $"Gave up after {AcquireTimeout.TotalSeconds:0}s waiting for the MIDI port for " +
+                    $"'{what}' -- held by '{holder}'. Something acquired the port while already " +
+                    "holding it, which is not supported: public methods acquire, helpers take a lease.");
         }
 
         _holder = what;
         _heldSince = DateTime.UtcNow;
-        var lease = new Lease(this, what);
-        Held.Value = lease;
-        return lease;
+        return new Lease(this, what);
     }
 ```
 
 and set the holder back in `Release`:
 
 ```csharp
-    private void Release(Lease lease)
+    private void Release()
     {
-        if (Held.Value == lease) Held.Value = null;
         _holder = "nobody";
         _gate.Release();
     }
@@ -1002,19 +964,16 @@ Because `BankSelectLsb` now always returns a value or throws, the `ChangePresetA
 read `await port.SendAsync(BankSelectLsb(Channel, Lsb));` rather than the `is { } lsb` pattern — only
 `BankSelectMsb` is nullable.
 
-- [ ] **Step 5: Give `WriteToneToUserMemory` one lease**
+- [ ] **Step 5: `WriteToneToUserMemory` — one lease per step, NOT one for the method**
 
-Its three steps currently acquire separately, and step 1 has the side effect of selecting the new
-patch — so a read between steps 1 and 3 reads the *new* patch, and a preset change there writes the
-wrong name to the wrong slot.
+**Do not wrap this method in a single lease.** That is the obvious move and it would hang.
 
-Take one lease at the top of the method:
+Its step 2 calls `ChangePresetNameAsync`, which writes out through `Integra7Domain` → `DomainBase` →
+`FullyQualifiedParameter` and re-enters `MakeDataTransmissionAsync` — which acquires. Holding a lease
+across that is a nested acquire, which this design does not support: the inner acquire would block on
+the gate the outer conversation holds, until the sixty-second timeout throws.
 
-```csharp
-        await using var port = await _port.AcquireAsync("write tone to user memory");
-```
-
-and replace every
+So each *send* takes and releases its own lease. Replace every
 
 ```csharp
                 var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
@@ -1024,13 +983,27 @@ and replace every
 with
 
 ```csharp
-                await port.SendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
 ```
 
-`ChangePresetNameAsync`, called as step 2, writes through `WriteToIntegraAsync` and so reaches
-`MakeDataTransmissionAsync`, whose own acquire nests and reuses this lease. Confirm that is what
-happens rather than assuming it — if it does not, the three steps are not atomic and this task has not
-achieved its purpose.
+and leave `ChangePresetNameAsync` (step 2) alone — it reaches the port through
+`MakeDataTransmissionAsync`, which acquires for itself.
+
+This method therefore stays **non-atomic**, and the race it leaves open is real: step 1 selects the new
+patch, so a read landing between steps 1 and 3 reads the new patch, and a preset change there writes
+the wrong name to the wrong slot. Closing it needs a lease threaded through the domain layer, which is
+piece C. Add this comment above the method so the next reader does not "fix" it by wrapping:
+
+```csharp
+    /// <summary>NOT atomic, deliberately. Step 2 writes the name out through the domain layer, which
+    /// re-enters MakeDataTransmissionAsync and acquires the port for itself -- so holding a lease
+    /// across these three steps would deadlock against ourselves. Making it one conversation needs a
+    /// lease threaded through Integra7Domain and FullyQualifiedParameter, which is a separate piece of
+    /// work.</summary>
+```
 
 - [ ] **Step 6: Move the burst onto the lease**
 
@@ -1233,15 +1206,21 @@ freezes, the log should now name the holder, which is the information every prev
 
 ## Notes for the implementer
 
-- **The reentrancy model is the risky part.** `AsyncLocal` flows into work started inside a lease, so a
-  fire-and-forget task can outlive the conversation and hold a released lease. That is why using one
-  throws. If a hardware scenario produces `ObjectDisposedException` naming a conversation, that is this
-  hazard made visible — report which two conversations, do not suppress it.
-- **Where `AsyncLocal` does not flow** is work handed to a pre-existing pump —
-  `ThrottledParameterWriter`'s Rx subscription on `Scheduler.Default`. Work reaching the port from
-  there is a different async flow and queues behind the lease, which is correct. It also means a
-  conversation holding a lease while awaiting a throttled write would deadlock. Check each migrated
-  method for that shape.
+- **Never acquire while holding.** There is no reentrancy — an `AsyncLocal` cannot carry the lease,
+  because a write to one inside an `async` method is invisible to the caller. The rule is enforced by
+  shape: public `Integra7Api` methods acquire, private helpers take an `IMidiLease` parameter. If you
+  find yourself wanting to acquire inside a method that already has a lease in scope, pass the lease
+  instead.
+- **The trap is a path that leaves `Integra7Api` and comes back.** `WriteToneToUserMemory`'s step 2
+  writes through `Integra7Domain` and re-enters `MakeDataTransmissionAsync`. Holding a lease across it
+  deadlocks. Task 5 Step 5 spells this out; do not "tidy" it into one lease.
+- **A `TimeoutException` from the port means exactly that mistake.** It names the holder and the
+  waiter. Report both rather than raising the timeout.
+- **A released lease used after its conversation** throws `ObjectDisposedException` — a fire-and-forget
+  task that outlived the conversation that started it. If a hardware scenario produces one, report
+  which conversation, do not suppress it.
 - **Do not merge to `main`.** The user does that, after the hardware pass.
-- Piece C — `SynthParam`'s write-then-read, restore-audition-then-program-change, and Motional
-  Surround's L-R/F-B pair — is out of scope and still takes one lease per step.
+- Piece C — `WriteToneToUserMemory`'s three steps, `SynthParam`'s write-then-read,
+  restore-audition-then-program-change, and Motional Surround's L-R/F-B pair — is out of scope and
+  still takes one lease per step. They all need the same thing: a lease threaded through the domain
+  layer.

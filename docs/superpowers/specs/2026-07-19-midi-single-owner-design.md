@@ -104,25 +104,28 @@ the difference between this design and merely wrapping the known multi-step sequ
 `MidiHandlerOwnership` disappears too. It exists to catch a request/reply desync — a reader finding
 that another reader owns the port — which a single owner makes structurally impossible.
 
-### Reentrancy
+### There is no reentrancy
 
-An `AsyncLocal<LeaseState>` tracks the current async flow's lease. A nested `AcquireAsync` returns the
-lease already held, and disposing that inner handle does not release the port; only the outermost
-dispose does. Without this, any conversation that called a helper which also acquires would deadlock
-on itself — and `RunRequestAsync` is reached from dozens of places, so that is not a hypothetical.
+An earlier draft of this design tracked the current flow's lease in an `AsyncLocal` so that a nested
+`AcquireAsync` could reuse it. **That cannot work.** A write to an `AsyncLocal` inside an `async`
+method is not visible to that method's caller — `ExecutionContext` flows down, never back up — and
+`AcquireAsync` must be async because it awaits the gate. Verified on this runtime:
 
-**The hazard is fire-and-forget.** `AsyncLocal` flows into a task started inside a lease, so that task
-would appear to hold a lease the outer conversation has since released. A lease therefore carries a
-validity flag, and using a released one throws `ObjectDisposedException` naming both conversations —
-"lease for 'part 6 load' was released; used by 'throttled write'". A loud, immediate error, rather
-than a write onto a port someone else owns.
+```
+after async method: 'null'        // write inside an async method, lost to the caller
+after sync method:  'from-sync'   // write inside a sync method, visible
+```
 
-**Where the AsyncLocal does not flow** is work handed to a *pre-existing* pump rather than started
-inside the lease — notably `ThrottledParameterWriter`'s Rx subscription on `Scheduler.Default`. Work
-reaching the port from there is a different async flow, so it queues behind the lease rather than
-reusing it. That is correct. It does mean a conversation that held a lease while awaiting a throttled
-write would deadlock. No current path does that; the plan must check each migrated method rather than
-assume it.
+So the rule is simply: **a lease is never acquired while one is held.** It is enforced structurally.
+Public `Integra7Api` methods acquire; private helpers take an `IMidiLease` parameter. A helper that
+needs the port cannot be called without one, which makes a missed hand-off a compile error rather than
+a deadlock.
+
+**The escape hatch is a timeout.** A conversation that does nest anyway — through a path that leaves
+`Integra7Api` and comes back, which is the shape described under "Not made atomic here" below — would
+otherwise wait forever. Instead the gate warns at five seconds and throws at sixty, both naming the
+holder and the waiter. Five seconds cannot be the throwing threshold: the name burst legitimately holds
+the port for several seconds, and a part load queued behind it is waiting correctly, not deadlocked.
 
 ### Deferred messages drain on release
 
@@ -151,13 +154,24 @@ Every device-touching method on `Integra7Api`: `MakeDataRequestAsync`, `CheckIde
 `AllNotesOffAsync`, `ChangePresetAsync`, `SendStopPreviewPhraseMsgAsync`,
 `SendPlayPreviewPhraseMsgAsync`, `SendLoadSrxAsync`, `WriteToneToUserMemory`.
 
-Three change behaviour as a consequence, all intended:
+Two change behaviour as a consequence, both intended:
 
 | method | today | with a lease |
 |---|---|---|
 | `ChangePresetAsync` | 3 raw sends, no lock | 3 sends in one lease — cannot be split |
 | `AllNotesOffAsync` | 16 sends, 16 acquisitions | one lease |
-| `WriteToneToUserMemory` | 3 steps, each acquiring | one lease |
+
+**Not made atomic here: `WriteToneToUserMemory`.** Its three steps stay three conversations. Step 2
+calls `ChangePresetNameAsync`, which writes out through `Integra7Domain` → `DomainBase` →
+`FullyQualifiedParameter` and re-enters `MakeDataTransmissionAsync` — so holding a lease across it
+would be exactly the nested acquire that is now forbidden. Making it atomic means threading a lease
+through the domain layer, which is piece C. The method must therefore **release between steps**, and
+the plan must say so explicitly, because the natural reading of "one lease per conversation" would
+produce a hang here.
+
+This is the one headline fix this piece gives up. The race it leaves open is real: step 1 selects the
+new patch, so a read landing between steps 1 and 3 reads the new patch, and a preset change there
+writes the wrong name to the wrong slot.
 
 `ChangePresetAsync` also posts `UpdateResyncPart`. That post **moves after the lease is released**.
 Holding the port while posting a message whose subscriber will try to acquire it is needless — it is
@@ -196,10 +210,10 @@ A conversation that throws propagates to its caller unchanged. The port itself t
 already has a `FakeMidiIn` to model on.
 
 - **Exclusivity** — two concurrent acquires; the second does not proceed until the first disposes.
-- **Reentrancy** — a nested acquire returns the same lease; disposing the inner handle does not release
-  the port; the outermost dispose does.
-- **The fire-and-forget hazard** — a task started inside a lease, holding the inherited `AsyncLocal`,
-  throws `ObjectDisposedException` once the outer conversation has disposed.
+- **A released lease cannot be used** — a task started inside a conversation and outliving it throws
+  `ObjectDisposedException` rather than writing onto a port another conversation now owns.
+- **A wait that runs long warns**, naming holder and waiter, and a wait that runs absurdly long throws
+  — the escape hatch for a nested acquire that gets written anyway.
 - **Drain on release** — messages deferred by any read in the conversation dispatch exactly once, and
   only after the port is free.
 - **Release on exception** — a conversation that throws still releases, and the next acquire succeeds.
@@ -222,11 +236,13 @@ The existing 387 tests must stay green. Build and test with the user-local SDK:
 
 ## Out of scope
 
-**Piece C — multi-step conversations in callers**, which will still take one lease per step after this
-change: `SynthParam`'s write-then-`WaveOutOfRangeReset`-then-read, `RestoreAuditionAsync` followed by a
-program change, and `MotionalSurroundPartViewModel`'s L-R-then-F-B pair. Each is better off than today
-but not yet atomic. They need callers to acquire a lease and pass it down, which is a wider change than
-this one.
+**Piece C — multi-step conversations that leave `Integra7Api` and come back**, which will still take one
+lease per step after this change: `WriteToneToUserMemory`'s three steps, `SynthParam`'s
+write-then-`WaveOutOfRangeReset`-then-read, `RestoreAuditionAsync` followed by a program change, and
+`MotionalSurroundPartViewModel`'s L-R-then-F-B pair. Each is better off than today but not yet atomic.
+They all need the same thing: a lease threaded through `Integra7Domain`, `DomainBase` and
+`FullyQualifiedParameter` so a caller can hold one across a sequence. That is a wider change than this
+one, and it is why they are together in C rather than split across B and C.
 
 **The legacy synchronous reply path** — `_manualReplyHandling`,
 `AnnounceIntentionToManuallyHandleReply`, `RestoreAutomaticHandling`, `GetReply` — is untouched.
