@@ -54,8 +54,12 @@ public sealed class MidiPort : IMidiPort
     /// Overridable so a test can observe it; it logs by default.</summary>
     public Action<string, string, TimeSpan>? OnSlowAcquire { get; set; }
 
-    private string _holder = "nobody";
-    private DateTime _heldSince = DateTime.UtcNow;
+    /// <summary>Who holds the port and since when, as one value. Two separate fields could be read as
+    /// a mismatched pair -- the new holder's name against the previous one's timestamp -- and this is
+    /// read precisely when someone is trying to explain a hang.</summary>
+    private sealed record Holding(string What, DateTime Since);
+
+    private volatile Holding _holding = new("nobody", DateTime.UtcNow);
 
     public MidiPort(IMidiOut midiOut, IMidiIn midiIn)
     {
@@ -65,22 +69,23 @@ public sealed class MidiPort : IMidiPort
 
     public async Task<IMidiLease> AcquireAsync(string what)
     {
+        var startedWaiting = DateTime.UtcNow;
+
         if (!await _gate.WaitAsync(SlowAcquireThreshold))
         {
             // Name both sides. Every hang chased over this work looked like a frozen UI with no
             // indication of who was holding the port and who was waiting for it.
-            var holder = _holder;
-            var heldFor = DateTime.UtcNow - _heldSince;
+            var atWarning = _holding;
             if (OnSlowAcquire is not null)
             {
-                OnSlowAcquire(what, holder, heldFor);
+                OnSlowAcquire(what, atWarning.What, DateTime.UtcNow - atWarning.Since);
             }
             else
             {
                 Log.Warning(
                     "Waiting {Waited:0}s to acquire the MIDI port for '{What}' -- held by '{Holder}' " +
-                    "for {HeldFor:0}s.", SlowAcquireThreshold.TotalSeconds, what, holder,
-                    heldFor.TotalSeconds);
+                    "for {HeldFor:0}s.", SlowAcquireThreshold.TotalSeconds, what, atWarning.What,
+                    (DateTime.UtcNow - atWarning.Since).TotalSeconds);
             }
 
             // Clamped: a caller who sets AcquireTimeout below SlowAcquireThreshold would otherwise
@@ -90,20 +95,35 @@ public sealed class MidiPort : IMidiPort
             if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
 
             if (!await _gate.WaitAsync(remaining))
+            {
+                // Re-read rather than reuse the name captured at the warning. The window is narrow --
+                // SemaphoreSlim grants the gate to a queued waiter, so timing out usually means it was
+                // never released and the holder is unchanged -- but between the first wait timing out
+                // and the second one queueing, this conversation is in no queue at all, and another
+                // can take the port there. Naming the wrong conversation is worse than useless when
+                // someone is chasing a hang. Not directly tested: the window is a few microseconds
+                // wide and cannot be opened reliably.
+                //
+                // The elapsed time is measured rather than reported from the configured timeout, so it
+                // stays true even when the two thresholds are set inconsistently and the wait is
+                // clamped short.
+                var now = _holding;
                 throw new TimeoutException(
-                    $"Gave up after {AcquireTimeout.TotalSeconds:0}s waiting for the MIDI port for " +
-                    $"'{what}' -- held by '{holder}'. Something acquired the port while already " +
-                    "holding it, which is not supported: public methods acquire, helpers take a lease.");
+                    $"Gave up after {(DateTime.UtcNow - startedWaiting).TotalSeconds:0}s waiting for " +
+                    $"the MIDI port for '{what}' -- held by '{now.What}' for " +
+                    $"{(DateTime.UtcNow - now.Since).TotalSeconds:0}s. Something acquired the port " +
+                    "while already holding it, which is not supported: public methods acquire, " +
+                    "helpers take a lease.");
+            }
         }
 
-        _holder = what;
-        _heldSince = DateTime.UtcNow;
+        _holding = new Holding(what, DateTime.UtcNow);
         return new Lease(this, what);
     }
 
     private void Release()
     {
-        _holder = "nobody";
+        _holding = new Holding("nobody", DateTime.UtcNow);
         _gate.Release();
     }
 

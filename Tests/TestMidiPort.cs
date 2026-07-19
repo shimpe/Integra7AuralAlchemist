@@ -413,6 +413,23 @@ public class TestMidiPort
     }
 
     [Test]
+    public async Task AnInconsistentPairOfThresholdsStillNamesTheHolder()
+    {
+        // A timeout below the warning threshold made the remaining wait negative, and SemaphoreSlim
+        // rejects that outright -- so the caller got ArgumentOutOfRangeException instead of the
+        // message saying who had the port, which is the entire point.
+        var port = NewPort(out _, out _);
+        port.SlowAcquireThreshold = TimeSpan.FromMilliseconds(200);
+        port.AcquireTimeout = TimeSpan.FromMilliseconds(50);
+
+        await using var holder = await port.AcquireAsync("user tone names 448-511");
+
+        var boom = Assert.ThrowsAsync<TimeoutException>(async () => await port.AcquireAsync("part 6 load"));
+
+        Assert.That(boom!.Message, Does.Contain("user tone names 448-511"));
+    }
+
+    [Test]
     public async Task AConversationThatWaitsBrieflyIsNotWarnedAbout()
     {
         // A part load queued behind the name burst is waiting correctly, not deadlocked.
