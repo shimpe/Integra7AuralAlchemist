@@ -1359,7 +1359,11 @@ public partial class PartViewModel : ViewModelBase
     }
 
     /// <summary>Start a load, or join one already running, without deferring to a pending reload.
-    /// Only the reload itself calls this: deferring to the reload would make it await its own task.</summary>
+    ///
+    /// Called directly by both <see cref="EnsureInitializedAsync"/> and the reload below. The reload
+    /// must never reach a load through <see cref="EnsureInitializedAsync"/> instead, and this method
+    /// must never grow a <c>_reloadTask</c> check of its own "for consistency": either would make the
+    /// reload await its own task.</summary>
     private Task BeginLoadAsync()
     {
         switch (_load.RequestOpen())
@@ -1415,8 +1419,8 @@ public partial class PartViewModel : ViewModelBase
 
     private async Task RunDeferredInitAsync(CancellationToken token, int epoch)
     {
-        // Never run synchronously: EnsureInitializedAsync assigns _loadTask from the return value,
-        // so a body that reset the field before that assignment would have its reset overwritten.
+        // Never run synchronously: BeginLoadAsync assigns _loadTask from the return value, so a body
+        // that reset the field before that assignment would have its reset overwritten.
         await Task.Yield();
 
         var outcome = LoadOutcome.Completed;
