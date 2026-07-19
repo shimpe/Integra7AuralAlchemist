@@ -97,27 +97,17 @@ public class MidiIn : IMidiIn
         _manualReplyHandling = false;
     }
 
-    /// <summary>Restore the default handler on behalf of <paramref name="handler"/>. Ignored when some
-    /// other reader owns the port: the single _lastEventHandler slot means an unconditional restore
-    /// would silently detach that reader, which then waits for a reply it can no longer receive and
-    /// times out — and every read after it does the same, because the pairing never recovers.</summary>
+    /// <summary>Restore the default handler on behalf of <paramref name="handler"/>. Ignored when it is
+    /// not the handler currently installed: MidiPort's single lease means that should never happen, but
+    /// the check stays because a reader that finishes late must still not detach a handler another
+    /// reader has since installed.</summary>
     public void RemoveHandler(EventHandler<MidiReceivedEventArgs> handler)
     {
         if (_access == null)
             return;
 
-        if (!MidiHandlerOwnership.MayRestoreDefault(_lastEventHandler, handler))
-        {
-            if (Equals(_lastEventHandler, (EventHandler<MidiReceivedEventArgs>)DefaultHandler))
-                // Ordinary: a read hands the port back when it completes, and its caller's cleanup
-                // then asks again. Nobody is waiting, so there is nothing to protect.
-                Log.Debug("MIDI handler already handed back.");
-            else
-                // This one matters: another reader is mid-request, which the MIDI semaphore is
-                // supposed to make impossible. Restoring here would strand it.
-                Log.Warning("Not restoring the default MIDI handler: another reader owns the port.");
+        if (!Equals(_lastEventHandler, handler))
             return;
-        }
 
         ConfigureDefaultHandler();
     }
