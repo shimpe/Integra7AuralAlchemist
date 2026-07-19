@@ -115,9 +115,9 @@
              usable parameter editor. MinWidth keeps the grid filling the window while it fits, so the
              star column still stretches and no bar appears; below that the grid keeps its natural
              width and scrolls, instead of squeezing the editor down to nothing. -->
-        <ScrollViewer x:Name="RackScroll" HorizontalScrollBarVisibility="Auto"
+        <ScrollViewer Grid.Row="1" x:Name="RackScroll" HorizontalScrollBarVisibility="Auto"
                       VerticalScrollBarVisibility="Disabled">
-        <Grid Grid.Row="1" MinWidth="{Binding #RackScroll.Viewport.Width}">
+        <Grid MinWidth="{Binding #RackScroll.Viewport.Width}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="240"/>
