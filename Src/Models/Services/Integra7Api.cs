@@ -119,8 +119,8 @@ public class Integra7Api : IIntegra7Api
     public async Task MakeDataTransmissionAsync(byte[] address, byte[] data)
     {
         var transmission = Integra7SysexHelpers.MakeDataSet(DeviceId(), address, data);
-        var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-        await w.SafeSendAsync(transmission);
+        await using var port = await _port.AcquireAsync("parameter write");
+        await port.SendAsync(transmission);
     }
 
     public bool ConnectionOk()
@@ -131,46 +131,48 @@ public class Integra7Api : IIntegra7Api
     public async Task NoteOnAsync(byte Channel, byte Note, byte Velocity)
     {
         byte[] data = [(byte)(Integra7MidiControlNos.NoteOn + Channel), Note, Velocity];
-        var mo = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-        await mo.SafeSendAsync(data);
+        await using var port = await _port.AcquireAsync("note on");
+        await port.SendAsync(data);
     }
 
     public async Task NoteOffAsync(byte Channel, byte Note)
     {
         byte[] data = [(byte)(Integra7MidiControlNos.NoteOff + Channel), Note, 0];
-        var mo = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-        await mo.SafeSendAsync(data);
+        await using var port = await _port.AcquireAsync("note off");
+        await port.SendAsync(data);
     }
 
     public async Task AllNotesOffAsync()
     {
+        // One lease for all sixteen. Each send used to acquire separately, so a read could be
+        // serviced between the messages for parts 3 and 4.
+        await using var port = await _port.AcquireAsync("all notes off");
         for (var i = 0; i < Constants.NO_OF_PARTS; i++)
         {
             byte[] data = [(byte)(Integra7MidiControlNos.AllNotesOff + i), 0x7C, 0x00];
-            var mo = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-            await mo.SafeSendAsync(data);
+            await port.SendAsync(data);
         }
     }
 
     public async Task SendStopPreviewPhraseMsgAsync()
     {
         var stop = Integra7SysexHelpers.MakeStopPreviewPhraseMsg(_deviceId);
-        var mo = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-        await mo.SafeSendAsync(stop);
+        await using var port = await _port.AcquireAsync("stop preview phrase");
+        await port.SendAsync(stop);
     }
 
     public async Task SendPlayPreviewPhraseMsgAsync(byte channel)
     {
         var start = Integra7SysexHelpers.MakePlayPreviewPhraseMsg(channel, _deviceId);
-        var mo = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-        await mo.SafeSendAsync(start);
+        await using var port = await _port.AcquireAsync("play preview phrase");
+        await port.SendAsync(start);
     }
 
     public async Task SendLoadSrxAsync(byte srx_slot1, byte srx_slot2, byte srx_slot3, byte srx_slot4)
     {
         var msg = Integra7SysexHelpers.MakeLoadSrxMsg(srx_slot1, srx_slot2, srx_slot3, srx_slot4, _deviceId);
-        var mo = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-        await mo.SafeSendAsync(msg);
+        await using var port = await _port.AcquireAsync("load SRX");
+        await port.SendAsync(msg);
     }
 
     public async Task<(byte /*slot1*/, byte /* slot2*/, byte /*slot3*/, byte /*slot4*/)> GetLoadedSrxAsync()
