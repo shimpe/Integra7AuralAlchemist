@@ -61,7 +61,19 @@
         </Border>
 
         <!-- ===== Rail + selected drum ===== -->
-        <Grid Grid.Row="1" ColumnDefinitions="340,*">
+        <!-- Scrolls sideways when the window is too narrow for the rack, the partial list and a
+             usable parameter editor. MinWidth keeps the grid filling the window while it fits, so the
+             star column still stretches and no bar appears; below that the grid keeps its natural
+             width and scrolls, instead of squeezing the editor down to nothing. -->
+        <ScrollViewer x:Name="RackScroll" HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Disabled">
+        <Grid Grid.Row="1" MinWidth="{Binding #RackScroll.Viewport.Width}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="340"/>
+            <!-- Never squeezed below a usable width; the grid scrolls sideways instead. -->
+            <ColumnDefinition Width="*" MinWidth="420"/>
+          </Grid.ColumnDefinitions>
+
 
             <!-- Note rail: low note at the bottom (VM orders 108 -> 21) -->
             <ListBox Grid.Column="0" Margin="0,0,8,0"
@@ -111,5 +123,6 @@
                 </TabItem>
             </TabControl>
         </Grid>
+        </ScrollViewer>
     </Grid>
 </UserControl>
