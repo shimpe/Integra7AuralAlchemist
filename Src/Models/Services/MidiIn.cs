@@ -69,7 +69,11 @@ public class MidiIn : IMidiIn
             else
             {
                 _midiPortDetails = inputs.Last();
+                // Bracketed because this blocks on an async open, and a driver left in a bad state can
+                // make it never return -- which looks like the application hanging with no clue why.
+                Log.Information("Opening MIDI input '{Port}'.", _midiPortDetails?.Name);
                 _access = _midiAccessManager?.OpenInputAsync(_midiPortDetails?.Id).Result;
+                Log.Information("MIDI input opened.");
             }
 
             if (_access != null)

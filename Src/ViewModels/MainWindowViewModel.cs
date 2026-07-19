@@ -649,9 +649,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public async Task InitializeAsync()
     {
+        // Breadcrumbs: opening the MIDI ports blocks on an async open, and everything that follows
+        // depends on it. Without these, a stall here leaves a log containing only "starting".
+        Log.Information("Opening the MIDI ports.");
         Integra7 = new Integra7Api(
             new MidiPort(new MidiOut(INTEGRA_CONNECTION_STRING), new MidiIn(INTEGRA_CONNECTION_STRING)));
+        Log.Information("MIDI ports open; checking the device identity.");
         await Integra7.CheckIdentityAsync();
+        Log.Information("Identity check done; connected: {Connected}.", Integra7.ConnectionOk());
         List<Integra7Preset> presets = LoadPresets();
         await UpdateConnectedAsync(Integra7, presets);
     }
