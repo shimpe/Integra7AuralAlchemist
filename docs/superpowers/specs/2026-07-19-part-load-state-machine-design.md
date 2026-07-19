@@ -173,6 +173,14 @@ Notes on the rows that are not obvious:
   `EnsureInitializedAsync` at `:1862`) does the loading.
 - **`Cancel load` is only ever true for `Loading`**, so the view model can assert the CTS is non-null
   when it is asked to cancel.
+- **A reload already owed stays owed**, so the `reload` column is really
+  `cancel || Phase == Loaded || ReloadPending`. `ReloadPending` is cleared by `LoadFinished` and by
+  nothing else. Without that clause, a device report arriving inside the settle window computes
+  `reload == false` (the phase is `Abandoned` by then, not `Loaded`), clears the marker and bumps the
+  epoch — and the reload it superseded fails its `IsCurrent` check and never runs, leaving the part
+  open with no state anybody read. `MainWindowViewModel.cs:764` and `:789` reach
+  `PreSelectConfiguredPreset` without passing through `ResyncPartAsync`, so the `ReloadPending` guard
+  below does not cover that path.
 - **Every row with `reload == true` also sets `Phase = Abandoned`.** The reload is performed by
   `EnsureInitializedAsync`, which asks `RequestOpen()` — and `RequestOpen` on `Loaded` returns `None`.
   Leaving the phase at `Loaded` would therefore start no load, never clear `ReloadPending`, and leave
@@ -242,6 +250,8 @@ so there is no invalid-transition case for `PartViewModel` to handle.
   a report carrying a stale epoch changes nothing.
 - A reload actually starts one: `RequestPreset` on `Loaded` followed by `RequestOpen` returns
   `StartLoad`, not `None`. This is the case whose absence would leave the part permanently `Busy`.
+- A device report inside the settle window does not cancel the owed reload, and only `LoadFinished`
+  ever clears `ReloadPending`.
 - `RequestPreset` — 8 cases, one per row, asserting all five fields of `PresetDecision`.
 - The completion window (fault 1): `Loading` → `LoadFinished(Completed)` → `RequestPreset(User)` is
   accepted with `CancelCurrentLoad == false`, proving there is no interval where a preset change both
