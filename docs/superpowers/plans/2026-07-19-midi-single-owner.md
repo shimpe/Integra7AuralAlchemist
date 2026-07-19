@@ -355,17 +355,27 @@ public sealed class MidiPort : IMidiPort
 "$LOCALAPPDATA/Microsoft/dotnet/dotnet.exe" test Tests/Tests.csproj --filter "FullyQualifiedName~TestMidiPort"
 ```
 
-Expected: `Passed! - Failed: 0, Passed: 6`.
+Expected: **`Failed: 1, Passed: 5`** — five pass, and
+`DisposingTheInnerHandleDoesNotReleaseThePort` FAILS.
 
-Note `DisposingTheInnerHandleDoesNotReleaseThePort` is the subtle one: because a nested acquire returns
-the *same object*, the inner `DisposeAsync` sets `Released` and releases. If that test fails, the
-reentrancy model needs a depth count rather than a flag — report it rather than patching around it.
+That failure is intended and is what Task 2 fixes. A nested acquire returns the *same object*, so the
+inner `DisposeAsync` sets `Released` and hands the port back while the outer conversation is still
+running. Leave it failing; do not add the depth count here.
+
+If that test unexpectedly PASSES, stop and report — it would mean the implementation differs from the
+one given above, and Task 2's premise no longer holds.
 
 - [ ] **Step 5: Commit**
+
+Commit with the nesting test still red — Task 2 is the other half, and keeping the nesting semantics in
+their own commit is deliberate.
 
 ```bash
 git add Src/Models/Services/MidiPort.cs Tests/TestMidiPort.cs
 git commit -m "feat: give the MIDI port a single owner and a per-conversation lease
+
+Nesting is not handled yet: an inner dispose still releases the port, and the
+test for it is red until the next commit.
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```
