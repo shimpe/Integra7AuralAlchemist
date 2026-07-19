@@ -83,7 +83,13 @@ public sealed class MidiPort : IMidiPort
                     heldFor.TotalSeconds);
             }
 
-            if (!await _gate.WaitAsync(AcquireTimeout - SlowAcquireThreshold))
+            // Clamped: a caller who sets AcquireTimeout below SlowAcquireThreshold would otherwise
+            // hand WaitAsync a negative timeout, which throws ArgumentOutOfRangeException instead of
+            // the TimeoutException that names the holder.
+            var remaining = AcquireTimeout - SlowAcquireThreshold;
+            if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
+
+            if (!await _gate.WaitAsync(remaining))
                 throw new TimeoutException(
                     $"Gave up after {AcquireTimeout.TotalSeconds:0}s waiting for the MIDI port for " +
                     $"'{what}' -- held by '{holder}'. Something acquired the port while already " +
