@@ -28,6 +28,16 @@ public sealed class ThrottledParameterWriter : IDisposable
             .Subscribe(async r =>
             {
                 try { await r.WriteAsync(); }
+                catch (TimeoutException ex)
+                {
+                    // The MIDI port only throws this when something acquired it while already holding it,
+                    // which cannot happen unless a call inside a conversation was not handed the lease.
+                    // It is a bug in this application, not a device failure, and it would otherwise look
+                    // like an ordinary write error sixty seconds after the fact.
+                    Log.Error(ex, "A throttled write held the MIDI port against itself -- a lease was not " +
+                                  "passed to a call inside its conversation. This is a defect, not a " +
+                                  "device problem.");
+                }
                 catch (Exception ex) { Log.Error(ex, "Throttled write failed for {Key}", r.Key); }
             });
     }

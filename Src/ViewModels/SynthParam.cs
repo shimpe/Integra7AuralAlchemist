@@ -68,14 +68,18 @@ public sealed class ParamInt : ReactiveObject, IParam, IDisposable
 
     private void Enqueue() => _writer.Enqueue(_key, async () =>
     {
-        await _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value.ToString(CultureInfo.InvariantCulture));
+        // One conversation: the re-read below must see the state these writes produced, and another
+        // flow writing to the same domain in between would corrupt it without saying so.
+        await using var lease = await _domain.BeginConversationAsync($"edit {_p.ParSpec.Path}");
+        await _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value.ToString(CultureInfo.InvariantCulture),
+            lease);
         // A parent param reinterprets dependent slots on the hardware; re-read so dependent controls
         // show correct values (mirrors the advanced view's IsParent resync). See memory
         // conditional-parameters-and-write-races.
         if (_p.ParSpec.IsParent)
         {
-            await WaveOutOfRangeReset.ApplyAsync(_domain, _p, WaveformBanks.Default);
-            await _domain.ReadFromIntegraAsync();
+            await WaveOutOfRangeReset.ApplyAsync(_domain, _p, WaveformBanks.Default, lease);
+            await _domain.ReadFromIntegraAsync(lease);
         }
     });
 
@@ -147,11 +151,14 @@ public sealed class ParamString : ReactiveObject, IParam, IDisposable
             this.RaiseAndSetIfChanged(ref _value, value);
             if (!_suppress) _writer.Enqueue(_key, async () =>
             {
-                await _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value);
+                // One conversation: the re-read below must see the state these writes produced, and
+                // another flow writing to the same domain in between would corrupt it without saying so.
+                await using var lease = await _domain.BeginConversationAsync($"edit {_p.ParSpec.Path}");
+                await _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value, lease);
                 if (_p.ParSpec.IsParent)
                 {
-                    await WaveOutOfRangeReset.ApplyAsync(_domain, _p, WaveformBanks.Default);
-                    await _domain.ReadFromIntegraAsync(); // resync dependents
+                    await WaveOutOfRangeReset.ApplyAsync(_domain, _p, WaveformBanks.Default, lease);
+                    await _domain.ReadFromIntegraAsync(lease); // resync dependents
                 }
             });
         }
@@ -217,8 +224,11 @@ public sealed class ParamBool : ReactiveObject, IParam, IDisposable
             this.RaiseAndSetIfChanged(ref _value, value);
             if (!_suppress) _writer.Enqueue(_key, async () =>
             {
-                await _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value ? _on : _off);
-                if (_p.ParSpec.IsParent) await _domain.ReadFromIntegraAsync(); // resync dependents
+                // One conversation: the re-read below must see the state this write produced, and
+                // another flow writing to the same domain in between would corrupt it without saying so.
+                await using var lease = await _domain.BeginConversationAsync($"edit {_p.ParSpec.Path}");
+                await _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value ? _on : _off, lease);
+                if (_p.ParSpec.IsParent) await _domain.ReadFromIntegraAsync(lease); // resync dependents
             });
         }
     }
@@ -226,7 +236,7 @@ public sealed class ParamBool : ReactiveObject, IParam, IDisposable
     /// <summary>Write the value to hardware immediately (awaited, bypassing the per-key throttle) and
     /// reflect it locally without echoing. Used when a restore must finish before a following action
     /// (e.g. restoring an audition before a program change).</summary>
-    public async System.Threading.Tasks.Task WriteImmediateAsync(bool value)
+    public async System.Threading.Tasks.Task WriteImmediateAsync(bool value, IMidiLease? lease = null)
     {
         _suppress = true;
         try { this.RaiseAndSetIfChanged(ref _value, value); }
@@ -235,7 +245,7 @@ public sealed class ParamBool : ReactiveObject, IParam, IDisposable
         // when the user toggled solo/mute moments ago) with a no-op, so it cannot fire ~THROTTLE ms
         // later — after a following program change — and stamp this value onto the new preset.
         _writer.Enqueue(_key, () => System.Threading.Tasks.Task.CompletedTask);
-        await _domain.WriteToIntegraAsync(_p.ParSpec.Path, value ? _on : _off);
+        await _domain.WriteToIntegraAsync(_p.ParSpec.Path, value ? _on : _off, lease);
     }
 
     public string Snapshot() => _value ? _on : _off;

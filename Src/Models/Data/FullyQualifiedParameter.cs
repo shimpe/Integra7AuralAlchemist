@@ -127,10 +127,10 @@ public class FullyQualifiedParameter : INotifyPropertyChanged
     }
 
     public async Task RetrieveFromIntegraAsync(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses,
-        Integra7Parameters parameters)
+        Integra7Parameters parameters, IMidiLease? lease = null)
     {
         var totalAddr = CompleteAddress(startAddresses, parameters);
-        var reply = await integra7Api.MakeDataRequestAsync(totalAddr, ParSpec.Bytes);
+        var reply = await integra7Api.MakeDataRequestAsync(totalAddr, ParSpec.Bytes, lease);
         if (reply.Length == 0)
         {
             // Parsing an empty reply would overwrite this parameter with a value nobody read.
@@ -142,11 +142,11 @@ public class FullyQualifiedParameter : INotifyPropertyChanged
     }
 
     public async Task WriteToIntegraAsync(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses,
-        Integra7Parameters parameters)
+        Integra7Parameters parameters, IMidiLease? lease = null)
     {
         var totalAddr = CompleteAddress(startAddresses, parameters);
         var data = GetSysexDataFragment();
-        await integra7Api.MakeDataTransmissionAsync(totalAddr, data);
+        await integra7Api.MakeDataTransmissionAsync(totalAddr, data, lease);
     }
 
     public void ParseFromSysexReply(byte[] reply, Integra7Parameters parameters,

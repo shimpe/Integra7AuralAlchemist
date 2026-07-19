@@ -416,7 +416,7 @@ public class Integra7Domain
         return null;
     }
 
-    public async Task WriteSingleParameterToIntegraAsync(FullyQualifiedParameter p)
+    public async Task WriteSingleParameterToIntegraAsync(FullyQualifiedParameter p, IMidiLease? lease = null)
     {
         Tuple<string, string, string> key = new(p.Start, p.Offset, p.Offset2);
         if (!_parameterMapper.ContainsKey(key))
@@ -427,7 +427,7 @@ public class Integra7Domain
         }
 
         var b = _parameterMapper[key];
-        await b.WriteToIntegraAsync(p.ParSpec.Path, p.StringValue);
+        await b.WriteToIntegraAsync(p.ParSpec.Path, p.StringValue, lease);
     }
 
     public DomainBase GetDomain(FullyQualifiedParameter p)

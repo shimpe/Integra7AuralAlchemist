@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using CoreMidi;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
+using Integra7AuralAlchemist.ViewModels;
+using Microsoft.Reactive.Testing;
 
 namespace Tests;
 
@@ -46,14 +49,32 @@ public class TestIntegra7ApiConversations
 
             public Task SendAsync(byte[] data)
             {
+                ThrowIfReleased();
                 port.Sent.Add(data);
                 return Task.CompletedTask;
             }
 
-            public Task<byte[]> RequestAsync(byte[] request, IReplyMatcher expected) =>
-                Task.FromResult<byte[]>([]);
+            public Task<byte[]> RequestAsync(byte[] request, IReplyMatcher expected)
+            {
+                ThrowIfReleased();
+                return Task.FromResult<byte[]>([]);
+            }
 
-            public Task<byte[]> ReadNextAsync(IReplyMatcher expected) => Task.FromResult<byte[]>([]);
+            public Task<byte[]> ReadNextAsync(IReplyMatcher expected)
+            {
+                ThrowIfReleased();
+                return Task.FromResult<byte[]>([]);
+            }
+
+            /// <summary>Mirrors the real lease, which throws on use after release. A fake that quietly
+            /// accepted a send on a released lease would let a call that wrongly disposes a lease it
+            /// only borrowed pass every assertion here, while failing on hardware.</summary>
+            private void ThrowIfReleased()
+            {
+                if (_released)
+                    throw new ObjectDisposedException(nameof(IMidiLease),
+                        "This lease was already released.");
+            }
 
             public ValueTask DisposeAsync()
             {
@@ -142,22 +163,20 @@ public class TestIntegra7ApiConversations
     }
 
     [Test]
-    public async Task WritingAToneToUserMemoryKeepsItsStepsInSeparateConversations()
+    public async Task WritingAToneToUserMemoryIsOneConversation()
     {
-        // The one method here that must NOT be one conversation. Its middle step writes the name out
-        // through the domain layer, which comes back into MakeDataTransmissionAsync and acquires the
-        // port for itself -- so a single lease across the three steps would block on the gate its own
-        // conversation holds, until the sixty-second timeout throws. Pinned because "tidying" this
-        // into one lease, for consistency with ChangePresetAsync, is the obvious wrong move.
+        // Step 1 selects the new patch on the device, so a read landing between steps 1 and 3 reads
+        // the new patch, and a preset change there writes the wrong name to the wrong slot. This used
+        // to be several conversations because there was no way to pass a lease through the domain
+        // layer, and holding one across the steps would have deadlocked.
         var port = new RecordingPort();
         var api = new Integra7Api(port);
         var domain = new Integra7Domain(api, new Integra7StartAddresses(), LoadParameters());
 
         await api.WriteToneToUserMemory(domain, "SN-S", 0, "TEST NAME", 0);
 
-        Assert.That(port.MostLeasesHeldAtOnce, Is.EqualTo(1),
-            "a lease held while the name step takes its own is the deadlock this method must avoid");
-        Assert.That(port.Conversations, Does.Contain("write tone to user memory"));
+        Assert.That(port.Conversations, Is.EqualTo(new[] { "write tone to user memory" }));
+        Assert.That(port.MostLeasesHeldAtOnce, Is.EqualTo(1));
     }
 
     private static Integra7Parameters LoadParameters()
@@ -165,6 +184,40 @@ public class TestIntegra7ApiConversations
         var path = Path.Combine(TestContext.CurrentContext.TestDirectory,
             "..", "..", "..", "..", "Src", "Assets", "parameters.bin");
         return new Integra7Parameters(File.OpenRead(path));
+    }
+
+    [Test]
+    public void AParentParameterEditIsOneConversationCoveringWriteResetAndReread()
+    {
+        // SynthParam's Enqueue bodies (ParamInt/ParamString/ParamBool) write the edited value, then --
+        // for a parent parameter -- run WaveOutOfRangeReset and re-read the domain, all under one
+        // lease. A lease dropped from any of those calls would not deadlock a real device today (the
+        // real port would block for 60s and throw); here it shows up immediately as a second
+        // conversation or two leases held at once. "Studio Set Common Chorus/Chorus Type" is used
+        // because it is a real isparent:true parameter that is NOT a wave-group discriminator, so
+        // WaveOutOfRangeReset.ApplyAsync is a genuine no-op for it and the test does not need
+        // WaveformBanks.Default (which requires a running Avalonia application to load its CSV assets
+        // and is unavailable in this headless test host).
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+        var domain = new Integra7Domain(api, new Integra7StartAddresses(), LoadParameters());
+        var chorusDomain = domain.StudioSetCommonChorus;
+        var chorusType = chorusDomain.GetRelevantParameters(true, true)
+            .Single(p => p.ParSpec.Path == "Studio Set Common Chorus/Chorus Type");
+        Assert.That(chorusType.ParSpec.IsParent, Is.True,
+            "the test needs a real parent parameter to exercise the reset-and-re-read branch");
+
+        var scheduler = new TestScheduler();
+        using var writer = new ThrottledParameterWriter(250, scheduler);
+        var sut = new ParamString(chorusDomain, chorusType, writer);
+
+        sut.Value = "Chorus"; // was "" (the FQP's unparsed default) -- a genuine change, so it enqueues
+
+        scheduler.AdvanceBy(TimeSpan.FromMilliseconds(251).Ticks);
+
+        Assert.That(port.Conversations, Is.EqualTo(new[] { "edit Studio Set Common Chorus/Chorus Type" }),
+            "the write, the wave-group reset, and the re-read must all run under one lease");
+        Assert.That(port.MostLeasesHeldAtOnce, Is.EqualTo(1));
     }
 
     [Test]
@@ -180,5 +233,37 @@ public class TestIntegra7ApiConversations
         port.Connected = false;
 
         Assert.That(api.ConnectionOk(), Is.False);
+    }
+
+    [Test]
+    public async Task ACallGivenALeaseDoesNotReleaseIt()
+    {
+        // The lease belongs to the conversation that opened it and has to outlive the call. Releasing
+        // it here would free the port in the middle of a sequence, which is the whole thing this
+        // exists to prevent.
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+
+        await using var conversation = await api.BeginConversationAsync("a sequence");
+        await api.MakeDataTransmissionAsync([0x0f, 0x00, 0x04, 0x02], [0x01], conversation);
+        await api.MakeDataTransmissionAsync([0x0f, 0x00, 0x04, 0x02], [0x02], conversation);
+
+        Assert.That(port.Conversations, Is.EqualTo(new[] { "a sequence" }),
+            "the two writes must join the conversation, not open their own");
+        Assert.That(port.MostLeasesHeldAtOnce, Is.EqualTo(1));
+        Assert.That(port.Sent, Has.Count.EqualTo(2));
+    }
+
+    [Test]
+    public async Task ACallGivenNoLeaseAcquiresAndReleasesItsOwn()
+    {
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+
+        await api.MakeDataTransmissionAsync([0x0f, 0x00, 0x04, 0x02], [0x01]);
+        await api.MakeDataTransmissionAsync([0x0f, 0x00, 0x04, 0x02], [0x02]);
+
+        Assert.That(port.Conversations, Has.Count.EqualTo(2), "each call is its own conversation");
+        Assert.That(port.MostLeasesHeldAtOnce, Is.EqualTo(1), "and neither outlives its call");
     }
 }

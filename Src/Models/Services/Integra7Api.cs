@@ -19,10 +19,14 @@ public interface IIntegra7Api
     Task NoteOnAsync(byte Channel, byte Note, byte Velocity);
     Task NoteOffAsync(byte Channel, byte Note);
     Task AllNotesOffAsync();
-    Task ChangePresetAsync(byte Channel, int Msb, int Lsb, int Pc);
+    Task ChangePresetAsync(byte Channel, int Msb, int Lsb, int Pc, IMidiLease? lease = null);
 
-    Task<byte[]> MakeDataRequestAsync(byte[] address, long size);
-    Task MakeDataTransmissionAsync(byte[] address, byte[] data);
+    Task<byte[]> MakeDataRequestAsync(byte[] address, long size, IMidiLease? lease = null);
+    Task MakeDataTransmissionAsync(byte[] address, byte[] data, IMidiLease? lease = null);
+
+    /// <summary>Open a conversation the caller will hold across several calls, passing the lease to
+    /// each. A caller making only one call should not use this: the call acquires for itself.</summary>
+    Task<IMidiLease> BeginConversationAsync(string what);
     Task SendStopPreviewPhraseMsgAsync();
     Task SendLoadSrxAsync(byte srx_slot1, byte srx_slot2, byte srx_slot3, byte srx_slot4);
     Task<(byte, byte, byte, byte)> GetLoadedSrxAsync();
@@ -73,10 +77,11 @@ public class Integra7Api : IIntegra7Api
     }
 
     /// <summary>One request and its reply, as a conversation of its own.</summary>
-    private async Task<byte[]> RunRequestAsync(byte[] request, IReplyMatcher expected, string what)
+    private async Task<byte[]> RunRequestAsync(byte[] request, IReplyMatcher expected, string what,
+        IMidiLease? lease = null)
     {
-        await using var port = await _port.AcquireAsync(what);
-        var reply = await port.RequestAsync(request, expected);
+        await using var use = await LeaseAsync(lease, what);
+        var reply = await use.Lease.RequestAsync(request, expected);
         if (reply.Length == 0)
             Log.Error("Timeout waiting for MIDI reply: {What}, expecting {Expected}.", what,
                 expected.Describe());
@@ -106,18 +111,33 @@ public class Integra7Api : IIntegra7Api
         }
     }
 
-    public async Task<byte[]> MakeDataRequestAsync(byte[] address, long size)
+    public async Task<byte[]> MakeDataRequestAsync(byte[] address, long size, IMidiLease? lease = null)
     {
         var data = Integra7SysexHelpers.MakeDataRequest(DeviceId(), address, size);
-        return await RunRequestAsync(data, ReplyMatchers.DataSetAt(address), "data request");
+        return await RunRequestAsync(data, ReplyMatchers.DataSetAt(address), "data request", lease);
     }
 
-    public async Task MakeDataTransmissionAsync(byte[] address, byte[] data)
+    public async Task MakeDataTransmissionAsync(byte[] address, byte[] data, IMidiLease? lease = null)
     {
         var transmission = Integra7SysexHelpers.MakeDataSet(DeviceId(), address, data);
-        await using var port = await _port.AcquireAsync("parameter write");
-        await port.SendAsync(transmission);
+        await using var use = await LeaseAsync(lease, "parameter write");
+        await use.Lease.SendAsync(transmission);
     }
+
+    public Task<IMidiLease> BeginConversationAsync(string what) => _port.AcquireAsync(what);
+
+    /// <summary>A lease this call may or may not own. Disposing it releases the port only when this
+    /// call acquired it; a lease passed in belongs to the conversation that opened it and must outlive
+    /// this call.</summary>
+    private readonly struct Borrowed(IMidiLease lease, bool owned) : IAsyncDisposable
+    {
+        public IMidiLease Lease { get; } = lease;
+
+        public ValueTask DisposeAsync() => owned ? lease.DisposeAsync() : ValueTask.CompletedTask;
+    }
+
+    private async Task<Borrowed> LeaseAsync(IMidiLease? given, string what) =>
+        given is not null ? new Borrowed(given, false) : new Borrowed(await _port.AcquireAsync(what), true);
 
     /// <summary>Both halves matter. The flag says whether the identity check ever succeeded; the port
     /// says whether the output handle still looks alive, which it stops doing when a send fails -- so
@@ -303,12 +323,6 @@ public class Integra7Api : IIntegra7Api
         return await GetListOfNamesHelper(msg);
     }
 
-    /// <summary>NOT atomic, deliberately. Step 2 writes the name out through the domain layer, which
-    /// re-enters MakeDataTransmissionAsync and acquires the port for itself -- so holding one lease
-    /// across these three steps would deadlock against ourselves. Making it a single conversation
-    /// needs a lease threaded through Integra7Domain and FullyQualifiedParameter, which is separate
-    /// work. The race this leaves open is real: step 1 selects the new patch, so a read landing
-    /// between steps 1 and 3 reads the new patch.</summary>
     public async Task WriteToneToUserMemory(Integra7Domain i7domain, string toneTypeStr, byte zeroBasedPartNo,
         string name,
         int zeroBasedUserMemoryId)
@@ -318,6 +332,8 @@ public class Integra7Api : IIntegra7Api
         // 1. write the current patch to the user memory -> this has the side effect of also selecting the new patch
         // 2. write the name to the user memory
         // 3. write the current patch (i.e. the selected user patch) to the user memory again to cement the new name
+        await using var port = await _port.AcquireAsync("write tone to user memory");
+
         var msb = 0;
         var lsb = 0;
 
@@ -331,10 +347,7 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALAcousticToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "SN-S":
@@ -344,10 +357,7 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALSynthToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "SN-D":
@@ -357,10 +367,7 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALDrumKitMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "PCMS":
@@ -369,10 +376,7 @@ public class Integra7Api : IIntegra7Api
                 lsb = zeroBasedUserMemoryId >> 7;
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMSynthToneMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "PCMD":
@@ -381,16 +385,13 @@ public class Integra7Api : IIntegra7Api
                 lsb = 0;
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMDrumKitMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
         }
 
         // step 2
-        await ChangePresetNameAsync(i7domain, zeroBasedPartNo, toneTypeStr, name);
+        await ChangePresetNameAsync(i7domain, zeroBasedPartNo, toneTypeStr, name, port);
 
         // step 3: todo cleanup duplication with step 1
         switch (toneTypeStr)
@@ -400,10 +401,7 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALAcousticToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "SN-S":
@@ -411,10 +409,7 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALSynthToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "SN-D":
@@ -422,48 +417,40 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALDrumKitMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "PCMS":
             {
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMSynthToneMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "PCMD":
             {
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMDrumKitMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
         }
     }
 
-    public async Task ChangePresetAsync(byte Channel, int Msb, int Lsb, int Pc)
+    public async Task ChangePresetAsync(byte Channel, int Msb, int Lsb, int Pc, IMidiLease? lease = null)
     {
         // These three must arrive consecutively on the same channel. They used to be sent with no lock
         // at all, so another flow's request could land between the bank select and the program change.
-        await using (var port = await _port.AcquireAsync("preset change"))
+        await using (var use = await LeaseAsync(lease, "preset change"))
         {
-            await port.SendAsync(BankSelectMsb(Channel, Msb));
-            await port.SendAsync(BankSelectLsb(Channel, Lsb));
-            await port.SendAsync(ProgramChange(Channel, Pc - 1));
+            await use.Lease.SendAsync(BankSelectMsb(Channel, Msb));
+            await use.Lease.SendAsync(BankSelectLsb(Channel, Lsb));
+            await use.Lease.SendAsync(ProgramChange(Channel, Pc - 1));
         }
 
-        // Posted after the port is free: the subscriber takes a lease, and would otherwise block
-        // until this conversation ended.
+        // Posted after our own lease is released. When a lease was lent to us the caller still holds
+        // the port, so the subscriber queues behind it -- it is a different async flow, so it waits
+        // rather than deadlocking.
         MessageBus.Current.SendMessage(new UpdateResyncPart(Channel));
     }
 
@@ -617,7 +604,7 @@ public class Integra7Api : IIntegra7Api
     }
 
     private async Task ChangePresetNameAsync(Integra7Domain i7domain, byte zeroBasedPartNo, string toneType,
-        string name)
+        string name, IMidiLease? lease = null)
     {
         switch (toneType)
         {
@@ -625,35 +612,35 @@ public class Integra7Api : IIntegra7Api
             {
                 var d = i7domain.PCMDrumKitCommon(zeroBasedPartNo);
                 d.ModifySingleParameterDisplayedValue("PCM Drum Kit Common/Kit Name", name);
-                await d.WriteToIntegraAsync("PCM Drum Kit Common/Kit Name");
+                await d.WriteToIntegraAsync("PCM Drum Kit Common/Kit Name", lease);
             }
                 break;
             case "PCMS":
             {
                 var d = i7domain.PCMSynthToneCommon(zeroBasedPartNo);
                 d.ModifySingleParameterDisplayedValue("PCM Synth Tone Common/PCM Synth Tone Name", name);
-                await d.WriteToIntegraAsync("PCM Synth Tone Common/PCM Synth Tone Name");
+                await d.WriteToIntegraAsync("PCM Synth Tone Common/PCM Synth Tone Name", lease);
             }
                 break;
             case "SN-A":
             {
                 var d = i7domain.SNAcousticToneCommon(zeroBasedPartNo);
                 d.ModifySingleParameterDisplayedValue("SuperNATURAL Acoustic Tone Common/Tone Name", name);
-                await d.WriteToIntegraAsync("SuperNATURAL Acoustic Tone Common/Tone Name");
+                await d.WriteToIntegraAsync("SuperNATURAL Acoustic Tone Common/Tone Name", lease);
             }
                 break;
             case "SN-S":
             {
                 var d = i7domain.SNSynthToneCommon(zeroBasedPartNo);
                 d.ModifySingleParameterDisplayedValue("SuperNATURAL Synth Tone Common/Tone Name", name);
-                await d.WriteToIntegraAsync("SuperNATURAL Synth Tone Common/Tone Name");
+                await d.WriteToIntegraAsync("SuperNATURAL Synth Tone Common/Tone Name", lease);
             }
                 break;
             case "SN-D":
             {
                 var d = i7domain.SNDrumKitCommon(zeroBasedPartNo);
                 d.ModifySingleParameterDisplayedValue("SuperNATURAL Drum Kit Common/Kit Name", name);
-                await d.WriteToIntegraAsync("SuperNATURAL Drum Kit Common/Kit Name");
+                await d.WriteToIntegraAsync("SuperNATURAL Drum Kit Common/Kit Name", lease);
             }
                 break;
         }
