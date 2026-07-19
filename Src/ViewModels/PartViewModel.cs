@@ -1802,6 +1802,17 @@ public partial class PartViewModel : ViewModelBase
         if (part != PartNo)
             return;
 
+        // Integra7Api posts UpdateResyncPart alongside every program change (Integra7Api.cs:450), with
+        // no settle delay — so for a preset change it would read the outgoing patch, and would be the
+        // second refresh of the same part. The reload started by the preset change owns that refresh
+        // and applies the delay. Resyncs from any other trigger — the device's own front panel, an SRX
+        // load, ResyncAllPartsAsync — never see this flag set.
+        if (!IsCommonTab && _load.ReloadPending)
+        {
+            UserActionLog.Action($"part {PartNo}: skipping resync, a reload is already pending");
+            return;
+        }
+
         if (IsCommonTab)
         {
             var setup = _i7domain?.Setup;
