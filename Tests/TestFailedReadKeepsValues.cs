@@ -18,7 +18,7 @@ public class TestFailedReadKeepsValues
     {
         public int Requests { get; private set; }
 
-        public Task<byte[]> MakeDataRequestAsync(byte[] address, long size)
+        public Task<byte[]> MakeDataRequestAsync(byte[] address, long size, IMidiLease? lease = null)
         {
             Requests++;
             return Task.FromResult(Array.Empty<byte>());   // what MakeDataRequestAsync returns on timeout
@@ -36,7 +36,8 @@ public class TestFailedReadKeepsValues
         public Task NoteOnAsync(byte Channel, byte Note, byte Velocity) => Task.CompletedTask;
         public Task NoteOffAsync(byte Channel, byte Note) => Task.CompletedTask;
         public Task AllNotesOffAsync() => Task.CompletedTask;
-        public Task ChangePresetAsync(byte Channel, int Msb, int Lsb, int Pc) => Task.CompletedTask;
+        public Task ChangePresetAsync(byte Channel, int Msb, int Lsb, int Pc, IMidiLease? lease = null) =>
+            Task.CompletedTask;
         public Task SendStopPreviewPhraseMsgAsync() => Task.CompletedTask;
         public Task SendPlayPreviewPhraseMsgAsync(byte channel) => Task.CompletedTask;
         public Task SendLoadSrxAsync(byte s1, byte s2, byte s3, byte s4) => Task.CompletedTask;

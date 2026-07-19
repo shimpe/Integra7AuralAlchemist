@@ -19,9 +19,9 @@ public interface IIntegra7Api
     Task NoteOnAsync(byte Channel, byte Note, byte Velocity);
     Task NoteOffAsync(byte Channel, byte Note);
     Task AllNotesOffAsync();
-    Task ChangePresetAsync(byte Channel, int Msb, int Lsb, int Pc);
+    Task ChangePresetAsync(byte Channel, int Msb, int Lsb, int Pc, IMidiLease? lease = null);
 
-    Task<byte[]> MakeDataRequestAsync(byte[] address, long size);
+    Task<byte[]> MakeDataRequestAsync(byte[] address, long size, IMidiLease? lease = null);
     Task MakeDataTransmissionAsync(byte[] address, byte[] data, IMidiLease? lease = null);
 
     /// <summary>Open a conversation the caller will hold across several calls, passing the lease to
@@ -77,10 +77,11 @@ public class Integra7Api : IIntegra7Api
     }
 
     /// <summary>One request and its reply, as a conversation of its own.</summary>
-    private async Task<byte[]> RunRequestAsync(byte[] request, IReplyMatcher expected, string what)
+    private async Task<byte[]> RunRequestAsync(byte[] request, IReplyMatcher expected, string what,
+        IMidiLease? lease = null)
     {
-        await using var port = await _port.AcquireAsync(what);
-        var reply = await port.RequestAsync(request, expected);
+        await using var use = await LeaseAsync(lease, what);
+        var reply = await use.Lease.RequestAsync(request, expected);
         if (reply.Length == 0)
             Log.Error("Timeout waiting for MIDI reply: {What}, expecting {Expected}.", what,
                 expected.Describe());
@@ -110,10 +111,10 @@ public class Integra7Api : IIntegra7Api
         }
     }
 
-    public async Task<byte[]> MakeDataRequestAsync(byte[] address, long size)
+    public async Task<byte[]> MakeDataRequestAsync(byte[] address, long size, IMidiLease? lease = null)
     {
         var data = Integra7SysexHelpers.MakeDataRequest(DeviceId(), address, size);
-        return await RunRequestAsync(data, ReplyMatchers.DataSetAt(address), "data request");
+        return await RunRequestAsync(data, ReplyMatchers.DataSetAt(address), "data request", lease);
     }
 
     public async Task MakeDataTransmissionAsync(byte[] address, byte[] data, IMidiLease? lease = null)
@@ -470,19 +471,20 @@ public class Integra7Api : IIntegra7Api
         }
     }
 
-    public async Task ChangePresetAsync(byte Channel, int Msb, int Lsb, int Pc)
+    public async Task ChangePresetAsync(byte Channel, int Msb, int Lsb, int Pc, IMidiLease? lease = null)
     {
         // These three must arrive consecutively on the same channel. They used to be sent with no lock
         // at all, so another flow's request could land between the bank select and the program change.
-        await using (var port = await _port.AcquireAsync("preset change"))
+        await using (var use = await LeaseAsync(lease, "preset change"))
         {
-            await port.SendAsync(BankSelectMsb(Channel, Msb));
-            await port.SendAsync(BankSelectLsb(Channel, Lsb));
-            await port.SendAsync(ProgramChange(Channel, Pc - 1));
+            await use.Lease.SendAsync(BankSelectMsb(Channel, Msb));
+            await use.Lease.SendAsync(BankSelectLsb(Channel, Lsb));
+            await use.Lease.SendAsync(ProgramChange(Channel, Pc - 1));
         }
 
-        // Posted after the port is free: the subscriber takes a lease, and would otherwise block
-        // until this conversation ended.
+        // Posted after our own lease is released. When a lease was lent to us the caller still holds
+        // the port, so the subscriber queues behind it -- it is a different async flow, so it waits
+        // rather than deadlocking.
         MessageBus.Current.SendMessage(new UpdateResyncPart(Channel));
     }
 
