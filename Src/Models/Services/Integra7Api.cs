@@ -424,44 +424,38 @@ public class Integra7Api : IIntegra7Api
 
     public async Task ChangePresetAsync(byte Channel, int Msb, int Lsb, int Pc)
     {
-        BankSelectMsb(Channel, Msb);
-        BankSelectLsb(Channel, Lsb);
-        ProgramChange(Channel, Pc - 1);
+        // These three must arrive consecutively on the same channel. They used to be sent with no lock
+        // at all, so another flow's request could land between the bank select and the program change.
+        await using (var port = await _port.AcquireAsync("preset change"))
+        {
+            if (BankSelectMsb(Channel, Msb) is { } msb) await port.SendAsync(msb);
+            await port.SendAsync(BankSelectLsb(Channel, Lsb));
+            await port.SendAsync(ProgramChange(Channel, Pc - 1));
+        }
+
+        // Posted after the port is free: the subscriber takes a lease, and would otherwise block
+        // until this conversation ended.
         MessageBus.Current.SendMessage(new UpdateResyncPart(Channel));
     }
 
-    private void BankSelectMsb(byte Channel, int BankNumberMsb)
+    private static byte[]? BankSelectMsb(byte Channel, int BankNumberMsb)
     {
         ISet<int> PossibleBankMsb = new HashSet<int> { 85, 86, 87, 88, 89, 92, 93, 95, 96, 97, 120, 121 };
-        if (PossibleBankMsb.Contains(BankNumberMsb))
-        {
-            byte[] data = [(byte)(MidiEvent.CC + Channel), 0, (byte)BankNumberMsb];
-            _midiOut?.SafeSend(data);
-        }
-        else
-        {
-            throw new MidiException("Trying to select impossible MSB Banknumber: " + BankNumberMsb);
-        }
+        if (!PossibleBankMsb.Contains(BankNumberMsb)) return null;
+
+        return [(byte)(MidiEvent.CC + Channel), 0, (byte)BankNumberMsb];
     }
 
-    private void BankSelectLsb(byte Channel, int BankNumberLsb)
+    private static byte[] BankSelectLsb(byte Channel, int BankNumberLsb)
     {
         if (0 <= BankNumberLsb && BankNumberLsb <= 127)
-        {
-            byte[] data = [(byte)(MidiEvent.CC + Channel), 0x20, (byte)BankNumberLsb];
-            _midiOut?.SafeSend(data);
-        }
-        else
-        {
-            throw new MidiException("Trying to select impossible LSB BankNumber: " + BankNumberLsb);
-        }
+            return [(byte)(MidiEvent.CC + Channel), 0x20, (byte)BankNumberLsb];
+
+        throw new MidiException("Trying to select impossible LSB BankNumber: " + BankNumberLsb);
     }
 
-    private void ProgramChange(byte Channel, int ProgramNumber)
-    {
-        byte[] data = [(byte)(MidiEvent.Program + Channel), (byte)ProgramNumber];
-        _midiOut?.SafeSend(data);
-    }
+    private static byte[] ProgramChange(byte Channel, int ProgramNumber) =>
+        [(byte)(MidiEvent.Program + Channel), (byte)ProgramNumber];
 
 
     public static bool CheckIsPartOfPresetChange(byte[] reply, out byte midiChannel)
