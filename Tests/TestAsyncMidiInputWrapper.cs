@@ -159,4 +159,57 @@ public class TestAsyncMidiInputWrapper
 
         Assert.That(midi.HandlerInstalled, Is.False);
     }
+
+    [Test]
+    public void TheBurstReaderKeepsThePortAfterAReply()
+    {
+        // The caller keeps calling until the burst ends. A reader that handed the port back between
+        // replies would miss every remaining one.
+        var midi = new FakeMidiIn();
+        var mi = new AsyncMidiInputWrapper(midi, ReplyMatchers.DataSetAt(Address));
+
+        var read = mi.WaitForMidiMessageAsyncExpectingMultipleInARow();
+        midi.Push(Reply());
+
+        Assert.That(read.Wait(TimeSpan.FromSeconds(3)), Is.True);
+        Assert.That(read.Result, Is.EqualTo(Reply()));
+        Assert.That(midi.HandlerInstalled, Is.True, "the burst is not over, so the port must stay ours");
+    }
+
+    [Test]
+    public void TheBurstReaderKeepsThePortWhenItTimesOut()
+    {
+        var midi = new FakeMidiIn();
+        var mi = new AsyncMidiInputWrapper(midi, ReplyMatchers.DataSetAt(Address));
+
+        var read = mi.WaitForMidiMessageAsyncExpectingMultipleInARow();
+
+        Assert.That(read.Wait(TimeSpan.FromSeconds(4)), Is.True, "the read should have timed out by now");
+        Assert.That(read.Result, Is.Empty);
+        Assert.That(midi.HandlerInstalled, Is.True);
+    }
+
+    [Test]
+    public void ABurstAccumulatesEverythingItWasNotWaitingFor()
+    {
+        // The burst calls this repeatedly on one instance, so what it keeps must survive across calls
+        // -- the name burst is the longest read window in the application and the likeliest place for
+        // a front-panel change to land.
+        var midi = new FakeMidiIn();
+        var mi = new AsyncMidiInputWrapper(midi, ReplyMatchers.DataSetAt(Address));
+
+        var first = mi.WaitForMidiMessageAsyncExpectingMultipleInARow();
+        midi.Push(PanelChange());
+        midi.Push(Reply());
+        Assert.That(first.Wait(TimeSpan.FromSeconds(3)), Is.True);
+
+        byte[] secondPanelChange = [0xc0, 0x07];
+        var second = mi.WaitForMidiMessageAsyncExpectingMultipleInARow();
+        midi.Push(secondPanelChange);
+        midi.Push(Reply());
+        Assert.That(second.Wait(TimeSpan.FromSeconds(3)), Is.True);
+
+        Assert.That(mi.TakeDeferred(), Is.EqualTo(new[] { PanelChange(), secondPanelChange }),
+            "both calls' deferred messages must survive, in arrival order");
+    }
 }

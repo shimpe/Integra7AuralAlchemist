@@ -10,7 +10,7 @@ namespace Integra7AuralAlchemist.Models.Services;
 
 public class AsyncMidiInputWrapper
 {
-    private const double inactivityTimespan = 1.5;
+    private const double ReplyDeadlineSeconds = 1.5;
     private readonly Channel<byte[]> _channel = Channel.CreateUnbounded<byte[]>();
     private readonly IMidiIn _midiInput;
 
@@ -73,12 +73,16 @@ public class AsyncMidiInputWrapper
             BitConverter.ToString(message, 0, Math.Min(message.Length, 8)));
     }
 
-    public async Task<byte[]> WaitForMidiMessageAsync()
+    /// <summary>Wait for the message this reader is expecting, keeping anything else that arrives.
+    ///
+    /// <paramref name="handBackPort"/> is false for the burst reader: it stays installed across every
+    /// reply until its caller decides the burst has ended.</summary>
+    private async Task<byte[]> WaitForMatchingMessageAsync(bool handBackPort)
     {
         var cts = new CancellationTokenSource();
         // The deadline runs from the request, not from the last message: traffic this read is not
         // waiting for must not be able to hold it open indefinitely.
-        var waitForTimeout = Task.Delay(TimeSpan.FromSeconds(inactivityTimespan), cts.Token);
+        var waitForTimeout = Task.Delay(TimeSpan.FromSeconds(ReplyDeadlineSeconds), cts.Token);
 
         while (true)
         {
@@ -89,7 +93,7 @@ public class AsyncMidiInputWrapper
             if (IsExpected(message))
             {
                 await cts.CancelAsync();
-                _midiInput.RemoveHandler(_handler);
+                if (handBackPort) _midiInput.RemoveHandler(_handler);
                 return message;
             }
 
@@ -97,35 +101,17 @@ public class AsyncMidiInputWrapper
         }
 
         await cts.CancelAsync();
-        _midiInput.RemoveHandler(_handler);
+        if (handBackPort) _midiInput.RemoveHandler(_handler);
         return [];
     }
 
-    public async Task<byte[]> WaitForMidiMessageAsyncExpectingMultipleInARow()
-    {
-        var cts = new CancellationTokenSource();
-        var waitForTimeout = Task.Delay(TimeSpan.FromSeconds(inactivityTimespan), cts.Token);
+    public Task<byte[]> WaitForMidiMessageAsync() => WaitForMatchingMessageAsync(handBackPort: true);
 
-        while (true)
-        {
-            var waitForData = _channel.Reader.WaitToReadAsync(cts.Token).AsTask();
-            if (await Task.WhenAny(waitForTimeout, waitForData) != waitForData) break;
-
-            var message = await _channel.Reader.ReadAsync(cts.Token);
-            if (IsExpected(message))
-            {
-                // Deliberately does NOT hand the port back: the burst reader stays installed across
-                // every reply until its caller decides the burst has ended.
-                await cts.CancelAsync();
-                return message;
-            }
-
-            Defer(message);
-        }
-
-        await cts.CancelAsync();
-        return [];
-    }
+    /// <summary>Read one reply of a burst. The port stays installed: the caller keeps calling this
+    /// until the burst ends, and a reader that handed the port back between replies would miss
+    /// them.</summary>
+    public Task<byte[]> WaitForMidiMessageAsyncExpectingMultipleInARow() =>
+        WaitForMatchingMessageAsync(handBackPort: false);
 
     public void CleanupAfterTimeOut()
     {
