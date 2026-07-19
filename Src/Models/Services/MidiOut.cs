@@ -66,13 +66,17 @@ public class MidiOut : IMidiOut
                 ByteStreamDisplay.Display("Sent: ", data);
             }
         }
-        catch (ArgumentException)
+        catch (Exception e)
         {
-            _midiPortDetails = null;
-            _access = null;
-        }
-        catch (NullReferenceException)
-        {
+            // Every failure, not just the two managed ones that used to be listed here: the WinMM
+            // backend throws Win32Exception, which escaped and took startup down with it. A send that
+            // fails means the port is no longer usable, so drop it -- ConnectionOk reports the device
+            // as gone, and the application carries on without one rather than dying.
+            //
+            // Logged, which the previous catches did not do: a send failing silently is why this took
+            // a crash to notice.
+            Log.Error(e, "MIDI send failed ({Length} bytes, starting {Bytes}); treating the port as gone.",
+                data.Length, BitConverter.ToString(data, 0, Math.Min(data.Length, 8)));
             _midiPortDetails = null;
             _access = null;
         }
