@@ -75,7 +75,8 @@ public class Integra7Api : IIntegra7Api
     public async Task CheckIdentityAsync()
     {
         var data = Integra7SysexHelpers.IDENTITY_REQUEST;
-        var mi = new AsyncMidiInputWrapper(_midiIn);
+        // TEMPORARY placeholder matcher -- replaced in Tasks 4 and 5.
+        var mi = new AsyncMidiInputWrapper(_midiIn, ReplyMatchers.IdentityReply);
         _midiOut?.SafeSend(data);
         byte[] reply = [];
         reply = await mi.WaitForMidiMessageAsync();
@@ -106,7 +107,8 @@ public class Integra7Api : IIntegra7Api
         {
             Log.Debug("DataRequest Lock acquired");
             var data = Integra7SysexHelpers.MakeDataRequest(DeviceId(), address, size);
-            var mi = new AsyncMidiInputWrapper(_midiIn);
+            // TEMPORARY placeholder matcher -- replaced in Tasks 4 and 5.
+            var mi = new AsyncMidiInputWrapper(_midiIn, ReplyMatchers.IdentityReply);
             _midiOut?.SafeSend(data);
             var reply = await mi.WaitForMidiMessageAsync();
             if (reply.Length == 0)
@@ -188,7 +190,8 @@ public class Integra7Api : IIntegra7Api
         try
         {
             await _semaphore.WaitAsync();
-            var mi = new AsyncMidiInputWrapper(_midiIn);
+            // TEMPORARY placeholder matcher -- replaced in Tasks 4 and 5.
+            var mi = new AsyncMidiInputWrapper(_midiIn, ReplyMatchers.IdentityReply);
             _midiOut?.SafeSend(msg);
             var reply = await mi.WaitForMidiMessageAsync();
             if (reply.Length == 0)
@@ -515,7 +518,8 @@ public class Integra7Api : IIntegra7Api
     private async Task<List<string>> GetListOfNamesHelper(byte[] msg)
     {
         await _semaphore.WaitAsync();
-        var mi = new AsyncMidiInputWrapper(_midiIn);
+        // TEMPORARY placeholder matcher -- replaced in Tasks 4 and 5.
+        var mi = new AsyncMidiInputWrapper(_midiIn, ReplyMatchers.IdentityReply);
         try
         {
             Log.Debug("DataRequest Lock acquired");

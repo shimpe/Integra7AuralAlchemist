@@ -20,6 +20,11 @@ public interface IMidiIn
     public byte[] GetReply();
     public void AnnounceIntentionToManuallyHandleReply();
     public void RestoreAutomaticHandling();
+
+    /// <summary>Route a message nobody requested: a data set becomes a UI update, a preset change
+    /// becomes a resync, anything else is logged. Called both by the default handler and by a reader
+    /// draining what arrived while it was waiting, so the two cannot diverge.</summary>
+    public void DispatchUnsolicited(byte[] message);
 }
 
 public class MidiIn : IMidiIn
@@ -148,21 +153,7 @@ public class MidiIn : IMidiIn
         if (Verbose) ByteStreamDisplay.Display("Received (default handler): ", localCopy);
         if (!_manualReplyHandling)
         {
-            if (Integra7SysexHelpers.CheckIsDataSetMsg(localCopy))
-            {
-                Log.Debug("Request UpdateSysexSpec");
-                MessageBus.Current.SendMessage(new UpdateFromSysexSpec(localCopy), "hw2ui");
-            }
-            else if (Integra7Api.CheckIsPartOfPresetChange(localCopy, out var midiChannel))
-            {
-                Log.Debug($"Request UpdateSetPresetandResyncPart for channel {midiChannel}");
-                MessageBus.Current.SendMessage(new UpdateSetPresetAndResyncPart(midiChannel));
-            }
-            else
-            {
-                Log.Debug("Received MIDI msg that will not be dispatched for ui update.");
-                ByteStreamDisplay.Display("The message was: ", localCopy);
-            }
+            DispatchUnsolicited(localCopy);
         }
         else
         {
@@ -172,6 +163,25 @@ public class MidiIn : IMidiIn
 
         _manualReplyHandling = false;
         _replyReady.Set();
+    }
+
+    public void DispatchUnsolicited(byte[] message)
+    {
+        if (Integra7SysexHelpers.CheckIsDataSetMsg(message))
+        {
+            Log.Debug("Request UpdateSysexSpec");
+            MessageBus.Current.SendMessage(new UpdateFromSysexSpec(message), "hw2ui");
+        }
+        else if (Integra7Api.CheckIsPartOfPresetChange(message, out var midiChannel))
+        {
+            Log.Debug($"Request UpdateSetPresetandResyncPart for channel {midiChannel}");
+            MessageBus.Current.SendMessage(new UpdateSetPresetAndResyncPart(midiChannel));
+        }
+        else
+        {
+            Log.Debug("Received MIDI msg that will not be dispatched for ui update.");
+            ByteStreamDisplay.Display("The message was: ", message);
+        }
     }
 
     public byte[] GetReply()
