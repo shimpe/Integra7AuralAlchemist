@@ -21,8 +21,19 @@
 
         <!-- ===== Kit Header ===== -->
         <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,8">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-            <StackPanel Orientation="Horizontal" Spacing="16">
+            <!-- Horizontal scrolling stays OFF: a ScrollViewer that scrolls horizontally measures its
+                 content with unbounded width, so the WrapPanels below would never see a limit to wrap
+                 at and would lay out on one endless line.
+
+                 Vertical scrolling is ON with a ceiling. Wrapping makes the header grow on a narrow
+                 window, and this row is Auto-sized, so without a cap it grows until it fills the
+                 window and pushes the rack, partial card and tabs off the bottom. Capped, it wraps
+                 freely up to the ceiling and scrolls beyond it, and the editor below keeps its
+                 space. At a normal width the content is shorter than the cap, so no bar appears. -->
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                          MaxHeight="300">
+
+            <WrapPanel Orientation="Horizontal" ItemSpacing="16" LineSpacing="8">
                 <StackPanel Spacing="2">
                     <Border Background="{StaticResource SnAccentBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
                         <TextBlock Text="PCM Drums" Foreground="{StaticResource SnBadgeForegroundBrush}" FontSize="11"/>
@@ -45,12 +56,24 @@
                 </StackPanel>
                 <Button VerticalAlignment="Bottom" Content="Advanced common parameters…"
                         Command="{Binding AdvancedCommonCommand}"/>
-            </StackPanel>
+            </WrapPanel>
             </ScrollViewer>
         </Border>
 
         <!-- ===== Rail + selected drum ===== -->
-        <Grid Grid.Row="1" ColumnDefinitions="340,*">
+        <!-- Scrolls sideways when the window is too narrow for the rack, the partial list and a
+             usable parameter editor. MinWidth keeps the grid filling the window while it fits, so the
+             star column still stretches and no bar appears; below that the grid keeps its natural
+             width and scrolls, instead of squeezing the editor down to nothing. -->
+        <ScrollViewer Grid.Row="1" x:Name="RackScroll" HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Disabled">
+        <Grid MinWidth="{Binding #RackScroll.Viewport.Width}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="340"/>
+            <!-- Never squeezed below a usable width; the grid scrolls sideways instead. -->
+            <ColumnDefinition Width="*" MinWidth="420"/>
+          </Grid.ColumnDefinitions>
+
 
             <!-- Note rail: low note at the bottom (VM orders 108 -> 21) -->
             <ListBox Grid.Column="0" Margin="0,0,8,0"
@@ -100,5 +123,6 @@
                 </TabItem>
             </TabControl>
         </Grid>
+        </ScrollViewer>
     </Grid>
 </UserControl>

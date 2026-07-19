@@ -54,5 +54,15 @@
 
     <Application.Styles>
         <sty:FluentAvaloniaTheme PreferUserAccentColor="True" />
+
+        <!-- Scrollbars reserve space instead of floating over the content. Avalonia's default is to
+             overlay them, which puts a scrollbar on top of whatever sits at the edge of a scrolling
+             area: a combo box in the SN-S header, the right hand side of a partial card. Measured on
+             Avalonia 12.0.5 with AllowAutoHide left on, the viewport is the scroll viewer's full
+             size, so the bar has nowhere to go but over the content. Turning it off reserves 16px on
+             each scrolling axis instead. -->
+        <Style Selector="ScrollViewer">
+            <Setter Property="ScrollViewer.AllowAutoHide" Value="False" />
+        </Style>
     </Application.Styles>
 </Application>

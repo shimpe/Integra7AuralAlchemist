@@ -26,9 +26,20 @@
 
         <!-- ===== Tone Header ===== -->
         <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,8">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <!-- Horizontal scrolling stays OFF: a ScrollViewer that scrolls horizontally measures its
+                 content with unbounded width, so the WrapPanels below would never see a limit to wrap
+                 at and would lay out on one endless line.
+
+                 Vertical scrolling is ON with a ceiling. Wrapping makes the header grow on a narrow
+                 window, and this row is Auto-sized, so without a cap it grows until it fills the
+                 window and pushes the rack, partial card and tabs off the bottom. Capped, it wraps
+                 freely up to the ceiling and scrolls beyond it, and the editor below keeps its
+                 space. At a normal width the content is shorter than the cap, so no bar appears. -->
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                          MaxHeight="300">
+
             <StackPanel Spacing="8">
-              <StackPanel Orientation="Horizontal" Spacing="16">
+              <WrapPanel Orientation="Horizontal" ItemSpacing="16" LineSpacing="8">
                 <StackPanel Spacing="2">
                     <Border Background="{StaticResource SnAccentBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
                         <TextBlock Text="SuperNATURAL Synth" Foreground="{StaticResource SnBadgeForegroundBrush}" FontSize="11"/>
@@ -79,10 +90,10 @@
                 </StackPanel>
                 <Button VerticalAlignment="Bottom" Content="Advanced common parameters…"
                         Command="{Binding AdvancedCommonCommand}"/>
-              </StackPanel>
+              </WrapPanel>
 
               <!-- Phrase (arpeggio) on its own row -->
-              <StackPanel Orientation="Horizontal" Spacing="16">
+              <WrapPanel Orientation="Horizontal" ItemSpacing="16" LineSpacing="8">
                 <StackPanel Spacing="2" Width="260">
                     <TextBlock Text="Phrase (arpeggio)" ToolTip.Tip="Phrase Number"/>
                     <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch"
@@ -94,13 +105,26 @@
                     <NumericUpDown Width="110" Minimum="-3" Maximum="3" Increment="1" FormatString="0"
                                    Value="{Binding Header.PhraseOctaveShift.Value, Mode=TwoWay}"/>
                 </StackPanel>
-              </StackPanel>
+              </WrapPanel>
             </StackPanel>
             </ScrollViewer>
         </Border>
 
         <!-- ===== Rack + Selected partial ===== -->
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,240,*">
+        <!-- Scrolls sideways when the window is too narrow for the rack, the partial list and a
+             usable parameter editor. MinWidth keeps the grid filling the window while it fits, so the
+             star column still stretches and no bar appears; below that the grid keeps its natural
+             width and scrolls, instead of squeezing the editor down to nothing. -->
+        <ScrollViewer Grid.Row="1" x:Name="RackScroll" HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Disabled">
+        <Grid MinWidth="{Binding #RackScroll.Viewport.Width}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="240"/>
+            <!-- Never squeezed below a usable width; the grid scrolls sideways instead. -->
+            <ColumnDefinition Width="*" MinWidth="420"/>
+          </Grid.ColumnDefinitions>
+
 
             <ContentControl Grid.Column="0" Content="{Binding NoteRail}" Margin="0,0,8,0"/>
 
@@ -554,5 +578,6 @@
                 </StackPanel>
             </Grid>
         </Grid>
+        </ScrollViewer>
     </Grid>
 </UserControl>
