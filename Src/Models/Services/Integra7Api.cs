@@ -99,7 +99,11 @@ public class Integra7Api : IIntegra7Api
             if (reply.Length == 0)
             {
                 mi.CleanupAfterTimeOut();
-                Log.Error("Timeout waiting for MIDI reply: {What}.", what);
+                // Name what was expected, not just the kind of conversation: "data request" is the
+                // same string for every parameter read in the application, so without the address a
+                // timeout says nothing about which read gave up.
+                Log.Error("Timeout waiting for MIDI reply: {What}, expecting {Expected}.", what,
+                    expected.Describe());
             }
         }
         finally
@@ -555,6 +559,14 @@ public class Integra7Api : IIntegra7Api
                     //Debug.WriteLine($"len: {localReply.Length}");
                     byte[][] multiplereplies = ByteUtils.SplitAfterF7(localReply);
                     foreach (var r in multiplereplies)
+                    {
+                        // SplitAfterF7 never fills its last slot, so every split ends in a null --
+                        // for an ordinary single reply it returns [message, null]. Skipping it here
+                        // is not tidiness: IsNameListReply answers false for null, so without this
+                        // the null fell through to r.Length below and threw on the first reply of
+                        // every burst.
+                        if (r is null) continue;
+
                         if (NameListEndMarker.IsNameListReply(r, expectedAddress))
                         {
                             allReplies.Add(r);
@@ -573,21 +585,20 @@ public class Integra7Api : IIntegra7Api
                         }
                         else if (r.Length > 0)
                         {
-                            // This reader owns the MIDI input for the whole burst, so it also sees
-                            // anything the device sends unsolicited -- e.g. the sysex it emits when a
-                            // preset is changed on its own front panel. That message is not a name-list
-                            // reply and can be far too short to hold a name; accepting it here used to
-                            // reach ByteUtils.Slice(reply, 16, 16) below and crash the assertion. Log
-                            // it instead of dropping it silently: a reply wrongly rejected by this
-                            // filter would otherwise show up only as a preset missing from the list,
-                            // with no trace of why. (A zero-length entry is just an artifact of
-                            // SplitAfterF7's trailing remainder, not a real message, so it's skipped
-                            // here rather than logged.)
+                            // A chunk can carry several concatenated messages, and the reader accepts
+                            // the whole chunk when any fragment matches -- so a fragment riding along
+                            // with a real reply lands here. It is not a name-list reply and can be far
+                            // too short to hold a name; accepting it would reach
+                            // ByteUtils.Slice(reply, 16, 16) below and trip its assertion. Log rather
+                            // than drop silently: a reply wrongly rejected by this filter would
+                            // otherwise show up only as a preset missing from the list, with no trace
+                            // of why.
                             var previewLength = Math.Min(r.Length, 8);
                             Log.Warning(
                                 "Dropped a {Length}-byte message during a name-list burst; not recognised as a name-list reply. First bytes: {Bytes}",
                                 r.Length, BitConverter.ToString(r, 0, previewLength));
                         }
+                    }
                 }
                 else
                 {
@@ -595,7 +606,8 @@ public class Integra7Api : IIntegra7Api
                     mi.CleanupAfterTimeOut();
                     if (totalRepliesReceived == 0)
                     {
-                        Log.Error("Timeout waiting for MIDI reply after data request.");
+                        Log.Error("Timeout waiting for the name-list burst at {Address}.",
+                            BitConverter.ToString(expectedAddress));
                         return ([], mi.TakeDeferred());
                     }
                 }
