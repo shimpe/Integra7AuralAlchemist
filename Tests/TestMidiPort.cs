@@ -206,4 +206,120 @@ public class TestMidiPort
         await a.DisposeAsync();
         await (await b).DisposeAsync();
     }
+
+    private static readonly byte[] Address = [0x0f, 0x00, 0x04, 0x02];
+
+    private static byte[] Reply() =>
+    [
+        0xf0, 0x41, 0x10, 0x00, 0x00, 0x64, 0x12, 0x0f, 0x00, 0x04, 0x02, 0x00, 0x6b, 0xf7
+    ];
+
+    // Something the device sends unprompted -- a preset change made on its front panel. Same shape,
+    // different address, so the matcher rejects it.
+    private static byte[] PanelChange() =>
+    [
+        0xf0, 0x41, 0x10, 0x00, 0x00, 0x64, 0x12, 0x0f, 0x00, 0x03, 0x02, 0x01, 0x0e, 0xf7
+    ];
+
+    [Test]
+    public async Task ARequestReturnsItsOwnReply()
+    {
+        var port = NewPort(out var midiIn, out var midiOut);
+
+        await using var lease = await port.AcquireAsync("read");
+        var request = lease.RequestAsync([0x11], ReplyMatchers.DataSetAt(Address));
+        midiIn.Push(Reply());
+
+        Assert.That(await Task.WhenAny(request, Task.Delay(3000)), Is.SameAs(request));
+        Assert.That(await request, Is.EqualTo(Reply()));
+        Assert.That(midiOut.Sent, Has.Count.EqualTo(1), "the request itself must have gone out");
+    }
+
+    [Test]
+    public async Task TheReaderIsInstalledBeforeTheRequestGoesOut()
+    {
+        // Otherwise a reply arriving promptly would land before anything was listening for it.
+        var port = NewPort(out var midiIn, out _);
+
+        await using var lease = await port.AcquireAsync("read");
+        _ = lease.RequestAsync([0x11], ReplyMatchers.DataSetAt(Address));
+
+        Assert.That(midiIn.HandlerInstalled, Is.True);
+    }
+
+    [Test]
+    public async Task MessagesThatWereNotTheReplyDispatchWhenTheLeaseIsReleased()
+    {
+        var port = NewPort(out var midiIn, out _);
+
+        var lease = await port.AcquireAsync("read");
+        var request = lease.RequestAsync([0x11], ReplyMatchers.DataSetAt(Address));
+        midiIn.Push(PanelChange());
+        midiIn.Push(Reply());
+        await request;
+
+        Assert.That(midiIn.Dispatched, Is.Empty, "not while the port is still held");
+
+        await lease.DisposeAsync();
+
+        Assert.That(midiIn.Dispatched, Is.EqualTo(new[] { PanelChange() }));
+    }
+
+    [Test]
+    public async Task OneReaderCoversTheWholeConversation()
+    {
+        // The burst reads many replies to one request. A lease that installed a reader per request
+        // would hand the port back between them and miss the rest.
+        var port = NewPort(out var midiIn, out _);
+
+        await using var lease = await port.AcquireAsync("burst");
+        var first = lease.RequestAsync([0x11], ReplyMatchers.DataSetAt(Address));
+        midiIn.Push(Reply());
+        await first;
+
+        Assert.That(midiIn.HandlerInstalled, Is.True, "the conversation is not over");
+
+        var second = lease.ReadNextAsync(ReplyMatchers.DataSetAt(Address));
+        midiIn.Push(Reply());
+
+        Assert.That(await Task.WhenAny(second, Task.Delay(3000)), Is.SameAs(second));
+        Assert.That(await second, Is.EqualTo(Reply()));
+    }
+
+    [Test]
+    public async Task DeferredMessagesAccumulateAcrossTheWholeConversation()
+    {
+        var port = NewPort(out var midiIn, out _);
+
+        var lease = await port.AcquireAsync("burst");
+        var first = lease.RequestAsync([0x11], ReplyMatchers.DataSetAt(Address));
+        midiIn.Push(PanelChange());
+        midiIn.Push(Reply());
+        await first;
+
+        byte[] secondStray = [0xc0, 0x07];
+        var second = lease.ReadNextAsync(ReplyMatchers.DataSetAt(Address));
+        midiIn.Push(secondStray);
+        midiIn.Push(Reply());
+        await second;
+
+        await lease.DisposeAsync();
+
+        Assert.That(midiIn.Dispatched, Is.EqualTo(new[] { PanelChange(), secondStray }),
+            "both reads' strays must survive, in arrival order");
+    }
+
+    [Test]
+    public async Task TheReaderIsHandedBackWhenTheLeaseIsReleased()
+    {
+        var port = NewPort(out var midiIn, out _);
+
+        var lease = await port.AcquireAsync("read");
+        var request = lease.RequestAsync([0x11], ReplyMatchers.DataSetAt(Address));
+        midiIn.Push(Reply());
+        await request;
+        await lease.DisposeAsync();
+
+        Assert.That(midiIn.HandlerInstalled, Is.False);
+    }
 }

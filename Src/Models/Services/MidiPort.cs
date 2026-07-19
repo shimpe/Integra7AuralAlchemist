@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
@@ -24,6 +25,13 @@ public interface IMidiPort
 public interface IMidiLease : IAsyncDisposable
 {
     Task SendAsync(byte[] data);
+
+    /// <summary>Send a request and wait for the reply <paramref name="expected"/> recognises. Anything
+    /// else that arrives is kept and dispatched when the lease is released.</summary>
+    Task<byte[]> RequestAsync(byte[] request, IReplyMatcher expected);
+
+    /// <summary>Wait for another reply to a request already sent -- the burst case.</summary>
+    Task<byte[]> ReadNextAsync(IReplyMatcher expected);
 }
 
 public sealed class MidiPort : IMidiPort
@@ -64,6 +72,14 @@ public sealed class MidiPort : IMidiPort
         /// select and its program change race, which is the very thing this port exists to prevent.</summary>
         private Task _tail = Task.CompletedTask;
 
+        /// <summary>This conversation's reader, installed once and kept for the whole lease. A reader
+        /// per request would hand the port back between the replies of a burst.</summary>
+        private AsyncMidiInputWrapper? _reader;
+
+        /// <summary>Messages that arrived during this conversation and were not a reply to any of its
+        /// reads. Dispatched once, after the gate is released.</summary>
+        private readonly List<byte[]> _deferred = [];
+
         public Lease(MidiPort port, string what)
         {
             _port = port;
@@ -97,9 +113,42 @@ public sealed class MidiPort : IMidiPort
             }
         }
 
+        public async Task<byte[]> RequestAsync(byte[] request, IReplyMatcher expected)
+        {
+            // The reader is installed BEFORE the request goes out: a reply arriving promptly would
+            // otherwise land before anything was listening for it.
+            var reader = Reader(expected);
+            await SendAsync(request);
+            return await ReadFrom(reader, expected);
+        }
+
+        public Task<byte[]> ReadNextAsync(IReplyMatcher expected) => ReadFrom(Reader(expected), expected);
+
+        private AsyncMidiInputWrapper Reader(IReplyMatcher expected)
+        {
+            lock (_sync)
+            {
+                ThrowIfReleased();
+                return _reader ??= new AsyncMidiInputWrapper(_port._midiIn, expected);
+            }
+        }
+
+        private async Task<byte[]> ReadFrom(AsyncMidiInputWrapper reader, IReplyMatcher expected)
+        {
+            var reply = await reader.WaitForAsync(expected);
+            lock (_sync)
+            {
+                _deferred.AddRange(reader.TakeDeferred());
+            }
+
+            return reply;
+        }
+
         public async ValueTask DisposeAsync()
         {
             Task tail;
+            AsyncMidiInputWrapper? reader;
+            byte[][] deferred;
             lock (_sync)
             {
                 // A second dispose must not release the gate again, which would let two conversations
@@ -108,6 +157,9 @@ public sealed class MidiPort : IMidiPort
 
                 _released = true;
                 tail = _tail;
+                reader = _reader;
+                deferred = _deferred.ToArray();
+                _deferred.Clear();
             }
 
             try
@@ -123,7 +175,23 @@ public sealed class MidiPort : IMidiPort
                 Log.Warning(ex, "A send queued on the lease for '{What}' faulted before disposal.", _what);
             }
 
+            reader?.CleanupAfterTimeOut();
             _port.Release();
+
+            // After the release, deliberately: a deferred message reaching the UI can trigger a
+            // resync, which takes the port, and it must find it free.
+            foreach (var m in deferred)
+            {
+                // Guarded per message: one malformed deferred message must not strand the rest.
+                try
+                {
+                    _port._midiIn.DispatchUnsolicited(m);
+                }
+                catch (Exception ex)
+                {
+                    Log.Warning(ex, "Failed to dispatch a message deferred during '{What}'.", _what);
+                }
+            }
         }
 
         /// <summary>Call only while holding <see cref="_sync"/>.</summary>
