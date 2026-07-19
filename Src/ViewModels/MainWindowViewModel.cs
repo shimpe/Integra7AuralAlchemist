@@ -734,7 +734,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 {
                     // A part that was never opened has nothing to refresh: it reads the current state
                     // when it is first opened, so resyncing it now would only spend round trips.
-                    if (!pvm.IsCommonTab && !pvm.IsInitialized && !pvm.NeedsReinitialization) continue;
+                    if (!pvm.IsCommonTab && !pvm.WantsRefresh) continue;
                     SyncInfo = $"Resync part {pvm.PartNo}";
                     await pvm.EnsurePreselectIsNotNullAsync();
                     await pvm.ResyncPartAsync((byte)pvm.PartNo);
@@ -760,7 +760,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     i++;
                     // Same reasoning as ResyncAllPartsAsync: an unopened part refreshes itself when
                     // opened. ResyncPartAsync below ignores every part except `part` anyway.
-                    if (!pvm.IsCommonTab && !pvm.IsInitialized && !pvm.NeedsReinitialization) continue;
+                    if (!pvm.IsCommonTab && !pvm.WantsRefresh) continue;
                     await pvm.EnsurePreselectIsNotNullAsync();
                     await pvm.ResyncPartAsync(part);
                 }
@@ -791,7 +791,7 @@ public partial class MainWindowViewModel : ViewModelBase
                         // A part whose initialization was cancelled by this very preset change does
                         // need it though: ResyncPartAsync re-initializes it, now that the device has
                         // confirmed the new tone.
-                        if (pvm.IsCommonTab || pvm.IsInitialized || pvm.NeedsReinitialization)
+                        if (pvm.IsCommonTab || pvm.WantsRefresh)
                             await pvm.ResyncPartAsync(part);
                     }
         }

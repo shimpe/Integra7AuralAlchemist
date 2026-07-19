@@ -260,16 +260,19 @@ public partial class PartViewModel : ViewModelBase
     [Reactive] private int _advancedPartialIndex;
     private Integra7Preset? _selectedPreset;
 
-    /// <summary>The deferred initialization, once started. Doubles as the "already initialized" flag
-    /// and as the handle concurrent callers await, so the work happens exactly once per part.</summary>
-    private Task? _deferredInit;
+    /// <summary>Where this part is in its load lifecycle, and what to do about each request that
+    /// touches it. See <see cref="PartLoadState"/>.</summary>
+    private readonly PartLoadState _load = new();
 
-    /// <summary>Cancels the deferred initialization when the part's preset changes underneath it.</summary>
-    private CancellationTokenSource? _initCts;
+    /// <summary>The running load, so concurrent callers await one load rather than starting three.</summary>
+    private Task? _loadTask;
 
-    /// <summary>Counts preset changes, so a reload can tell whether it is still the current one.
-    /// Picking presets faster than the device can load them is easy; only the last one should read.</summary>
-    private int _presetGeneration;
+    /// <summary>Cancels a load that is reading a tone the device is about to drop.</summary>
+    private CancellationTokenSource? _loadCts;
+
+    /// <summary>The reload owed after a preset change, so a caller arriving during the settle delay
+    /// waits for it instead of racing ahead with a read the device is not ready to answer.</summary>
+    private Task? _reloadTask;
 
     /// <summary>How long to let the device load a patch before reading it back.</summary>
     private const int PresetSettleMilliseconds = 250;
@@ -1105,50 +1108,46 @@ public partial class PartViewModel : ViewModelBase
     public Integra7Preset SelectedPreset
     {
         get => _selectedPreset;
-        set
+        set => ApplyPreset(value, PresetSource.User);
+    }
+
+    /// <summary>Apply a preset the device reported holding, as opposed to one the user picked. The
+    /// difference matters twice over: it is allowed through mid-load, and it must not be answered with
+    /// a program change for a patch the device is already holding.</summary>
+    public void ApplyDevicePreset(Integra7Preset value) => ApplyPreset(value, PresetSource.Device);
+
+    private void ApplyPreset(Integra7Preset value, PresetSource source)
+    {
+        if (_selectedPreset == value || value is null) return;
+
+        var decision = _load.RequestPreset(source);
+        if (!decision.Accepted)
         {
-            if (_selectedPreset != value && value is not null)
-            {
-                // Refuse a user's preset change while the part is loading. Disabling the list is the
-                // visible half of this rule, but it is only as good as the enabled state — scrolling
-                // the list was enough to get a click through — so the rule is enforced here, where
-                // nothing can route around it. Preset resolution driven by the device is exempt: that
-                // is how the part learns what it is holding, including during a load.
-                if (IsLoading && !_applyingPresetFromDevice)
-                {
-                    UserActionLog.Action(
-                        $"part {PartNo}: ignoring preset '{value.Name}', the part is still loading");
-                    // Snap the list back to what is really selected.
-                    this.RaisePropertyChanged();
-                    return;
-                }
-
-                UserActionLog.Action(
-                    $"part {PartNo}: select preset '{value.Name}' ({value.ToneTypeStr} {value.InternalUserDefinedStr}, " +
-                    $"msb {value.Msb} lsb {value.Lsb} pc {value.Pc})");
-
-                // Only a load that is actually running needs interrupting. A part that finished loading
-                // is refreshed by the resync this change triggers, exactly as it was before parts were
-                // loaded lazily; re-running the whole load as well would put two heavy read sequences on
-                // the port at once. The preset list is disabled while loading, so in practice this is
-                // reached only by a preset change that did not come from the list.
-                var wasInitializing = _deferredInit is { IsCompleted: false };
-
-                _selectedPreset = value;
-
-                // Stop an initialization that is reading the outgoing tone's domains: those reads go to
-                // a tone the device is about to stop holding, and each one waits out its timeout.
-                //
-                // Do NOT start the replacement here. The program change below has not been sent yet,
-                // let alone acted on, so reading now would return the outgoing patch's data — answered
-                // promptly and completely wrong. The device echoes the change when it has actually
-                // switched, and the resync that follows re-initializes the part then.
-                if (wasInitializing) CancelDeferredInit();
-
-                _ = ChangePresetAndReloadAsync(wasInitializing, ++_presetGeneration);
-                this.RaisePropertyChanged();
-            }
+            UserActionLog.Action(
+                $"part {PartNo}: ignoring preset '{value.Name}', the part is still loading");
+            // Snap the list back to what is really selected. Named explicitly: the caller-member-name
+            // overload would announce this method rather than the bound property.
+            this.RaisePropertyChanged(nameof(SelectedPreset));
+            return;
         }
+
+        UserActionLog.Action(
+            $"part {PartNo}: select preset '{value.Name}' ({value.ToneTypeStr} {value.InternalUserDefinedStr}, " +
+            $"msb {value.Msb} lsb {value.Lsb} pc {value.Pc})");
+
+        _selectedPreset = value;
+
+        // Stop a load that is reading the outgoing tone's domains: those reads go to a tone the device
+        // is about to stop holding, and each one waits out its timeout.
+        if (decision.CancelCurrentLoad)
+        {
+            _loadCts?.Cancel();
+            _loadTask = null;
+        }
+
+        _reloadTask = ChangePresetAndReloadAsync(decision);
+        this.RaisePropertyChanged(nameof(SelectedPreset));
+        RaiseLoadStateChanged();
     }
 
     /// <summary>Add a preset that arrived after this view model was built (the user tone names are
@@ -1176,17 +1175,9 @@ public partial class PartViewModel : ViewModelBase
             {
                 UpdatePartialViewModelToneTypeStrings(p);
 
-                // This reflects what the device reports, so it is allowed through even mid-load.
-                _applyingPresetFromDevice = true;
-                try
-                {
-                    SelectedPreset = p;
-                }
-                finally
-                {
-                    _applyingPresetFromDevice = false;
-                }
-
+                // This reflects what the device reports, so it is allowed through even mid-load — and
+                // is never answered with a program change for the patch the device already holds.
+                ApplyDevicePreset(p);
                 return;
             }
     }
@@ -1358,30 +1349,51 @@ public partial class PartViewModel : ViewModelBase
     public Task EnsureInitializedAsync()
     {
         if (_i7domain is null || IsCommonTab) return Task.CompletedTask;
-        if (_deferredInit is not null) return _deferredInit;
 
-        _everOpened = true;
-        _initCts?.Dispose();
-        _initCts = new CancellationTokenSource();
-        IsLoading = true;
-        _deferredInit = RunDeferredInitAsync(_initCts.Token);
-        return _deferredInit;
+        // A preset change owes this part a reload and is waiting out the settle delay. Reading now
+        // would return the outgoing patch — and the delayed reload would then find a load already
+        // running and simply join it, so the delay would be lost rather than merely bypassed.
+        if (_reloadTask is { IsCompleted: false }) return _reloadTask;
+
+        return BeginLoadAsync();
     }
 
-    /// <summary>Abandon an initialization that is reading the wrong tone. The device answers reads only
-    /// for the tone a part currently holds, so once the preset changes, every remaining read of the old
-    /// tone's domains goes unanswered and costs a 1.5s timeout — 62 of them for a drum kit.</summary>
-    private void CancelDeferredInit()
+    /// <summary>Start a load, or join one already running, without deferring to a pending reload.
+    ///
+    /// Called directly by both <see cref="EnsureInitializedAsync"/> and the reload below. The reload
+    /// must never reach a load through <see cref="EnsureInitializedAsync"/> instead, and this method
+    /// must never grow a <c>_reloadTask</c> check of its own "for consistency": either would make the
+    /// reload await its own task.</summary>
+    private Task BeginLoadAsync()
     {
-        _initCts?.Cancel();
-        _deferredInit = null;
-        IsLoading = false;
+        switch (_load.RequestOpen())
+        {
+            case OpenDecision.None:
+                return Task.CompletedTask;
+            case OpenDecision.JoinExisting:
+                return _loadTask ?? Task.CompletedTask;
+        }
+
+        _loadCts?.Dispose();
+        _loadCts = new CancellationTokenSource();
+        RaiseLoadStateChanged();
+        _loadTask = RunDeferredInitAsync(_loadCts.Token, _load.Epoch);
+        return _loadTask;
     }
 
     /// <summary>True once the deferred work has finished. Callers that only want to refresh a part
     /// use this to skip parts that were never opened: those read current hardware state when they are
     /// opened, so refreshing them early would spend round trips on data nobody is looking at.</summary>
-    public bool IsInitialized => _deferredInit is { IsCompletedSuccessfully: true };
+    public bool IsInitialized => _load.Phase == PartLoadPhase.Loaded;
+
+    /// <summary>True for a part that was opened and then had its load cancelled or failed. It has no
+    /// usable tone state, so a refresh must re-initialize it rather than skip it the way it skips
+    /// parts nobody ever opened.</summary>
+    public bool NeedsReinitialization => _load.Phase == PartLoadPhase.Abandoned;
+
+    /// <summary>True for a part that has been opened at some point and is not currently loading — the
+    /// parts a refresh should actually visit.</summary>
+    public bool WantsRefresh => _load.Phase is PartLoadPhase.Loaded or PartLoadPhase.Abandoned;
 
     /// <summary>This part's tone type, as the key the Advanced tabs repair their selection against.
     /// Which of those tabs are visible depends on it, and Avalonia keeps rendering a selected tab's
@@ -1389,40 +1401,29 @@ public partial class PartViewModel : ViewModelBase
     /// sub-tab would show the other engine's parameters, which were never read.</summary>
     public string ToneTypeKey => _selectedPreset?.ToneTypeStr ?? "";
 
-    /// <summary>True while this part is loading. The preset list is disabled meanwhile: changing the
-    /// preset mid-load means the load is reading a tone the device is about to drop, and the recovery
-    /// (cancel, re-send, re-read) runs concurrently with the resync the change itself triggers.
-    ///
-    /// Held as a field rather than derived from the load task. The task only completes once the method
-    /// producing it returns, which is after its own finally block — so a notification raised there would
-    /// still report loading, and the list would stay disabled until something else re-evaluated it.</summary>
-    public bool IsLoading
+    /// <summary>True while this part is loading or owes a reload. The preset list is disabled
+    /// meanwhile: changing the preset mid-load means the load is reading a tone the device is about to
+    /// drop. This is the same predicate the state machine refuses user changes on, so the visible rule
+    /// and the enforced rule cannot drift apart.</summary>
+    public bool IsLoading => _load.Busy;
+
+    /// <summary>Announce every property that reads off the load state. They are computed rather than
+    /// stored, so nothing raises these notifications on their behalf.</summary>
+    private void RaiseLoadStateChanged()
     {
-        get => _isLoading;
-        private set => this.RaiseAndSetIfChanged(ref _isLoading, value);
+        this.RaisePropertyChanged(nameof(IsLoading));
+        this.RaisePropertyChanged(nameof(IsInitialized));
+        this.RaisePropertyChanged(nameof(NeedsReinitialization));
+        this.RaisePropertyChanged(nameof(WantsRefresh));
     }
 
-    private bool _isLoading;
-
-    /// <summary>Set while a preset is being applied because the device reports holding it, as opposed
-    /// to the user picking one. Only the latter is refused during a load.</summary>
-    private bool _applyingPresetFromDevice;
-
-    /// <summary>True for a part that was opened and then had its initialization cancelled by a preset
-    /// change. It has no usable tone state, so a refresh must re-initialize it rather than skip it the
-    /// way it skips parts nobody ever opened.</summary>
-    public bool NeedsReinitialization => _everOpened && _deferredInit is null;
-
-    /// <summary>Whether this part's tab has ever been opened, which is what separates "never loaded, so
-    /// leave it alone" from "loaded once, so keep it current".</summary>
-    private bool _everOpened;
-
-    private async Task RunDeferredInitAsync(CancellationToken token)
+    private async Task RunDeferredInitAsync(CancellationToken token, int epoch)
     {
-        // Never run synchronously: EnsureInitializedAsync assigns _deferredInit from the return value,
-        // so a body that reset the field before that assignment would have its reset overwritten.
+        // Never run synchronously: BeginLoadAsync assigns _loadTask from the return value, so a body
+        // that reset the field before that assignment would have its reset overwritten.
         await Task.Yield();
 
+        var outcome = LoadOutcome.Completed;
         try
         {
             // Bracketed here rather than at the call site, so a re-initialization triggered by a preset
@@ -1433,19 +1434,22 @@ public partial class PartViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
-            // Superseded by a preset change; the fresh initialization it started owns the part now.
+            // Superseded by a preset change; the fresh load it started owns the part now.
+            outcome = LoadOutcome.Cancelled;
             UserActionLog.Action($"part {PartNo}: initialization abandoned, the preset changed");
         }
         catch
         {
             // Let a later open (or resync) try again rather than caching the failure forever.
-            _deferredInit = null;
+            outcome = LoadOutcome.Failed;
             throw;
         }
         finally
         {
-            // Re-enables the preset list, whether the load finished, failed or was abandoned.
-            IsLoading = false;
+            // Tagged with the epoch this load started at, so a cancelled load reporting late cannot
+            // bury the replacement that took over from it.
+            _load.LoadFinished(outcome, epoch);
+            RaiseLoadStateChanged();
         }
     }
 
@@ -1771,30 +1775,43 @@ public partial class PartViewModel : ViewModelBase
     }
 
     [ReactiveCommand]
-    /// <summary>Send the program change, then reload the part if it had been open.
+    /// <summary>Send the program change if this part is the one asking for it, then reload.
     ///
     /// The order is the whole point: reading before the device has switched returns the outgoing
-    /// patch, promptly and wrongly. Nothing else reloads it either — the resync that a preset change
-    /// normally triggers is driven by the device echoing a change made on its own panel, which does
-    /// not happen for a change this application sent.</summary>
-    private async Task ChangePresetAndReloadAsync(bool reload, int generation)
+    /// patch, promptly and wrongly. This is the only path that refreshes a part after a preset
+    /// change — the UpdateResyncPart that Integra7Api posts alongside every program change is dropped
+    /// by ResyncPartAsync while the reload is pending, because it carries no settle delay.</summary>
+    private async Task ChangePresetAndReloadAsync(PresetDecision decision)
     {
-        await ChangePresetAsync();
+        try
+        {
+            // A preset the device reported is already loaded there; sending it back would be an echo.
+            if (decision.SendProgramChange) await ChangePresetAsync();
 
-        // Another preset was picked while this one was being sent. That change is doing its own
-        // reload, and this one would read the device before its program change had arrived — the
-        // reads are answered, just for the wrong patch.
-        if (generation != _presetGeneration) return;
+            if (!decision.Reload) return;
 
-        if (!reload) return;
+            // Another preset was picked while this one was being sent. That change is doing its own
+            // reload, and this one would read the device before its program change had arrived — the
+            // reads are answered, just for the wrong patch.
+            if (!_load.IsCurrent(decision.Epoch)) return;
 
-        // The device needs a moment to actually load the patch. Reading the instant the program
-        // change goes out returns the outgoing tone, which is how a part ended up showing a partial
-        // that was never read: correct-looking common values, zeroed partials.
-        await Task.Delay(PresetSettleMilliseconds);
-        if (generation != _presetGeneration) return;
+            // The device needs a moment to actually load the patch. Reading the instant the program
+            // change goes out returns the outgoing tone, which is how a part ended up showing a partial
+            // that was never read: correct-looking common values, zeroed partials.
+            await Task.Delay(PresetSettleMilliseconds);
+            if (!_load.IsCurrent(decision.Epoch)) return;
 
-        await EnsureInitializedAsync();
+            await BeginLoadAsync();
+        }
+        catch (Exception e)
+        {
+            // Nobody awaits this task, so the failure would otherwise vanish — and the reload would
+            // stay owed forever, leaving the preset list disabled and every resync for this part
+            // skipped. Releasing the state machine is what lets a later open retry.
+            UserActionLog.Failed($"change preset on part {PartNo}", e.ToString());
+            _load.LoadFinished(LoadOutcome.Failed, decision.Epoch);
+            RaiseLoadStateChanged();
+        }
     }
 
     public async Task ChangePresetAsync()
@@ -1816,6 +1833,17 @@ public partial class PartViewModel : ViewModelBase
 
         if (part != PartNo)
             return;
+
+        // Integra7Api posts UpdateResyncPart alongside every program change (Integra7Api.cs:450), with
+        // no settle delay — so for a preset change it would read the outgoing patch, and would be the
+        // second refresh of the same part. The reload started by the preset change owns that refresh
+        // and applies the delay. Resyncs from any other trigger — the device's own front panel, an SRX
+        // load, ResyncAllPartsAsync — never see this flag set.
+        if (!IsCommonTab && _load.ReloadPending)
+        {
+            UserActionLog.Action($"part {PartNo}: skipping resync, a reload is already pending");
+            return;
+        }
 
         if (IsCommonTab)
         {
