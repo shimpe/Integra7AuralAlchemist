@@ -373,4 +373,59 @@ public class TestMidiPort
         Assert.That(midiIn.Dispatched, Is.EqualTo(new[] { Reply() }),
             "the data set that arrived during the identity read was not its reply, so it is deferred");
     }
+
+    [Test]
+    public async Task WaitingTooLongForThePortNamesBothConversations()
+    {
+        var port = NewPort(out _, out _);
+        var warnings = new List<string>();
+        port.SlowAcquireThreshold = TimeSpan.FromMilliseconds(100);
+        port.OnSlowAcquire = (waiting, holder, heldFor) =>
+            warnings.Add($"{waiting}|{holder}|{heldFor >= TimeSpan.Zero}");
+
+        var holder = await port.AcquireAsync("user tone names 448-511");
+        var waiter = port.AcquireAsync("part 6 load");
+        await Task.Delay(300);
+        await holder.DisposeAsync();
+        await (await waiter).DisposeAsync();
+
+        Assert.That(warnings, Has.Count.EqualTo(1));
+        Assert.That(warnings[0], Is.EqualTo("part 6 load|user tone names 448-511|True"));
+    }
+
+    [Test]
+    public async Task AWaitThatRunsAbsurdlyLongGivesUpAndSaysWho()
+    {
+        // Only reachable if something acquired the port while already holding it, which this design
+        // forbids. Hanging forever is the failure mode the whole redesign exists to stop, so give up
+        // and name both sides.
+        var port = NewPort(out _, out _);
+        port.SlowAcquireThreshold = TimeSpan.FromMilliseconds(50);
+        port.AcquireTimeout = TimeSpan.FromMilliseconds(200);
+
+        await using var holder = await port.AcquireAsync("user tone names 448-511");
+
+        var boom = Assert.ThrowsAsync<TimeoutException>(async () =>
+            await port.AcquireAsync("part 6 load"));
+
+        Assert.That(boom!.Message, Does.Contain("part 6 load"));
+        Assert.That(boom.Message, Does.Contain("user tone names 448-511"));
+    }
+
+    [Test]
+    public async Task AConversationThatWaitsBrieflyIsNotWarnedAbout()
+    {
+        // A part load queued behind the name burst is waiting correctly, not deadlocked.
+        var port = NewPort(out _, out _);
+        var warnings = 0;
+        port.SlowAcquireThreshold = TimeSpan.FromSeconds(5);
+        port.OnSlowAcquire = (_, _, _) => warnings++;
+
+        var holder = await port.AcquireAsync("first");
+        var waiter = port.AcquireAsync("second");
+        await holder.DisposeAsync();
+        await (await waiter).DisposeAsync();
+
+        Assert.That(warnings, Is.Zero);
+    }
 }

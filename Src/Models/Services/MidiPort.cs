@@ -40,6 +40,23 @@ public sealed class MidiPort : IMidiPort
     private readonly IMidiOut _midiOut;
     private readonly IMidiIn _midiIn;
 
+    /// <summary>How long a conversation may wait for the port before the wait is reported. It keeps
+    /// waiting afterwards: the startup name burst legitimately holds the port for several seconds, and
+    /// a part load queued behind it is waiting correctly.</summary>
+    public TimeSpan SlowAcquireThreshold { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>How long a conversation may wait before the wait is treated as a bug rather than a
+    /// queue. Far beyond any legitimate wait, so reaching it means something acquired the port while
+    /// already holding it -- which this design forbids, there being no reentrancy.</summary>
+    public TimeSpan AcquireTimeout { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>Called when a conversation waits longer than the threshold: (waiting, holder, heldFor).
+    /// Overridable so a test can observe it; it logs by default.</summary>
+    public Action<string, string, TimeSpan>? OnSlowAcquire { get; set; }
+
+    private string _holder = "nobody";
+    private DateTime _heldSince = DateTime.UtcNow;
+
     public MidiPort(IMidiOut midiOut, IMidiIn midiIn)
     {
         _midiOut = midiOut;
@@ -48,11 +65,41 @@ public sealed class MidiPort : IMidiPort
 
     public async Task<IMidiLease> AcquireAsync(string what)
     {
-        await _gate.WaitAsync();
+        if (!await _gate.WaitAsync(SlowAcquireThreshold))
+        {
+            // Name both sides. Every hang chased over this work looked like a frozen UI with no
+            // indication of who was holding the port and who was waiting for it.
+            var holder = _holder;
+            var heldFor = DateTime.UtcNow - _heldSince;
+            if (OnSlowAcquire is not null)
+            {
+                OnSlowAcquire(what, holder, heldFor);
+            }
+            else
+            {
+                Log.Warning(
+                    "Waiting {Waited:0}s to acquire the MIDI port for '{What}' -- held by '{Holder}' " +
+                    "for {HeldFor:0}s.", SlowAcquireThreshold.TotalSeconds, what, holder,
+                    heldFor.TotalSeconds);
+            }
+
+            if (!await _gate.WaitAsync(AcquireTimeout - SlowAcquireThreshold))
+                throw new TimeoutException(
+                    $"Gave up after {AcquireTimeout.TotalSeconds:0}s waiting for the MIDI port for " +
+                    $"'{what}' -- held by '{holder}'. Something acquired the port while already " +
+                    "holding it, which is not supported: public methods acquire, helpers take a lease.");
+        }
+
+        _holder = what;
+        _heldSince = DateTime.UtcNow;
         return new Lease(this, what);
     }
 
-    private void Release() => _gate.Release();
+    private void Release()
+    {
+        _holder = "nobody";
+        _gate.Release();
+    }
 
     private sealed class Lease : IMidiLease
     {
