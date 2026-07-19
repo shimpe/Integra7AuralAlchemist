@@ -160,22 +160,20 @@ public class TestIntegra7ApiConversations
     }
 
     [Test]
-    public async Task WritingAToneToUserMemoryKeepsItsStepsInSeparateConversations()
+    public async Task WritingAToneToUserMemoryIsOneConversation()
     {
-        // The one method here that must NOT be one conversation. Its middle step writes the name out
-        // through the domain layer, which comes back into MakeDataTransmissionAsync and acquires the
-        // port for itself -- so a single lease across the three steps would block on the gate its own
-        // conversation holds, until the sixty-second timeout throws. Pinned because "tidying" this
-        // into one lease, for consistency with ChangePresetAsync, is the obvious wrong move.
+        // Step 1 selects the new patch on the device, so a read landing between steps 1 and 3 reads
+        // the new patch, and a preset change there writes the wrong name to the wrong slot. This used
+        // to be several conversations because there was no way to pass a lease through the domain
+        // layer, and holding one across the steps would have deadlocked.
         var port = new RecordingPort();
         var api = new Integra7Api(port);
         var domain = new Integra7Domain(api, new Integra7StartAddresses(), LoadParameters());
 
         await api.WriteToneToUserMemory(domain, "SN-S", 0, "TEST NAME", 0);
 
-        Assert.That(port.MostLeasesHeldAtOnce, Is.EqualTo(1),
-            "a lease held while the name step takes its own is the deadlock this method must avoid");
-        Assert.That(port.Conversations, Does.Contain("write tone to user memory"));
+        Assert.That(port.Conversations, Is.EqualTo(new[] { "write tone to user memory" }));
+        Assert.That(port.MostLeasesHeldAtOnce, Is.EqualTo(1));
     }
 
     private static Integra7Parameters LoadParameters()

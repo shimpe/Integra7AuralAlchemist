@@ -323,12 +323,6 @@ public class Integra7Api : IIntegra7Api
         return await GetListOfNamesHelper(msg);
     }
 
-    /// <summary>NOT atomic, deliberately. Step 2 writes the name out through the domain layer, which
-    /// re-enters MakeDataTransmissionAsync and acquires the port for itself -- so holding one lease
-    /// across these three steps would deadlock against ourselves. Making it a single conversation
-    /// needs a lease threaded through Integra7Domain and FullyQualifiedParameter, which is separate
-    /// work. The race this leaves open is real: step 1 selects the new patch, so a read landing
-    /// between steps 1 and 3 reads the new patch.</summary>
     public async Task WriteToneToUserMemory(Integra7Domain i7domain, string toneTypeStr, byte zeroBasedPartNo,
         string name,
         int zeroBasedUserMemoryId)
@@ -338,6 +332,8 @@ public class Integra7Api : IIntegra7Api
         // 1. write the current patch to the user memory -> this has the side effect of also selecting the new patch
         // 2. write the name to the user memory
         // 3. write the current patch (i.e. the selected user patch) to the user memory again to cement the new name
+        await using var port = await _port.AcquireAsync("write tone to user memory");
+
         var msb = 0;
         var lsb = 0;
 
@@ -351,10 +347,7 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALAcousticToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "SN-S":
@@ -364,10 +357,7 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALSynthToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "SN-D":
@@ -377,10 +367,7 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALDrumKitMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "PCMS":
@@ -389,10 +376,7 @@ public class Integra7Api : IIntegra7Api
                 lsb = zeroBasedUserMemoryId >> 7;
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMSynthToneMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "PCMD":
@@ -401,16 +385,13 @@ public class Integra7Api : IIntegra7Api
                 lsb = 0;
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMDrumKitMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
         }
 
         // step 2
-        await ChangePresetNameAsync(i7domain, zeroBasedPartNo, toneTypeStr, name);
+        await ChangePresetNameAsync(i7domain, zeroBasedPartNo, toneTypeStr, name, port);
 
         // step 3: todo cleanup duplication with step 1
         switch (toneTypeStr)
@@ -420,10 +401,7 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALAcousticToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "SN-S":
@@ -431,10 +409,7 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALSynthToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "SN-D":
@@ -442,30 +417,21 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALDrumKitMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "PCMS":
             {
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMSynthToneMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
             case "PCMD":
             {
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMDrumKitMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                await using (var port = await _port.AcquireAsync("write tone to user memory"))
-                {
-                    await port.SendAsync(msg);
-                }
+                await port.SendAsync(msg);
             }
                 break;
         }
@@ -638,7 +604,7 @@ public class Integra7Api : IIntegra7Api
     }
 
     private async Task ChangePresetNameAsync(Integra7Domain i7domain, byte zeroBasedPartNo, string toneType,
-        string name)
+        string name, IMidiLease? lease = null)
     {
         switch (toneType)
         {
@@ -646,35 +612,35 @@ public class Integra7Api : IIntegra7Api
             {
                 var d = i7domain.PCMDrumKitCommon(zeroBasedPartNo);
                 d.ModifySingleParameterDisplayedValue("PCM Drum Kit Common/Kit Name", name);
-                await d.WriteToIntegraAsync("PCM Drum Kit Common/Kit Name");
+                await d.WriteToIntegraAsync("PCM Drum Kit Common/Kit Name", lease);
             }
                 break;
             case "PCMS":
             {
                 var d = i7domain.PCMSynthToneCommon(zeroBasedPartNo);
                 d.ModifySingleParameterDisplayedValue("PCM Synth Tone Common/PCM Synth Tone Name", name);
-                await d.WriteToIntegraAsync("PCM Synth Tone Common/PCM Synth Tone Name");
+                await d.WriteToIntegraAsync("PCM Synth Tone Common/PCM Synth Tone Name", lease);
             }
                 break;
             case "SN-A":
             {
                 var d = i7domain.SNAcousticToneCommon(zeroBasedPartNo);
                 d.ModifySingleParameterDisplayedValue("SuperNATURAL Acoustic Tone Common/Tone Name", name);
-                await d.WriteToIntegraAsync("SuperNATURAL Acoustic Tone Common/Tone Name");
+                await d.WriteToIntegraAsync("SuperNATURAL Acoustic Tone Common/Tone Name", lease);
             }
                 break;
             case "SN-S":
             {
                 var d = i7domain.SNSynthToneCommon(zeroBasedPartNo);
                 d.ModifySingleParameterDisplayedValue("SuperNATURAL Synth Tone Common/Tone Name", name);
-                await d.WriteToIntegraAsync("SuperNATURAL Synth Tone Common/Tone Name");
+                await d.WriteToIntegraAsync("SuperNATURAL Synth Tone Common/Tone Name", lease);
             }
                 break;
             case "SN-D":
             {
                 var d = i7domain.SNDrumKitCommon(zeroBasedPartNo);
                 d.ModifySingleParameterDisplayedValue("SuperNATURAL Drum Kit Common/Kit Name", name);
-                await d.WriteToIntegraAsync("SuperNATURAL Drum Kit Common/Kit Name");
+                await d.WriteToIntegraAsync("SuperNATURAL Drum Kit Common/Kit Name", lease);
             }
                 break;
         }
