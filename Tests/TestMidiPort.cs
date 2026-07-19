@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Commons.Music.Midi;
 using Integra7AuralAlchemist.Models.Services;
@@ -148,6 +149,59 @@ public class TestMidiPort
         var b = port.AcquireAsync("b");
 
         Assert.That(b.IsCompleted, Is.False, "the gate was released twice; two conversations got in");
+
+        await a.DisposeAsync();
+        await (await b).DisposeAsync();
+    }
+
+    [Test]
+    public async Task SendsKeepTheirOrderEvenWhenTheCallerForgetsToAwait()
+    {
+        // The port exists so a sequence that must arrive together cannot be split. That guarantee
+        // must not rest on every caller remembering to await -- one missed await is a warning, not
+        // an error.
+        var port = NewPort(out _, out var midiOut);
+
+        await using (var lease = await port.AcquireAsync("preset change"))
+        {
+            _ = lease.SendAsync([0xb0, 0x00, 0x55]);
+            _ = lease.SendAsync([0xb0, 0x20, 0x00]);
+            await lease.SendAsync([0xc0, 0x07]);
+        }
+
+        Assert.That(midiOut.Sent.Select(m => m[0]), Is.EqualTo(new byte[] { 0xb0, 0xb0, 0xc0 }));
+        Assert.That(midiOut.Sent[0][1], Is.EqualTo(0x00));
+        Assert.That(midiOut.Sent[1][1], Is.EqualTo(0x20));
+    }
+
+    [Test]
+    public async Task ThePortIsNotHandedOnWhileASendIsStillInFlight()
+    {
+        var port = NewPort(out _, out var midiOut);
+
+        var lease = await port.AcquireAsync("first");
+        _ = lease.SendAsync([0x01]);
+        await lease.DisposeAsync();
+
+        Assert.That(midiOut.Sent, Has.Count.EqualTo(1),
+            "disposal must wait for the send it queued, or it can land inside the next conversation");
+    }
+
+    [Test]
+    public async Task DisposingFromTwoThreadsAtOnceReleasesThePortOnce()
+    {
+        var port = NewPort(out _, out _);
+
+        var lease = await port.AcquireAsync("first");
+        await Task.WhenAll(
+            Task.Run(async () => await lease.DisposeAsync()),
+            Task.Run(async () => await lease.DisposeAsync()));
+
+        // If the gate was released twice its count is 2, and two conversations get in at once.
+        var a = await port.AcquireAsync("a");
+        var b = port.AcquireAsync("b");
+
+        Assert.That(b.IsCompleted, Is.False, "the gate was released twice");
 
         await a.DisposeAsync();
         await (await b).DisposeAsync();
