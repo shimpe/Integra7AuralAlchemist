@@ -1,3 +1,4 @@
+using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
 
 namespace Tests;
@@ -112,6 +113,40 @@ public class TestSysexParsingRobustness
         {
             Assert.That(Integra7SysexHelpers.TrimAfterEndOfSysex(WellFormedDataSet),
                 Is.EqualTo(WellFormedDataSet));
+        }
+    }
+
+    [TestFixture]
+    public class ConvertSysexToParameterUpdatesTests
+    {
+        // i7 == null makes every address lookup fail. Before the fix, a failed lookup left
+        // currentLocation and address unchanged, so the parse loop never advanced and never
+        // terminated. This test must fail on a timeout, not hang the suite, if that regresses.
+        [Test]
+        [Timeout(5000)]
+        public void TerminatesAndReturnsEmptyWhenTheDomainIsNull()
+        {
+            Integra7Domain? noDomain = null;
+            var result = SysexDataTransmissionParser.ConvertSysexToParameterUpdates(WellFormedDataSet, noDomain);
+            Assert.That(result, Is.Empty);
+        }
+
+        [Test]
+        public void ReturnsEmptyRatherThanCrashingForAPayloadShorterThanFourBytes()
+        {
+            // Header, a 2-byte "address" (too short to be one), checksum, terminator.
+            byte[] shortPayload = [0xf0, 0x41, 0x10, 0x00, 0x00, 0x64, 0x12, 0x01, 0x02, 0x00, 0xf7];
+            Integra7Domain? noDomain = null;
+            var result = SysexDataTransmissionParser.ConvertSysexToParameterUpdates(shortPayload, noDomain);
+            Assert.That(result, Is.Empty);
+        }
+
+        [Test]
+        public void ReturnsEmptyForAMessageThatIsNotADataSet()
+        {
+            Integra7Domain? noDomain = null;
+            var result = SysexDataTransmissionParser.ConvertSysexToParameterUpdates(WellFormedDataRequest, noDomain);
+            Assert.That(result, Is.Empty);
         }
     }
 }
