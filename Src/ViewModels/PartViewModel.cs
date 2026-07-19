@@ -39,7 +39,6 @@ public partial class PartViewModel : ViewModelBase
 
     private readonly ReadOnlyObservableCollection<FullyQualifiedParameter> _PCMSynthTonePMTParameters = new([]);
     private readonly ReadOnlyObservableCollection<Integra7Preset> _presets = new([]);
-    private readonly SemaphoreSlim _semaphore;
 
     private readonly ReadOnlyObservableCollection<FullyQualifiedParameter> _setupParameters = new([]);
 
@@ -284,7 +283,7 @@ public partial class PartViewModel : ViewModelBase
 
     public PartViewModel(ViewModelBase parent, byte zeroBasedPartNo, Integra7StartAddresses i7startAddr,
         Integra7Parameters i7par, IIntegra7Api i7, Integra7Domain i7dom,
-        SemaphoreSlim semaphore, List<Integra7Preset> i7presets,
+        List<Integra7Preset> i7presets,
         bool commonTab = false)
     {
         _parent = parent;
@@ -297,7 +296,6 @@ public partial class PartViewModel : ViewModelBase
         _i7presets = i7presets;
         IsCommonTab = commonTab;
         _selectedPreset = null;
-        _semaphore = semaphore;
 
         _sourceCachePresets.AddOrUpdate(i7presets);
         // InitializeParameterSourceCachesAsync(); // call outside constructor
@@ -1514,7 +1512,7 @@ public partial class PartViewModel : ViewModelBase
                 var vm = new PCMSynthTonePartialViewModel(this, PartNo, i,
                     toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
-                    _i7domain, _semaphore);
+                    _i7domain);
                 await vm.InitializeParameterSourceCachesAsync();
                 pvm.Add(vm);
             }
@@ -1531,7 +1529,7 @@ public partial class PartViewModel : ViewModelBase
                 var vm = new PCMDrumKitPartialViewModel(this, PartNo, i,
                     toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
-                    _i7domain, _semaphore);
+                    _i7domain);
                 await vm.InitializeParameterSourceCachesAsync();
                 pvm2.Add(vm);
             }
@@ -1545,7 +1543,7 @@ public partial class PartViewModel : ViewModelBase
                 var vm = new SNSynthTonePartialViewModel(this, PartNo, i,
                     toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
-                    _i7domain, _semaphore);
+                    _i7domain);
                 await vm.InitializeParameterSourceCachesAsync();
                 pvm3.Add(vm);
             }
@@ -1559,7 +1557,7 @@ public partial class PartViewModel : ViewModelBase
                 var vm = new SNDrumKitPartialViewModel(this, PartNo, i,
                     toneType,
                     _i7startAddresses, _i7parameters, _i7Api,
-                    _i7domain, _semaphore);
+                    _i7domain);
                 await vm.InitializeParameterSourceCachesAsync();
                 pvm4.Add(vm);
             }

@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Reactive.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using DynamicData;
 using DynamicData.Binding;
@@ -27,9 +26,9 @@ public sealed partial class PCMSynthTonePartialViewModel : PartialViewModel
 
     public PCMSynthTonePartialViewModel(PartViewModel parent, byte zeroBasedPart, byte zeroBasedPartial,
         string toneTypeStr, Integra7StartAddresses i7addr, Integra7Parameters par,
-        IIntegra7Api i7api, Integra7Domain i7dom, SemaphoreSlim semaphore) : base(parent, zeroBasedPart,
+        IIntegra7Api i7api, Integra7Domain i7dom) : base(parent, zeroBasedPart,
         zeroBasedPartial, toneTypeStr, i7addr,
-        par, i7api, i7dom, semaphore)
+        par, i7api, i7dom)
     {
         var parFilterPCMSynthTonePartialParameters = this.WhenAnyValue(x => x.SearchTextPCMSynthTonePartial)
             .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))

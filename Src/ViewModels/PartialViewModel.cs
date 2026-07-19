@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Threading;
 using System.Threading.Tasks;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
@@ -11,7 +10,6 @@ namespace Integra7AuralAlchemist.ViewModels;
 
 public class PartialViewModel : ViewModelBase
 {
-    protected readonly SemaphoreSlim _semaphore;
     protected readonly byte _zeroBasedPart;
     protected readonly byte _zeroBasedPartial;
     private Integra7StartAddresses _i7addr;
@@ -23,7 +21,7 @@ public class PartialViewModel : ViewModelBase
 
     public PartialViewModel(PartViewModel parent, byte zeroBasedPart, byte zeroBasedPartial,
         string toneTypeStr, Integra7StartAddresses i7addr,
-        Integra7Parameters par, IIntegra7Api i7api, Integra7Domain i7dom, SemaphoreSlim semaphore)
+        Integra7Parameters par, IIntegra7Api i7api, Integra7Domain i7dom)
     {
         _parent = parent;
         _zeroBasedPart = zeroBasedPart;
@@ -33,7 +31,6 @@ public class PartialViewModel : ViewModelBase
         _i7api = i7api;
         _i7domain = i7dom;
         _toneTypeStr = toneTypeStr;
-        _semaphore = semaphore;
     }
 
     public ReadOnlyObservableCollection<FullyQualifiedParameter> PartialParameters => GetPartialParameters();
