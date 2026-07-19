@@ -148,7 +148,11 @@ public class Integra7Api : IIntegra7Api
         await using var port = await _port.AcquireAsync("all notes off");
         for (var i = 0; i < Constants.NO_OF_PARTS; i++)
         {
-            byte[] data = [(byte)(Integra7MidiControlNos.AllNotesOff + i), 0x7C, 0x00];
+            // All Notes Off is a control change: status 0xB0 on the channel, controller 123, value 0.
+            // It used to be built as [123 + channel, 124, 0], putting a controller number where the
+            // status byte goes -- and a status byte below 0x80 is not a MIDI message at all, so WinMM
+            // rejected all sixteen. Panic never reached the device.
+            byte[] data = [(byte)(MidiEvent.CC + i), Integra7MidiControlNos.AllNotesOff, 0x00];
             await port.SendAsync(data);
         }
     }

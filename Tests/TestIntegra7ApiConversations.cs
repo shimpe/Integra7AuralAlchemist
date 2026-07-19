@@ -122,6 +122,26 @@ public class TestIntegra7ApiConversations
     }
 
     [Test]
+    public async Task AllNotesOffSendsAControlChangeAndNotGarbage()
+    {
+        // It used to build [123 + channel, 124, 0], putting the controller number where the status
+        // byte belongs. A status byte below 0x80 is not a MIDI message, so WinMM rejected all sixteen
+        // and Panic never reached the device -- silently, because the send failure was never logged.
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+
+        await api.AllNotesOffAsync();
+
+        for (var channel = 0; channel < 16; channel++)
+        {
+            Assert.That(port.Sent[channel], Is.EqualTo(new byte[] { (byte)(0xb0 + channel), 123, 0 }),
+                $"channel {channel}");
+            Assert.That(port.Sent[channel][0], Is.GreaterThanOrEqualTo(0x80),
+                "a status byte below 0x80 is not a MIDI message at all");
+        }
+    }
+
+    [Test]
     public async Task WritingAToneToUserMemoryKeepsItsStepsInSeparateConversations()
     {
         // The one method here that must NOT be one conversation. Its middle step writes the name out
