@@ -20,7 +20,10 @@
 
         <!-- ===== Tone Header ===== -->
         <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,8">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <!-- Horizontal scrolling stays OFF: a ScrollViewer that scrolls horizontally measures its
+                 content with unbounded width, so the WrapPanels below would never see a limit to wrap
+                 at and would lay out on one endless line. It still clips, which is what we want. -->
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled">
             <StackPanel Spacing="8">
               <WrapPanel Orientation="Horizontal" ItemSpacing="16" LineSpacing="8">
                 <StackPanel Spacing="2">
