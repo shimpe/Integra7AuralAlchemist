@@ -50,7 +50,14 @@ public sealed class MidiPort : IMidiPort
     {
         private readonly MidiPort _port;
         private readonly string _what;
-        private int _released;
+
+        /// <summary>Guards the release flag and the chaining of sends together. Both must move under
+        /// one lock: a send that read the tail just before a concurrent disposal claimed the lease
+        /// would otherwise chain onto a tail that disposal had already snapshotted, and the gate would
+        /// be handed on with that send still in flight.</summary>
+        private readonly object _sync = new();
+
+        private bool _released;
 
         /// <summary>The last send queued on this lease. Sends chain onto it so their order does not
         /// depend on the caller awaiting each one -- a single missed await would otherwise let a bank
@@ -65,27 +72,49 @@ public sealed class MidiPort : IMidiPort
 
         public Task SendAsync(byte[] data)
         {
-            ThrowIfReleased();
-            // Offloaded: SafeSend blocks on the driver, and callers are often on the UI thread.
-            var send = _tail.ContinueWith(
-                _ => _port._midiOut.SafeSend(data),
-                CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
-            _tail = send;
-            return send;
+            lock (_sync)
+            {
+                ThrowIfReleased();
+
+                // Offloaded: SafeSend blocks on the driver, and callers are often on the UI thread.
+                var send = _tail.ContinueWith(
+                    previous =>
+                    {
+                        // Chaining onto a faulted task marks that fault observed, so a send that
+                        // failed mid-chain would otherwise vanish -- no rethrow, no unobserved-task
+                        // event, nothing. Only whoever awaited that particular send would ever know,
+                        // and the point of chaining is that callers need not await each one.
+                        if (previous.IsFaulted)
+                            Log.Warning(previous.Exception!.GetBaseException(),
+                                "An earlier send on the lease for '{What}' faulted.", _what);
+
+                        _port._midiOut.SafeSend(data);
+                    },
+                    CancellationToken.None, TaskContinuationOptions.None, TaskScheduler.Default);
+
+                _tail = send;
+                return send;
+            }
         }
 
         public async ValueTask DisposeAsync()
         {
-            // Guarded: a second dispose must not release the gate again, which would let two
-            // conversations onto the port at once. Claimed atomically: two threads disposing the
-            // same lease must not both see themselves as the first.
-            if (Interlocked.Exchange(ref _released, 1) != 0) return;
+            Task tail;
+            lock (_sync)
+            {
+                // A second dispose must not release the gate again, which would let two conversations
+                // onto the port at once.
+                if (_released) return;
+
+                _released = true;
+                tail = _tail;
+            }
 
             try
             {
                 // Waited for so the gate is never handed to the next conversation while a send
                 // queued on this one is still in flight.
-                await _tail;
+                await tail;
             }
             catch (Exception ex)
             {
@@ -97,9 +126,10 @@ public sealed class MidiPort : IMidiPort
             _port.Release();
         }
 
+        /// <summary>Call only while holding <see cref="_sync"/>.</summary>
         private void ThrowIfReleased()
         {
-            if (Volatile.Read(ref _released) != 0)
+            if (_released)
                 throw new ObjectDisposedException(nameof(IMidiLease),
                     $"The lease for '{_what}' was released. An async flow started inside that " +
                     "conversation is still using it, which would write onto a port another " +
