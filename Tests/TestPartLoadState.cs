@@ -230,4 +230,40 @@ public class TestPartLoadState
         Assert.That(s.IsCurrent(first.Epoch), Is.False);
         Assert.That(s.IsCurrent(second.Epoch), Is.True);
     }
+
+    [Test]
+    public void AReportFromTheDeviceInsideTheSettleWindowDoesNotCancelTheOwedReload()
+    {
+        // The user changed the preset, so a reload is owed and the caller is waiting out the settle
+        // delay before starting it. A report arriving from the device meanwhile must not silently
+        // take that reload away — nothing else would ever start it, and the part would sit open with
+        // no state anybody read.
+        var s = InPhase(PartLoadPhase.Loaded);
+        var owed = s.RequestPreset(PresetSource.User);
+        Assert.That(owed.Reload, Is.True);
+        Assert.That(s.ReloadPending, Is.True);
+
+        var d = s.RequestPreset(PresetSource.Device);
+
+        Assert.That(d.Reload, Is.True, "the reload the settle window exists for is still owed");
+        Assert.That(s.ReloadPending, Is.True);
+        Assert.That(s.Busy, Is.True, "the preset list must stay disabled until something reloads");
+        Assert.That(s.RequestOpen(), Is.EqualTo(OpenDecision.StartLoad));
+    }
+
+    [Test]
+    public void OnlyFinishingALoadClearsAnOwedReload()
+    {
+        var s = InPhase(PartLoadPhase.Loaded);
+        s.RequestPreset(PresetSource.User);
+        s.RequestPreset(PresetSource.Device);
+        s.RequestPreset(PresetSource.Device);
+        Assert.That(s.ReloadPending, Is.True);
+
+        s.RequestOpen();
+        s.LoadFinished(LoadOutcome.Completed, s.Epoch);
+
+        Assert.That(s.ReloadPending, Is.False);
+        Assert.That(s.Busy, Is.False);
+    }
 }

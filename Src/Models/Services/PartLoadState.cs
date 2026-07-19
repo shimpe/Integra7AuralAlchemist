@@ -105,7 +105,11 @@ public sealed class PartLoadState
             return new PresetDecision(false, false, false, false, Epoch);
 
         var cancel = Phase == PartLoadPhase.Loading;
-        var reload = cancel || Phase == PartLoadPhase.Loaded;
+
+        // A reload already owed stays owed. ReloadPending is cleared by LoadFinished and by nothing
+        // else: a change arriving inside the settle window must not cancel the reload that window
+        // exists for.
+        var reload = cancel || Phase == PartLoadPhase.Loaded || ReloadPending;
 
         Epoch++;
         ReloadPending = reload;
