@@ -19,8 +19,9 @@ public class AsyncMidiInputWrapper
     /// necessarily this one.</summary>
     private readonly EventHandler<MidiReceivedEventArgs> _handler;
 
-    /// <summary>What this conversation is waiting for.</summary>
-    private readonly IReplyMatcher _expected;
+    /// <summary>What this conversation is waiting for. Reassigned per read: one lease reads several
+    /// different replies through the same installed reader.</summary>
+    private IReplyMatcher _expected;
 
     /// <summary>Messages that arrived while waiting and were not the reply. This reader owns the MIDI
     /// input for its whole duration, so it is the only thing that can see them; dropping them would
@@ -107,13 +108,25 @@ public class AsyncMidiInputWrapper
 
     public Task<byte[]> WaitForMidiMessageAsync() => WaitForMatchingMessageAsync(handBackPort: true);
 
+    /// <summary>Wait for a message <paramref name="expected"/> recognises, keeping anything else. The
+    /// matcher is per call rather than per reader: one lease reads several different replies through
+    /// the same installed reader, and hands the port back itself when the conversation ends.</summary>
+    public Task<byte[]> WaitForAsync(IReplyMatcher expected)
+    {
+        _expected = expected;
+        return WaitForMatchingMessageAsync(handBackPort: false);
+    }
+
     /// <summary>Read one reply of a burst. The port stays installed: the caller keeps calling this
     /// until the burst ends, and a reader that handed the port back between replies would miss
     /// them.</summary>
     public Task<byte[]> WaitForMidiMessageAsyncExpectingMultipleInARow() =>
         WaitForMatchingMessageAsync(handBackPort: false);
 
-    public void CleanupAfterTimeOut()
+    /// <summary>Hand the port back and close this reader down. Runs on every disposal, not only on a
+    /// timeout: a reader owned by a lease never hands itself back, because it must stay installed
+    /// across all the reads of its conversation.</summary>
+    public void Detach()
     {
         _midiInput.RemoveHandler(_handler);
         _midiInput.RestoreAutomaticHandling();

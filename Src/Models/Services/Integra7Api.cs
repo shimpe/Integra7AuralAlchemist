@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using Commons.Music.Midi;
 using CoreMidi;
@@ -55,16 +54,17 @@ public interface IIntegra7Api
 
 public class Integra7Api : IIntegra7Api
 {
-    private readonly SemaphoreSlim _semaphore;
+    private readonly IMidiPort _port;
     private byte _deviceId;
-    private IMidiIn? _midiIn;
-    private IMidiOut? _midiOut;
 
-    public Integra7Api(IMidiOut midiOut, IMidiIn midiIn, SemaphoreSlim semaphore)
+    /// <summary>Whether the last identity check succeeded. Set false only by a failed
+    /// CheckIdentityAsync -- there is no live connection state to ask any more, since the port,
+    /// not this class, now owns the MIDI handles.</summary>
+    private bool _connected = true;
+
+    public Integra7Api(IMidiPort port)
     {
-        _midiOut = midiOut;
-        _midiIn = midiIn;
-        _semaphore = semaphore;
+        _port = port;
     }
 
     public byte DeviceId()
@@ -72,58 +72,14 @@ public class Integra7Api : IIntegra7Api
         return _deviceId;
     }
 
-    /// <summary>Send a request, wait for its own reply, then deliver anything else that arrived while
-    /// waiting.
-    ///
-    /// The drain runs after the semaphore is released on purpose: a deferred message must reach the UI
-    /// with the port actually free, not merely with the read logically finished. Dispatch is a
-    /// MessageBus post to a throttled subscriber, so nothing reenters synchronously -- but a resync it
-    /// triggers will take the semaphore, and it should find it available.</summary>
+    /// <summary>One request and its reply, as a conversation of its own.</summary>
     private async Task<byte[]> RunRequestAsync(byte[] request, IReplyMatcher expected, string what)
     {
-        // Captured: CheckIdentityAsync nulls the field on failure, and the drain still needs a port.
-        var midiIn = _midiIn;
-        if (midiIn is null) return [];
-
-        byte[] reply;
-        IReadOnlyList<byte[]> deferred;
-
-        await _semaphore.WaitAsync();
-        try
-        {
-            Log.Debug("DataRequest Lock acquired");
-            var mi = new AsyncMidiInputWrapper(midiIn, expected);
-            _midiOut?.SafeSend(request);
-            reply = await mi.WaitForMidiMessageAsync();
-            deferred = mi.TakeDeferred();
-            if (reply.Length == 0)
-            {
-                mi.CleanupAfterTimeOut();
-                // Name what was expected, not just the kind of conversation: "data request" is the
-                // same string for every parameter read in the application, so without the address a
-                // timeout says nothing about which read gave up.
-                Log.Error("Timeout waiting for MIDI reply: {What}, expecting {Expected}.", what,
-                    expected.Describe());
-            }
-        }
-        finally
-        {
-            Log.Debug("DataRequest Lock released");
-            _semaphore.Release();
-        }
-
-        foreach (var m in deferred)
-        {
-            // Guarded per message: one malformed deferred message must not strand the rest.
-            try
-            {
-                midiIn.DispatchUnsolicited(m);
-            }
-            catch (Exception e)
-            {
-                Log.Warning(e, "Failed to dispatch a message deferred during {What}.", what);
-            }
-        }
+        await using var port = await _port.AcquireAsync(what);
+        var reply = await port.RequestAsync(request, expected);
+        if (reply.Length == 0)
+            Log.Error("Timeout waiting for MIDI reply: {What}, expecting {Expected}.", what,
+                expected.Describe());
 
         return reply;
     }
@@ -137,8 +93,7 @@ public class Integra7Api : IIntegra7Api
 
         if (reply.Length == 0)
         {
-            _midiOut = null;
-            _midiIn = null;
+            _connected = false;
             _deviceId = 0;
             return;
         }
@@ -146,8 +101,7 @@ public class Integra7Api : IIntegra7Api
         var usefulreply = Integra7SysexHelpers.TrimAfterEndOfSysex(reply);
         if (!Integra7SysexHelpers.CheckIdentityReply(usefulreply, out _deviceId))
         {
-            _midiOut = null;
-            _midiIn = null;
+            _connected = false;
             _deviceId = 0;
         }
     }
@@ -161,58 +115,67 @@ public class Integra7Api : IIntegra7Api
     public async Task MakeDataTransmissionAsync(byte[] address, byte[] data)
     {
         var transmission = Integra7SysexHelpers.MakeDataSet(DeviceId(), address, data);
-        var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-        await w.SafeSendAsync(transmission);
+        await using var port = await _port.AcquireAsync("parameter write");
+        await port.SendAsync(transmission);
     }
 
+    /// <summary>Both halves matter. The flag says whether the identity check ever succeeded; the port
+    /// says whether the output handle still looks alive, which it stops doing when a send fails -- so
+    /// a device unplugged after a good identity check is still reported as gone.</summary>
     public bool ConnectionOk()
     {
-        return _midiOut?.ConnectionOk() ?? false;
+        return _connected && _port.ConnectionOk();
     }
 
     public async Task NoteOnAsync(byte Channel, byte Note, byte Velocity)
     {
         byte[] data = [(byte)(Integra7MidiControlNos.NoteOn + Channel), Note, Velocity];
-        var mo = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-        await mo.SafeSendAsync(data);
+        await using var port = await _port.AcquireAsync("note on");
+        await port.SendAsync(data);
     }
 
     public async Task NoteOffAsync(byte Channel, byte Note)
     {
         byte[] data = [(byte)(Integra7MidiControlNos.NoteOff + Channel), Note, 0];
-        var mo = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-        await mo.SafeSendAsync(data);
+        await using var port = await _port.AcquireAsync("note off");
+        await port.SendAsync(data);
     }
 
     public async Task AllNotesOffAsync()
     {
+        // One lease for all sixteen. Each send used to acquire separately, so a read could be
+        // serviced between the messages for parts 3 and 4.
+        await using var port = await _port.AcquireAsync("all notes off");
         for (var i = 0; i < Constants.NO_OF_PARTS; i++)
         {
-            byte[] data = [(byte)(Integra7MidiControlNos.AllNotesOff + i), 0x7C, 0x00];
-            var mo = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-            await mo.SafeSendAsync(data);
+            // All Notes Off is a control change: status 0xB0 on the channel, controller 123, value 0.
+            // It used to be built as [123 + channel, 124, 0], putting a controller number where the
+            // status byte goes -- and a status byte below 0x80 is not a MIDI message at all, so WinMM
+            // rejected all sixteen. Panic never reached the device.
+            byte[] data = [(byte)(MidiEvent.CC + i), Integra7MidiControlNos.AllNotesOff, 0x00];
+            await port.SendAsync(data);
         }
     }
 
     public async Task SendStopPreviewPhraseMsgAsync()
     {
         var stop = Integra7SysexHelpers.MakeStopPreviewPhraseMsg(_deviceId);
-        var mo = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-        await mo.SafeSendAsync(stop);
+        await using var port = await _port.AcquireAsync("stop preview phrase");
+        await port.SendAsync(stop);
     }
 
     public async Task SendPlayPreviewPhraseMsgAsync(byte channel)
     {
         var start = Integra7SysexHelpers.MakePlayPreviewPhraseMsg(channel, _deviceId);
-        var mo = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-        await mo.SafeSendAsync(start);
+        await using var port = await _port.AcquireAsync("play preview phrase");
+        await port.SendAsync(start);
     }
 
     public async Task SendLoadSrxAsync(byte srx_slot1, byte srx_slot2, byte srx_slot3, byte srx_slot4)
     {
         var msg = Integra7SysexHelpers.MakeLoadSrxMsg(srx_slot1, srx_slot2, srx_slot3, srx_slot4, _deviceId);
-        var mo = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-        await mo.SafeSendAsync(msg);
+        await using var port = await _port.AcquireAsync("load SRX");
+        await port.SendAsync(msg);
     }
 
     public async Task<(byte /*slot1*/, byte /* slot2*/, byte /*slot3*/, byte /*slot4*/)> GetLoadedSrxAsync()
@@ -340,6 +303,12 @@ public class Integra7Api : IIntegra7Api
         return await GetListOfNamesHelper(msg);
     }
 
+    /// <summary>NOT atomic, deliberately. Step 2 writes the name out through the domain layer, which
+    /// re-enters MakeDataTransmissionAsync and acquires the port for itself -- so holding one lease
+    /// across these three steps would deadlock against ourselves. Making it a single conversation
+    /// needs a lease threaded through Integra7Domain and FullyQualifiedParameter, which is separate
+    /// work. The race this leaves open is real: step 1 selects the new patch, so a read landing
+    /// between steps 1 and 3 reads the new patch.</summary>
     public async Task WriteToneToUserMemory(Integra7Domain i7domain, string toneTypeStr, byte zeroBasedPartNo,
         string name,
         int zeroBasedUserMemoryId)
@@ -362,8 +331,10 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALAcousticToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "SN-S":
@@ -373,8 +344,10 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALSynthToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "SN-D":
@@ -384,8 +357,10 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALDrumKitMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "PCMS":
@@ -394,8 +369,10 @@ public class Integra7Api : IIntegra7Api
                 lsb = zeroBasedUserMemoryId >> 7;
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMSynthToneMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "PCMD":
@@ -404,8 +381,10 @@ public class Integra7Api : IIntegra7Api
                 lsb = 0;
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMDrumKitMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
         }
@@ -421,8 +400,10 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALAcousticToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "SN-S":
@@ -430,8 +411,10 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALSynthToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "SN-D":
@@ -439,24 +422,30 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALDrumKitMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "PCMS":
             {
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMSynthToneMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "PCMD":
             {
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMDrumKitMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
         }
@@ -464,44 +453,41 @@ public class Integra7Api : IIntegra7Api
 
     public async Task ChangePresetAsync(byte Channel, int Msb, int Lsb, int Pc)
     {
-        BankSelectMsb(Channel, Msb);
-        BankSelectLsb(Channel, Lsb);
-        ProgramChange(Channel, Pc - 1);
+        // These three must arrive consecutively on the same channel. They used to be sent with no lock
+        // at all, so another flow's request could land between the bank select and the program change.
+        await using (var port = await _port.AcquireAsync("preset change"))
+        {
+            await port.SendAsync(BankSelectMsb(Channel, Msb));
+            await port.SendAsync(BankSelectLsb(Channel, Lsb));
+            await port.SendAsync(ProgramChange(Channel, Pc - 1));
+        }
+
+        // Posted after the port is free: the subscriber takes a lease, and would otherwise block
+        // until this conversation ended.
         MessageBus.Current.SendMessage(new UpdateResyncPart(Channel));
     }
 
-    private void BankSelectMsb(byte Channel, int BankNumberMsb)
+    private static byte[] BankSelectMsb(byte Channel, int BankNumberMsb)
     {
         ISet<int> PossibleBankMsb = new HashSet<int> { 85, 86, 87, 88, 89, 92, 93, 95, 96, 97, 120, 121 };
         if (PossibleBankMsb.Contains(BankNumberMsb))
-        {
-            byte[] data = [(byte)(MidiEvent.CC + Channel), 0, (byte)BankNumberMsb];
-            _midiOut?.SafeSend(data);
-        }
-        else
-        {
-            throw new MidiException("Trying to select impossible MSB Banknumber: " + BankNumberMsb);
-        }
+            return [(byte)(MidiEvent.CC + Channel), 0, (byte)BankNumberMsb];
+
+        // Throws rather than skipping: sending only the LSB and program change would select some
+        // other patch and say nothing about it.
+        throw new MidiException("Trying to select impossible MSB Banknumber: " + BankNumberMsb);
     }
 
-    private void BankSelectLsb(byte Channel, int BankNumberLsb)
+    private static byte[] BankSelectLsb(byte Channel, int BankNumberLsb)
     {
         if (0 <= BankNumberLsb && BankNumberLsb <= 127)
-        {
-            byte[] data = [(byte)(MidiEvent.CC + Channel), 0x20, (byte)BankNumberLsb];
-            _midiOut?.SafeSend(data);
-        }
-        else
-        {
-            throw new MidiException("Trying to select impossible LSB BankNumber: " + BankNumberLsb);
-        }
+            return [(byte)(MidiEvent.CC + Channel), 0x20, (byte)BankNumberLsb];
+
+        throw new MidiException("Trying to select impossible LSB BankNumber: " + BankNumberLsb);
     }
 
-    private void ProgramChange(byte Channel, int ProgramNumber)
-    {
-        byte[] data = [(byte)(MidiEvent.Program + Channel), (byte)ProgramNumber];
-        _midiOut?.SafeSend(data);
-    }
+    private static byte[] ProgramChange(byte Channel, int ProgramNumber) =>
+        [(byte)(MidiEvent.Program + Channel), (byte)ProgramNumber];
 
 
     public static bool CheckIsPartOfPresetChange(byte[] reply, out byte midiChannel)
@@ -531,134 +517,100 @@ public class Integra7Api : IIntegra7Api
         return false;
     }
 
-    /// <summary>Read the burst. Takes the port as an argument rather than reading the field, so it is
-    /// the same one the caller checked and will drain onto -- the field can be nulled by a failed
-    /// identity check while this is running.</summary>
-    private async Task<(List<string> Names, IReadOnlyList<byte[]> Deferred)> GatherNamesAsync(
-        IMidiIn midiIn, byte[] msg)
+    /// <summary>Fetch a list of names as one conversation on the lease. Deferred messages -- a preset
+    /// change made on the front panel, most often -- are dispatched by the lease itself once it is
+    /// released, after this burst, the longest read window in the application, is done holding the
+    /// port.</summary>
+    private async Task<List<string>> GetListOfNamesHelper(byte[] msg)
     {
         // Replies carry back the address they answer. Taking it from the request rather than
         // assuming one keeps this helper correct for every name list -- Studio Set names are
         // requested at 0f 00 03 02, where the tone lists use 0f 00 04 02.
         var expectedAddress = NameListEndMarker.AddressOf(msg);
+        var expected = ReplyMatchers.NameListReply(expectedAddress);
 
-        await _semaphore.WaitAsync();
-        var mi = new AsyncMidiInputWrapper(midiIn, ReplyMatchers.NameListReply(expectedAddress));
-        try
+        // Named for the address, so a long-hold warning says which burst is holding the port.
+        await using var port =
+            await _port.AcquireAsync($"name list at {BitConverter.ToString(expectedAddress)}");
+
+        List<byte[]> allReplies = [];
+        var totalRepliesReceived = 0;
+        var localReply = await port.RequestAsync(msg, expected);
+        var continueReading = true;
+        while (continueReading) // concatenate multiple incoming replies
         {
-            Log.Debug("DataRequest Lock acquired");
-            List<byte[]> allReplies = [];
-            var totalRepliesReceived = 0;
-            _midiOut?.SafeSend(msg);
-            var continueReading = true;
-            while (continueReading) // concatenate multiple incoming replies
+            if (localReply.Length != 0)
             {
-                var localReply = await mi.WaitForMidiMessageAsyncExpectingMultipleInARow();
-                if (localReply.Length != 0)
+                //Debug.WriteLine($"len: {localReply.Length}");
+                byte[][] multiplereplies = ByteUtils.SplitAfterF7(localReply);
+                foreach (var r in multiplereplies)
                 {
-                    //Debug.WriteLine($"len: {localReply.Length}");
-                    byte[][] multiplereplies = ByteUtils.SplitAfterF7(localReply);
-                    foreach (var r in multiplereplies)
-                    {
-                        // SplitAfterF7 never fills its last slot, so every split ends in a null --
-                        // for an ordinary single reply it returns [message, null]. Skipping it here
-                        // is not tidiness: IsNameListReply answers false for null, so without this
-                        // the null fell through to r.Length below and threw on the first reply of
-                        // every burst.
-                        if (r is null) continue;
+                    // SplitAfterF7 never fills its last slot, so every split ends in a null --
+                    // for an ordinary single reply it returns [message, null]. Skipping it here
+                    // is not tidiness: IsNameListReply answers false for null, so without this
+                    // the null fell through to r.Length below and threw on the first reply of
+                    // every burst.
+                    if (r is null) continue;
 
-                        if (NameListEndMarker.IsNameListReply(r, expectedAddress))
+                    if (NameListEndMarker.IsNameListReply(r, expectedAddress))
+                    {
+                        allReplies.Add(r);
+                        totalRepliesReceived += 1;
+                        //ByteStreamDisplay.Display($"partial reply #{totalRepliesReceived}:", r);
+                        // The device closes the burst with an empty-name reply. Stopping on it
+                        // returns at once instead of idling for the inactivity timeout. The
+                        // timeout below still applies when that reply never arrives. Note a
+                        // single read can carry several messages, so the check belongs here,
+                        // after the split, rather than on the raw chunk.
+                        if (NameListEndMarker.IsEndOfBurst(r, expectedAddress))
                         {
-                            allReplies.Add(r);
-                            totalRepliesReceived += 1;
-                            //ByteStreamDisplay.Display($"partial reply #{totalRepliesReceived}:", r);
-                            // The device closes the burst with an empty-name reply. Stopping on it
-                            // returns at once instead of idling for the inactivity timeout. The
-                            // timeout below still applies when that reply never arrives. Note a
-                            // single read can carry several messages, so the check belongs here,
-                            // after the split, rather than on the raw chunk.
-                            if (NameListEndMarker.IsEndOfBurst(r, expectedAddress))
-                            {
-                                continueReading = false;
-                                mi.CleanupAfterTimeOut();
-                            }
-                        }
-                        else if (r.Length > 0)
-                        {
-                            // A chunk can carry several concatenated messages, and the reader accepts
-                            // the whole chunk when any fragment matches -- so a fragment riding along
-                            // with a real reply lands here. It is not a name-list reply and can be far
-                            // too short to hold a name; accepting it would reach
-                            // ByteUtils.Slice(reply, 16, 16) below and trip its assertion. Log rather
-                            // than drop silently: a reply wrongly rejected by this filter would
-                            // otherwise show up only as a preset missing from the list, with no trace
-                            // of why.
-                            var previewLength = Math.Min(r.Length, 8);
-                            Log.Warning(
-                                "Dropped a {Length}-byte message during a name-list burst; not recognised as a name-list reply. First bytes: {Bytes}",
-                                r.Length, BitConverter.ToString(r, 0, previewLength));
+                            continueReading = false;
                         }
                     }
-                }
-                else
-                {
-                    continueReading = false;
-                    mi.CleanupAfterTimeOut();
-                    if (totalRepliesReceived == 0)
+                    else if (r.Length > 0)
                     {
-                        Log.Error("Timeout waiting for the name-list burst at {Address}.",
-                            BitConverter.ToString(expectedAddress));
-                        return ([], mi.TakeDeferred());
+                        // A chunk can carry several concatenated messages, and the reader accepts
+                        // the whole chunk when any fragment matches -- so a fragment riding along
+                        // with a real reply lands here. It is not a name-list reply and can be far
+                        // too short to hold a name; accepting it would reach
+                        // ByteUtils.Slice(reply, 16, 16) below and trip its assertion. Log rather
+                        // than drop silently: a reply wrongly rejected by this filter would
+                        // otherwise show up only as a preset missing from the list, with no trace
+                        // of why.
+                        var previewLength = Math.Min(r.Length, 8);
+                        Log.Warning(
+                            "Dropped a {Length}-byte message during a name-list burst; not recognised as a name-list reply. First bytes: {Bytes}",
+                            r.Length, BitConverter.ToString(r, 0, previewLength));
                     }
                 }
             }
-
-            List<string> names = [];
-            foreach (var reply in allReplies)
+            else
             {
-                var name = ByteUtils.Slice(reply, 16, 16);
-                if (name[0] != 0x00) // last returned message contains all 00's
-                    names.Add(Encoding.ASCII.GetString(name));
+                continueReading = false;
+                if (totalRepliesReceived == 0)
+                {
+                    Log.Error("Timeout waiting for the name-list burst at {Address}.",
+                        BitConverter.ToString(expectedAddress));
+                    return [];
+                }
             }
 
-            var idx = 0;
-            foreach (var n in names)
-            {
-                idx++;
-                Log.Debug($"{idx}: {n}");
-            }
-
-            return (names, mi.TakeDeferred());
+            if (continueReading) localReply = await port.ReadNextAsync(expected);
         }
-        finally
+
+        List<string> names = [];
+        foreach (var reply in allReplies)
         {
-            mi.CleanupAfterTimeOut();
-            Log.Debug("DataRequest Lock released");
-            _semaphore.Release();
+            var name = ByteUtils.Slice(reply, 16, 16);
+            if (name[0] != 0x00) // last returned message contains all 00's
+                names.Add(Encoding.ASCII.GetString(name));
         }
-    }
 
-    /// <summary>Fetch a list of names, then deliver anything the device sent while the burst held the
-    /// port -- a preset change made on the front panel, most often. The burst is the longest read
-    /// window in the application, so this is where an unsolicited message is most likely to land.</summary>
-    private async Task<List<string>> GetListOfNamesHelper(byte[] msg)
-    {
-        var midiIn = _midiIn;
-        if (midiIn is null) return [];
-
-        var (names, deferred) = await GatherNamesAsync(midiIn, msg);
-
-        foreach (var m in deferred)
+        var idx = 0;
+        foreach (var n in names)
         {
-            // Guarded per message: one malformed deferred message must not strand the rest.
-            try
-            {
-                midiIn.DispatchUnsolicited(m);
-            }
-            catch (Exception e)
-            {
-                Log.Warning(e, "Failed to dispatch a message deferred during a name-list burst.");
-            }
+            idx++;
+            Log.Debug($"{idx}: {n}");
         }
 
         return names;

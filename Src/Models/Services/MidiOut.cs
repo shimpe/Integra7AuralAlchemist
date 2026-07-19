@@ -66,15 +66,33 @@ public class MidiOut : IMidiOut
                 ByteStreamDisplay.Display("Sent: ", data);
             }
         }
-        catch (ArgumentException)
+        catch (ArgumentException e)
         {
+            // These two say the handle itself is bad, so the port really is gone.
+            LogSendFailure(e, data, "the port is gone");
             _midiPortDetails = null;
             _access = null;
         }
-        catch (NullReferenceException)
+        catch (NullReferenceException e)
         {
+            LogSendFailure(e, data, "the port is gone");
             _midiPortDetails = null;
             _access = null;
         }
+        catch (Exception e)
+        {
+            // Anything else -- notably the Win32Exception the WinMM backend throws -- is about THIS
+            // message, not the port. A malformed message must not condemn the device for the rest of
+            // the session, which is what dropping the port here did. The handle is dropped so the next
+            // send reopens, but the port details stay, so ConnectionOk still reports a device.
+            LogSendFailure(e, data, "keeping the port and reopening on the next send");
+            _access = null;
+        }
+    }
+
+    private static void LogSendFailure(Exception e, byte[] data, string outcome)
+    {
+        Log.Error(e, "MIDI send failed ({Length} bytes, starting {Bytes}); {Outcome}.",
+            data.Length, BitConverter.ToString(data, 0, Math.Min(data.Length, 8)), outcome);
     }
 }

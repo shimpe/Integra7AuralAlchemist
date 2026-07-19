@@ -23,8 +23,6 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly Integra7StartAddresses _i7startAddresses = new();
     private readonly Integra7Parameters _i7parameters = new();
 
-    private readonly SemaphoreSlim _semaphore = new(1, 1);
-
     [Reactive] private bool _rescanButtonEnabled = true;
     private Integra7Domain? _integra7Communicator;
     [Reactive] private MotionalSurroundViewModel? _motionalSurroundVm;
@@ -156,8 +154,8 @@ public partial class MainWindowViewModel : ViewModelBase
         UserActionLog.Action("button: Rescan MIDI devices");
         MotionalSurroundVm?.Dispose();
         MotionalSurroundVm = null;
-        Integra7 = new Integra7Api(new MidiOut(INTEGRA_CONNECTION_STRING), new MidiIn(INTEGRA_CONNECTION_STRING),
-            _semaphore);
+        Integra7 = new Integra7Api(
+            new MidiPort(new MidiOut(INTEGRA_CONNECTION_STRING), new MidiIn(INTEGRA_CONNECTION_STRING)));
         await Integra7.CheckIdentityAsync();
         List<Integra7Preset> presets = LoadPresets();
         await UpdateConnectedAsync(Integra7, presets);
@@ -225,7 +223,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 Log.Information("Connected to Integra7");
                 MidiDevices = "Connected to: " + INTEGRA_CONNECTION_STRING + " with device id " +
                               integra7Api.DeviceId().ToString("x2");
-                _integra7Communicator = new Integra7Domain(integra7Api, _i7startAddresses, _i7parameters, _semaphore);
+                _integra7Communicator = new Integra7Domain(integra7Api, _i7startAddresses, _i7parameters);
 
                 ObservableCollection<PartViewModel> pvm = [];
                 for (byte i = 0; i < 17; i++)
@@ -244,7 +242,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     var commonTab = i == 0;
                     var vm = new PartViewModel(this, commonTab ? (byte)255 : (byte)(i - 1),
                         _i7startAddresses, _i7parameters, Integra7,
-                        _integra7Communicator, _semaphore, presets, commonTab);
+                        _integra7Communicator, presets, commonTab);
                     await vm.InitializeParameterSourceCachesAsync();
                     pvm.Add(vm);
                 }
@@ -651,9 +649,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public async Task InitializeAsync()
     {
-        Integra7 = new Integra7Api(new MidiOut(INTEGRA_CONNECTION_STRING), new MidiIn(INTEGRA_CONNECTION_STRING),
-            _semaphore);
+        // Breadcrumbs: opening the MIDI ports blocks on an async open, and everything that follows
+        // depends on it. Without these, a stall here leaves a log containing only "starting".
+        Log.Information("Opening the MIDI ports.");
+        Integra7 = new Integra7Api(
+            new MidiPort(new MidiOut(INTEGRA_CONNECTION_STRING), new MidiIn(INTEGRA_CONNECTION_STRING)));
+        Log.Information("MIDI ports open; checking the device identity.");
         await Integra7.CheckIdentityAsync();
+        Log.Information("Identity check done; connected: {Connected}.", Integra7.ConnectionOk());
         List<Integra7Preset> presets = LoadPresets();
         await UpdateConnectedAsync(Integra7, presets);
     }

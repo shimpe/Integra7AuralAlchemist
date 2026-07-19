@@ -1,0 +1,184 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Threading.Tasks;
+using CoreMidi;
+using Integra7AuralAlchemist.Models.Data;
+using Integra7AuralAlchemist.Models.Domain;
+using Integra7AuralAlchemist.Models.Services;
+
+namespace Tests;
+
+/// <summary>Integra7Api's device methods as conversations. A preset change is the reason the port
+/// exists: its three messages used to go out with no lock at all, so another flow's request could land
+/// between the bank select and the program change.</summary>
+[TestFixture]
+public class TestIntegra7ApiConversations
+{
+    /// <summary>A port that records what was asked of it, so a test can see how many conversations a
+    /// method opened and what went out inside each.</summary>
+    private sealed class RecordingPort : IMidiPort
+    {
+        private int _open;
+
+        public List<string> Conversations { get; } = [];
+        public List<byte[]> Sent { get; } = [];
+        public bool Connected { get; set; } = true;
+
+        /// <summary>The most leases held at once. The real port would block on the second one and
+        /// throw a minute later; this counts instead, so a nested acquire fails a test in
+        /// milliseconds rather than hanging hardware.</summary>
+        public int MostLeasesHeldAtOnce { get; private set; }
+
+        public bool ConnectionOk() => Connected;
+
+        public Task<IMidiLease> AcquireAsync(string what)
+        {
+            Conversations.Add(what);
+            _open++;
+            if (_open > MostLeasesHeldAtOnce) MostLeasesHeldAtOnce = _open;
+            return Task.FromResult<IMidiLease>(new RecordingLease(this));
+        }
+
+        private sealed class RecordingLease(RecordingPort port) : IMidiLease
+        {
+            private bool _released;
+
+            public Task SendAsync(byte[] data)
+            {
+                port.Sent.Add(data);
+                return Task.CompletedTask;
+            }
+
+            public Task<byte[]> RequestAsync(byte[] request, IReplyMatcher expected) =>
+                Task.FromResult<byte[]>([]);
+
+            public Task<byte[]> ReadNextAsync(IReplyMatcher expected) => Task.FromResult<byte[]>([]);
+
+            public ValueTask DisposeAsync()
+            {
+                if (!_released)
+                {
+                    _released = true;
+                    port._open--;
+                }
+
+                return ValueTask.CompletedTask;
+            }
+        }
+    }
+
+    [Test]
+    public async Task APresetChangeIsOneConversation()
+    {
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+
+        await api.ChangePresetAsync(3, 87, 0, 5);
+
+        Assert.That(port.Conversations, Is.EqualTo(new[] { "preset change" }),
+            "all three messages must go out under one lease, or another flow can land between them");
+        Assert.That(port.Sent, Has.Count.EqualTo(3));
+    }
+
+    [Test]
+    public async Task APresetChangeSendsBankSelectThenProgramChangeInThatOrder()
+    {
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+
+        await api.ChangePresetAsync(3, 87, 2, 5);
+
+        // CC on channel 3, controller 0 (bank MSB), then controller 0x20 (bank LSB), then program.
+        Assert.That(port.Sent[0], Is.EqualTo(new byte[] { 0xb3, 0x00, 87 }));
+        Assert.That(port.Sent[1], Is.EqualTo(new byte[] { 0xb3, 0x20, 2 }));
+        Assert.That(port.Sent[2], Is.EqualTo(new byte[] { 0xc3, 4 }), "the program change is zero-based");
+    }
+
+    [Test]
+    public void ABankNumberTheDeviceCannotHaveIsRefusedRatherThanSkipped()
+    {
+        // Skipping the bank select and sending the rest would select some other patch and say nothing
+        // about it.
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+
+        Assert.That(async () => await api.ChangePresetAsync(0, 1, 0, 5), Throws.TypeOf<MidiException>());
+        Assert.That(async () => await api.ChangePresetAsync(0, 87, 200, 5), Throws.TypeOf<MidiException>());
+    }
+
+    [Test]
+    public async Task AllNotesOffIsOneConversationForAllSixteenParts()
+    {
+        // Each send used to acquire separately, so a read could be serviced between the messages for
+        // parts 3 and 4.
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+
+        await api.AllNotesOffAsync();
+
+        Assert.That(port.Conversations, Is.EqualTo(new[] { "all notes off" }));
+        Assert.That(port.Sent, Has.Count.EqualTo(16));
+    }
+
+    [Test]
+    public async Task AllNotesOffSendsAControlChangeAndNotGarbage()
+    {
+        // It used to build [123 + channel, 124, 0], putting the controller number where the status
+        // byte belongs. A status byte below 0x80 is not a MIDI message, so WinMM rejected all sixteen
+        // and Panic never reached the device -- silently, because the send failure was never logged.
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+
+        await api.AllNotesOffAsync();
+
+        for (var channel = 0; channel < 16; channel++)
+        {
+            Assert.That(port.Sent[channel], Is.EqualTo(new byte[] { (byte)(0xb0 + channel), 123, 0 }),
+                $"channel {channel}");
+            Assert.That(port.Sent[channel][0], Is.GreaterThanOrEqualTo(0x80),
+                "a status byte below 0x80 is not a MIDI message at all");
+        }
+    }
+
+    [Test]
+    public async Task WritingAToneToUserMemoryKeepsItsStepsInSeparateConversations()
+    {
+        // The one method here that must NOT be one conversation. Its middle step writes the name out
+        // through the domain layer, which comes back into MakeDataTransmissionAsync and acquires the
+        // port for itself -- so a single lease across the three steps would block on the gate its own
+        // conversation holds, until the sixty-second timeout throws. Pinned because "tidying" this
+        // into one lease, for consistency with ChangePresetAsync, is the obvious wrong move.
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+        var domain = new Integra7Domain(api, new Integra7StartAddresses(), LoadParameters());
+
+        await api.WriteToneToUserMemory(domain, "SN-S", 0, "TEST NAME", 0);
+
+        Assert.That(port.MostLeasesHeldAtOnce, Is.EqualTo(1),
+            "a lease held while the name step takes its own is the deadlock this method must avoid");
+        Assert.That(port.Conversations, Does.Contain("write tone to user memory"));
+    }
+
+    private static Integra7Parameters LoadParameters()
+    {
+        var path = Path.Combine(TestContext.CurrentContext.TestDirectory,
+            "..", "..", "..", "..", "Src", "Assets", "parameters.bin");
+        return new Integra7Parameters(File.OpenRead(path));
+    }
+
+    [Test]
+    public void AnUnpluggedDeviceIsReportedEvenAfterAGoodIdentityCheck()
+    {
+        // The port answers from the output handle, which drops its details when a send fails -- so a
+        // cable pulled mid-session shows up without anyone re-running the identity check.
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+
+        Assert.That(api.ConnectionOk(), Is.True);
+
+        port.Connected = false;
+
+        Assert.That(api.ConnectionOk(), Is.False);
+    }
+}

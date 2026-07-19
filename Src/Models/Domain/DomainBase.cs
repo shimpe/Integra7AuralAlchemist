@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Services;
@@ -15,12 +14,10 @@ public class DomainBase
     private readonly IIntegra7Api _integra7Api;
     private readonly Integra7Parameters _parameters;
 
-    private readonly SemaphoreSlim _semaphore;
     private readonly Integra7StartAddresses _startAddresses;
 
     public DomainBase(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses, Integra7Parameters parameters,
-        string startAddressName, string offsetAddressName, string offset2AddressName, string parameterNamePrefix,
-        SemaphoreSlim semaphore)
+        string startAddressName, string offsetAddressName, string offset2AddressName, string parameterNamePrefix)
     {
         _integra7Api = integra7Api;
         _startAddresses = startAddresses;
@@ -28,7 +25,6 @@ public class DomainBase
         StartAddressName = startAddressName;
         OffsetAddressName = offsetAddressName;
         Offset2AddressName = offset2AddressName;
-        _semaphore = semaphore;
 
         List<Integra7ParameterSpec> relevant = parameters.GetParametersWithPrefix(parameterNamePrefix);
         for (var i = 0; i < relevant.Count; i++)
