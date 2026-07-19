@@ -300,6 +300,12 @@ public class Integra7Api : IIntegra7Api
         return await GetListOfNamesHelper(msg);
     }
 
+    /// <summary>NOT atomic, deliberately. Step 2 writes the name out through the domain layer, which
+    /// re-enters MakeDataTransmissionAsync and acquires the port for itself -- so holding one lease
+    /// across these three steps would deadlock against ourselves. Making it a single conversation
+    /// needs a lease threaded through Integra7Domain and FullyQualifiedParameter, which is separate
+    /// work. The race this leaves open is real: step 1 selects the new patch, so a read landing
+    /// between steps 1 and 3 reads the new patch.</summary>
     public async Task WriteToneToUserMemory(Integra7Domain i7domain, string toneTypeStr, byte zeroBasedPartNo,
         string name,
         int zeroBasedUserMemoryId)
@@ -322,8 +328,10 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALAcousticToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "SN-S":
@@ -333,8 +341,10 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALSynthToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "SN-D":
@@ -344,8 +354,10 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALDrumKitMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "PCMS":
@@ -354,8 +366,10 @@ public class Integra7Api : IIntegra7Api
                 lsb = zeroBasedUserMemoryId >> 7;
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMSynthToneMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "PCMD":
@@ -364,8 +378,10 @@ public class Integra7Api : IIntegra7Api
                 lsb = 0;
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMDrumKitMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
         }
@@ -381,8 +397,10 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALAcousticToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "SN-S":
@@ -390,8 +408,10 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALSynthToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "SN-D":
@@ -399,24 +419,30 @@ public class Integra7Api : IIntegra7Api
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALDrumKitMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "PCMS":
             {
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMSynthToneMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
             case "PCMD":
             {
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMDrumKitMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
-                var w = new AsyncMidiOutputWrapper(_midiOut, _semaphore);
-                await w.SafeSendAsync(msg);
+                await using (var port = await _port.AcquireAsync("write tone to user memory"))
+                {
+                    await port.SendAsync(msg);
+                }
             }
                 break;
         }
