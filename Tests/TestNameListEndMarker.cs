@@ -149,4 +149,56 @@ public class TestNameListEndMarker
         other[^1] = 0x00;
         Assert.That(NameListEndMarker.IsNameListReply(other), Is.False);
     }
+
+    // The request the tone name lists are fetched with. Its address is what the replies carry back.
+    private static readonly byte[] ToneNameRequest =
+    [
+        0xf0, 0x41, 0x10, 0x00, 0x00, 0x64, 0x11, 0x0f, 0x00, 0x04, 0x02,
+        0x56, 0x00, 0x00, 0x40, 0x39, 0xf7
+    ];
+
+    // Studio Set names are requested at a different address: 0f 00 03 02, not 0f 00 04 02.
+    private static readonly byte[] StudioSetNameRequest =
+    [
+        0xf0, 0x41, 0x10, 0x00, 0x00, 0x64, 0x11, 0x0f, 0x00, 0x03, 0x02,
+        0x55, 0x00, 0x00, 0x40, 0x3b, 0xf7
+    ];
+
+    [Test]
+    public void TakesTheExpectedAddressFromTheRequest()
+    {
+        Assert.That(NameListEndMarker.AddressOf(ToneNameRequest),
+            Is.EqualTo(new byte[] { 0x0f, 0x00, 0x04, 0x02 }));
+        Assert.That(NameListEndMarker.AddressOf(StudioSetNameRequest),
+            Is.EqualTo(new byte[] { 0x0f, 0x00, 0x03, 0x02 }));
+    }
+
+    [Test]
+    public void ARequestTooShortToHoldAnAddressMatchesNothing()
+    {
+        Assert.That(NameListEndMarker.AddressOf([0xf0, 0x41, 0x10]), Is.Empty);
+        Assert.That(NameListEndMarker.IsNameListReply(NameReply, []), Is.False,
+            "an address that could not be read must match nothing, rather than everything");
+    }
+
+    [Test]
+    public void AcceptsAReplyAtTheStudioSetAddressWhenThatIsWhatWasAsked()
+    {
+        // Hardcoding the tone-list address would reject every Studio Set name reply, turning a list
+        // that failed to load into a silently empty one.
+        var reply = (byte[])NameReply.Clone();
+        reply[9] = 0x03;
+
+        Assert.That(NameListEndMarker.IsNameListReply(reply, NameListEndMarker.AddressOf(StudioSetNameRequest)),
+            Is.True);
+        Assert.That(NameListEndMarker.IsNameListReply(reply, NameListEndMarker.AddressOf(ToneNameRequest)),
+            Is.False);
+    }
+
+    [Test]
+    public void DoesNotMistakeAReplyToADifferentRequestForThisBursts()
+    {
+        Assert.That(NameListEndMarker.IsNameListReply(NameReply, NameListEndMarker.AddressOf(StudioSetNameRequest)),
+            Is.False);
+    }
 }

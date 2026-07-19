@@ -521,6 +521,10 @@ public class Integra7Api : IIntegra7Api
             Log.Debug("DataRequest Lock acquired");
             List<byte[]> allReplies = [];
             var totalRepliesReceived = 0;
+            // Replies carry back the address they answer. Taking it from the request rather than
+            // assuming one keeps this helper correct for every name list -- Studio Set names are
+            // requested at 0f 00 03 02, where the tone lists use 0f 00 04 02.
+            var expectedAddress = NameListEndMarker.AddressOf(msg);
             _midiOut?.SafeSend(msg);
             var continueReading = true;
             while (continueReading) // concatenate multiple incoming replies
@@ -531,7 +535,7 @@ public class Integra7Api : IIntegra7Api
                     //Debug.WriteLine($"len: {localReply.Length}");
                     byte[][] multiplereplies = ByteUtils.SplitAfterF7(localReply);
                     foreach (var r in multiplereplies)
-                        if (NameListEndMarker.IsNameListReply(r))
+                        if (NameListEndMarker.IsNameListReply(r, expectedAddress))
                         {
                             allReplies.Add(r);
                             totalRepliesReceived += 1;
@@ -541,7 +545,7 @@ public class Integra7Api : IIntegra7Api
                             // timeout below still applies when that reply never arrives. Note a
                             // single read can carry several messages, so the check belongs here,
                             // after the split, rather than on the raw chunk.
-                            if (NameListEndMarker.IsEndOfBurst(r))
+                            if (NameListEndMarker.IsEndOfBurst(r, expectedAddress))
                             {
                                 continueReading = false;
                                 mi.CleanupAfterTimeOut();
