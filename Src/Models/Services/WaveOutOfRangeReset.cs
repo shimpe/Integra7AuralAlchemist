@@ -28,7 +28,8 @@ public static class WaveOutOfRangeReset
 
     /// <summary>If <paramref name="edited"/> is a wave-group discriminator, reset each governed wave whose
     /// number is out of range for the new bank to the bank's first wave (writing it to hardware).</summary>
-    public static async Task ApplyAsync(DomainBase domain, FullyQualifiedParameter edited, WaveformBanks banks)
+    public static async Task ApplyAsync(DomainBase domain, FullyQualifiedParameter edited, WaveformBanks banks,
+        IMidiLease? lease = null)
     {
         if (!IsWaveGroupDiscriminator(edited.ParSpec.Path)) return;
 
@@ -53,7 +54,7 @@ public static class WaveOutOfRangeReset
             wave.StringValue = bank.TryGetValue(first, out var name)
                 ? name : first.ToString(CultureInfo.InvariantCulture);
             wave.EffectiveRepr = bank;
-            await domain.WriteToIntegraAsync(wave.ParSpec.Path); // single-arg: writes the FQP's current raw value
+            await domain.WriteToIntegraAsync(wave.ParSpec.Path, lease); // single-arg: writes the FQP's current raw value
         }
     }
 }

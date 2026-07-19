@@ -36,7 +36,7 @@ public class FullyQualifiedParameterRange
     }
 
     public async Task WriteToIntegraAsync(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses,
-        Integra7Parameters parameters)
+        Integra7Parameters parameters, IMidiLease? lease = null)
     {
         var startAddr = startAddresses.Lookup(_start).Address;
         var offsetAddr = startAddresses.Lookup(_offset).Address;
@@ -52,14 +52,14 @@ public class FullyQualifiedParameterRange
             if (p.ValidInContext(ctx)) data = ByteUtils.Flatten(data, p.GetSysexDataFragment());
         }
 
-        await integra7Api.MakeDataTransmissionAsync(totalAddr, data);
+        await integra7Api.MakeDataTransmissionAsync(totalAddr, data, lease);
     }
 
     /// <summary>Reads the range from the device. Returns false when no reply arrived, in which case
     /// <see cref="Range"/> holds freshly constructed, unparsed parameters — callers must not treat
     /// those as values read from the device.</summary>
     public async Task<bool> RetrieveFromIntegraAsync(IIntegra7Api integra7Api, Integra7StartAddresses startAddresses,
-        Integra7Parameters parameters)
+        Integra7Parameters parameters, IMidiLease? lease = null)
     {
         var startAddr = startAddresses.Lookup(_start).Address;
         var offsetAddr = startAddresses.Lookup(_offset).Address;
@@ -75,7 +75,7 @@ public class FullyQualifiedParameterRange
         // size, however, must not count duplicates needed for data dependencies multiple times since only one of them
         // will be actually used during parsing (based on which value was read for its master control)
         long size = ParameterListSysexSizeCalculator.CalculateSysexSize(allRelevantPars);
-        var reply = await integra7Api.MakeDataRequestAsync(totalAddr, size);
+        var reply = await integra7Api.MakeDataRequestAsync(totalAddr, size, lease);
         if (reply.Length == 0)
         {
             Log.Error(

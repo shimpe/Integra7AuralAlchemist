@@ -38,7 +38,7 @@ public class DomainBase
 
     public string Offset2AddressName { get; }
 
-    public async Task ReadFromIntegraAsync()
+    public async Task ReadFromIntegraAsync(IMidiLease? lease = null)
     {
         Log.Debug(
             $"Reading range of parameters (start address:{_domainParameters[0].Start}, offset address: {_domainParameters[0].Offset}, offset2 address: {_domainParameters[0].Offset2}) between {_domainParameters[0].ParSpec.Path} and {_domainParameters.Last().ParSpec.Path} from integra.");
@@ -47,7 +47,7 @@ public class DomainBase
             _domainParameters[0].Offset2,
             _domainParameters[0].ParSpec,
             _domainParameters.Last().ParSpec);
-        if (!await r.RetrieveFromIntegraAsync(_integra7Api, _startAddresses, _parameters))
+        if (!await r.RetrieveFromIntegraAsync(_integra7Api, _startAddresses, _parameters, lease))
         {
             // The read failed, so r.Range holds unparsed defaults. Copying those would replace the
             // values already on screen with blanks that look like real readings from the device.
@@ -63,7 +63,7 @@ public class DomainBase
         SrxGroupIdResolution.Apply(_domainParameters, LoadedSrxState.Default.Boards);
     }
 
-    public async Task WriteToIntegraAsync()
+    public async Task WriteToIntegraAsync(IMidiLease? lease = null)
     {
         Log.Debug(
             $"Writing range of parameters (start address:{_domainParameters[0].Start}, offset address: {_domainParameters[0].Offset}), offset2 address: {_domainParameters[0].Offset2} between {_domainParameters[0].ParSpec.Path} and {_domainParameters.Last().ParSpec.Path} to integra.");
@@ -73,10 +73,10 @@ public class DomainBase
             _domainParameters[0].ParSpec,
             _domainParameters.Last().ParSpec);
         r.Initialize(_domainParameters);
-        await r.WriteToIntegraAsync(_integra7Api, _startAddresses, _parameters);
+        await r.WriteToIntegraAsync(_integra7Api, _startAddresses, _parameters, lease);
     }
 
-    public async Task<FullyQualifiedParameter?> ReadFromIntegraAsync(string parameterName)
+    public async Task<FullyQualifiedParameter?> ReadFromIntegraAsync(string parameterName, IMidiLease? lease = null)
     {
         Log.Debug(
             $"Reading single parameter {parameterName}, (start address:{_domainParameters[0].Start}, offset address: {_domainParameters[0].Offset}), offset2 address: {_domainParameters[0].Offset2}) from integra.");
@@ -90,7 +90,7 @@ public class DomainBase
             if (p.ValidInContext(ctx) && p.ParSpec.Path == parameterName)
             {
                 found = true;
-                await p.RetrieveFromIntegraAsync(_integra7Api, _startAddresses, _parameters);
+                await p.RetrieveFromIntegraAsync(_integra7Api, _startAddresses, _parameters, lease);
                 p.DebugLog();
                 return p;
             }
@@ -101,7 +101,7 @@ public class DomainBase
         return null;
     }
 
-    public async Task WriteToIntegraAsync(string parameterName)
+    public async Task WriteToIntegraAsync(string parameterName, IMidiLease? lease = null)
     {
         Log.Debug(
             $"Writing single parameter {parameterName}, (start address:{_domainParameters[0].Start}, offset address: {_domainParameters[0].Offset}), offset2 address: {_domainParameters[0].Offset2}) to integra.");
@@ -114,7 +114,7 @@ public class DomainBase
             if (p.ValidInContext(ctx) && p.ParSpec.Path == parameterName)
             {
                 found = true;
-                await p.WriteToIntegraAsync(_integra7Api, _startAddresses, _parameters);
+                await p.WriteToIntegraAsync(_integra7Api, _startAddresses, _parameters, lease);
                 p.DebugLog();
             }
         }
@@ -122,11 +122,15 @@ public class DomainBase
         if (!found) Log.Error($"parameter {parameterName} does not exist, or is not valid in the current context.");
     }
 
-    public async Task WriteToIntegraAsync(string parameterName, string displayedValue)
+    public async Task WriteToIntegraAsync(string parameterName, string displayedValue, IMidiLease? lease = null)
     {
         ModifySingleParameterDisplayedValue(parameterName, displayedValue);
-        await WriteToIntegraAsync(parameterName);
+        await WriteToIntegraAsync(parameterName, lease);
     }
+
+    /// <summary>Open a conversation covering several calls on this domain. Pass the lease to each of
+    /// them; a call that does not receive it acquires its own, which would block against this one.</summary>
+    public Task<IMidiLease> BeginConversationAsync(string what) => _integra7Api.BeginConversationAsync(what);
 
     public string LookupSingleParameterDisplayedValue(string parameterName)
     {
