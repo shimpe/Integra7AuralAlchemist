@@ -116,7 +116,7 @@ ambient mutation:
 `EnsureInitializedAsync` maps directly onto this: `StartLoad` creates the CTS and the task,
 `JoinExisting` returns the existing task, `None` returns `Task.CompletedTask`.
 
-### `LoadFinished(LoadOutcome)`
+### `LoadFinished(LoadOutcome, int epoch)`
 
 | outcome | new state | `ReloadPending` |
 |---|---|---|
@@ -124,8 +124,25 @@ ambient mutation:
 | `Cancelled` | `Abandoned` | cleared |
 | `Failed` | `Abandoned` | cleared |
 
+A report whose `epoch` is not current is **ignored entirely**. A cancelled load can report long after
+its replacement has started — cancellation only takes effect at the next checkpoint, and an in-flight
+read cannot be interrupted at all — so without the tag a late report would overwrite the new load's
+phase. The caller records `Epoch` when it starts a load and passes it back here.
+
 This closes fault 1. The phase changes in one move rather than through a `finally` that runs before
 the task completes, so there is no interval in which the part is neither loading nor loaded.
+
+### `Busy`
+
+```csharp
+public bool Busy => Phase == PartLoadPhase.Loading || ReloadPending;
+```
+
+`Busy`, not `Phase == Loading`, is what refuses a user preset change and what drives `IsLoading`.
+During the settle delay between a program change and its reload, no load is running but the part is
+not idle either; a bare phase check would re-enable the preset list in the middle of a change. Driving
+both the refusal and the UI gate from one predicate means they cannot disagree — which is how
+scrolling the list was once enough to get a click through.
 
 ### `RequestPreset(PresetSource)`
 
@@ -156,6 +173,11 @@ Notes on the rows that are not obvious:
   `EnsureInitializedAsync` at `:1862`) does the loading.
 - **`Cancel load` is only ever true for `Loading`**, so the view model can assert the CTS is non-null
   when it is asked to cancel.
+- **Every row with `reload == true` also sets `Phase = Abandoned`.** The reload is performed by
+  `EnsureInitializedAsync`, which asks `RequestOpen()` — and `RequestOpen` on `Loaded` returns `None`.
+  Leaving the phase at `Loaded` would therefore start no load, never clear `ReloadPending`, and leave
+  the part `Busy` and its preset list disabled permanently. `Abandoned` is the phase that means "no
+  usable state, load when asked", which is exactly true between a program change and its reload.
 
 ### Reload ownership
 
@@ -176,7 +198,7 @@ preset change.
 `PartViewModel` keeps the names its callers and XAML already use:
 
 ```csharp
-public bool IsLoading             => _load.Phase == PartLoadPhase.Loading;
+public bool IsLoading             => _load.Busy;
 public bool IsInitialized         => _load.Phase == PartLoadPhase.Loaded;
 public bool NeedsReinitialization => _load.Phase == PartLoadPhase.Abandoned;
 public bool WantsRefresh          => _load.Phase is PartLoadPhase.Loaded or PartLoadPhase.Abandoned;
@@ -216,7 +238,10 @@ so there is no invalid-transition case for `PartViewModel` to handle.
 `Tests/TestPartLoadState.cs`, with no hardware and no view model:
 
 - `RequestOpen` — 4 cases, one per phase, asserting both the return value and the resulting phase.
-- `LoadFinished` — 3 cases, asserting phase and that `ReloadPending` is cleared.
+- `LoadFinished` — 3 cases, asserting phase and that `ReloadPending` is cleared, plus one case proving
+  a report carrying a stale epoch changes nothing.
+- A reload actually starts one: `RequestPreset` on `Loaded` followed by `RequestOpen` returns
+  `StartLoad`, not `None`. This is the case whose absence would leave the part permanently `Busy`.
 - `RequestPreset` — 8 cases, one per row, asserting all five fields of `PresetDecision`.
 - The completion window (fault 1): `Loading` → `LoadFinished(Completed)` → `RequestPreset(User)` is
   accepted with `CancelCurrentLoad == false`, proving there is no interval where a preset change both
