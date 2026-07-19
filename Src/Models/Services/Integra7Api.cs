@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using Commons.Music.Midi;
 using CoreMidi;
@@ -55,17 +54,16 @@ public interface IIntegra7Api
 
 public class Integra7Api : IIntegra7Api
 {
-    private readonly SemaphoreSlim _semaphore;
     private readonly IMidiPort _port;
     private byte _deviceId;
-    private IMidiIn? _midiIn;
-    private IMidiOut? _midiOut;
 
-    public Integra7Api(IMidiOut midiOut, IMidiIn midiIn, SemaphoreSlim semaphore, IMidiPort port)
+    /// <summary>Whether the last identity check succeeded. Set false only by a failed
+    /// CheckIdentityAsync -- there is no live connection state to ask any more, since the port,
+    /// not this class, now owns the MIDI handles.</summary>
+    private bool _connected = true;
+
+    public Integra7Api(IMidiPort port)
     {
-        _midiOut = midiOut;
-        _midiIn = midiIn;
-        _semaphore = semaphore;
         _port = port;
     }
 
@@ -95,8 +93,7 @@ public class Integra7Api : IIntegra7Api
 
         if (reply.Length == 0)
         {
-            _midiOut = null;
-            _midiIn = null;
+            _connected = false;
             _deviceId = 0;
             return;
         }
@@ -104,8 +101,7 @@ public class Integra7Api : IIntegra7Api
         var usefulreply = Integra7SysexHelpers.TrimAfterEndOfSysex(reply);
         if (!Integra7SysexHelpers.CheckIdentityReply(usefulreply, out _deviceId))
         {
-            _midiOut = null;
-            _midiIn = null;
+            _connected = false;
             _deviceId = 0;
         }
     }
@@ -125,7 +121,7 @@ public class Integra7Api : IIntegra7Api
 
     public bool ConnectionOk()
     {
-        return _midiOut?.ConnectionOk() ?? false;
+        return _connected;
     }
 
     public async Task NoteOnAsync(byte Channel, byte Note, byte Velocity)
