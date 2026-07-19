@@ -527,20 +527,20 @@ public class Integra7Api : IIntegra7Api
         return false;
     }
 
-    private async Task<List<string>> GetListOfNamesHelper(byte[] msg)
+    private async Task<(List<string> Names, IReadOnlyList<byte[]> Deferred)> GatherNamesAsync(byte[] msg)
     {
+        // Replies carry back the address they answer. Taking it from the request rather than
+        // assuming one keeps this helper correct for every name list -- Studio Set names are
+        // requested at 0f 00 03 02, where the tone lists use 0f 00 04 02.
+        var expectedAddress = NameListEndMarker.AddressOf(msg);
+
         await _semaphore.WaitAsync();
-        // TEMPORARY placeholder matcher -- replaced in Tasks 4 and 5.
-        var mi = new AsyncMidiInputWrapper(_midiIn, ReplyMatchers.IdentityReply);
+        var mi = new AsyncMidiInputWrapper(_midiIn, ReplyMatchers.NameListReply(expectedAddress));
         try
         {
             Log.Debug("DataRequest Lock acquired");
             List<byte[]> allReplies = [];
             var totalRepliesReceived = 0;
-            // Replies carry back the address they answer. Taking it from the request rather than
-            // assuming one keeps this helper correct for every name list -- Studio Set names are
-            // requested at 0f 00 03 02, where the tone lists use 0f 00 04 02.
-            var expectedAddress = NameListEndMarker.AddressOf(msg);
             _midiOut?.SafeSend(msg);
             var continueReading = true;
             while (continueReading) // concatenate multiple incoming replies
@@ -592,7 +592,7 @@ public class Integra7Api : IIntegra7Api
                     if (totalRepliesReceived == 0)
                     {
                         Log.Error("Timeout waiting for MIDI reply after data request.");
-                        return [];
+                        return ([], mi.TakeDeferred());
                     }
                 }
             }
@@ -612,7 +612,7 @@ public class Integra7Api : IIntegra7Api
                 Log.Debug($"{idx}: {n}");
             }
 
-            return names;
+            return (names, mi.TakeDeferred());
         }
         finally
         {
@@ -620,6 +620,32 @@ public class Integra7Api : IIntegra7Api
             Log.Debug("DataRequest Lock released");
             _semaphore.Release();
         }
+    }
+
+    /// <summary>Fetch a list of names, then deliver anything the device sent while the burst held the
+    /// port -- a preset change made on the front panel, most often. The burst is the longest read
+    /// window in the application, so this is where an unsolicited message is most likely to land.</summary>
+    private async Task<List<string>> GetListOfNamesHelper(byte[] msg)
+    {
+        var midiIn = _midiIn;
+        if (midiIn is null) return [];
+
+        var (names, deferred) = await GatherNamesAsync(msg);
+
+        foreach (var m in deferred)
+        {
+            // Guarded per message: one malformed deferred message must not strand the rest.
+            try
+            {
+                midiIn.DispatchUnsolicited(m);
+            }
+            catch (Exception e)
+            {
+                Log.Warning(e, "Failed to dispatch a message deferred during a name-list burst.");
+            }
+        }
+
+        return names;
     }
 
     private async Task ChangePresetNameAsync(Integra7Domain i7domain, byte zeroBasedPartNo, string toneType,
