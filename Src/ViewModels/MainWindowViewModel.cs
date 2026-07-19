@@ -156,8 +156,9 @@ public partial class MainWindowViewModel : ViewModelBase
         UserActionLog.Action("button: Rescan MIDI devices");
         MotionalSurroundVm?.Dispose();
         MotionalSurroundVm = null;
-        Integra7 = new Integra7Api(new MidiOut(INTEGRA_CONNECTION_STRING), new MidiIn(INTEGRA_CONNECTION_STRING),
-            _semaphore);
+        var midiOut = new MidiOut(INTEGRA_CONNECTION_STRING);
+        var midiIn = new MidiIn(INTEGRA_CONNECTION_STRING);
+        Integra7 = new Integra7Api(midiOut, midiIn, _semaphore, new MidiPort(midiOut, midiIn));
         await Integra7.CheckIdentityAsync();
         List<Integra7Preset> presets = LoadPresets();
         await UpdateConnectedAsync(Integra7, presets);
@@ -651,8 +652,9 @@ public partial class MainWindowViewModel : ViewModelBase
 
     public async Task InitializeAsync()
     {
-        Integra7 = new Integra7Api(new MidiOut(INTEGRA_CONNECTION_STRING), new MidiIn(INTEGRA_CONNECTION_STRING),
-            _semaphore);
+        var midiOut = new MidiOut(INTEGRA_CONNECTION_STRING);
+        var midiIn = new MidiIn(INTEGRA_CONNECTION_STRING);
+        Integra7 = new Integra7Api(midiOut, midiIn, _semaphore, new MidiPort(midiOut, midiIn));
         await Integra7.CheckIdentityAsync();
         List<Integra7Preset> presets = LoadPresets();
         await UpdateConnectedAsync(Integra7, presets);

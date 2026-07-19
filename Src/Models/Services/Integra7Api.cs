@@ -56,15 +56,17 @@ public interface IIntegra7Api
 public class Integra7Api : IIntegra7Api
 {
     private readonly SemaphoreSlim _semaphore;
+    private readonly IMidiPort _port;
     private byte _deviceId;
     private IMidiIn? _midiIn;
     private IMidiOut? _midiOut;
 
-    public Integra7Api(IMidiOut midiOut, IMidiIn midiIn, SemaphoreSlim semaphore)
+    public Integra7Api(IMidiOut midiOut, IMidiIn midiIn, SemaphoreSlim semaphore, IMidiPort port)
     {
         _midiOut = midiOut;
         _midiIn = midiIn;
         _semaphore = semaphore;
+        _port = port;
     }
 
     public byte DeviceId()
