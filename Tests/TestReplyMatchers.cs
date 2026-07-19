@@ -106,6 +106,15 @@ public class TestReplyMatchers
     }
 
     [Test]
+    public void AnAddressThatIsNotFourBytesIsRejectedAtConstruction()
+    {
+        // Fails loudly at the call site rather than throwing later on the MIDI callback thread, or
+        // matching nothing and leaving every read to time out.
+        Assert.That(() => ReplyMatchers.DataSetAt([0x0f, 0x00]), Throws.ArgumentException);
+        Assert.That(() => ReplyMatchers.DataSetAt([]), Throws.ArgumentException);
+    }
+
+    [Test]
     public void EveryMatcherDescribesItself()
     {
         // Describe() is logged when a message is deferred, so a wrong matcher is findable.

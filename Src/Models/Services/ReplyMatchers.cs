@@ -26,7 +26,18 @@ public static class ReplyMatchers
     /// <summary>A Roland data set (DT1) carrying <paramref name="address"/> -- the answer to a data
     /// request for it. Byte 2 is the device ID and is deliberately not matched: it varies with how the
     /// unit is configured.</summary>
-    public static IReplyMatcher DataSetAt(byte[] address) => new DataSetMatcher(address);
+    public static IReplyMatcher DataSetAt(byte[] address)
+    {
+        // Checked here rather than inside Matches: a wrong-sized address is a programmer error, and
+        // this way it surfaces at the call site instead of as an IndexOutOfRangeException raised on
+        // the MIDI callback thread, or -- worse -- as a matcher that quietly matches nothing and
+        // leaves every read to time out.
+        if (address.Length != AddressLength)
+            throw new ArgumentException($"An address is {AddressLength} bytes, got {address.Length}.",
+                nameof(address));
+
+        return new DataSetMatcher(address);
+    }
 
     /// <summary>The universal non-realtime identity reply, f0 7e &lt;dev&gt; 06 02 ...</summary>
     public static IReplyMatcher IdentityReply { get; } = new IdentityMatcher();
