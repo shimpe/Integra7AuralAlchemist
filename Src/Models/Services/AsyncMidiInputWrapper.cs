@@ -129,7 +129,6 @@ public class AsyncMidiInputWrapper
     public void Detach()
     {
         _midiInput.RemoveHandler(_handler);
-        _midiInput.RestoreAutomaticHandling();
         _channel.Writer.TryComplete();
     }
 }

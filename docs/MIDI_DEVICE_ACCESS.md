@@ -319,9 +319,6 @@ ones that were reversed.
 
 - **Rescanning MIDI devices** builds a second port while the first may be mid-conversation. In practice
   the Rescan button is disabled while connected to hardware, so this is not reachable from the UI.
-- **The legacy synchronous reply path** — `AnnounceIntentionToManuallyHandleReply`,
-  `RestoreAutomaticHandling`, `GetReply` on `MidiIn` — has no production caller and is a candidate for
-  deletion.
 - **A parent-parameter edit holds the port longer than a plain one**, because it covers write → reset →
   a full domain re-read. That is what atomicity costs here. If it ever feels sluggish, narrow the
   conversation rather than widening the port.
