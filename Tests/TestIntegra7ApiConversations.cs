@@ -181,4 +181,36 @@ public class TestIntegra7ApiConversations
 
         Assert.That(api.ConnectionOk(), Is.False);
     }
+
+    [Test]
+    public async Task ACallGivenALeaseDoesNotReleaseIt()
+    {
+        // The lease belongs to the conversation that opened it and has to outlive the call. Releasing
+        // it here would free the port in the middle of a sequence, which is the whole thing this
+        // exists to prevent.
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+
+        await using var conversation = await api.BeginConversationAsync("a sequence");
+        await api.MakeDataTransmissionAsync([0x0f, 0x00, 0x04, 0x02], [0x01], conversation);
+        await api.MakeDataTransmissionAsync([0x0f, 0x00, 0x04, 0x02], [0x02], conversation);
+
+        Assert.That(port.Conversations, Is.EqualTo(new[] { "a sequence" }),
+            "the two writes must join the conversation, not open their own");
+        Assert.That(port.MostLeasesHeldAtOnce, Is.EqualTo(1));
+        Assert.That(port.Sent, Has.Count.EqualTo(2));
+    }
+
+    [Test]
+    public async Task ACallGivenNoLeaseAcquiresAndReleasesItsOwn()
+    {
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+
+        await api.MakeDataTransmissionAsync([0x0f, 0x00, 0x04, 0x02], [0x01]);
+        await api.MakeDataTransmissionAsync([0x0f, 0x00, 0x04, 0x02], [0x02]);
+
+        Assert.That(port.Conversations, Has.Count.EqualTo(2), "each call is its own conversation");
+        Assert.That(port.MostLeasesHeldAtOnce, Is.EqualTo(1), "and neither outlives its call");
+    }
 }

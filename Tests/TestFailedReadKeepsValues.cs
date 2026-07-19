@@ -28,7 +28,11 @@ public class TestFailedReadKeepsValues
         public bool ConnectionOk() => true;
         public byte DeviceId() => 0x10;
         public Task CheckIdentityAsync() => Task.CompletedTask;
-        public Task MakeDataTransmissionAsync(byte[] address, byte[] data) => Task.CompletedTask;
+        public Task MakeDataTransmissionAsync(byte[] address, byte[] data, IMidiLease? lease = null) =>
+            Task.CompletedTask;
+
+        public Task<IMidiLease> BeginConversationAsync(string what) =>
+            throw new NotSupportedException("This fake never opens a conversation.");
         public Task NoteOnAsync(byte Channel, byte Note, byte Velocity) => Task.CompletedTask;
         public Task NoteOffAsync(byte Channel, byte Note) => Task.CompletedTask;
         public Task AllNotesOffAsync() => Task.CompletedTask;

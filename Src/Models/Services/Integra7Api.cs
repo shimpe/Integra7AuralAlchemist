@@ -22,7 +22,11 @@ public interface IIntegra7Api
     Task ChangePresetAsync(byte Channel, int Msb, int Lsb, int Pc);
 
     Task<byte[]> MakeDataRequestAsync(byte[] address, long size);
-    Task MakeDataTransmissionAsync(byte[] address, byte[] data);
+    Task MakeDataTransmissionAsync(byte[] address, byte[] data, IMidiLease? lease = null);
+
+    /// <summary>Open a conversation the caller will hold across several calls, passing the lease to
+    /// each. A caller making only one call should not use this: the call acquires for itself.</summary>
+    Task<IMidiLease> BeginConversationAsync(string what);
     Task SendStopPreviewPhraseMsgAsync();
     Task SendLoadSrxAsync(byte srx_slot1, byte srx_slot2, byte srx_slot3, byte srx_slot4);
     Task<(byte, byte, byte, byte)> GetLoadedSrxAsync();
@@ -112,12 +116,27 @@ public class Integra7Api : IIntegra7Api
         return await RunRequestAsync(data, ReplyMatchers.DataSetAt(address), "data request");
     }
 
-    public async Task MakeDataTransmissionAsync(byte[] address, byte[] data)
+    public async Task MakeDataTransmissionAsync(byte[] address, byte[] data, IMidiLease? lease = null)
     {
         var transmission = Integra7SysexHelpers.MakeDataSet(DeviceId(), address, data);
-        await using var port = await _port.AcquireAsync("parameter write");
-        await port.SendAsync(transmission);
+        await using var use = await LeaseAsync(lease, "parameter write");
+        await use.Lease.SendAsync(transmission);
     }
+
+    public Task<IMidiLease> BeginConversationAsync(string what) => _port.AcquireAsync(what);
+
+    /// <summary>A lease this call may or may not own. Disposing it releases the port only when this
+    /// call acquired it; a lease passed in belongs to the conversation that opened it and must outlive
+    /// this call.</summary>
+    private readonly struct Borrowed(IMidiLease lease, bool owned) : IAsyncDisposable
+    {
+        public IMidiLease Lease { get; } = lease;
+
+        public ValueTask DisposeAsync() => owned ? lease.DisposeAsync() : ValueTask.CompletedTask;
+    }
+
+    private async Task<Borrowed> LeaseAsync(IMidiLease? given, string what) =>
+        given is not null ? new Borrowed(given, false) : new Borrowed(await _port.AcquireAsync(what), true);
 
     /// <summary>Both halves matter. The flag says whether the identity check ever succeeded; the port
     /// says whether the output handle still looks alive, which it stops doing when a send fails -- so
