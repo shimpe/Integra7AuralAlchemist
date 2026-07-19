@@ -666,14 +666,18 @@ public partial class MainWindowViewModel : ViewModelBase
         var p = s.Par;
         UserActionLog.Action($"edit parameter '{p.ParSpec.Path}' -> '{s.DisplayValue}'");
         p.StringValue = s.DisplayValue;
-        await _integra7Communicator?.WriteSingleParameterToIntegraAsync(p);
+        if (Integra7 is null) return;
+        // One conversation, for the same reason as the friendly editors' writes: the re-read must see
+        // the state this write produced.
+        await using var lease = await Integra7!.BeginConversationAsync($"edit {p.ParSpec.Path}");
+        await _integra7Communicator?.WriteSingleParameterToIntegraAsync(p, lease);
         if (p.ParSpec.IsParent)
         {
             var resetDomain = _integra7Communicator?.GetDomain(p);
             if (resetDomain != null)
             {
-                await WaveOutOfRangeReset.ApplyAsync(resetDomain, p, WaveformBanks.Default);
-                await resetDomain.ReadFromIntegraAsync();
+                await WaveOutOfRangeReset.ApplyAsync(resetDomain, p, WaveformBanks.Default, lease);
+                await resetDomain.ReadFromIntegraAsync(lease);
             }
             ForceUiRefresh(p);
         }
