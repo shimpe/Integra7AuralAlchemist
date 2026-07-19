@@ -489,134 +489,100 @@ public class Integra7Api : IIntegra7Api
         return false;
     }
 
-    /// <summary>Read the burst. Takes the port as an argument rather than reading the field, so it is
-    /// the same one the caller checked and will drain onto -- the field can be nulled by a failed
-    /// identity check while this is running.</summary>
-    private async Task<(List<string> Names, IReadOnlyList<byte[]> Deferred)> GatherNamesAsync(
-        IMidiIn midiIn, byte[] msg)
+    /// <summary>Fetch a list of names as one conversation on the lease. Deferred messages -- a preset
+    /// change made on the front panel, most often -- are dispatched by the lease itself once it is
+    /// released, after this burst, the longest read window in the application, is done holding the
+    /// port.</summary>
+    private async Task<List<string>> GetListOfNamesHelper(byte[] msg)
     {
         // Replies carry back the address they answer. Taking it from the request rather than
         // assuming one keeps this helper correct for every name list -- Studio Set names are
         // requested at 0f 00 03 02, where the tone lists use 0f 00 04 02.
         var expectedAddress = NameListEndMarker.AddressOf(msg);
+        var expected = ReplyMatchers.NameListReply(expectedAddress);
 
-        await _semaphore.WaitAsync();
-        var mi = new AsyncMidiInputWrapper(midiIn, ReplyMatchers.NameListReply(expectedAddress));
-        try
+        // Named for the address, so a long-hold warning says which burst is holding the port.
+        await using var port =
+            await _port.AcquireAsync($"name list at {BitConverter.ToString(expectedAddress)}");
+
+        List<byte[]> allReplies = [];
+        var totalRepliesReceived = 0;
+        var localReply = await port.RequestAsync(msg, expected);
+        var continueReading = true;
+        while (continueReading) // concatenate multiple incoming replies
         {
-            Log.Debug("DataRequest Lock acquired");
-            List<byte[]> allReplies = [];
-            var totalRepliesReceived = 0;
-            _midiOut?.SafeSend(msg);
-            var continueReading = true;
-            while (continueReading) // concatenate multiple incoming replies
+            if (localReply.Length != 0)
             {
-                var localReply = await mi.WaitForMidiMessageAsyncExpectingMultipleInARow();
-                if (localReply.Length != 0)
+                //Debug.WriteLine($"len: {localReply.Length}");
+                byte[][] multiplereplies = ByteUtils.SplitAfterF7(localReply);
+                foreach (var r in multiplereplies)
                 {
-                    //Debug.WriteLine($"len: {localReply.Length}");
-                    byte[][] multiplereplies = ByteUtils.SplitAfterF7(localReply);
-                    foreach (var r in multiplereplies)
-                    {
-                        // SplitAfterF7 never fills its last slot, so every split ends in a null --
-                        // for an ordinary single reply it returns [message, null]. Skipping it here
-                        // is not tidiness: IsNameListReply answers false for null, so without this
-                        // the null fell through to r.Length below and threw on the first reply of
-                        // every burst.
-                        if (r is null) continue;
+                    // SplitAfterF7 never fills its last slot, so every split ends in a null --
+                    // for an ordinary single reply it returns [message, null]. Skipping it here
+                    // is not tidiness: IsNameListReply answers false for null, so without this
+                    // the null fell through to r.Length below and threw on the first reply of
+                    // every burst.
+                    if (r is null) continue;
 
-                        if (NameListEndMarker.IsNameListReply(r, expectedAddress))
+                    if (NameListEndMarker.IsNameListReply(r, expectedAddress))
+                    {
+                        allReplies.Add(r);
+                        totalRepliesReceived += 1;
+                        //ByteStreamDisplay.Display($"partial reply #{totalRepliesReceived}:", r);
+                        // The device closes the burst with an empty-name reply. Stopping on it
+                        // returns at once instead of idling for the inactivity timeout. The
+                        // timeout below still applies when that reply never arrives. Note a
+                        // single read can carry several messages, so the check belongs here,
+                        // after the split, rather than on the raw chunk.
+                        if (NameListEndMarker.IsEndOfBurst(r, expectedAddress))
                         {
-                            allReplies.Add(r);
-                            totalRepliesReceived += 1;
-                            //ByteStreamDisplay.Display($"partial reply #{totalRepliesReceived}:", r);
-                            // The device closes the burst with an empty-name reply. Stopping on it
-                            // returns at once instead of idling for the inactivity timeout. The
-                            // timeout below still applies when that reply never arrives. Note a
-                            // single read can carry several messages, so the check belongs here,
-                            // after the split, rather than on the raw chunk.
-                            if (NameListEndMarker.IsEndOfBurst(r, expectedAddress))
-                            {
-                                continueReading = false;
-                                mi.Detach();
-                            }
-                        }
-                        else if (r.Length > 0)
-                        {
-                            // A chunk can carry several concatenated messages, and the reader accepts
-                            // the whole chunk when any fragment matches -- so a fragment riding along
-                            // with a real reply lands here. It is not a name-list reply and can be far
-                            // too short to hold a name; accepting it would reach
-                            // ByteUtils.Slice(reply, 16, 16) below and trip its assertion. Log rather
-                            // than drop silently: a reply wrongly rejected by this filter would
-                            // otherwise show up only as a preset missing from the list, with no trace
-                            // of why.
-                            var previewLength = Math.Min(r.Length, 8);
-                            Log.Warning(
-                                "Dropped a {Length}-byte message during a name-list burst; not recognised as a name-list reply. First bytes: {Bytes}",
-                                r.Length, BitConverter.ToString(r, 0, previewLength));
+                            continueReading = false;
                         }
                     }
-                }
-                else
-                {
-                    continueReading = false;
-                    mi.Detach();
-                    if (totalRepliesReceived == 0)
+                    else if (r.Length > 0)
                     {
-                        Log.Error("Timeout waiting for the name-list burst at {Address}.",
-                            BitConverter.ToString(expectedAddress));
-                        return ([], mi.TakeDeferred());
+                        // A chunk can carry several concatenated messages, and the reader accepts
+                        // the whole chunk when any fragment matches -- so a fragment riding along
+                        // with a real reply lands here. It is not a name-list reply and can be far
+                        // too short to hold a name; accepting it would reach
+                        // ByteUtils.Slice(reply, 16, 16) below and trip its assertion. Log rather
+                        // than drop silently: a reply wrongly rejected by this filter would
+                        // otherwise show up only as a preset missing from the list, with no trace
+                        // of why.
+                        var previewLength = Math.Min(r.Length, 8);
+                        Log.Warning(
+                            "Dropped a {Length}-byte message during a name-list burst; not recognised as a name-list reply. First bytes: {Bytes}",
+                            r.Length, BitConverter.ToString(r, 0, previewLength));
                     }
                 }
             }
-
-            List<string> names = [];
-            foreach (var reply in allReplies)
+            else
             {
-                var name = ByteUtils.Slice(reply, 16, 16);
-                if (name[0] != 0x00) // last returned message contains all 00's
-                    names.Add(Encoding.ASCII.GetString(name));
+                continueReading = false;
+                if (totalRepliesReceived == 0)
+                {
+                    Log.Error("Timeout waiting for the name-list burst at {Address}.",
+                        BitConverter.ToString(expectedAddress));
+                    return [];
+                }
             }
 
-            var idx = 0;
-            foreach (var n in names)
-            {
-                idx++;
-                Log.Debug($"{idx}: {n}");
-            }
-
-            return (names, mi.TakeDeferred());
+            if (continueReading) localReply = await port.ReadNextAsync(expected);
         }
-        finally
+
+        List<string> names = [];
+        foreach (var reply in allReplies)
         {
-            mi.Detach();
-            Log.Debug("DataRequest Lock released");
-            _semaphore.Release();
+            var name = ByteUtils.Slice(reply, 16, 16);
+            if (name[0] != 0x00) // last returned message contains all 00's
+                names.Add(Encoding.ASCII.GetString(name));
         }
-    }
 
-    /// <summary>Fetch a list of names, then deliver anything the device sent while the burst held the
-    /// port -- a preset change made on the front panel, most often. The burst is the longest read
-    /// window in the application, so this is where an unsolicited message is most likely to land.</summary>
-    private async Task<List<string>> GetListOfNamesHelper(byte[] msg)
-    {
-        var midiIn = _midiIn;
-        if (midiIn is null) return [];
-
-        var (names, deferred) = await GatherNamesAsync(midiIn, msg);
-
-        foreach (var m in deferred)
+        var idx = 0;
+        foreach (var n in names)
         {
-            // Guarded per message: one malformed deferred message must not strand the rest.
-            try
-            {
-                midiIn.DispatchUnsolicited(m);
-            }
-            catch (Exception e)
-            {
-                Log.Warning(e, "Failed to dispatch a message deferred during a name-list burst.");
-            }
+            idx++;
+            Log.Debug($"{idx}: {n}");
         }
 
         return names;
