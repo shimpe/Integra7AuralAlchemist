@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using CoreMidi;
+using Integra7AuralAlchemist.Models.Data;
+using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
 
 namespace Tests;
@@ -16,20 +19,31 @@ public class TestIntegra7ApiConversations
     /// method opened and what went out inside each.</summary>
     private sealed class RecordingPort : IMidiPort
     {
+        private int _open;
+
         public List<string> Conversations { get; } = [];
         public List<byte[]> Sent { get; } = [];
         public bool Connected { get; set; } = true;
+
+        /// <summary>The most leases held at once. The real port would block on the second one and
+        /// throw a minute later; this counts instead, so a nested acquire fails a test in
+        /// milliseconds rather than hanging hardware.</summary>
+        public int MostLeasesHeldAtOnce { get; private set; }
 
         public bool ConnectionOk() => Connected;
 
         public Task<IMidiLease> AcquireAsync(string what)
         {
             Conversations.Add(what);
+            _open++;
+            if (_open > MostLeasesHeldAtOnce) MostLeasesHeldAtOnce = _open;
             return Task.FromResult<IMidiLease>(new RecordingLease(this));
         }
 
         private sealed class RecordingLease(RecordingPort port) : IMidiLease
         {
+            private bool _released;
+
             public Task SendAsync(byte[] data)
             {
                 port.Sent.Add(data);
@@ -41,7 +55,16 @@ public class TestIntegra7ApiConversations
 
             public Task<byte[]> ReadNextAsync(IReplyMatcher expected) => Task.FromResult<byte[]>([]);
 
-            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+            public ValueTask DisposeAsync()
+            {
+                if (!_released)
+                {
+                    _released = true;
+                    port._open--;
+                }
+
+                return ValueTask.CompletedTask;
+            }
         }
     }
 
@@ -96,6 +119,32 @@ public class TestIntegra7ApiConversations
 
         Assert.That(port.Conversations, Is.EqualTo(new[] { "all notes off" }));
         Assert.That(port.Sent, Has.Count.EqualTo(16));
+    }
+
+    [Test]
+    public async Task WritingAToneToUserMemoryKeepsItsStepsInSeparateConversations()
+    {
+        // The one method here that must NOT be one conversation. Its middle step writes the name out
+        // through the domain layer, which comes back into MakeDataTransmissionAsync and acquires the
+        // port for itself -- so a single lease across the three steps would block on the gate its own
+        // conversation holds, until the sixty-second timeout throws. Pinned because "tidying" this
+        // into one lease, for consistency with ChangePresetAsync, is the obvious wrong move.
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+        var domain = new Integra7Domain(api, new Integra7StartAddresses(), LoadParameters());
+
+        await api.WriteToneToUserMemory(domain, "SN-S", 0, "TEST NAME", 0);
+
+        Assert.That(port.MostLeasesHeldAtOnce, Is.EqualTo(1),
+            "a lease held while the name step takes its own is the deadlock this method must avoid");
+        Assert.That(port.Conversations, Does.Contain("write tone to user memory"));
+    }
+
+    private static Integra7Parameters LoadParameters()
+    {
+        var path = Path.Combine(TestContext.CurrentContext.TestDirectory,
+            "..", "..", "..", "..", "Src", "Assets", "parameters.bin");
+        return new Integra7Parameters(File.OpenRead(path));
     }
 
     [Test]
