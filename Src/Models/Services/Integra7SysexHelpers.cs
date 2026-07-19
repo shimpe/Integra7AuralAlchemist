@@ -658,9 +658,11 @@ public class Integra7SysexHelpers
 
     public static bool CheckIdentityReply(byte[] reply, out byte deviceId)
     {
-        if (reply.Length > 2)
+        // Guard the trimmed message, not the raw one: TrimAfterEndOfSysex yields nothing at all when
+        // the terminator is missing, so a reply long enough to check can still be too short to index.
+        var trimmedReply = TrimAfterEndOfSysex(reply);
+        if (trimmedReply.Length > 2)
         {
-            var trimmedReply = TrimAfterEndOfSysex(reply);
             deviceId = trimmedReply[2];
             IDENTITY_REPLY[2] = deviceId;
             if (!trimmedReply.SequenceEqual(IDENTITY_REPLY))

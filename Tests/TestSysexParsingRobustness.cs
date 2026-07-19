@@ -4,6 +4,36 @@ using Integra7AuralAlchemist.Models.Services;
 namespace Tests;
 
 [TestFixture]
+public class TestIdentityReplyRobustness
+{
+    [Test]
+    public void AnIdentityReplyWithoutATerminatorIsRejectedRatherThanIndexed()
+    {
+        // TrimAfterEndOfSysex yields nothing when the f7 is missing, so guarding the raw reply's
+        // length is not enough -- the trimmed one is what gets indexed.
+        byte[] noTerminator = [0xf0, 0x7e, 0x10, 0x06, 0x02];
+
+        Assert.That(Integra7SysexHelpers.CheckIdentityReply(noTerminator, out var deviceId), Is.False);
+        Assert.That(deviceId, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void AShortIdentityReplyIsRejected()
+    {
+        Assert.That(Integra7SysexHelpers.CheckIdentityReply([], out _), Is.False);
+        Assert.That(Integra7SysexHelpers.CheckIdentityReply([0xf0, 0xf7], out _), Is.False);
+    }
+
+    [Test]
+    public void AReplyThatIsNotAnIdentityReplyIsRejectedWithoutThrowing()
+    {
+        byte[] dataSet = [0xf0, 0x41, 0x10, 0x00, 0x00, 0x64, 0x12, 0x0f, 0x00, 0x04, 0x02, 0x00, 0x6b, 0xf7];
+
+        Assert.That(Integra7SysexHelpers.CheckIdentityReply(dataSet, out _), Is.False);
+    }
+}
+
+[TestFixture]
 public class TestSysexParsingRobustness
 {
     // A well-formed data-set message: header, a 4-byte address, one byte of parameter data,
