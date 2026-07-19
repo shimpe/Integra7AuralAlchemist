@@ -527,7 +527,11 @@ public class Integra7Api : IIntegra7Api
         return false;
     }
 
-    private async Task<(List<string> Names, IReadOnlyList<byte[]> Deferred)> GatherNamesAsync(byte[] msg)
+    /// <summary>Read the burst. Takes the port as an argument rather than reading the field, so it is
+    /// the same one the caller checked and will drain onto -- the field can be nulled by a failed
+    /// identity check while this is running.</summary>
+    private async Task<(List<string> Names, IReadOnlyList<byte[]> Deferred)> GatherNamesAsync(
+        IMidiIn midiIn, byte[] msg)
     {
         // Replies carry back the address they answer. Taking it from the request rather than
         // assuming one keeps this helper correct for every name list -- Studio Set names are
@@ -535,7 +539,7 @@ public class Integra7Api : IIntegra7Api
         var expectedAddress = NameListEndMarker.AddressOf(msg);
 
         await _semaphore.WaitAsync();
-        var mi = new AsyncMidiInputWrapper(_midiIn, ReplyMatchers.NameListReply(expectedAddress));
+        var mi = new AsyncMidiInputWrapper(midiIn, ReplyMatchers.NameListReply(expectedAddress));
         try
         {
             Log.Debug("DataRequest Lock acquired");
@@ -630,7 +634,7 @@ public class Integra7Api : IIntegra7Api
         var midiIn = _midiIn;
         if (midiIn is null) return [];
 
-        var (names, deferred) = await GatherNamesAsync(msg);
+        var (names, deferred) = await GatherNamesAsync(midiIn, msg);
 
         foreach (var m in deferred)
         {
