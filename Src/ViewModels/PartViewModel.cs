@@ -270,6 +270,10 @@ public partial class PartViewModel : ViewModelBase
     /// <summary>Cancels a load that is reading a tone the device is about to drop.</summary>
     private CancellationTokenSource? _loadCts;
 
+    /// <summary>The reload owed after a preset change, so a caller arriving during the settle delay
+    /// waits for it instead of racing ahead with a read the device is not ready to answer.</summary>
+    private Task? _reloadTask;
+
     /// <summary>How long to let the device load a patch before reading it back.</summary>
     private const int PresetSettleMilliseconds = 250;
 
@@ -1141,7 +1145,7 @@ public partial class PartViewModel : ViewModelBase
             _loadTask = null;
         }
 
-        _ = ChangePresetAndReloadAsync(decision);
+        _reloadTask = ChangePresetAndReloadAsync(decision);
         this.RaisePropertyChanged(nameof(SelectedPreset));
         RaiseLoadStateChanged();
     }
@@ -1346,6 +1350,18 @@ public partial class PartViewModel : ViewModelBase
     {
         if (_i7domain is null || IsCommonTab) return Task.CompletedTask;
 
+        // A preset change owes this part a reload and is waiting out the settle delay. Reading now
+        // would return the outgoing patch — and the delayed reload would then find a load already
+        // running and simply join it, so the delay would be lost rather than merely bypassed.
+        if (_reloadTask is { IsCompleted: false }) return _reloadTask;
+
+        return BeginLoadAsync();
+    }
+
+    /// <summary>Start a load, or join one already running, without deferring to a pending reload.
+    /// Only the reload itself calls this: deferring to the reload would make it await its own task.</summary>
+    private Task BeginLoadAsync()
+    {
         switch (_load.RequestOpen())
         {
             case OpenDecision.None:
@@ -1763,23 +1779,35 @@ public partial class PartViewModel : ViewModelBase
     /// by ResyncPartAsync while the reload is pending, because it carries no settle delay.</summary>
     private async Task ChangePresetAndReloadAsync(PresetDecision decision)
     {
-        // A preset the device reported is already loaded there; sending it back would be an echo.
-        if (decision.SendProgramChange) await ChangePresetAsync();
+        try
+        {
+            // A preset the device reported is already loaded there; sending it back would be an echo.
+            if (decision.SendProgramChange) await ChangePresetAsync();
 
-        if (!decision.Reload) return;
+            if (!decision.Reload) return;
 
-        // Another preset was picked while this one was being sent. That change is doing its own
-        // reload, and this one would read the device before its program change had arrived — the
-        // reads are answered, just for the wrong patch.
-        if (!_load.IsCurrent(decision.Epoch)) return;
+            // Another preset was picked while this one was being sent. That change is doing its own
+            // reload, and this one would read the device before its program change had arrived — the
+            // reads are answered, just for the wrong patch.
+            if (!_load.IsCurrent(decision.Epoch)) return;
 
-        // The device needs a moment to actually load the patch. Reading the instant the program
-        // change goes out returns the outgoing tone, which is how a part ended up showing a partial
-        // that was never read: correct-looking common values, zeroed partials.
-        await Task.Delay(PresetSettleMilliseconds);
-        if (!_load.IsCurrent(decision.Epoch)) return;
+            // The device needs a moment to actually load the patch. Reading the instant the program
+            // change goes out returns the outgoing tone, which is how a part ended up showing a partial
+            // that was never read: correct-looking common values, zeroed partials.
+            await Task.Delay(PresetSettleMilliseconds);
+            if (!_load.IsCurrent(decision.Epoch)) return;
 
-        await EnsureInitializedAsync();
+            await BeginLoadAsync();
+        }
+        catch (Exception e)
+        {
+            // Nobody awaits this task, so the failure would otherwise vanish — and the reload would
+            // stay owed forever, leaving the preset list disabled and every resync for this part
+            // skipped. Releasing the state machine is what lets a later open retry.
+            UserActionLog.Failed($"change preset on part {PartNo}", e.ToString());
+            _load.LoadFinished(LoadOutcome.Failed, decision.Epoch);
+            RaiseLoadStateChanged();
+        }
     }
 
     public async Task ChangePresetAsync()
