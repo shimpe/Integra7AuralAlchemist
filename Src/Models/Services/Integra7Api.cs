@@ -72,59 +72,86 @@ public class Integra7Api : IIntegra7Api
         return _deviceId;
     }
 
-    public async Task CheckIdentityAsync()
+    /// <summary>Send a request, wait for its own reply, then deliver anything else that arrived while
+    /// waiting.
+    ///
+    /// The drain runs after the semaphore is released on purpose: a deferred message must reach the UI
+    /// with the port actually free, not merely with the read logically finished. Dispatch is a
+    /// MessageBus post to a throttled subscriber, so nothing reenters synchronously -- but a resync it
+    /// triggers will take the semaphore, and it should find it available.</summary>
+    private async Task<byte[]> RunRequestAsync(byte[] request, IReplyMatcher expected, string what)
     {
-        var data = Integra7SysexHelpers.IDENTITY_REQUEST;
-        // TEMPORARY placeholder matcher -- replaced in Tasks 4 and 5.
-        var mi = new AsyncMidiInputWrapper(_midiIn, ReplyMatchers.IdentityReply);
-        _midiOut?.SafeSend(data);
-        byte[] reply = [];
-        reply = await mi.WaitForMidiMessageAsync();
-        if (reply.Length == 0)
-        {
-            mi.CleanupAfterTimeOut();
-            Log.Error("Timeout waiting for MIDI reply while connecting to Integra-7.");
-            _midiOut = null;
-            _midiIn = null;
-            _deviceId = 0;
-        }
-        else
-        {
-            var usefulreply = Integra7SysexHelpers.TrimAfterEndOfSysex(reply);
-            if (!Integra7SysexHelpers.CheckIdentityReply(usefulreply, out _deviceId))
-            {
-                _midiOut = null;
-                _midiIn = null;
-                _deviceId = 0;
-            }
-        }
-    }
+        // Captured: CheckIdentityAsync nulls the field on failure, and the drain still needs a port.
+        var midiIn = _midiIn;
+        if (midiIn is null) return [];
 
-    public async Task<byte[]> MakeDataRequestAsync(byte[] address, long size)
-    {
+        byte[] reply;
+        IReadOnlyList<byte[]> deferred;
+
         await _semaphore.WaitAsync();
         try
         {
             Log.Debug("DataRequest Lock acquired");
-            var data = Integra7SysexHelpers.MakeDataRequest(DeviceId(), address, size);
-            // TEMPORARY placeholder matcher -- replaced in Tasks 4 and 5.
-            var mi = new AsyncMidiInputWrapper(_midiIn, ReplyMatchers.IdentityReply);
-            _midiOut?.SafeSend(data);
-            var reply = await mi.WaitForMidiMessageAsync();
+            var mi = new AsyncMidiInputWrapper(midiIn, expected);
+            _midiOut?.SafeSend(request);
+            reply = await mi.WaitForMidiMessageAsync();
+            deferred = mi.TakeDeferred();
             if (reply.Length == 0)
             {
                 mi.CleanupAfterTimeOut();
-                Log.Error("Timeout waiting for MIDI reply after data request.");
-                return [];
+                Log.Error("Timeout waiting for MIDI reply: {What}.", what);
             }
-
-            return reply;
         }
         finally
         {
             Log.Debug("DataRequest Lock released");
             _semaphore.Release();
         }
+
+        foreach (var m in deferred)
+        {
+            // Guarded per message: one malformed deferred message must not strand the rest.
+            try
+            {
+                midiIn.DispatchUnsolicited(m);
+            }
+            catch (Exception e)
+            {
+                Log.Warning(e, "Failed to dispatch a message deferred during {What}.", what);
+            }
+        }
+
+        return reply;
+    }
+
+    public async Task CheckIdentityAsync()
+    {
+        // Now takes the semaphore, via the shared helper. It took none before, so pressing Rescan
+        // during the startup name burst ran two conversations on one port.
+        var reply = await RunRequestAsync(Integra7SysexHelpers.IDENTITY_REQUEST, ReplyMatchers.IdentityReply,
+            "identity request");
+
+        if (reply.Length == 0)
+        {
+            _midiOut = null;
+            _midiIn = null;
+            _deviceId = 0;
+            return;
+        }
+
+        var usefulreply = Integra7SysexHelpers.TrimAfterEndOfSysex(reply);
+        if (!Integra7SysexHelpers.CheckIdentityReply(usefulreply, out _deviceId))
+        {
+            _midiOut = null;
+            _midiIn = null;
+            _deviceId = 0;
+        }
+    }
+
+    public async Task<byte[]> MakeDataRequestAsync(byte[] address, long size)
+    {
+        var data = Integra7SysexHelpers.MakeDataRequest(DeviceId(), address, size);
+        return await RunRequestAsync(data, ReplyMatchers.DataSetAt(address), "data request");
     }
 
     public async Task MakeDataTransmissionAsync(byte[] address, byte[] data)
@@ -186,28 +213,13 @@ public class Integra7Api : IIntegra7Api
 
     public async Task<(byte /*slot1*/, byte /* slot2*/, byte /*slot3*/, byte /*slot4*/)> GetLoadedSrxAsync()
     {
+        byte[] address = [0x0F, 0x00, 0x00, 0x10];
         var msg = Integra7SysexHelpers.MakeAskLoadedSrxMsg(_deviceId);
-        try
-        {
-            await _semaphore.WaitAsync();
-            // TEMPORARY placeholder matcher -- replaced in Tasks 4 and 5.
-            var mi = new AsyncMidiInputWrapper(_midiIn, ReplyMatchers.IdentityReply);
-            _midiOut?.SafeSend(msg);
-            var reply = await mi.WaitForMidiMessageAsync();
-            if (reply.Length == 0)
-            {
-                mi.CleanupAfterTimeOut();
-                Log.Error("Timeout waiting for MIDI reply while requesting loaded SRX.");
-            }
+        var reply = await RunRequestAsync(msg, ReplyMatchers.DataSetAt(address), "loaded SRX request");
 
-            if (reply.Length > 15) return (reply[11], reply[12], reply[13], reply[14]);
+        if (reply.Length > 15) return (reply[11], reply[12], reply[13], reply[14]);
 
-            return (0, 0, 0, 0);
-        }
-        finally
-        {
-            _semaphore.Release();
-        }
+        return (0, 0, 0, 0);
     }
 
     public async Task<List<string>> GetStudioSetNames0to63()
