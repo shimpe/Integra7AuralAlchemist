@@ -1104,50 +1104,46 @@ public partial class PartViewModel : ViewModelBase
     public Integra7Preset SelectedPreset
     {
         get => _selectedPreset;
-        set
+        set => ApplyPreset(value, PresetSource.User);
+    }
+
+    /// <summary>Apply a preset the device reported holding, as opposed to one the user picked. The
+    /// difference matters twice over: it is allowed through mid-load, and it must not be answered with
+    /// a program change for a patch the device is already holding.</summary>
+    public void ApplyDevicePreset(Integra7Preset value) => ApplyPreset(value, PresetSource.Device);
+
+    private void ApplyPreset(Integra7Preset value, PresetSource source)
+    {
+        if (_selectedPreset == value || value is null) return;
+
+        var decision = _load.RequestPreset(source);
+        if (!decision.Accepted)
         {
-            if (_selectedPreset != value && value is not null)
-            {
-                // Refuse a user's preset change while the part is loading. Disabling the list is the
-                // visible half of this rule, but it is only as good as the enabled state — scrolling
-                // the list was enough to get a click through — so the rule is enforced here, where
-                // nothing can route around it. Preset resolution driven by the device is exempt: that
-                // is how the part learns what it is holding, including during a load.
-                if (IsLoading && !_applyingPresetFromDevice)
-                {
-                    UserActionLog.Action(
-                        $"part {PartNo}: ignoring preset '{value.Name}', the part is still loading");
-                    // Snap the list back to what is really selected.
-                    this.RaisePropertyChanged();
-                    return;
-                }
-
-                UserActionLog.Action(
-                    $"part {PartNo}: select preset '{value.Name}' ({value.ToneTypeStr} {value.InternalUserDefinedStr}, " +
-                    $"msb {value.Msb} lsb {value.Lsb} pc {value.Pc})");
-
-                // Only a load that is actually running needs interrupting. A part that finished loading
-                // is refreshed by the resync this change triggers, exactly as it was before parts were
-                // loaded lazily; re-running the whole load as well would put two heavy read sequences on
-                // the port at once. The preset list is disabled while loading, so in practice this is
-                // reached only by a preset change that did not come from the list.
-                var wasInitializing = _deferredInit is { IsCompleted: false };
-
-                _selectedPreset = value;
-
-                // Stop an initialization that is reading the outgoing tone's domains: those reads go to
-                // a tone the device is about to stop holding, and each one waits out its timeout.
-                //
-                // Do NOT start the replacement here. The program change below has not been sent yet,
-                // let alone acted on, so reading now would return the outgoing patch's data — answered
-                // promptly and completely wrong. The device echoes the change when it has actually
-                // switched, and the resync that follows re-initializes the part then.
-                if (wasInitializing) CancelDeferredInit();
-
-                _ = ChangePresetAndReloadAsync(wasInitializing, ++_presetGeneration);
-                this.RaisePropertyChanged();
-            }
+            UserActionLog.Action(
+                $"part {PartNo}: ignoring preset '{value.Name}', the part is still loading");
+            // Snap the list back to what is really selected. Named explicitly: the caller-member-name
+            // overload would announce this method rather than the bound property.
+            this.RaisePropertyChanged(nameof(SelectedPreset));
+            return;
         }
+
+        UserActionLog.Action(
+            $"part {PartNo}: select preset '{value.Name}' ({value.ToneTypeStr} {value.InternalUserDefinedStr}, " +
+            $"msb {value.Msb} lsb {value.Lsb} pc {value.Pc})");
+
+        _selectedPreset = value;
+
+        // Stop a load that is reading the outgoing tone's domains: those reads go to a tone the device
+        // is about to stop holding, and each one waits out its timeout.
+        if (decision.CancelCurrentLoad)
+        {
+            _loadCts?.Cancel();
+            _loadTask = null;
+        }
+
+        _ = ChangePresetAndReloadAsync(decision);
+        this.RaisePropertyChanged(nameof(SelectedPreset));
+        RaiseLoadStateChanged();
     }
 
     /// <summary>Add a preset that arrived after this view model was built (the user tone names are
@@ -1175,17 +1171,9 @@ public partial class PartViewModel : ViewModelBase
             {
                 UpdatePartialViewModelToneTypeStrings(p);
 
-                // This reflects what the device reports, so it is allowed through even mid-load.
-                _applyingPresetFromDevice = true;
-                try
-                {
-                    SelectedPreset = p;
-                }
-                finally
-                {
-                    _applyingPresetFromDevice = false;
-                }
-
+                // This reflects what the device reports, so it is allowed through even mid-load — and
+                // is never answered with a program change for the patch the device already holds.
+                ApplyDevicePreset(p);
                 return;
             }
     }
