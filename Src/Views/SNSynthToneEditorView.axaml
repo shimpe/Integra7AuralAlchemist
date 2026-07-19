@@ -28,7 +28,7 @@
         <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,8">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <StackPanel Spacing="8">
-              <StackPanel Orientation="Horizontal" Spacing="16">
+              <WrapPanel Orientation="Horizontal" ItemSpacing="16" LineSpacing="8">
                 <StackPanel Spacing="2">
                     <Border Background="{StaticResource SnAccentBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
                         <TextBlock Text="SuperNATURAL Synth" Foreground="{StaticResource SnBadgeForegroundBrush}" FontSize="11"/>
@@ -79,10 +79,10 @@
                 </StackPanel>
                 <Button VerticalAlignment="Bottom" Content="Advanced common parameters…"
                         Command="{Binding AdvancedCommonCommand}"/>
-              </StackPanel>
+              </WrapPanel>
 
               <!-- Phrase (arpeggio) on its own row -->
-              <StackPanel Orientation="Horizontal" Spacing="16">
+              <WrapPanel Orientation="Horizontal" ItemSpacing="16" LineSpacing="8">
                 <StackPanel Spacing="2" Width="260">
                     <TextBlock Text="Phrase (arpeggio)" ToolTip.Tip="Phrase Number"/>
                     <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch"
@@ -94,7 +94,7 @@
                     <NumericUpDown Width="110" Minimum="-3" Maximum="3" Increment="1" FormatString="0"
                                    Value="{Binding Header.PhraseOctaveShift.Value, Mode=TwoWay}"/>
                 </StackPanel>
-              </StackPanel>
+              </WrapPanel>
             </StackPanel>
             </ScrollViewer>
         </Border>

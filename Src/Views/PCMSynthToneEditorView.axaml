@@ -26,7 +26,7 @@
         <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,8">
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
             <StackPanel Spacing="8">
-              <StackPanel Orientation="Horizontal" Spacing="16">
+              <WrapPanel Orientation="Horizontal" ItemSpacing="16" LineSpacing="8">
                 <StackPanel Spacing="2">
                     <Border Background="{StaticResource SnAccentBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
                         <TextBlock Text="PCM Synth" Foreground="{StaticResource SnBadgeForegroundBrush}" FontSize="11"/>
@@ -67,10 +67,10 @@
 
                 <Button VerticalAlignment="Bottom" Content="Advanced common parameters…"
                         Command="{Binding AdvancedCommonCommand}"/>
-              </StackPanel>
+              </WrapPanel>
 
               <!-- Character (tone-wide offsets) -->
-              <StackPanel Orientation="Horizontal" Spacing="16">
+              <WrapPanel Orientation="Horizontal" ItemSpacing="16" LineSpacing="8">
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Brightness (Cutoff)" Classes="sliderLabel" ToolTip.Tip="Cutoff Offset"/>
                     <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding Header.CutoffOffset.Value, Mode=TwoWay}"/>
@@ -87,10 +87,10 @@
                     <TextBlock Text="Release" Classes="sliderLabel" ToolTip.Tip="Release Time Offset"/>
                     <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding Header.ReleaseOffset.Value, Mode=TwoWay}"/>
                 </StackPanel>
-              </StackPanel>
+              </WrapPanel>
 
               <!-- Phrase (arpeggio) on its own row -->
-              <StackPanel Orientation="Horizontal" Spacing="16">
+              <WrapPanel Orientation="Horizontal" ItemSpacing="16" LineSpacing="8">
                 <StackPanel Spacing="2" Width="260">
                     <TextBlock Text="Phrase (arpeggio)" ToolTip.Tip="Phrase Number"/>
                     <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch"
@@ -108,7 +108,7 @@
                               ItemsSource="{Binding Header.Category.Options}"
                               SelectedItem="{Binding Header.Category.Value, Mode=TwoWay}"/>
                 </StackPanel>
-              </StackPanel>
+              </WrapPanel>
             </StackPanel>
             </ScrollViewer>
         </Border>
