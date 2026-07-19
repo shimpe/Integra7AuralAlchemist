@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using CoreMidi;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
+using Integra7AuralAlchemist.ViewModels;
+using Microsoft.Reactive.Testing;
 
 namespace Tests;
 
@@ -181,6 +184,40 @@ public class TestIntegra7ApiConversations
         var path = Path.Combine(TestContext.CurrentContext.TestDirectory,
             "..", "..", "..", "..", "Src", "Assets", "parameters.bin");
         return new Integra7Parameters(File.OpenRead(path));
+    }
+
+    [Test]
+    public void AParentParameterEditIsOneConversationCoveringWriteResetAndReread()
+    {
+        // SynthParam's Enqueue bodies (ParamInt/ParamString/ParamBool) write the edited value, then --
+        // for a parent parameter -- run WaveOutOfRangeReset and re-read the domain, all under one
+        // lease. A lease dropped from any of those calls would not deadlock a real device today (the
+        // real port would block for 60s and throw); here it shows up immediately as a second
+        // conversation or two leases held at once. "Studio Set Common Chorus/Chorus Type" is used
+        // because it is a real isparent:true parameter that is NOT a wave-group discriminator, so
+        // WaveOutOfRangeReset.ApplyAsync is a genuine no-op for it and the test does not need
+        // WaveformBanks.Default (which requires a running Avalonia application to load its CSV assets
+        // and is unavailable in this headless test host).
+        var port = new RecordingPort();
+        var api = new Integra7Api(port);
+        var domain = new Integra7Domain(api, new Integra7StartAddresses(), LoadParameters());
+        var chorusDomain = domain.StudioSetCommonChorus;
+        var chorusType = chorusDomain.GetRelevantParameters(true, true)
+            .Single(p => p.ParSpec.Path == "Studio Set Common Chorus/Chorus Type");
+        Assert.That(chorusType.ParSpec.IsParent, Is.True,
+            "the test needs a real parent parameter to exercise the reset-and-re-read branch");
+
+        var scheduler = new TestScheduler();
+        using var writer = new ThrottledParameterWriter(250, scheduler);
+        var sut = new ParamString(chorusDomain, chorusType, writer);
+
+        sut.Value = "Chorus"; // was "" (the FQP's unparsed default) -- a genuine change, so it enqueues
+
+        scheduler.AdvanceBy(TimeSpan.FromMilliseconds(251).Ticks);
+
+        Assert.That(port.Conversations, Is.EqualTo(new[] { "edit Studio Set Common Chorus/Chorus Type" }),
+            "the write, the wave-group reset, and the re-read must all run under one lease");
+        Assert.That(port.MostLeasesHeldAtOnce, Is.EqualTo(1));
     }
 
     [Test]
