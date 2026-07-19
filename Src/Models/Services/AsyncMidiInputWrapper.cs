@@ -123,7 +123,10 @@ public class AsyncMidiInputWrapper
     public Task<byte[]> WaitForMidiMessageAsyncExpectingMultipleInARow() =>
         WaitForMatchingMessageAsync(handBackPort: false);
 
-    public void CleanupAfterTimeOut()
+    /// <summary>Hand the port back and close this reader down. Runs on every disposal, not only on a
+    /// timeout: a reader owned by a lease never hands itself back, because it must stay installed
+    /// across all the reads of its conversation.</summary>
+    public void Detach()
     {
         _midiInput.RemoveHandler(_handler);
         _midiInput.RestoreAutomaticHandling();

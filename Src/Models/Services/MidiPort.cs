@@ -80,6 +80,12 @@ public sealed class MidiPort : IMidiPort
         /// reads. Dispatched once, after the gate is released.</summary>
         private readonly List<byte[]> _deferred = [];
 
+        /// <summary>True while a read is in flight. Reads are not chained the way sends are -- a read's
+        /// caller needs the reply, so a fire-and-forget read is not the plausible mistake an unawaited
+        /// send is. But two at once would overwrite the reader's matcher mid-flight and race over one
+        /// channel, matching a reply against the wrong matcher, so say so instead of misbehaving.</summary>
+        private bool _reading;
+
         public Lease(MidiPort port, string what)
         {
             _port = port;
@@ -135,13 +141,34 @@ public sealed class MidiPort : IMidiPort
 
         private async Task<byte[]> ReadFrom(AsyncMidiInputWrapper reader, IReplyMatcher expected)
         {
-            var reply = await reader.WaitForAsync(expected);
             lock (_sync)
             {
-                _deferred.AddRange(reader.TakeDeferred());
+                if (_reading)
+                    throw new InvalidOperationException(
+                        $"A read is already in flight on the lease for '{_what}'. Reads on one lease " +
+                        "must be awaited before the next is issued; two at once would race over the " +
+                        "reader's matcher.");
+
+                _reading = true;
             }
 
-            return reply;
+            try
+            {
+                var reply = await reader.WaitForAsync(expected);
+                lock (_sync)
+                {
+                    _deferred.AddRange(reader.TakeDeferred());
+                }
+
+                return reply;
+            }
+            finally
+            {
+                lock (_sync)
+                {
+                    _reading = false;
+                }
+            }
         }
 
         public async ValueTask DisposeAsync()
@@ -175,7 +202,7 @@ public sealed class MidiPort : IMidiPort
                 Log.Warning(ex, "A send queued on the lease for '{What}' faulted before disposal.", _what);
             }
 
-            reader?.CleanupAfterTimeOut();
+            reader?.Detach();
             _port.Release();
 
             // After the release, deliberately: a deferred message reaching the UI can trigger a

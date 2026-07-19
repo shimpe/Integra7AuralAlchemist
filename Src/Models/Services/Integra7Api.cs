@@ -98,7 +98,7 @@ public class Integra7Api : IIntegra7Api
             deferred = mi.TakeDeferred();
             if (reply.Length == 0)
             {
-                mi.CleanupAfterTimeOut();
+                mi.Detach();
                 // Name what was expected, not just the kind of conversation: "data request" is the
                 // same string for every parameter read in the application, so without the address a
                 // timeout says nothing about which read gave up.
@@ -580,7 +580,7 @@ public class Integra7Api : IIntegra7Api
                             if (NameListEndMarker.IsEndOfBurst(r, expectedAddress))
                             {
                                 continueReading = false;
-                                mi.CleanupAfterTimeOut();
+                                mi.Detach();
                             }
                         }
                         else if (r.Length > 0)
@@ -603,7 +603,7 @@ public class Integra7Api : IIntegra7Api
                 else
                 {
                     continueReading = false;
-                    mi.CleanupAfterTimeOut();
+                    mi.Detach();
                     if (totalRepliesReceived == 0)
                     {
                         Log.Error("Timeout waiting for the name-list burst at {Address}.",
@@ -632,7 +632,7 @@ public class Integra7Api : IIntegra7Api
         }
         finally
         {
-            mi.CleanupAfterTimeOut();
+            mi.Detach();
             Log.Debug("DataRequest Lock released");
             _semaphore.Release();
         }

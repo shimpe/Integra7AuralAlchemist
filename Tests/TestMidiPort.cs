@@ -25,6 +25,7 @@ public class TestMidiPort
 
         public List<byte[]> Dispatched { get; } = [];
         public bool HandlerInstalled => _handler is not null;
+        public int HandlersInstalled { get; private set; }
 
         public void Push(byte[] message) =>
             _handler?.Invoke(this, new MidiReceivedEventArgs
@@ -32,7 +33,11 @@ public class TestMidiPort
                 Data = message, Start = 0, Length = message.Length, Timestamp = 0
             });
 
-        public void ConfigureHandler(EventHandler<MidiReceivedEventArgs> handler) => _handler = handler;
+        public void ConfigureHandler(EventHandler<MidiReceivedEventArgs> handler)
+        {
+            _handler = handler;
+            HandlersInstalled++;
+        }
         public void ConfigureDefaultHandler() => _handler = null;
         public void RemoveHandler(EventHandler<MidiReceivedEventArgs> handler) => _handler = null;
         public void DispatchUnsolicited(byte[] message) => Dispatched.Add(message);
@@ -321,5 +326,51 @@ public class TestMidiPort
         await lease.DisposeAsync();
 
         Assert.That(midiIn.HandlerInstalled, Is.False);
+    }
+
+    [Test]
+    public async Task AConversationInstallsExactlyOneReader()
+    {
+        // A reader per request would hand the port back between the replies of a burst and miss the
+        // rest. Counted, because a fresh reader per read still receives pushes and still looks
+        // installed -- nothing else here would notice the difference.
+        var port = NewPort(out var midiIn, out _);
+
+        await using var lease = await port.AcquireAsync("burst");
+        var first = lease.RequestAsync([0x11], ReplyMatchers.DataSetAt(Address));
+        midiIn.Push(Reply());
+        await first;
+
+        var second = lease.ReadNextAsync(ReplyMatchers.DataSetAt(Address));
+        midiIn.Push(Reply());
+        await second;
+
+        Assert.That(midiIn.HandlersInstalled, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task OneReaderServesReadsWithDifferentMatchers()
+    {
+        // The reader's matcher is replaced per read. A second read must accept only its own shape,
+        // and defer what the first read would have accepted.
+        var port = NewPort(out var midiIn, out _);
+
+        var lease = await port.AcquireAsync("mixed");
+        var first = lease.RequestAsync([0x11], ReplyMatchers.DataSetAt(Address));
+        midiIn.Push(Reply());
+        await first;
+
+        byte[] identity = [0xf0, 0x7e, 0x10, 0x06, 0x02, 0x41, 0x64, 0x02, 0x00, 0x00, 0x00, 0x00, 0xf7];
+        var second = lease.ReadNextAsync(ReplyMatchers.IdentityReply);
+        midiIn.Push(Reply());        // the FIRST read's shape -- must NOT satisfy this read
+        midiIn.Push(identity);
+
+        Assert.That(await Task.WhenAny(second, Task.Delay(3000)), Is.SameAs(second));
+        Assert.That(await second, Is.EqualTo(identity));
+
+        await lease.DisposeAsync();
+
+        Assert.That(midiIn.Dispatched, Is.EqualTo(new[] { Reply() }),
+            "the data set that arrived during the identity read was not its reply, so it is deferred");
     }
 }
