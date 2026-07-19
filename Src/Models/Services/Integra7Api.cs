@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading;
@@ -530,7 +531,7 @@ public class Integra7Api : IIntegra7Api
                     //Debug.WriteLine($"len: {localReply.Length}");
                     byte[][] multiplereplies = ByteUtils.SplitAfterF7(localReply);
                     foreach (var r in multiplereplies)
-                        if (r is [0xf0, 0x41, ..])
+                        if (NameListEndMarker.IsNameListReply(r))
                         {
                             allReplies.Add(r);
                             totalRepliesReceived += 1;
@@ -545,6 +546,23 @@ public class Integra7Api : IIntegra7Api
                                 continueReading = false;
                                 mi.CleanupAfterTimeOut();
                             }
+                        }
+                        else if (r.Length > 0)
+                        {
+                            // This reader owns the MIDI input for the whole burst, so it also sees
+                            // anything the device sends unsolicited -- e.g. the sysex it emits when a
+                            // preset is changed on its own front panel. That message is not a name-list
+                            // reply and can be far too short to hold a name; accepting it here used to
+                            // reach ByteUtils.Slice(reply, 16, 16) below and crash the assertion. Log
+                            // it instead of dropping it silently: a reply wrongly rejected by this
+                            // filter would otherwise show up only as a preset missing from the list,
+                            // with no trace of why. (A zero-length entry is just an artifact of
+                            // SplitAfterF7's trailing remainder, not a real message, so it's skipped
+                            // here rather than logged.)
+                            var previewLength = Math.Min(r.Length, 8);
+                            Log.Warning(
+                                "Dropped a {Length}-byte message during a name-list burst; not recognised as a name-list reply. First bytes: {Bytes}",
+                                r.Length, BitConverter.ToString(r, 0, previewLength));
                         }
                 }
                 else

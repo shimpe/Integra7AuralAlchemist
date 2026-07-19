@@ -82,4 +82,71 @@ public class TestNameListEndMarker
         Terminator.AsSpan(0, 33).CopyTo(truncated);
         Assert.That(NameListEndMarker.IsEndOfBurst(truncated), Is.False);
     }
+
+    [Test]
+    public void RecognisesAWellFormedNameReplyAsANameListReply()
+    {
+        Assert.That(NameListEndMarker.IsNameListReply(NameReply), Is.True);
+    }
+
+    [Test]
+    public void RecognisesTheEndOfBurstMessageAsANameListReplyToo()
+    {
+        // The terminator is a name-list reply too -- it's just the one with an empty name.
+        // IsEndOfBurst is the narrower predicate that also demands the all-zero payload.
+        Assert.That(NameListEndMarker.IsNameListReply(Terminator), Is.True);
+    }
+
+    [Test]
+    public void RejectsAShortPanelChangeMessageArrivingMidBurst()
+    {
+        // A realistic short Roland sysex -- the shape of what the device sends unsolicited
+        // when the user turns the front-panel patch dial. Same f0 41 prefix as a name reply,
+        // but far too short to hold a name at indices 16..31. This is the exact shape that
+        // used to crash ByteUtils.Slice when it slipped into a name-list burst.
+        byte[] panelChange = [0xf0, 0x41, 0x10, 0x00, 0x00, 0x64, 0x12, 0x01, 0x00, 0x00, 0x00, 0x01, 0x0e, 0xf7];
+        Assert.That(NameListEndMarker.IsNameListReply(panelChange), Is.False);
+    }
+
+    [Test]
+    public void RejectsA34ByteMessageWithTheWrongCommandByte()
+    {
+        var other = (byte[])NameReply.Clone();
+        other[6] = 0x11; // data request, not data set
+        Assert.That(NameListEndMarker.IsNameListReply(other), Is.False);
+    }
+
+    [Test]
+    public void RejectsA34ByteMessageAtAnotherAddress()
+    {
+        var other = (byte[])NameReply.Clone();
+        other[7] = 0x18;
+        Assert.That(NameListEndMarker.IsNameListReply(other), Is.False);
+    }
+
+    [Test]
+    public void RejectsNullMessage()
+    {
+        Assert.That(NameListEndMarker.IsNameListReply(null), Is.False);
+    }
+
+    [Test]
+    public void RejectsAMessageNotStartingWithF0Then41()
+    {
+        var wrongStart = (byte[])NameReply.Clone();
+        wrongStart[0] = 0xf1;
+        Assert.That(NameListEndMarker.IsNameListReply(wrongStart), Is.False);
+
+        var wrongManufacturer = (byte[])NameReply.Clone();
+        wrongManufacturer[1] = 0x42;
+        Assert.That(NameListEndMarker.IsNameListReply(wrongManufacturer), Is.False);
+    }
+
+    [Test]
+    public void RejectsAMessageNotEndingWithF7()
+    {
+        var other = (byte[])NameReply.Clone();
+        other[^1] = 0x00;
+        Assert.That(NameListEndMarker.IsNameListReply(other), Is.False);
+    }
 }

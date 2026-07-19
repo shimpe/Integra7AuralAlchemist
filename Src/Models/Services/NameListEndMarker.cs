@@ -1,17 +1,22 @@
 namespace Integra7AuralAlchemist.Models.Services;
 
-/// <summary>Recognises the sentinel reply that closes a burst of name-list replies.
+/// <summary>Recognises replies belonging to a burst of name-list replies, and the sentinel reply
+/// that closes one.
 ///
 /// Every name-list request (address 0f 00 04 02) is answered by one reply per name, followed by a
-/// final reply whose payload is entirely zero — an empty name. Spotting it lets a reader stop
-/// immediately instead of sitting out the inactivity timeout, which is the only other way to learn
-/// that the burst has ended.
+/// final reply whose payload is entirely zero — an empty name. <see cref="IsNameListReply"/> matches
+/// the shared shape of both; <see cref="IsEndOfBurst"/> additionally requires the all-zero payload,
+/// so it recognises only the terminator. The reader that owns the MIDI input for the duration of a
+/// burst sees every message the device sends, including unsolicited ones (e.g. a sysex emitted when
+/// the user changes presets on the device's own front panel); <see cref="IsNameListReply"/> is what
+/// tells those apart from an actual reply, so a caller can drop them instead of misreading them as a
+/// name too short to contain one.
 ///
 /// The match is structural rather than a comparison against the literal 34 bytes, so it survives a
 /// device configured with a different device ID (byte 2).</summary>
 public static class NameListEndMarker
 {
-    // f0 41 <dev> 00 00 64 12 | 0f 00 04 02 | 21 zero payload bytes | checksum | f7
+    // f0 41 <dev> 00 00 64 12 | 0f 00 04 02 | 21 payload bytes | checksum | f7
     private const int MessageLength = 34;
     private const int CommandIndex = 6;
     private const int DataSetCommand = 0x12;
@@ -21,8 +26,11 @@ public static class NameListEndMarker
 
     private static readonly byte[] NameListAddress = [0x0f, 0x00, 0x04, 0x02];
 
-    /// <summary>True when <paramref name="message"/> is the final, empty-name reply of a name-list burst.</summary>
-    public static bool IsEndOfBurst(byte[]? message)
+    /// <summary>True when <paramref name="message"/> has the shape of a name-list reply: the right
+    /// length, the Roland sysex header, the DT1 (data set) command, and the name-list address. This
+    /// does not distinguish an actual name from the empty-name terminator — see
+    /// <see cref="IsEndOfBurst"/> for that.</summary>
+    public static bool IsNameListReply(byte[]? message)
     {
         if (message is null || message.Length != MessageLength) return false;
         if (message[0] != 0xf0 || message[1] != 0x41 || message[^1] != 0xf7) return false;
@@ -32,9 +40,17 @@ public static class NameListEndMarker
             if (message[AddressIndex + i] != NameListAddress[i])
                 return false;
 
+        return true;
+    }
+
+    /// <summary>True when <paramref name="message"/> is the final, empty-name reply of a name-list burst.</summary>
+    public static bool IsEndOfBurst(byte[]? message)
+    {
+        if (!IsNameListReply(message)) return false;
+
         // An all-zero payload is what makes this reply the terminator rather than a name.
         for (var i = PayloadIndex; i < PayloadIndex + PayloadLength; i++)
-            if (message[i] != 0x00)
+            if (message![i] != 0x00)
                 return false;
 
         return true;
