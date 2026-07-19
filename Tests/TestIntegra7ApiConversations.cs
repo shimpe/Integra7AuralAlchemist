@@ -46,14 +46,32 @@ public class TestIntegra7ApiConversations
 
             public Task SendAsync(byte[] data)
             {
+                ThrowIfReleased();
                 port.Sent.Add(data);
                 return Task.CompletedTask;
             }
 
-            public Task<byte[]> RequestAsync(byte[] request, IReplyMatcher expected) =>
-                Task.FromResult<byte[]>([]);
+            public Task<byte[]> RequestAsync(byte[] request, IReplyMatcher expected)
+            {
+                ThrowIfReleased();
+                return Task.FromResult<byte[]>([]);
+            }
 
-            public Task<byte[]> ReadNextAsync(IReplyMatcher expected) => Task.FromResult<byte[]>([]);
+            public Task<byte[]> ReadNextAsync(IReplyMatcher expected)
+            {
+                ThrowIfReleased();
+                return Task.FromResult<byte[]>([]);
+            }
+
+            /// <summary>Mirrors the real lease, which throws on use after release. A fake that quietly
+            /// accepted a send on a released lease would let a call that wrongly disposes a lease it
+            /// only borrowed pass every assertion here, while failing on hardware.</summary>
+            private void ThrowIfReleased()
+            {
+                if (_released)
+                    throw new ObjectDisposedException(nameof(IMidiLease),
+                        "This lease was already released.");
+            }
 
             public ValueTask DisposeAsync()
             {
