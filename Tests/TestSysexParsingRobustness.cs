@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
 
@@ -151,13 +155,24 @@ public class TestSysexParsingRobustness
     {
         // i7 == null makes every address lookup fail. Before the fix, a failed lookup left
         // currentLocation and address unchanged, so the parse loop never advanced and never
-        // terminated. This test must fail on a timeout, not hang the suite, if that regresses.
+        // terminated.
+        //
+        // Run on a worker and wait, rather than using [Timeout]: NUnit's timeout relied on
+        // Thread.Abort, which does not exist on .NET 5 and later, so a regression would be reported
+        // as failed while the loop kept spinning for the life of the test process. Waiting on the
+        // task reports the failure reliably. The orphaned worker is the accepted price -- a
+        // regression here means an infinite loop either way, and the suite still finishes.
         [Test]
-        [Timeout(5000)]
         public void TerminatesAndReturnsEmptyWhenTheDomainIsNull()
         {
             Integra7Domain? noDomain = null;
-            var result = SysexDataTransmissionParser.ConvertSysexToParameterUpdates(WellFormedDataSet, noDomain);
+            List<UpdateMessageSpec>? result = null;
+
+            var parse = Task.Run(() =>
+                result = SysexDataTransmissionParser.ConvertSysexToParameterUpdates(WellFormedDataSet, noDomain));
+
+            Assert.That(parse.Wait(TimeSpan.FromSeconds(5)), Is.True,
+                "the parse loop did not terminate -- an address it cannot resolve must end the parse, not spin");
             Assert.That(result, Is.Empty);
         }
 

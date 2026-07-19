@@ -698,10 +698,12 @@ public class Integra7SysexHelpers
         var len = expectedHeader.Length;
         if (reply.Length < len)
         {
-            // Hardware sends more than data-set replies on this same handler -- program changes,
-            // active sensing, short panel-change notifications. Anything shorter than the header
-            // simply cannot be a data-set message.
-            LogMalformedMessage("Message too short to hold a data-set header", reply);
+            // Debug, not Warning: this runs on the MIDI driver's callback thread for EVERY inbound
+            // message, and hardware routinely sends things that are not data-set replies -- program
+            // changes, active sensing, short panel notifications. All of them are shorter than the
+            // header, so warning here would fire constantly and bury the warnings that mean something.
+            // MidiIn's own catch-all already reports an undispatched message at Debug.
+            Log.Debug("Message too short to hold a data-set header. Length: {Length}", reply.Length);
             return false;
         }
 
