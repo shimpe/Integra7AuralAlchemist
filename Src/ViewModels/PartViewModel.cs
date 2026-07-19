@@ -260,16 +260,15 @@ public partial class PartViewModel : ViewModelBase
     [Reactive] private int _advancedPartialIndex;
     private Integra7Preset? _selectedPreset;
 
-    /// <summary>The deferred initialization, once started. Doubles as the "already initialized" flag
-    /// and as the handle concurrent callers await, so the work happens exactly once per part.</summary>
-    private Task? _deferredInit;
+    /// <summary>Where this part is in its load lifecycle, and what to do about each request that
+    /// touches it. See <see cref="PartLoadState"/>.</summary>
+    private readonly PartLoadState _load = new();
 
-    /// <summary>Cancels the deferred initialization when the part's preset changes underneath it.</summary>
-    private CancellationTokenSource? _initCts;
+    /// <summary>The running load, so concurrent callers await one load rather than starting three.</summary>
+    private Task? _loadTask;
 
-    /// <summary>Counts preset changes, so a reload can tell whether it is still the current one.
-    /// Picking presets faster than the device can load them is easy; only the last one should read.</summary>
-    private int _presetGeneration;
+    /// <summary>Cancels a load that is reading a tone the device is about to drop.</summary>
+    private CancellationTokenSource? _loadCts;
 
     /// <summary>How long to let the device load a patch before reading it back.</summary>
     private const int PresetSettleMilliseconds = 250;
@@ -1358,30 +1357,35 @@ public partial class PartViewModel : ViewModelBase
     public Task EnsureInitializedAsync()
     {
         if (_i7domain is null || IsCommonTab) return Task.CompletedTask;
-        if (_deferredInit is not null) return _deferredInit;
 
-        _everOpened = true;
-        _initCts?.Dispose();
-        _initCts = new CancellationTokenSource();
-        IsLoading = true;
-        _deferredInit = RunDeferredInitAsync(_initCts.Token);
-        return _deferredInit;
-    }
+        switch (_load.RequestOpen())
+        {
+            case OpenDecision.None:
+                return Task.CompletedTask;
+            case OpenDecision.JoinExisting:
+                return _loadTask ?? Task.CompletedTask;
+        }
 
-    /// <summary>Abandon an initialization that is reading the wrong tone. The device answers reads only
-    /// for the tone a part currently holds, so once the preset changes, every remaining read of the old
-    /// tone's domains goes unanswered and costs a 1.5s timeout — 62 of them for a drum kit.</summary>
-    private void CancelDeferredInit()
-    {
-        _initCts?.Cancel();
-        _deferredInit = null;
-        IsLoading = false;
+        _loadCts?.Dispose();
+        _loadCts = new CancellationTokenSource();
+        RaiseLoadStateChanged();
+        _loadTask = RunDeferredInitAsync(_loadCts.Token, _load.Epoch);
+        return _loadTask;
     }
 
     /// <summary>True once the deferred work has finished. Callers that only want to refresh a part
     /// use this to skip parts that were never opened: those read current hardware state when they are
     /// opened, so refreshing them early would spend round trips on data nobody is looking at.</summary>
-    public bool IsInitialized => _deferredInit is { IsCompletedSuccessfully: true };
+    public bool IsInitialized => _load.Phase == PartLoadPhase.Loaded;
+
+    /// <summary>True for a part that was opened and then had its load cancelled or failed. It has no
+    /// usable tone state, so a refresh must re-initialize it rather than skip it the way it skips
+    /// parts nobody ever opened.</summary>
+    public bool NeedsReinitialization => _load.Phase == PartLoadPhase.Abandoned;
+
+    /// <summary>True for a part that has been opened at some point and is not currently loading — the
+    /// parts a refresh should actually visit.</summary>
+    public bool WantsRefresh => _load.Phase is PartLoadPhase.Loaded or PartLoadPhase.Abandoned;
 
     /// <summary>This part's tone type, as the key the Advanced tabs repair their selection against.
     /// Which of those tabs are visible depends on it, and Avalonia keeps rendering a selected tab's
@@ -1389,40 +1393,29 @@ public partial class PartViewModel : ViewModelBase
     /// sub-tab would show the other engine's parameters, which were never read.</summary>
     public string ToneTypeKey => _selectedPreset?.ToneTypeStr ?? "";
 
-    /// <summary>True while this part is loading. The preset list is disabled meanwhile: changing the
-    /// preset mid-load means the load is reading a tone the device is about to drop, and the recovery
-    /// (cancel, re-send, re-read) runs concurrently with the resync the change itself triggers.
-    ///
-    /// Held as a field rather than derived from the load task. The task only completes once the method
-    /// producing it returns, which is after its own finally block — so a notification raised there would
-    /// still report loading, and the list would stay disabled until something else re-evaluated it.</summary>
-    public bool IsLoading
+    /// <summary>True while this part is loading or owes a reload. The preset list is disabled
+    /// meanwhile: changing the preset mid-load means the load is reading a tone the device is about to
+    /// drop. This is the same predicate the state machine refuses user changes on, so the visible rule
+    /// and the enforced rule cannot drift apart.</summary>
+    public bool IsLoading => _load.Busy;
+
+    /// <summary>Announce every property that reads off the load state. They are computed rather than
+    /// stored, so nothing raises these notifications on their behalf.</summary>
+    private void RaiseLoadStateChanged()
     {
-        get => _isLoading;
-        private set => this.RaiseAndSetIfChanged(ref _isLoading, value);
+        this.RaisePropertyChanged(nameof(IsLoading));
+        this.RaisePropertyChanged(nameof(IsInitialized));
+        this.RaisePropertyChanged(nameof(NeedsReinitialization));
+        this.RaisePropertyChanged(nameof(WantsRefresh));
     }
 
-    private bool _isLoading;
-
-    /// <summary>Set while a preset is being applied because the device reports holding it, as opposed
-    /// to the user picking one. Only the latter is refused during a load.</summary>
-    private bool _applyingPresetFromDevice;
-
-    /// <summary>True for a part that was opened and then had its initialization cancelled by a preset
-    /// change. It has no usable tone state, so a refresh must re-initialize it rather than skip it the
-    /// way it skips parts nobody ever opened.</summary>
-    public bool NeedsReinitialization => _everOpened && _deferredInit is null;
-
-    /// <summary>Whether this part's tab has ever been opened, which is what separates "never loaded, so
-    /// leave it alone" from "loaded once, so keep it current".</summary>
-    private bool _everOpened;
-
-    private async Task RunDeferredInitAsync(CancellationToken token)
+    private async Task RunDeferredInitAsync(CancellationToken token, int epoch)
     {
-        // Never run synchronously: EnsureInitializedAsync assigns _deferredInit from the return value,
+        // Never run synchronously: EnsureInitializedAsync assigns _loadTask from the return value,
         // so a body that reset the field before that assignment would have its reset overwritten.
         await Task.Yield();
 
+        var outcome = LoadOutcome.Completed;
         try
         {
             // Bracketed here rather than at the call site, so a re-initialization triggered by a preset
@@ -1433,19 +1426,22 @@ public partial class PartViewModel : ViewModelBase
         }
         catch (OperationCanceledException)
         {
-            // Superseded by a preset change; the fresh initialization it started owns the part now.
+            // Superseded by a preset change; the fresh load it started owns the part now.
+            outcome = LoadOutcome.Cancelled;
             UserActionLog.Action($"part {PartNo}: initialization abandoned, the preset changed");
         }
         catch
         {
             // Let a later open (or resync) try again rather than caching the failure forever.
-            _deferredInit = null;
+            outcome = LoadOutcome.Failed;
             throw;
         }
         finally
         {
-            // Re-enables the preset list, whether the load finished, failed or was abandoned.
-            IsLoading = false;
+            // Tagged with the epoch this load started at, so a cancelled load reporting late cannot
+            // bury the replacement that took over from it.
+            _load.LoadFinished(outcome, epoch);
+            RaiseLoadStateChanged();
         }
     }
 
