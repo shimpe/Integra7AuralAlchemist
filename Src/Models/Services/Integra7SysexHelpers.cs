@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Linq;
+using Serilog;
 
 namespace Integra7AuralAlchemist.Models.Services;
 
@@ -657,9 +658,11 @@ public class Integra7SysexHelpers
 
     public static bool CheckIdentityReply(byte[] reply, out byte deviceId)
     {
-        if (reply.Length > 2)
+        // Guard the trimmed message, not the raw one: TrimAfterEndOfSysex yields nothing at all when
+        // the terminator is missing, so a reply long enough to check can still be too short to index.
+        var trimmedReply = TrimAfterEndOfSysex(reply);
+        if (trimmedReply.Length > 2)
         {
-            var trimmedReply = TrimAfterEndOfSysex(reply);
             deviceId = trimmedReply[2];
             IDENTITY_REPLY[2] = deviceId;
             if (!trimmedReply.SequenceEqual(IDENTITY_REPLY))
@@ -677,11 +680,33 @@ public class Integra7SysexHelpers
         return false;
     }
 
+    /// <summary>Logs a Warning identifying a malformed inbound message by its length and leading bytes.
+    /// Messages from hardware are not trustworthy input, so every guard below that rejects one logs
+    /// through here rather than letting the caller crash or hang -- see FullyQualifiedParameter.
+    /// ParseFromSysexReply for the existing precedent of logging instead of crashing on a bad length.</summary>
+    private static void LogMalformedMessage(string reason, byte[] reply)
+    {
+        var previewLength = Math.Min(reply.Length, 8);
+        Log.Warning("{Reason}. Length: {Length}. First bytes: {Bytes}", reason, reply.Length,
+            BitConverter.ToString(reply, 0, previewLength));
+    }
+
     public static bool CheckIsDataSetMsg(byte[] reply)
     {
         // device id will be ignored
         var expectedHeader = ByteUtils.Flatten(EXCLUSIVE_STATUS, ROLAND_ID, [0x10], MODEL_ID, COMMAND_DATASET);
         var len = expectedHeader.Length;
+        if (reply.Length < len)
+        {
+            // Debug, not Warning: this runs on the MIDI driver's callback thread for EVERY inbound
+            // message, and hardware routinely sends things that are not data-set replies -- program
+            // changes, active sensing, short panel notifications. All of them are shorter than the
+            // header, so warning here would fire constantly and bury the warnings that mean something.
+            // MidiIn's own catch-all already reports an undispatched message at Debug.
+            Log.Debug("Message too short to hold a data-set header. Length: {Length}", reply.Length);
+            return false;
+        }
+
         var header = ByteUtils.Slice(reply, 0, len);
         return header[0] == EXCLUSIVE_STATUS[0] && header[1] == ROLAND_ID[0] && header[3..6].SequenceEqual(MODEL_ID) &&
                header[6] == COMMAND_DATASET[0];
@@ -693,7 +718,19 @@ public class Integra7SysexHelpers
         var expectedHeader = ByteUtils.Flatten(EXCLUSIVE_STATUS, ROLAND_ID, [0x10], MODEL_ID, COMMAND_DATASET);
         var len = expectedHeader.Length;
         var trimIdx = Array.IndexOf(reply, END_OF_SYSEX[0]);
-        var trimmedSysexReply = ByteUtils.Slice(reply, 0, trimIdx); // this already removes teh END_OF_SYSEX byte
+        if (trimIdx == -1)
+        {
+            LogMalformedMessage("Sysex reply has no end-of-sysex (F7) marker; discarding payload", reply);
+            return [];
+        }
+
+        var trimmedSysexReply = ByteUtils.Slice(reply, 0, trimIdx); // this already removes the END_OF_SYSEX byte
+        if (trimmedSysexReply.Length < len + 1) // header plus at least a checksum byte
+        {
+            LogMalformedMessage("Sysex reply too short to hold header and checksum; discarding payload", reply);
+            return [];
+        }
+
         var payload =
             ByteUtils.Slice(trimmedSysexReply, len, trimmedSysexReply.Length - len - 1); // -1 to remove the checksum
         return payload;
@@ -701,11 +738,14 @@ public class Integra7SysexHelpers
 
     public static byte[] TrimAfterEndOfSysex(byte[] reply)
     {
-        var expectedHeader = ByteUtils.Flatten(EXCLUSIVE_STATUS, ROLAND_ID, [0x10], MODEL_ID, COMMAND_DATASET);
-        var len = expectedHeader.Length;
-        var trimIdx = Array.IndexOf(reply, END_OF_SYSEX[0]) + 1;
-        var trimmedSysexReply = ByteUtils.Slice(reply, 0, trimIdx);
-        return trimmedSysexReply;
+        var trimIdx = Array.IndexOf(reply, END_OF_SYSEX[0]);
+        if (trimIdx == -1)
+        {
+            LogMalformedMessage("Sysex reply has no end-of-sysex (F7) marker; treating as empty", reply);
+            return [];
+        }
+
+        return ByteUtils.Slice(reply, 0, trimIdx + 1);
     }
 
     public static byte[] MakeDataRequest(byte deviceId, byte[] address, long size)
