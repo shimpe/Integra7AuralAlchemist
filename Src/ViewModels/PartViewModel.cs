@@ -1814,14 +1814,21 @@ public partial class PartViewModel : ViewModelBase
 
     public async Task ChangePresetAsync()
     {
+        var CurrentSelection = _selectedPreset;
+        if (CurrentSelection is null) return;
+
+        // One conversation. Restoring the audition switches must land before the program change, or
+        // the OUTGOING tone keeps the audition state -- and the restore writes go out through the
+        // domain layer, so they need the lease handed to them explicitly.
+        await using var lease = await _i7Api.BeginConversationAsync($"part {PartNo} preset change");
+
         // Restore any active solo/mute audition (put partial on/off switches back) BEFORE the patch
         // changes, so the outgoing tone is left intact rather than its audition state. No-op otherwise.
-        if (PcmSynthToneEditor is { } pcmEditor) await pcmEditor.RestoreAuditionAsync();
-        if (SNSynthToneEditor is { } snsEditor) await snsEditor.RestoreAuditionAsync();
+        if (PcmSynthToneEditor is { } pcmEditor) await pcmEditor.RestoreAuditionAsync(lease);
+        if (SNSynthToneEditor is { } snsEditor) await snsEditor.RestoreAuditionAsync(lease);
 
-        var CurrentSelection = _selectedPreset;
-        if (CurrentSelection != null)
-            await _i7Api.ChangePresetAsync(PartNo, CurrentSelection.Msb, CurrentSelection.Lsb, CurrentSelection.Pc);
+        await _i7Api.ChangePresetAsync(PartNo, CurrentSelection.Msb, CurrentSelection.Lsb,
+            CurrentSelection.Pc, lease);
     }
 
     public async Task ResyncPartAsync(byte part)
