@@ -60,4 +60,174 @@ public class TestPartLoadState
         Assert.That(s.RequestOpen(), Is.EqualTo(OpenDecision.StartLoad));
         Assert.That(s.Phase, Is.EqualTo(PartLoadPhase.Loading));
     }
+
+    /// <summary>Drives a fresh state machine into one of the four phases.</summary>
+    private static PartLoadState InPhase(PartLoadPhase phase)
+    {
+        var s = new PartLoadState();
+        switch (phase)
+        {
+            case PartLoadPhase.NeverOpened:
+                break;
+            case PartLoadPhase.Loading:
+                s.RequestOpen();
+                break;
+            case PartLoadPhase.Loaded:
+                s.RequestOpen();
+                s.LoadFinished(LoadOutcome.Completed, s.Epoch);
+                break;
+            case PartLoadPhase.Abandoned:
+                s.RequestOpen();
+                s.LoadFinished(LoadOutcome.Failed, s.Epoch);
+                break;
+        }
+
+        Assert.That(s.Phase, Is.EqualTo(phase), "the fixture failed to reach the phase under test");
+        return s;
+    }
+
+    [Test]
+    public void AUserPresetChangeIsRefusedWhileThePartIsLoading()
+    {
+        var s = InPhase(PartLoadPhase.Loading);
+        var epochBefore = s.Epoch;
+
+        var d = s.RequestPreset(PresetSource.User);
+
+        Assert.That(d.Accepted, Is.False);
+        Assert.That(s.Epoch, Is.EqualTo(epochBefore), "a refused change must not consume an epoch");
+        Assert.That(s.Phase, Is.EqualTo(PartLoadPhase.Loading));
+    }
+
+    [Test]
+    public void AUserPresetChangeIsRefusedDuringTheSettleDelay()
+    {
+        // No load is running between the program change and its reload, but the part is not idle.
+        var s = InPhase(PartLoadPhase.Loaded);
+        s.RequestPreset(PresetSource.User);
+        Assert.That(s.ReloadPending, Is.True);
+        Assert.That(s.Busy, Is.True);
+
+        var d = s.RequestPreset(PresetSource.User);
+
+        Assert.That(d.Accepted, Is.False);
+    }
+
+    [Test]
+    public void ADevicePresetChangeDuringALoadCancelsItAndSendsNothingBack()
+    {
+        var s = InPhase(PartLoadPhase.Loading);
+
+        var d = s.RequestPreset(PresetSource.Device);
+
+        Assert.That(d.Accepted, Is.True);
+        Assert.That(d.SendProgramChange, Is.False,
+            "the device already holds this patch; answering with a program change is the echo bug");
+        Assert.That(d.CancelCurrentLoad, Is.True, "the running load's reads describe a stale patch");
+        Assert.That(d.Reload, Is.True);
+    }
+
+    [Test]
+    public void AUserPresetChangeOnALoadedPartSendsTheProgramChangeAndReloads()
+    {
+        var s = InPhase(PartLoadPhase.Loaded);
+
+        var d = s.RequestPreset(PresetSource.User);
+
+        Assert.That(d.Accepted, Is.True);
+        Assert.That(d.SendProgramChange, Is.True);
+        Assert.That(d.CancelCurrentLoad, Is.False);
+        Assert.That(d.Reload, Is.True);
+    }
+
+    [Test]
+    public void ADevicePresetChangeOnALoadedPartReloadsWithoutSendingAnything()
+    {
+        var s = InPhase(PartLoadPhase.Loaded);
+
+        var d = s.RequestPreset(PresetSource.Device);
+
+        Assert.That(d.SendProgramChange, Is.False);
+        Assert.That(d.CancelCurrentLoad, Is.False);
+        Assert.That(d.Reload, Is.True);
+    }
+
+    [TestCase(PartLoadPhase.NeverOpened)]
+    [TestCase(PartLoadPhase.Abandoned)]
+    public void APartWithNoLoadedStateNeverReloadsOnAPresetChange(PartLoadPhase phase)
+    {
+        var s = InPhase(phase);
+
+        var d = s.RequestPreset(PresetSource.User);
+
+        Assert.That(d.Accepted, Is.True);
+        Assert.That(d.SendProgramChange, Is.True);
+        Assert.That(d.Reload, Is.False, "there is no loaded state to refresh; opening the tab loads it");
+        Assert.That(s.ReloadPending, Is.False);
+    }
+
+    [TestCase(PartLoadPhase.NeverOpened)]
+    [TestCase(PartLoadPhase.Loading)]
+    [TestCase(PartLoadPhase.Loaded)]
+    [TestCase(PartLoadPhase.Abandoned)]
+    public void APresetTheDeviceReportedIsNeverEchoedBack(PartLoadPhase phase)
+    {
+        var s = InPhase(phase);
+
+        Assert.That(s.RequestPreset(PresetSource.Device).SendProgramChange, Is.False);
+    }
+
+    [Test]
+    public void AReloadActuallyStartsALoad()
+    {
+        // Without this, RequestOpen would answer None on a Loaded part, no load would run,
+        // ReloadPending would never clear, and the preset list would stay disabled forever.
+        var s = InPhase(PartLoadPhase.Loaded);
+        var d = s.RequestPreset(PresetSource.User);
+        Assert.That(d.Reload, Is.True);
+
+        Assert.That(s.RequestOpen(), Is.EqualTo(OpenDecision.StartLoad));
+    }
+
+    [Test]
+    public void FinishingAReloadClearsThePendingMarker()
+    {
+        var s = InPhase(PartLoadPhase.Loaded);
+        s.RequestPreset(PresetSource.User);
+        s.RequestOpen();
+
+        s.LoadFinished(LoadOutcome.Completed, s.Epoch);
+
+        Assert.That(s.ReloadPending, Is.False);
+        Assert.That(s.Busy, Is.False);
+        Assert.That(s.Phase, Is.EqualTo(PartLoadPhase.Loaded));
+    }
+
+    [Test]
+    public void ASupersededLoadReportingLateChangesNothing()
+    {
+        var s = InPhase(PartLoadPhase.Loading);
+        var staleEpoch = s.Epoch;
+        s.RequestPreset(PresetSource.Device);   // cancels the running load, bumps the epoch
+        s.RequestOpen();                        // the replacement load starts
+        Assert.That(s.Phase, Is.EqualTo(PartLoadPhase.Loading));
+
+        s.LoadFinished(LoadOutcome.Cancelled, staleEpoch);
+
+        Assert.That(s.Phase, Is.EqualTo(PartLoadPhase.Loading),
+            "the cancelled load must not bury the replacement that took over from it");
+        Assert.That(s.ReloadPending, Is.True);
+    }
+
+    [Test]
+    public void EachAcceptedChangeSupersedesTheOneBeforeIt()
+    {
+        var s = InPhase(PartLoadPhase.Loaded);
+
+        var first = s.RequestPreset(PresetSource.Device);
+        var second = s.RequestPreset(PresetSource.Device);
+
+        Assert.That(s.IsCurrent(first.Epoch), Is.False);
+        Assert.That(s.IsCurrent(second.Epoch), Is.True);
+    }
 }

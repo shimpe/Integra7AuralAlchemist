@@ -32,6 +32,28 @@ public enum OpenDecision
 /// <summary>How a load ended.</summary>
 public enum LoadOutcome { Completed, Cancelled, Failed }
 
+/// <summary>Who asked for a preset change. The device reporting which patch a part holds is not the
+/// same event as the user picking one, and the two get different answers.</summary>
+public enum PresetSource
+{
+    /// <summary>The user picked a preset from the list.</summary>
+    User,
+
+    /// <summary>The application read the part's bank and program numbers and matched a patch, i.e.
+    /// the device is reporting what it already holds.</summary>
+    Device
+}
+
+/// <summary>What a caller must do about a preset change. When <see cref="Accepted"/> is false the
+/// change is refused and the caller must raise a change notification so the bound list snaps back to
+/// the real selection.</summary>
+public readonly record struct PresetDecision(
+    bool Accepted,
+    bool SendProgramChange,
+    bool CancelCurrentLoad,
+    bool Reload,
+    int Epoch);
+
 /// <summary>A part's load lifecycle, as an explicit state machine rather than a set of flags.
 ///
 /// Pure by design: it holds no task, no cancellation source and no device handle, so the whole
@@ -71,6 +93,29 @@ public sealed class PartLoadState
                 Phase = PartLoadPhase.Loading;
                 return OpenDecision.StartLoad;
         }
+    }
+
+    /// <summary>Ask to change the part's preset.</summary>
+    public PresetDecision RequestPreset(PresetSource source)
+    {
+        // Changing the preset mid-load means the load is reading a tone the device is about to drop.
+        // The device is exempt: reporting what it holds is how the part learns what it is, including
+        // during a load.
+        if (source == PresetSource.User && Busy)
+            return new PresetDecision(false, false, false, false, Epoch);
+
+        var cancel = Phase == PartLoadPhase.Loading;
+        var reload = cancel || Phase == PartLoadPhase.Loaded;
+
+        Epoch++;
+        ReloadPending = reload;
+
+        // A reload is performed by RequestOpen, which answers None on a Loaded part. Abandoned is what
+        // makes it start one, and is honest about the state in between: the patch has changed, so
+        // nothing read so far still describes the part.
+        if (reload) Phase = PartLoadPhase.Abandoned;
+
+        return new PresetDecision(true, source == PresetSource.User, cancel, reload, Epoch);
     }
 
     /// <summary>Report that the load started at <paramref name="epoch"/> has ended.
