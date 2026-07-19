@@ -119,9 +119,12 @@ public class Integra7Api : IIntegra7Api
         await port.SendAsync(transmission);
     }
 
+    /// <summary>Both halves matter. The flag says whether the identity check ever succeeded; the port
+    /// says whether the output handle still looks alive, which it stops doing when a send fails -- so
+    /// a device unplugged after a good identity check is still reported as gone.</summary>
     public bool ConnectionOk()
     {
-        return _connected;
+        return _connected && _port.ConnectionOk();
     }
 
     public async Task NoteOnAsync(byte Channel, byte Note, byte Velocity)
@@ -450,7 +453,7 @@ public class Integra7Api : IIntegra7Api
         // at all, so another flow's request could land between the bank select and the program change.
         await using (var port = await _port.AcquireAsync("preset change"))
         {
-            if (BankSelectMsb(Channel, Msb) is { } msb) await port.SendAsync(msb);
+            await port.SendAsync(BankSelectMsb(Channel, Msb));
             await port.SendAsync(BankSelectLsb(Channel, Lsb));
             await port.SendAsync(ProgramChange(Channel, Pc - 1));
         }
@@ -460,12 +463,15 @@ public class Integra7Api : IIntegra7Api
         MessageBus.Current.SendMessage(new UpdateResyncPart(Channel));
     }
 
-    private static byte[]? BankSelectMsb(byte Channel, int BankNumberMsb)
+    private static byte[] BankSelectMsb(byte Channel, int BankNumberMsb)
     {
         ISet<int> PossibleBankMsb = new HashSet<int> { 85, 86, 87, 88, 89, 92, 93, 95, 96, 97, 120, 121 };
-        if (!PossibleBankMsb.Contains(BankNumberMsb)) return null;
+        if (PossibleBankMsb.Contains(BankNumberMsb))
+            return [(byte)(MidiEvent.CC + Channel), 0, (byte)BankNumberMsb];
 
-        return [(byte)(MidiEvent.CC + Channel), 0, (byte)BankNumberMsb];
+        // Throws rather than skipping: sending only the LSB and program change would select some
+        // other patch and say nothing about it.
+        throw new MidiException("Trying to select impossible MSB Banknumber: " + BankNumberMsb);
     }
 
     private static byte[] BankSelectLsb(byte Channel, int BankNumberLsb)

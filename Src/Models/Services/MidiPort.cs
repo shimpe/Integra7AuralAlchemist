@@ -19,6 +19,11 @@ public interface IMidiPort
     /// <summary>Take exclusive use of the port for one conversation. <paramref name="what"/> names it
     /// in logs: it is what a hang report will say was holding the port.</summary>
     Task<IMidiLease> AcquireAsync(string what);
+
+    /// <summary>Whether the output handle still looks connected. This is live rather than a one-off
+    /// check: the handle drops its port details when a send fails, so a device unplugged mid-session
+    /// shows up here without anyone having to ask it again.</summary>
+    bool ConnectionOk();
 }
 
 /// <summary>Exclusive use of the port, for as long as it is held.</summary>
@@ -120,6 +125,8 @@ public sealed class MidiPort : IMidiPort
         _holding = new Holding(what, DateTime.UtcNow);
         return new Lease(this, what);
     }
+
+    public bool ConnectionOk() => _midiOut.ConnectionOk();
 
     private void Release()
     {
