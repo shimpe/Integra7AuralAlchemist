@@ -41,9 +41,6 @@ public class TestMidiPort
         public void ConfigureDefaultHandler() => _handler = null;
         public void RemoveHandler(EventHandler<MidiReceivedEventArgs> handler) => _handler = null;
         public void DispatchUnsolicited(byte[] message) => Dispatched.Add(message);
-        public byte[] GetReply() => [];
-        public void AnnounceIntentionToManuallyHandleReply() { }
-        public void RestoreAutomaticHandling() { }
     }
 
     private static MidiPort NewPort(out FakeMidiIn midiIn, out FakeMidiOut midiOut)

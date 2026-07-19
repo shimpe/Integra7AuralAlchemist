@@ -31,9 +31,6 @@ public class TestAsyncMidiInputWrapper
         public void ConfigureDefaultHandler() => _handler = null;
         public void RemoveHandler(EventHandler<MidiReceivedEventArgs> handler) => _handler = null;
         public void DispatchUnsolicited(byte[] message) => Dispatched.Add(message);
-        public byte[] GetReply() => [];
-        public void AnnounceIntentionToManuallyHandleReply() { }
-        public void RestoreAutomaticHandling() { }
     }
 
     private static readonly byte[] Address = [0x0f, 0x00, 0x04, 0x02];

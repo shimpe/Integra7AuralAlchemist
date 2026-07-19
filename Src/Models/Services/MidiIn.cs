@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.Linq;
-using System.Threading;
 using Commons.Music.Midi;
 using Integra7AuralAlchemist.Models.Data;
 using ReactiveUI;
@@ -17,9 +16,6 @@ public interface IMidiIn
     /// <summary>Hand the port back, but only if <paramref name="handler"/> is still the one installed.
     /// A reader that finishes late must not detach a handler another reader has since installed.</summary>
     public void RemoveHandler(EventHandler<MidiReceivedEventArgs> handler);
-    public byte[] GetReply();
-    public void AnnounceIntentionToManuallyHandleReply();
-    public void RestoreAutomaticHandling();
 
     /// <summary>Route a message nobody requested: a data set becomes a UI update, a preset change
     /// becomes a resync, anything else is logged. Called both by the default handler and by a reader
@@ -32,21 +28,8 @@ public class MidiIn : IMidiIn
     private readonly IMidiAccess? _midiAccessManager;
     private readonly IMidiInput? _access;
     private readonly IMidiPortDetails? _midiPortDetails;
-    private bool _manualReplyHandling;
-
-    public bool ManualReplyHandling
-    {
-        get => _manualReplyHandling;
-        set
-        {
-            Log.Debug($"Set manual MIDI reply handling to {value}.");
-            _manualReplyHandling = value;
-        }
-    }
 
     private event EventHandler<MidiReceivedEventArgs> _lastEventHandler;
-    private static readonly ManualResetEvent _replyReady = new(false);
-    private byte[] _replyData = [];
 #if DEBUG
     public bool Verbose { get; set; } = true;
 #else
@@ -57,7 +40,6 @@ public class MidiIn : IMidiIn
     {
         _midiAccessManager = MidiAccessManager.Default;
         _lastEventHandler = DefaultHandler;
-        _manualReplyHandling = false;
         try
         {
             var inputs = _midiAccessManager?.Inputs.Where(x => x.Name.Contains(Name));
@@ -98,7 +80,6 @@ public class MidiIn : IMidiIn
         _lastEventHandler = DefaultHandler;
         Log.Debug("Restore default midi handler");
         _access.MessageReceived += _lastEventHandler;
-        _manualReplyHandling = false;
     }
 
     /// <summary>Restore the default handler on behalf of <paramref name="handler"/>. Ignored when it is
@@ -133,30 +114,15 @@ public class MidiIn : IMidiIn
         _lastEventHandler = handler;
         Log.Debug("Configure custom midi handler");
         _access.MessageReceived += _lastEventHandler;
-        _manualReplyHandling = false;
     }
 
     private void DefaultHandler(object? sender, MidiReceivedEventArgs e)
     {
-        _replyReady.Reset();
-        _replyData = new byte[e.Length];
         var localCopy = new byte[e.Length];
         Debug.Assert(e.Length != 0);
         Array.Copy(e.Data, localCopy, e.Length);
-        Array.Copy(localCopy, _replyData, e.Length);
         if (Verbose) ByteStreamDisplay.Display("Received (default handler): ", localCopy);
-        if (!_manualReplyHandling)
-        {
-            DispatchUnsolicited(localCopy);
-        }
-        else
-        {
-            Log.Debug(
-                "Received MIDI msg that will not be dispatched for ui update because manual reply handling is active.");
-        }
-
-        _manualReplyHandling = false;
-        _replyReady.Set();
+        DispatchUnsolicited(localCopy);
     }
 
     public void DispatchUnsolicited(byte[] message)
@@ -178,29 +144,4 @@ public class MidiIn : IMidiIn
         }
     }
 
-    public byte[] GetReply()
-    {
-        if (_replyReady.WaitOne(500))
-        {
-            _replyReady.Reset();
-            return _replyData;
-        }
-
-        // if no reply after 5 seconds, most likely no reply will come anymore...
-        _replyReady.Reset();
-        _manualReplyHandling = false;
-        return [];
-    }
-
-    public void AnnounceIntentionToManuallyHandleReply()
-    {
-        _replyReady.Reset();
-        _manualReplyHandling = true;
-    }
-
-    public void RestoreAutomaticHandling()
-    {
-        _replyReady.Set();
-        _manualReplyHandling = false;
-    }
 }
