@@ -28,8 +28,16 @@
         <Border Grid.Row="0" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,8">
             <!-- Horizontal scrolling stays OFF: a ScrollViewer that scrolls horizontally measures its
                  content with unbounded width, so the WrapPanels below would never see a limit to wrap
-                 at and would lay out on one endless line. It still clips, which is what we want. -->
-            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled">
+                 at and would lay out on one endless line.
+
+                 Vertical scrolling is ON with a ceiling. Wrapping makes the header grow on a narrow
+                 window, and this row is Auto-sized, so without a cap it grows until it fills the
+                 window and pushes the rack, partial card and tabs off the bottom. Capped, it wraps
+                 freely up to the ceiling and scrolls beyond it, and the editor below keeps its
+                 space. At a normal width the content is shorter than the cap, so no bar appears. -->
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
+                          MaxHeight="300">
+
             <StackPanel Spacing="8">
               <WrapPanel Orientation="Horizontal" ItemSpacing="16" LineSpacing="8">
                 <StackPanel Spacing="2">
