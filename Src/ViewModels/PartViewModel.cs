@@ -1755,28 +1755,29 @@ public partial class PartViewModel : ViewModelBase
     }
 
     [ReactiveCommand]
-    /// <summary>Send the program change, then reload the part if it had been open.
+    /// <summary>Send the program change if this part is the one asking for it, then reload.
     ///
     /// The order is the whole point: reading before the device has switched returns the outgoing
-    /// patch, promptly and wrongly. Nothing else reloads it either — the resync that a preset change
-    /// normally triggers is driven by the device echoing a change made on its own panel, which does
-    /// not happen for a change this application sent.</summary>
-    private async Task ChangePresetAndReloadAsync(bool reload, int generation)
+    /// patch, promptly and wrongly. This is the only path that refreshes a part after a preset
+    /// change — the UpdateResyncPart that Integra7Api posts alongside every program change is dropped
+    /// by ResyncPartAsync while the reload is pending, because it carries no settle delay.</summary>
+    private async Task ChangePresetAndReloadAsync(PresetDecision decision)
     {
-        await ChangePresetAsync();
+        // A preset the device reported is already loaded there; sending it back would be an echo.
+        if (decision.SendProgramChange) await ChangePresetAsync();
+
+        if (!decision.Reload) return;
 
         // Another preset was picked while this one was being sent. That change is doing its own
         // reload, and this one would read the device before its program change had arrived — the
         // reads are answered, just for the wrong patch.
-        if (generation != _presetGeneration) return;
-
-        if (!reload) return;
+        if (!_load.IsCurrent(decision.Epoch)) return;
 
         // The device needs a moment to actually load the patch. Reading the instant the program
         // change goes out returns the outgoing tone, which is how a part ended up showing a partial
         // that was never read: correct-looking common values, zeroed partials.
         await Task.Delay(PresetSettleMilliseconds);
-        if (generation != _presetGeneration) return;
+        if (!_load.IsCurrent(decision.Epoch)) return;
 
         await EnsureInitializedAsync();
     }
