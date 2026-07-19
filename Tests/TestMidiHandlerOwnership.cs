@@ -51,6 +51,7 @@ public class TestMidiHandlerOwnership
         public byte[] GetReply() => [];
         public void AnnounceIntentionToManuallyHandleReply() { }
         public void RestoreAutomaticHandling() { }
+        public void DispatchUnsolicited(byte[] message) { }
     }
 
     [Test]

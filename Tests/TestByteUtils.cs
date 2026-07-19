@@ -189,4 +189,31 @@ public class ByteUtilsTests
         Assert.That(split[0], Is.EquivalentTo(exp0));
         Assert.That(split[1], Is.EquivalentTo(exp1));
     }
+
+    /// <summary>SplitAfterF7 sizes its result for one more fragment than it ever fills, so the last
+    /// slot is always null -- an ordinary single message splits to [message, null]. Every caller has
+    /// to skip it, and a caller that assumed the artifact was merely empty rather than null
+    /// dereferenced it and threw. Pinned here because the declared return type is byte[][], not
+    /// byte[]?[], so the compiler's null analysis cannot warn about it.</summary>
+    [Test]
+    public void SplitAfterF7AlwaysLeavesItsLastSlotNull()
+    {
+        byte[] oneMessage = [0xf0, 0x41, 0x10, 0x00, 0x00, 0x64, 0x12, 0x0f, 0x00, 0x04, 0x02, 0x6b, 0xf7];
+
+        var split = ByteUtils.SplitAfterF7(oneMessage);
+
+        Assert.That(split, Has.Length.EqualTo(2), "one terminator yields one message plus the artifact");
+        Assert.That(split[0], Is.EquivalentTo(oneMessage));
+        Assert.That(split[1], Is.Null, "not an empty array -- null");
+    }
+
+    [Test]
+    public void SplitAfterF7ReturnsOnlyTheNullSlotWhenThereIsNoTerminator()
+    {
+        // A short channel-voice message -- a program change -- carries no f7 at all.
+        var split = ByteUtils.SplitAfterF7([0xc0, 0x05]);
+
+        Assert.That(split, Has.Length.EqualTo(1));
+        Assert.That(split[0], Is.Null);
+    }
 }

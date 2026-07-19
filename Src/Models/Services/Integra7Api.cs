@@ -72,57 +72,90 @@ public class Integra7Api : IIntegra7Api
         return _deviceId;
     }
 
-    public async Task CheckIdentityAsync()
+    /// <summary>Send a request, wait for its own reply, then deliver anything else that arrived while
+    /// waiting.
+    ///
+    /// The drain runs after the semaphore is released on purpose: a deferred message must reach the UI
+    /// with the port actually free, not merely with the read logically finished. Dispatch is a
+    /// MessageBus post to a throttled subscriber, so nothing reenters synchronously -- but a resync it
+    /// triggers will take the semaphore, and it should find it available.</summary>
+    private async Task<byte[]> RunRequestAsync(byte[] request, IReplyMatcher expected, string what)
     {
-        var data = Integra7SysexHelpers.IDENTITY_REQUEST;
-        var mi = new AsyncMidiInputWrapper(_midiIn);
-        _midiOut?.SafeSend(data);
-        byte[] reply = [];
-        reply = await mi.WaitForMidiMessageAsync();
-        if (reply.Length == 0)
-        {
-            mi.CleanupAfterTimeOut();
-            Log.Error("Timeout waiting for MIDI reply while connecting to Integra-7.");
-            _midiOut = null;
-            _midiIn = null;
-            _deviceId = 0;
-        }
-        else
-        {
-            var usefulreply = Integra7SysexHelpers.TrimAfterEndOfSysex(reply);
-            if (!Integra7SysexHelpers.CheckIdentityReply(usefulreply, out _deviceId))
-            {
-                _midiOut = null;
-                _midiIn = null;
-                _deviceId = 0;
-            }
-        }
-    }
+        // Captured: CheckIdentityAsync nulls the field on failure, and the drain still needs a port.
+        var midiIn = _midiIn;
+        if (midiIn is null) return [];
 
-    public async Task<byte[]> MakeDataRequestAsync(byte[] address, long size)
-    {
+        byte[] reply;
+        IReadOnlyList<byte[]> deferred;
+
         await _semaphore.WaitAsync();
         try
         {
             Log.Debug("DataRequest Lock acquired");
-            var data = Integra7SysexHelpers.MakeDataRequest(DeviceId(), address, size);
-            var mi = new AsyncMidiInputWrapper(_midiIn);
-            _midiOut?.SafeSend(data);
-            var reply = await mi.WaitForMidiMessageAsync();
+            var mi = new AsyncMidiInputWrapper(midiIn, expected);
+            _midiOut?.SafeSend(request);
+            reply = await mi.WaitForMidiMessageAsync();
+            deferred = mi.TakeDeferred();
             if (reply.Length == 0)
             {
                 mi.CleanupAfterTimeOut();
-                Log.Error("Timeout waiting for MIDI reply after data request.");
-                return [];
+                // Name what was expected, not just the kind of conversation: "data request" is the
+                // same string for every parameter read in the application, so without the address a
+                // timeout says nothing about which read gave up.
+                Log.Error("Timeout waiting for MIDI reply: {What}, expecting {Expected}.", what,
+                    expected.Describe());
             }
-
-            return reply;
         }
         finally
         {
             Log.Debug("DataRequest Lock released");
             _semaphore.Release();
         }
+
+        foreach (var m in deferred)
+        {
+            // Guarded per message: one malformed deferred message must not strand the rest.
+            try
+            {
+                midiIn.DispatchUnsolicited(m);
+            }
+            catch (Exception e)
+            {
+                Log.Warning(e, "Failed to dispatch a message deferred during {What}.", what);
+            }
+        }
+
+        return reply;
+    }
+
+    public async Task CheckIdentityAsync()
+    {
+        // Now takes the semaphore, via the shared helper. It took none before, so pressing Rescan
+        // during the startup name burst ran two conversations on one port.
+        var reply = await RunRequestAsync(Integra7SysexHelpers.IDENTITY_REQUEST, ReplyMatchers.IdentityReply,
+            "identity request");
+
+        if (reply.Length == 0)
+        {
+            _midiOut = null;
+            _midiIn = null;
+            _deviceId = 0;
+            return;
+        }
+
+        var usefulreply = Integra7SysexHelpers.TrimAfterEndOfSysex(reply);
+        if (!Integra7SysexHelpers.CheckIdentityReply(usefulreply, out _deviceId))
+        {
+            _midiOut = null;
+            _midiIn = null;
+            _deviceId = 0;
+        }
+    }
+
+    public async Task<byte[]> MakeDataRequestAsync(byte[] address, long size)
+    {
+        var data = Integra7SysexHelpers.MakeDataRequest(DeviceId(), address, size);
+        return await RunRequestAsync(data, ReplyMatchers.DataSetAt(address), "data request");
     }
 
     public async Task MakeDataTransmissionAsync(byte[] address, byte[] data)
@@ -184,27 +217,13 @@ public class Integra7Api : IIntegra7Api
 
     public async Task<(byte /*slot1*/, byte /* slot2*/, byte /*slot3*/, byte /*slot4*/)> GetLoadedSrxAsync()
     {
+        byte[] address = [0x0F, 0x00, 0x00, 0x10];
         var msg = Integra7SysexHelpers.MakeAskLoadedSrxMsg(_deviceId);
-        try
-        {
-            await _semaphore.WaitAsync();
-            var mi = new AsyncMidiInputWrapper(_midiIn);
-            _midiOut?.SafeSend(msg);
-            var reply = await mi.WaitForMidiMessageAsync();
-            if (reply.Length == 0)
-            {
-                mi.CleanupAfterTimeOut();
-                Log.Error("Timeout waiting for MIDI reply while requesting loaded SRX.");
-            }
+        var reply = await RunRequestAsync(msg, ReplyMatchers.DataSetAt(address), "loaded SRX request");
 
-            if (reply.Length > 15) return (reply[11], reply[12], reply[13], reply[14]);
+        if (reply.Length > 15) return (reply[11], reply[12], reply[13], reply[14]);
 
-            return (0, 0, 0, 0);
-        }
-        finally
-        {
-            _semaphore.Release();
-        }
+        return (0, 0, 0, 0);
     }
 
     public async Task<List<string>> GetStudioSetNames0to63()
@@ -512,19 +531,24 @@ public class Integra7Api : IIntegra7Api
         return false;
     }
 
-    private async Task<List<string>> GetListOfNamesHelper(byte[] msg)
+    /// <summary>Read the burst. Takes the port as an argument rather than reading the field, so it is
+    /// the same one the caller checked and will drain onto -- the field can be nulled by a failed
+    /// identity check while this is running.</summary>
+    private async Task<(List<string> Names, IReadOnlyList<byte[]> Deferred)> GatherNamesAsync(
+        IMidiIn midiIn, byte[] msg)
     {
+        // Replies carry back the address they answer. Taking it from the request rather than
+        // assuming one keeps this helper correct for every name list -- Studio Set names are
+        // requested at 0f 00 03 02, where the tone lists use 0f 00 04 02.
+        var expectedAddress = NameListEndMarker.AddressOf(msg);
+
         await _semaphore.WaitAsync();
-        var mi = new AsyncMidiInputWrapper(_midiIn);
+        var mi = new AsyncMidiInputWrapper(midiIn, ReplyMatchers.NameListReply(expectedAddress));
         try
         {
             Log.Debug("DataRequest Lock acquired");
             List<byte[]> allReplies = [];
             var totalRepliesReceived = 0;
-            // Replies carry back the address they answer. Taking it from the request rather than
-            // assuming one keeps this helper correct for every name list -- Studio Set names are
-            // requested at 0f 00 03 02, where the tone lists use 0f 00 04 02.
-            var expectedAddress = NameListEndMarker.AddressOf(msg);
             _midiOut?.SafeSend(msg);
             var continueReading = true;
             while (continueReading) // concatenate multiple incoming replies
@@ -535,6 +559,14 @@ public class Integra7Api : IIntegra7Api
                     //Debug.WriteLine($"len: {localReply.Length}");
                     byte[][] multiplereplies = ByteUtils.SplitAfterF7(localReply);
                     foreach (var r in multiplereplies)
+                    {
+                        // SplitAfterF7 never fills its last slot, so every split ends in a null --
+                        // for an ordinary single reply it returns [message, null]. Skipping it here
+                        // is not tidiness: IsNameListReply answers false for null, so without this
+                        // the null fell through to r.Length below and threw on the first reply of
+                        // every burst.
+                        if (r is null) continue;
+
                         if (NameListEndMarker.IsNameListReply(r, expectedAddress))
                         {
                             allReplies.Add(r);
@@ -553,21 +585,20 @@ public class Integra7Api : IIntegra7Api
                         }
                         else if (r.Length > 0)
                         {
-                            // This reader owns the MIDI input for the whole burst, so it also sees
-                            // anything the device sends unsolicited -- e.g. the sysex it emits when a
-                            // preset is changed on its own front panel. That message is not a name-list
-                            // reply and can be far too short to hold a name; accepting it here used to
-                            // reach ByteUtils.Slice(reply, 16, 16) below and crash the assertion. Log
-                            // it instead of dropping it silently: a reply wrongly rejected by this
-                            // filter would otherwise show up only as a preset missing from the list,
-                            // with no trace of why. (A zero-length entry is just an artifact of
-                            // SplitAfterF7's trailing remainder, not a real message, so it's skipped
-                            // here rather than logged.)
+                            // A chunk can carry several concatenated messages, and the reader accepts
+                            // the whole chunk when any fragment matches -- so a fragment riding along
+                            // with a real reply lands here. It is not a name-list reply and can be far
+                            // too short to hold a name; accepting it would reach
+                            // ByteUtils.Slice(reply, 16, 16) below and trip its assertion. Log rather
+                            // than drop silently: a reply wrongly rejected by this filter would
+                            // otherwise show up only as a preset missing from the list, with no trace
+                            // of why.
                             var previewLength = Math.Min(r.Length, 8);
                             Log.Warning(
                                 "Dropped a {Length}-byte message during a name-list burst; not recognised as a name-list reply. First bytes: {Bytes}",
                                 r.Length, BitConverter.ToString(r, 0, previewLength));
                         }
+                    }
                 }
                 else
                 {
@@ -575,8 +606,9 @@ public class Integra7Api : IIntegra7Api
                     mi.CleanupAfterTimeOut();
                     if (totalRepliesReceived == 0)
                     {
-                        Log.Error("Timeout waiting for MIDI reply after data request.");
-                        return [];
+                        Log.Error("Timeout waiting for the name-list burst at {Address}.",
+                            BitConverter.ToString(expectedAddress));
+                        return ([], mi.TakeDeferred());
                     }
                 }
             }
@@ -596,7 +628,7 @@ public class Integra7Api : IIntegra7Api
                 Log.Debug($"{idx}: {n}");
             }
 
-            return names;
+            return (names, mi.TakeDeferred());
         }
         finally
         {
@@ -604,6 +636,32 @@ public class Integra7Api : IIntegra7Api
             Log.Debug("DataRequest Lock released");
             _semaphore.Release();
         }
+    }
+
+    /// <summary>Fetch a list of names, then deliver anything the device sent while the burst held the
+    /// port -- a preset change made on the front panel, most often. The burst is the longest read
+    /// window in the application, so this is where an unsolicited message is most likely to land.</summary>
+    private async Task<List<string>> GetListOfNamesHelper(byte[] msg)
+    {
+        var midiIn = _midiIn;
+        if (midiIn is null) return [];
+
+        var (names, deferred) = await GatherNamesAsync(midiIn, msg);
+
+        foreach (var m in deferred)
+        {
+            // Guarded per message: one malformed deferred message must not strand the rest.
+            try
+            {
+                midiIn.DispatchUnsolicited(m);
+            }
+            catch (Exception e)
+            {
+                Log.Warning(e, "Failed to dispatch a message deferred during a name-list burst.");
+            }
+        }
+
+        return names;
     }
 
     private async Task ChangePresetNameAsync(Integra7Domain i7domain, byte zeroBasedPartNo, string toneType,
