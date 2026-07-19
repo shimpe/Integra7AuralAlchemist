@@ -74,58 +74,14 @@ public class Integra7Api : IIntegra7Api
         return _deviceId;
     }
 
-    /// <summary>Send a request, wait for its own reply, then deliver anything else that arrived while
-    /// waiting.
-    ///
-    /// The drain runs after the semaphore is released on purpose: a deferred message must reach the UI
-    /// with the port actually free, not merely with the read logically finished. Dispatch is a
-    /// MessageBus post to a throttled subscriber, so nothing reenters synchronously -- but a resync it
-    /// triggers will take the semaphore, and it should find it available.</summary>
+    /// <summary>One request and its reply, as a conversation of its own.</summary>
     private async Task<byte[]> RunRequestAsync(byte[] request, IReplyMatcher expected, string what)
     {
-        // Captured: CheckIdentityAsync nulls the field on failure, and the drain still needs a port.
-        var midiIn = _midiIn;
-        if (midiIn is null) return [];
-
-        byte[] reply;
-        IReadOnlyList<byte[]> deferred;
-
-        await _semaphore.WaitAsync();
-        try
-        {
-            Log.Debug("DataRequest Lock acquired");
-            var mi = new AsyncMidiInputWrapper(midiIn, expected);
-            _midiOut?.SafeSend(request);
-            reply = await mi.WaitForMidiMessageAsync();
-            deferred = mi.TakeDeferred();
-            if (reply.Length == 0)
-            {
-                mi.Detach();
-                // Name what was expected, not just the kind of conversation: "data request" is the
-                // same string for every parameter read in the application, so without the address a
-                // timeout says nothing about which read gave up.
-                Log.Error("Timeout waiting for MIDI reply: {What}, expecting {Expected}.", what,
-                    expected.Describe());
-            }
-        }
-        finally
-        {
-            Log.Debug("DataRequest Lock released");
-            _semaphore.Release();
-        }
-
-        foreach (var m in deferred)
-        {
-            // Guarded per message: one malformed deferred message must not strand the rest.
-            try
-            {
-                midiIn.DispatchUnsolicited(m);
-            }
-            catch (Exception e)
-            {
-                Log.Warning(e, "Failed to dispatch a message deferred during {What}.", what);
-            }
-        }
+        await using var port = await _port.AcquireAsync(what);
+        var reply = await port.RequestAsync(request, expected);
+        if (reply.Length == 0)
+            Log.Error("Timeout waiting for MIDI reply: {What}, expecting {Expected}.", what,
+                expected.Describe());
 
         return reply;
     }
