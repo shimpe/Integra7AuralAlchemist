@@ -139,7 +139,7 @@ highest-frequency write in the application.
 ### What arrives, and how it is classified
 
 Every inbound message that nobody is waiting for reaches `MidiIn.DispatchUnsolicited`
-(`MidiIn.cs:162-179`), which sorts it into exactly three cases:
+(`MidiIn.cs:128-145`), which sorts it into exactly three cases:
 
 | the message is | what happens |
 |---|---|
@@ -150,6 +150,12 @@ Every inbound message that nobody is waiting for reaches `MidiIn.DispatchUnsolic
 "Part of a preset change" means a bank select MSB, a bank select LSB, or a program change
 (`Integra7Api.cs:480-505`). The device sends all three when you turn the patch dial, which is why the
 subscriber is throttled — otherwise one dial turn would trigger three resyncs.
+
+There is a second way in. While a read is in progress, the lease's reader owns the MIDI input, so
+anything that is not the awaited reply is **deferred** rather than dropped, and replayed through this
+same `DispatchUnsolicited` once the port is free. A front-panel preset change made during a part load
+therefore arrives at the handlers below exactly as if the application had been idle — just later. See
+[MIDI_DEVICE_ACCESS.md](MIDI_DEVICE_ACCESS.md).
 
 ### A data set becomes parameter updates
 
@@ -200,6 +206,20 @@ It answers "**which** parameters should be on screen", not "what do they say". A
 a different set of parameters is relevant, and the source caches have to be told to re-filter. If you
 are chasing a value that will not update, `ForceUiRefresh` is the wrong place to look — check that
 `PropertyChanged` fired.
+
+That is the `ResyncNeeded == false` branch. The flag is literally `ParSpec.IsParent`
+(`MainWindowViewModel.cs:734-737`), and when it is **true** the method does something quite different:
+it refreshes nothing locally and instead posts `UpdateResyncPart` (`PartViewModel.cs:1311-1317`),
+re-entering the throttled resync path and re-reading from the device. So the same call is either "just
+re-filter" or "go ask the hardware again", depending on whether a parent parameter was involved.
+
+Two more re-entries exist by design, and are worth knowing before you chase a loop:
+
+- A value refresh whose path contains `"Tone Bank Select"` or `"Tone Bank Program Number"` posts
+  `UpdateSetPresetAndResyncPart` for its part (`PartViewModel.cs:1289-1292`).
+- The resync path calls back into `ForceUiRefresh` with `ResyncNeeded: false` — explicitly, with the
+  comment `/* don't cause inf loop */` (e.g. `PartViewModel.cs:1858-1859`). That `false` is what
+  terminates the recursion; do not "fix" it to `true`.
 
 ### Echo suppression
 
@@ -289,8 +309,18 @@ The rules that follow:
 
 ## Known limits
 
-- **The raw grid's global throttle** collapses unrelated parameters. Editing two parameters within
-  250 ms in that view can drop the first. The friendly editors do not have this problem.
+- **Rx `Throttle` is a debounce, not a rate limit.** It emits only the *last* item of a burst and drops
+  the rest. That is exactly what is wanted for the MSB/LSB/PC triple, but it applies just as much to
+  the inbound `"hw2ui"` stream: two *unrelated* data-set messages arriving within 250 ms of each other
+  lose the first, and its values are never applied. All four subscriptions share this behaviour.
+- **The raw grid's global throttle** collapses unrelated parameters for the same reason. Editing two
+  parameters within 250 ms in that view can drop the first. The friendly editors do not have this
+  problem, because they throttle per key.
+- **The low-impact refresh uses `parameters.First().Par` inside the loop**
+  (`MainWindowViewModel.cs:711-716`) rather than the `spec` being iterated. Harmless today — the
+  parameters in one data-set message are contiguous, so they share the address triple the refresh keys
+  on, and none is a parent in this branch — but it refreshes the same section N times, and it would
+  target the wrong section if a message ever spanned two domains.
 - **`SyncInfo` is written from thread-pool threads** by the resync loops, unlike `IsSyncing`. It drives
   a status string rather than blocking the UI, so it has been left alone.
 - **A high-impact inbound change re-reads whole domains.** Correct, but it is the most expensive thing
