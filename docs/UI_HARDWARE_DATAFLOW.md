@@ -316,11 +316,14 @@ The rules that follow:
 - **The raw grid's global throttle** collapses unrelated parameters for the same reason. Editing two
   parameters within 250 ms in that view can drop the first. The friendly editors do not have this
   problem, because they throttle per key.
-- **The low-impact refresh uses `parameters.First().Par` inside the loop**
-  (`MainWindowViewModel.cs:711-716`) rather than the `spec` being iterated. Harmless today — the
-  parameters in one data-set message are contiguous, so they share the address triple the refresh keys
-  on, and none is a parent in this branch — but it refreshes the same section N times, and it would
-  target the wrong section if a message ever spanned two domains.
+- **The low-impact refresh looks redundant.** `MainWindowViewModel.cs:711-716` calls
+  `ForceUiRefresh(parameters.First().Par)` inside the loop, rather than for the `spec` being iterated.
+  The natural worry is that it is carrying the dependent-control visibility update — it is not.
+  `IsParent` is set at build time to exactly the set of paths some parameter names as `ParentCtrl` or
+  `ParentCtrl2` (`Tools/ParameterBlobGenerator/Integra7ParameterDatabaseAnalyzer.cs:132-145`), and this
+  branch runs only when no `IsParent` parameter changed. So nothing any filter watches has changed, and
+  no visibility can have. What remains is N identical refreshes of one section, which would additionally
+  target the wrong section if a data-set message ever spanned two domains.
 - **`SyncInfo` is written from thread-pool threads** by the resync loops, unlike `IsSyncing`. It drives
   a status string rather than blocking the UI, so it has been left alone.
 - **A high-impact inbound change re-reads whole domains.** Correct, but it is the most expensive thing
