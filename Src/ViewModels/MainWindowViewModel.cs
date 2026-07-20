@@ -7,6 +7,7 @@ using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
@@ -40,7 +41,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private int _syncLevels = 0;
+    private readonly SyncCounter _syncLevels = new();
 
     /// <summary>Progress of work that runs after the window is usable (currently the user tone names).
     /// Unlike <see cref="SyncInfo"/> this drives a status line rather than the blocking overlay.</summary>
@@ -180,25 +181,37 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private void SignalStartSync()
     {
-        IsSyncing = true;
-        _syncLevels = _syncLevels + 1;
-        Log.Debug($"Start Sync. Sync level is now {_syncLevels}.");
+        Log.Debug($"Start Sync. Sync level is now {_syncLevels.Enter()}.");
+        RefreshSyncOverlay();
     }
 
     private void SignalStopSync()
     {
-        _syncLevels = _syncLevels - 1;
-        if (_syncLevels < 0) // happens when starting the program while integra-7 is not switched on/connected
+        Log.Debug($"Stop Sync. Sync level is now {_syncLevels.Exit()}.");
+        RefreshSyncOverlay();
+    }
+
+    /// <summary>Bring the overlay in line with the counter, on the UI thread.
+    ///
+    /// The callback reads the counter rather than being handed a value, so two operations finishing
+    /// at once cannot deliver their updates out of order and leave the overlay disagreeing with the
+    /// counter: whichever callback runs last reads the truth. Posting is what puts the property
+    /// writes on the UI thread at all -- the callers run on thread-pool threads, because the handlers
+    /// driving them are throttled.</summary>
+    private void RefreshSyncOverlay()
+    {
+        Dispatcher.UIThread.Post(() =>
         {
-            _syncLevels = 0;
-        }
-        Log.Debug($"Stop Sync. Sync level is now {_syncLevels}.");
-        if (_syncLevels == 0)
-        {
-            Log.Debug($"Hide Sync notification.");
-            IsSyncing = false;
-            SyncInfo = "";
-        }
+            var visible = _syncLevels.Visible;
+            if (visible == IsSyncing) return;
+
+            IsSyncing = visible;
+            if (!visible)
+            {
+                Log.Debug("Hide Sync notification.");
+                SyncInfo = "";
+            }
+        });
     }
 
     private async Task UpdateConnectedAsync(IIntegra7Api integra7Api, List<Integra7Preset> presets)
