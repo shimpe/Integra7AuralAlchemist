@@ -707,13 +707,16 @@ public partial class MainWindowViewModel : ViewModelBase
         var HighImpactControlChanged = ParentControlModified || PresetChanged;
         if (!HighImpactControlChanged)
         {
-            // update only the affected parameters
+            // Update the reported parameters and nothing else. There is deliberately no ForceUiRefresh
+            // here: the controls follow the model through INotifyPropertyChanged, and the only thing a
+            // refresh adds is re-evaluating which parameters are visible. That depends on IsParent
+            // parameters -- IsParent is generated as exactly the set of paths some parameter names as
+            // its ParentCtrl -- and none of those changed, which is what makes this the low-impact
+            // branch. The refresh that used to be here ran once per reported parameter, always for
+            // parameters.First(), and could not affect anything.
             foreach (var spec in parameters)
-            {
                 _integra7Communicator?.GetDomain(spec.Par)
                     .ModifySingleParameterDisplayedValue(spec.Par.ParSpec.Path, spec.DisplayValue);
-                ForceUiRefresh(parameters.First().Par);
-            }
         }
         else
         {
