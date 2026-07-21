@@ -148,6 +148,11 @@ public class RotaryKnobDial : Control
             context.DrawEllipse(KnobFillBrush, new Pen(TrackBrush, 1), new Point(cx, cy),
                 bodyRadius, bodyRadius);
 
+            // An accent hub at the centre, so the knob's group colour is always visible -- the value
+            // arc has zero length at the minimum (or at 0 for a bipolar knob), and without this the
+            // colour would disappear there.
+            context.DrawEllipse(AccentBrush, null, new Point(cx, cy), bodyRadius * 0.3, bodyRadius * 0.3);
+
             var t = KnobGeometry.ValueFraction(Value, Minimum, Maximum);
             var (px, py) = KnobGeometry.PointFor(t, cx, cy, bodyRadius);
             // The pointer runs from a little out of the centre to the rim, so the middle stays clean.
