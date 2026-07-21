@@ -121,7 +121,7 @@
         <Grid MinWidth="{Binding #RackScroll.Viewport.Width}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="240"/>
+            <ColumnDefinition Width="264"/>
             <!-- Never squeezed below a usable width; the grid scrolls sideways instead. -->
             <ColumnDefinition Width="*" MinWidth="420"/>
           </Grid.ColumnDefinitions>
