@@ -58,7 +58,7 @@
                     <TextBlock Text="Tone FX" ToolTip.Tip="TFX Switch"/>
                     <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding TfxSwitch.Value, Mode=TwoWay}"/>
                 </StackPanel>
-                <Button VerticalAlignment="Bottom" Content="Advanced common parametersâ€¦"
+                <Button VerticalAlignment="Bottom" Content="Advanced common parameters…"
                         Command="{Binding AdvancedCommonCommand}"/>
             </WrapPanel>
             </ScrollViewer>

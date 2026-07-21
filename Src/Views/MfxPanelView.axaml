@@ -20,7 +20,7 @@
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                     <TextBlock Text="Multi-Effect" FontWeight="Bold"/>
-                    <TextBlock Text="â€” applies to the whole tone" Opacity="0.6" VerticalAlignment="Bottom"/>
+                    <TextBlock Text="— applies to the whole tone" Opacity="0.6" VerticalAlignment="Bottom"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Spacing="1">
                     <TextBlock Text="Bypass" ToolTip.Tip="Sets the effect to Thru (no effect); flips back to your last effect."/>
@@ -45,7 +45,7 @@
             <!-- Effect picker (family -> type) + dynamic per-type parameters (shared section) -->
             <ContentControl Content="{Binding Section}"/>
 
-            <Button HorizontalAlignment="Left" Content="Advanced MFX parametersâ€¦"
+            <Button HorizontalAlignment="Left" Content="Advanced MFX parameters…"
                     Command="{Binding AdvancedMfxCommand}"/>
         </StackPanel>
     </Border>

@@ -9,7 +9,7 @@
 
     <UserControl.Styles>
         <!-- Reserve a uniform 2-line height for control labels so wrapped labels don't push their
-             slider/combo down â€” keeps every control in a row vertically aligned. -->
+             slider/combo down — keeps every control in a row vertically aligned. -->
         <Style Selector="TextBlock.sliderLabel">
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="MinHeight" Value="30"/>
@@ -167,7 +167,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Button HorizontalAlignment="Left" Content="Advanced acoustic parametersâ€¦"
+                        <Button HorizontalAlignment="Left" Content="Advanced acoustic parameters…"
                                 Command="{Binding AdvancedAcousticCommand}"/>
                     </StackPanel>
                 </ScrollViewer>

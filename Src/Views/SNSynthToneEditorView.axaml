@@ -9,7 +9,7 @@
 
     <UserControl.Styles>
         <!-- Reserve a uniform 2-line height for control labels so wrapped labels don't push their
-             slider/combo down â€” keeps every control in a row vertically aligned. -->
+             slider/combo down — keeps every control in a row vertically aligned. -->
         <Style Selector="TextBlock.sliderLabel">
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="MinHeight" Value="30"/>
@@ -89,7 +89,7 @@
                     <ComboBox ItemsSource="{Binding Header.Ring.Options}"
                               SelectedItem="{Binding Header.Ring.Value, Mode=TwoWay}"/>
                 </StackPanel>
-                <Button VerticalAlignment="Bottom" Content="Advanced common parametersâ€¦"
+                <Button VerticalAlignment="Bottom" Content="Advanced common parameters…"
                         Command="{Binding AdvancedCommonCommand}"/>
               </WrapPanel>
 
@@ -133,7 +133,7 @@
               <Border Grid.Row="0" IsVisible="{Binding IsAuditioning}" Margin="0,0,0,8"
                       Background="{StaticResource SnAuditionBannerBrush}" CornerRadius="6" Padding="8">
                   <StackPanel Spacing="6">
-                      <TextBlock Text="Auditioning (solo/mute) â€” restore before saving"
+                      <TextBlock Text="Auditioning (solo/mute) — restore before saving"
                                  TextWrapping="Wrap" FontSize="12"/>
                       <Button Content="Restore" HorizontalAlignment="Left" Command="{Binding ClearAuditionCommand}"/>
                   </StackPanel>
@@ -303,7 +303,7 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <Button HorizontalAlignment="Left" Content="Advanced oscillator parametersâ€¦"
+                        <Button HorizontalAlignment="Left" Content="Advanced oscillator parameters…"
                                 Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).AdvancedOscillatorCommand}"/>
                     </StackPanel>
                 </Border>
@@ -423,7 +423,7 @@
                                 <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding HpfCutoff.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                             </StackPanel>
                         </StackPanel>
-                        <Button HorizontalAlignment="Left" Content="Advanced filter parametersâ€¦"
+                        <Button HorizontalAlignment="Left" Content="Advanced filter parameters…"
                                 Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).AdvancedOscillatorCommand}"/>
                     </StackPanel>
                 </Border>
@@ -442,7 +442,7 @@
                                 <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding AmpPan.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPanBrush}"/>
                             </StackPanel>
                         </StackPanel>
-                        <Button HorizontalAlignment="Left" Content="Advanced amp parametersâ€¦"
+                        <Button HorizontalAlignment="Left" Content="Advanced amp parameters…"
                                 Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).AdvancedAmpCommand}"/>
                     </StackPanel>
                 </Border>
@@ -451,7 +451,7 @@
                 <Border Grid.Row="4" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <DockPanel Grid.Row="0">
-                            <TextBlock Text="Envelopes â€” Amp + Filter (shared time / level)" FontWeight="Bold"/>
+                            <TextBlock Text="Envelopes — Amp + Filter (shared time / level)" FontWeight="Bold"/>
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10">
                                 <TextBlock Text="Filter Depth" VerticalAlignment="Center" ToolTip.Tip="Filter Env Depth"/>
                                 <controls:RotaryKnob Minimum="-63" Maximum="63"
@@ -530,13 +530,13 @@
                                 <StackPanel Spacing="6">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <TextBlock Text="Response" FontWeight="Bold"/>
-                                        <TextBlock Text="â€” how this partial reacts to playing"
+                                        <TextBlock Text="— how this partial reacts to playing"
                                                    Opacity="0.6" VerticalAlignment="Bottom"/>
                                     </StackPanel>
                                     <Grid ColumnDefinitions="130,210,210" RowDefinitions="Auto,Auto,Auto,Auto"
                                           ColumnSpacing="6" RowSpacing="10">
-                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="â†’ Brightness (filter)" FontWeight="Bold"/>
-                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="â†’ Loudness (amp)" FontWeight="Bold"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="→ Brightness (filter)" FontWeight="Bold"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="→ Loudness (amp)" FontWeight="Bold"/>
 
                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Velocity" VerticalAlignment="Center"
                                                    ToolTip.Tip="How hard you play"/>
@@ -565,7 +565,7 @@
                                                 ToolTip.Tip="AMP Level Keyfollow"
                                                 Value="{Binding AmpKeyfollow.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                     </Grid>
-                                    <Button HorizontalAlignment="Left" Content="Advanced partial parametersâ€¦"
+                                    <Button HorizontalAlignment="Left" Content="Advanced partial parameters…"
                                             Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).AdvancedOscillatorCommand}"/>
                                 </StackPanel>
                             </Border>

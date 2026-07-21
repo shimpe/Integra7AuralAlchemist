@@ -41,7 +41,7 @@
                                              MinimumPrefixLength="0" FilterMode="Contains"
                                              ItemsSource="{Binding WaveNumberL.Options}"
                                              SelectedItem="{Binding WaveNumberL.Value, Mode=TwoWay}"/>
-                            <Button Content="â–¾" Padding="8,4" VerticalAlignment="Center"
+                            <Button Content="▾" Padding="8,4" VerticalAlignment="Center"
                                     Click="BrowseWaveL" ToolTip.Tip="Browse all waves"/>
                         </StackPanel>
                     </StackPanel>
@@ -57,7 +57,7 @@
                                              MinimumPrefixLength="0" FilterMode="Contains"
                                              ItemsSource="{Binding WaveNumberR.Options}"
                                              SelectedItem="{Binding WaveNumberR.Value, Mode=TwoWay}"/>
-                            <Button Content="â–¾" Padding="8,4" VerticalAlignment="Center"
+                            <Button Content="▾" Padding="8,4" VerticalAlignment="Center"
                                     Click="BrowseWaveR" ToolTip.Tip="Browse all waves"/>
                         </StackPanel>
                     </StackPanel>

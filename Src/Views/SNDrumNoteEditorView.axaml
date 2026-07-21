@@ -23,7 +23,7 @@
                                      MinimumPrefixLength="0" FilterMode="Contains"
                                      ItemsSource="{Binding InstNumber.Options}"
                                      SelectedItem="{Binding InstNumber.Value, Mode=TwoWay}"/>
-                    <Button Content="â–¾" Padding="8,4" VerticalAlignment="Center"
+                    <Button Content="▾" Padding="8,4" VerticalAlignment="Center"
                             Click="BrowseInst" ToolTip.Tip="Browse all drum sounds"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="6">

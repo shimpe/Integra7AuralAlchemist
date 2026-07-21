@@ -91,7 +91,7 @@
                                     FocusBrush="{StaticResource SnEnvelopeFocusBrush}"/>
                                 <WrapPanel Orientation="Horizontal">
                                     <StackPanel Spacing="1" Margin="0,0,12,4">
-                                        <TextBlock Text="Times (T1â€“T4)" Opacity="0.7"/>
+                                        <TextBlock Text="Times (T1–T4)" Opacity="0.7"/>
                                         <StackPanel Orientation="Horizontal">
                                             <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding PitchEnvTime1.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                             <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding PitchEnvTime2.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
@@ -100,7 +100,7 @@
                                         </StackPanel>
                                     </StackPanel>
                                     <StackPanel Spacing="1" Margin="0,0,12,4">
-                                        <TextBlock Text="Levels (L0â€“L4)" Opacity="0.7"/>
+                                        <TextBlock Text="Levels (L0–L4)" Opacity="0.7"/>
                                         <StackPanel Orientation="Horizontal">
                                             <controls:RotaryKnob Margin="0,0,6,4" Minimum="-63" Maximum="63" Value="{Binding PitchEnvLevel0.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                             <controls:RotaryKnob Margin="0,0,6,4" Minimum="-63" Maximum="63" Value="{Binding PitchEnvLevel1.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
@@ -201,7 +201,7 @@
                                     FocusBrush="{StaticResource SnEnvelopeFocusBrush}"/>
                                 <WrapPanel Orientation="Horizontal">
                                     <StackPanel Spacing="1" Margin="0,0,12,4">
-                                        <TextBlock Text="Times (T1â€“T4)" Opacity="0.7"/>
+                                        <TextBlock Text="Times (T1–T4)" Opacity="0.7"/>
                                         <StackPanel Orientation="Horizontal">
                                             <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvfEnvTime1.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                             <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvfEnvTime2.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
@@ -210,7 +210,7 @@
                                         </StackPanel>
                                     </StackPanel>
                                     <StackPanel Spacing="1" Margin="0,0,12,4">
-                                        <TextBlock Text="Levels (L0â€“L4)" Opacity="0.7"/>
+                                        <TextBlock Text="Levels (L0–L4)" Opacity="0.7"/>
                                         <StackPanel Orientation="Horizontal">
                                             <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvfEnvLevel0.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                             <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvfEnvLevel1.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>

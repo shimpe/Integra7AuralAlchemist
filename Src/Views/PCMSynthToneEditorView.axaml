@@ -77,7 +77,7 @@
                                    Value="{Binding Header.OctaveShift.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                 </StackPanel>
 
-                <Button VerticalAlignment="Bottom" Content="Advanced common parametersâ€¦"
+                <Button VerticalAlignment="Bottom" Content="Advanced common parameters…"
                         Command="{Binding AdvancedCommonCommand}"/>
               </WrapPanel>
 
@@ -147,7 +147,7 @@
               <Border Grid.Row="0" IsVisible="{Binding IsAuditioning}" Margin="0,0,0,8"
                       Background="{StaticResource SnAuditionBannerBrush}" CornerRadius="6" Padding="8">
                   <StackPanel Spacing="6">
-                      <TextBlock Text="Auditioning (solo/mute) â€” restore before saving"
+                      <TextBlock Text="Auditioning (solo/mute) — restore before saving"
                                  TextWrapping="Wrap" FontSize="12"/>
                       <Button Content="Restore" HorizontalAlignment="Left" Command="{Binding ClearAuditionCommand}"/>
                   </StackPanel>
@@ -280,7 +280,7 @@
                                                                      MinimumPrefixLength="0" FilterMode="Contains"
                                                                      ItemsSource="{Binding WaveNumberL.Options}"
                                                                      SelectedItem="{Binding WaveNumberL.Value, Mode=TwoWay}"/>
-                                                    <Button Content="â–¾" Padding="8,4" VerticalAlignment="Center"
+                                                    <Button Content="▾" Padding="8,4" VerticalAlignment="Center"
                                                             Click="BrowseWaveL" ToolTip.Tip="Browse all waves"/>
                                                 </StackPanel>
                                             </StackPanel>
@@ -302,7 +302,7 @@
                                                                      MinimumPrefixLength="0" FilterMode="Contains"
                                                                      ItemsSource="{Binding WaveNumberR.Options}"
                                                                      SelectedItem="{Binding WaveNumberR.Value, Mode=TwoWay}"/>
-                                                    <Button Content="â–¾" Padding="8,4" VerticalAlignment="Center"
+                                                    <Button Content="▾" Padding="8,4" VerticalAlignment="Center"
                                                             Click="BrowseWaveR" ToolTip.Tip="Browse all waves"/>
                                                 </StackPanel>
                                             </StackPanel>
@@ -357,7 +357,7 @@
                                             AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
                                             HandleBrush="{StaticResource SnEnvelopeHandleBrush}"
                                             FocusBrush="{StaticResource SnEnvelopeFocusBrush}"/>
-                                        <TextBlock Text="Pitch envelope â€” drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
+                                        <TextBlock Text="Pitch envelope — drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
                                         <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Times" VerticalAlignment="Center" Opacity="0.7"/>
                                             <WrapPanel Grid.Row="0" Grid.Column="1">
@@ -434,7 +434,7 @@
                                             AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
                                             HandleBrush="{StaticResource SnEnvelopeHandleBrush}"
                                             FocusBrush="{StaticResource SnEnvelopeFocusBrush}"/>
-                                        <TextBlock Text="Filter envelope â€” drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
+                                        <TextBlock Text="Filter envelope — drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
                                         <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Times" VerticalAlignment="Center" Opacity="0.7"/>
                                             <WrapPanel Grid.Row="0" Grid.Column="1">
@@ -494,7 +494,7 @@
                                             AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
                                             HandleBrush="{StaticResource SnEnvelopeHandleBrush}"
                                             FocusBrush="{StaticResource SnEnvelopeFocusBrush}"/>
-                                        <TextBlock Text="Amp envelope â€” drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
+                                        <TextBlock Text="Amp envelope — drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
                                         <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Times" VerticalAlignment="Center" Opacity="0.7"/>
                                             <WrapPanel Grid.Row="0" Grid.Column="1">
@@ -525,7 +525,7 @@
                                                           SelectedItem="{Binding BiasDirection.Value, Mode=TwoWay}"/>
                                             </StackPanel>
                                         </StackPanel>
-                                        <Button HorizontalAlignment="Left" Content="Advanced partial parametersâ€¦"
+                                        <Button HorizontalAlignment="Left" Content="Advanced partial parameters…"
                                                 Command="{Binding #Root.((vm:PCMSynthToneEditorViewModel)DataContext).AdvancedPartialCommand}"/>
                                     </StackPanel>
                                 </Border>
@@ -559,14 +559,14 @@
                                 <StackPanel Spacing="6">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <TextBlock Text="Response" FontWeight="Bold"/>
-                                        <TextBlock Text="â€” how this partial reacts to playing"
+                                        <TextBlock Text="— how this partial reacts to playing"
                                                    Opacity="0.6" VerticalAlignment="Bottom"/>
                                     </StackPanel>
                                     <Grid ColumnDefinitions="130,200,200,200" RowDefinitions="Auto,Auto,Auto,Auto"
                                           ColumnSpacing="6" RowSpacing="10">
-                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="â†’ Brightness (filter)" FontWeight="Bold"/>
-                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="â†’ Loudness (amp)" FontWeight="Bold"/>
-                                        <TextBlock Grid.Row="0" Grid.Column="3" Text="â†’ Pitch" FontWeight="Bold"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="→ Brightness (filter)" FontWeight="Bold"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="→ Loudness (amp)" FontWeight="Bold"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="3" Text="→ Pitch" FontWeight="Bold"/>
 
                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Velocity" VerticalAlignment="Center"
                                                    ToolTip.Tip="How hard you play"/>
@@ -600,9 +600,9 @@
                                                 ToolTip.Tip="Wave Pitch Keyfollow"
                                                 Value="{Binding WavePitchKeyfollow.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                     </Grid>
-                                    <TextBlock Text="Loudness vs key position is set by Bias (on the Sound tabâ€™s Amp section)."
+                                    <TextBlock Text="Loudness vs key position is set by Bias (on the Sound tab’s Amp section)."
                                                Opacity="0.5" FontSize="11"/>
-                                    <Button HorizontalAlignment="Left" Content="Advanced partial parametersâ€¦"
+                                    <Button HorizontalAlignment="Left" Content="Advanced partial parameters…"
                                             Command="{Binding #Root.((vm:PCMSynthToneEditorViewModel)DataContext).AdvancedPartialCommand}"/>
                                 </StackPanel>
                             </Border>
