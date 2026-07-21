@@ -80,5 +80,16 @@ small set of neutral/group brushes as needed. No hardcoded hex in XAML — every
 ## Out of scope
 
 - The advanced (raw parameter grid) tabs keep their existing rendering.
+- **The FX and Instrument sections** (`DiscriminatedParamSectionView`) render through
+  `DataTemplateProvider.ParameterValueTemplate`, which is **shared with the advanced grid**
+  (`ParameterCollection.axaml`). Converting it would change the advanced tabs too — out of scope — and
+  those sliders also carry fractional values (`0.##`) that the integer knob is not built for. Left as
+  bare sliders deliberately.
 - Non-numeric controls (combo boxes, toggles) are unchanged.
 - The Motional Surround puck editor is its own visual control and is not touched.
+
+## Status
+
+Complete for the friendly editors' own controls: all 202 `ValueSlider` / `NumericUpDown` across the 13
+views are knobs, colored by function, hardware behaviour unchanged. Build clean, 423 tests green.
+Pending a look on hardware before merge.
