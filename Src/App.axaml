@@ -49,6 +49,10 @@
             <SolidColorBrush x:Key="KnobLfoBrush" Color="#5FB0C9" />
             <SolidColorBrush x:Key="KnobFxBrush" Color="#B0895F" />
             <SolidColorBrush x:Key="KnobCommonBrush" Color="#8FA0B0" />
+            <!-- Dark text for the knob value box, whose background is an accent colour. All the accent
+                 hues above are mid-toned, so near-black keeps the value readable (>=4.5:1) on every one
+                 of them, in any control state. -->
+            <SolidColorBrush x:Key="KnobEditForegroundBrush" Color="#16181A" />
 
             <!-- PCM Synth PMT zone palette. -->
             <SolidColorBrush x:Key="PmtZone1Brush" Color="#6b8dff"/>
