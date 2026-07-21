@@ -47,7 +47,7 @@
 
                 <StackPanel Spacing="2" Width="160">
                     <TextBlock Text="Tone Level"/>
-                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding Header.ToneLevel.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding Header.ToneLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2">
@@ -61,22 +61,22 @@
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Glide" ToolTip.Tip="Portamento"/>
                     <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding Header.Portamento.Value, Mode=TwoWay}"/>
-                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding Header.PortamentoTime.Value, Mode=TwoWay}"
-                            IsEnabled="{Binding Header.Portamento.Value}"/>
+                    <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding Header.PortamentoTime.Value, Mode=TwoWay}"
+                            IsEnabled="{Binding Header.Portamento.Value}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Vintage Drift" ToolTip.Tip="Analog Feel"/>
-                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding Header.AnalogFeel.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding Header.AnalogFeel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2">
                     <TextBlock Text="Octave" ToolTip.Tip="Octave Shift"/>
-                    <NumericUpDown Width="100" Minimum="-3" Maximum="3" Increment="1" FormatString="0"
-                                   Value="{Binding Header.OctaveShift.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="-3" Maximum="3"
+                                   Value="{Binding Header.OctaveShift.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                 </StackPanel>
 
-                <Button VerticalAlignment="Bottom" Content="Advanced common parameters…"
+                <Button VerticalAlignment="Bottom" Content="Advanced common parametersâ€¦"
                         Command="{Binding AdvancedCommonCommand}"/>
               </WrapPanel>
 
@@ -84,19 +84,19 @@
               <WrapPanel Orientation="Horizontal" ItemSpacing="16" LineSpacing="8">
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Brightness (Cutoff)" Classes="sliderLabel" ToolTip.Tip="Cutoff Offset"/>
-                    <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding Header.CutoffOffset.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding Header.CutoffOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Resonance" Classes="sliderLabel" ToolTip.Tip="Resonance Offset"/>
-                    <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding Header.ResonanceOffset.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding Header.ResonanceOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Attack" Classes="sliderLabel" ToolTip.Tip="Attack Time Offset"/>
-                    <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding Header.AttackOffset.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding Header.AttackOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Release" Classes="sliderLabel" ToolTip.Tip="Release Time Offset"/>
-                    <controls:ValueSlider Minimum="-63" Maximum="63" Value="{Binding Header.ReleaseOffset.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding Header.ReleaseOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                 </StackPanel>
               </WrapPanel>
 
@@ -110,8 +110,8 @@
                 </StackPanel>
                 <StackPanel Spacing="2">
                     <TextBlock Text="Phrase Octave" ToolTip.Tip="Phrase Octave Shift"/>
-                    <NumericUpDown Width="110" Minimum="-3" Maximum="3" Increment="1" FormatString="0"
-                                   Value="{Binding Header.PhraseOctaveShift.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="-3" Maximum="3"
+                                   Value="{Binding Header.PhraseOctaveShift.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                 </StackPanel>
                 <StackPanel Spacing="2">
                     <TextBlock Text="Category" ToolTip.Tip="Tone Category"/>
@@ -146,7 +146,7 @@
               <Border Grid.Row="0" IsVisible="{Binding IsAuditioning}" Margin="0,0,0,8"
                       Background="{StaticResource SnAuditionBannerBrush}" CornerRadius="6" Padding="8">
                   <StackPanel Spacing="6">
-                      <TextBlock Text="Auditioning (solo/mute) — restore before saving"
+                      <TextBlock Text="Auditioning (solo/mute) â€” restore before saving"
                                  TextWrapping="Wrap" FontSize="12"/>
                       <Button Content="Restore" HorizontalAlignment="Left" Command="{Binding ClearAuditionCommand}"/>
                   </StackPanel>
@@ -279,7 +279,7 @@
                                                                      MinimumPrefixLength="0" FilterMode="Contains"
                                                                      ItemsSource="{Binding WaveNumberL.Options}"
                                                                      SelectedItem="{Binding WaveNumberL.Value, Mode=TwoWay}"/>
-                                                    <Button Content="▾" Padding="8,4" VerticalAlignment="Center"
+                                                    <Button Content="â–¾" Padding="8,4" VerticalAlignment="Center"
                                                             Click="BrowseWaveL" ToolTip.Tip="Browse all waves"/>
                                                 </StackPanel>
                                             </StackPanel>
@@ -301,7 +301,7 @@
                                                                      MinimumPrefixLength="0" FilterMode="Contains"
                                                                      ItemsSource="{Binding WaveNumberR.Options}"
                                                                      SelectedItem="{Binding WaveNumberR.Value, Mode=TwoWay}"/>
-                                                    <Button Content="▾" Padding="8,4" VerticalAlignment="Center"
+                                                    <Button Content="â–¾" Padding="8,4" VerticalAlignment="Center"
                                                             Click="BrowseWaveR" ToolTip.Tip="Browse all waves"/>
                                                 </StackPanel>
                                             </StackPanel>
@@ -311,8 +311,8 @@
                                             </StackPanel>
                                             <StackPanel Spacing="2" Width="150">
                                                 <TextBlock Text="FXM Depth" Classes="sliderLabel" ToolTip.Tip="Wave FXM Depth"/>
-                                                <controls:ValueSlider Minimum="0" Maximum="16" Value="{Binding WaveFxmDepth.Value, Mode=TwoWay}"
-                                                        IsEnabled="{Binding WaveFxmSwitch.Value}"/>
+                                                <controls:RotaryKnob Minimum="0" Maximum="16" Value="{Binding WaveFxmDepth.Value, Mode=TwoWay}"
+                                                        IsEnabled="{Binding WaveFxmSwitch.Value}" AccentBrush="{StaticResource KnobLfoBrush}"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </StackPanel>
@@ -325,18 +325,18 @@
                                         <StackPanel Orientation="Horizontal" Spacing="16">
                                             <StackPanel Spacing="2">
                                                 <TextBlock Text="Coarse (semi)" ToolTip.Tip="Partial Coarse Tune"/>
-                                                <NumericUpDown Width="110" Minimum="-48" Maximum="48" Increment="1" FormatString="0"
-                                                               Value="{Binding CoarseTune.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Minimum="-48" Maximum="48"
+                                                               Value="{Binding CoarseTune.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                                             </StackPanel>
                                             <StackPanel Spacing="2">
                                                 <TextBlock Text="Fine (cent)" ToolTip.Tip="Partial Fine Tune"/>
-                                                <NumericUpDown Width="110" Minimum="-50" Maximum="50" Increment="1" FormatString="0"
-                                                               Value="{Binding FineTune.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Minimum="-50" Maximum="50"
+                                                               Value="{Binding FineTune.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                                             </StackPanel>
                                             <StackPanel Spacing="2">
                                                 <TextBlock Text="Env Depth" ToolTip.Tip="Pitch Env Depth"/>
-                                                <NumericUpDown Width="110" Minimum="-12" Maximum="12" Increment="1" FormatString="0"
-                                                               Value="{Binding PitchEnvDepth.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Minimum="-12" Maximum="12"
+                                                               Value="{Binding PitchEnvDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                             </StackPanel>
                                         </StackPanel>
                                         <controls:MultiStageEnvelopeControl Height="120" Bipolar="True"
@@ -356,22 +356,22 @@
                                             AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
                                             HandleBrush="{StaticResource SnEnvelopeHandleBrush}"
                                             FocusBrush="{StaticResource SnEnvelopeFocusBrush}"/>
-                                        <TextBlock Text="Pitch envelope — drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
+                                        <TextBlock Text="Pitch envelope â€” drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
                                         <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Times" VerticalAlignment="Center" Opacity="0.7"/>
                                             <WrapPanel Grid.Row="0" Grid.Column="1">
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding PitchEnvTime1.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding PitchEnvTime2.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding PitchEnvTime3.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding PitchEnvTime4.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding PitchEnvTime1.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding PitchEnvTime2.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding PitchEnvTime3.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding PitchEnvTime4.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                             </WrapPanel>
                                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Levels" VerticalAlignment="Center" Opacity="0.7"/>
                                             <WrapPanel Grid.Row="1" Grid.Column="1">
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel0.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel1.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel2.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel3.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="-63" Maximum="63" Increment="1" FormatString="0" Value="{Binding PitchEnvLevel4.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="-63" Maximum="63" Value="{Binding PitchEnvLevel0.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="-63" Maximum="63" Value="{Binding PitchEnvLevel1.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="-63" Maximum="63" Value="{Binding PitchEnvLevel2.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="-63" Maximum="63" Value="{Binding PitchEnvLevel3.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="-63" Maximum="63" Value="{Binding PitchEnvLevel4.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                             </WrapPanel>
                                         </Grid>
                                     </StackPanel>
@@ -402,18 +402,18 @@
                                         <StackPanel Orientation="Horizontal" Spacing="12">
                                             <StackPanel Spacing="2">
                                                 <TextBlock Text="Cutoff" ToolTip.Tip="TVF Cutoff Frequency"/>
-                                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                                               Value="{Binding TvfCutoff.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Minimum="0" Maximum="127"
+                                                               Value="{Binding TvfCutoff.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                             </StackPanel>
                                             <StackPanel Spacing="2">
                                                 <TextBlock Text="Resonance" ToolTip.Tip="TVF Resonance"/>
-                                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                                               Value="{Binding TvfResonance.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Minimum="0" Maximum="127"
+                                                               Value="{Binding TvfResonance.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                             </StackPanel>
                                             <StackPanel Spacing="2">
                                                 <TextBlock Text="Env Depth" ToolTip.Tip="TVF Env Depth"/>
-                                                <NumericUpDown Width="118" Minimum="-63" Maximum="63" Increment="1" FormatString="0"
-                                                               Value="{Binding TvfEnvDepth.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Minimum="-63" Maximum="63"
+                                                               Value="{Binding TvfEnvDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                             </StackPanel>
                                         </StackPanel>
                                         <controls:MultiStageEnvelopeControl Height="120"
@@ -433,22 +433,22 @@
                                             AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
                                             HandleBrush="{StaticResource SnEnvelopeHandleBrush}"
                                             FocusBrush="{StaticResource SnEnvelopeFocusBrush}"/>
-                                        <TextBlock Text="Filter envelope — drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
+                                        <TextBlock Text="Filter envelope â€” drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
                                         <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Times" VerticalAlignment="Center" Opacity="0.7"/>
                                             <WrapPanel Grid.Row="0" Grid.Column="1">
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvTime1.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvTime2.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvTime3.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvTime4.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvfEnvTime1.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvfEnvTime2.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvfEnvTime3.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvfEnvTime4.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                             </WrapPanel>
                                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Levels" VerticalAlignment="Center" Opacity="0.7"/>
                                             <WrapPanel Grid.Row="1" Grid.Column="1">
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel0.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel1.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel2.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel3.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvfEnvLevel4.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvfEnvLevel0.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvfEnvLevel1.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvfEnvLevel2.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvfEnvLevel3.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvfEnvLevel4.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                             </WrapPanel>
                                         </Grid>
                                     </StackPanel>
@@ -461,19 +461,19 @@
                                         <StackPanel Orientation="Horizontal" Spacing="16">
                                             <StackPanel Spacing="2" Width="150">
                                                 <TextBlock Text="Level" Classes="sliderLabel" ToolTip.Tip="Partial Level"/>
-                                                <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding PartialLevel.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding PartialLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                             </StackPanel>
                                             <StackPanel Spacing="2" Width="150">
                                                 <TextBlock Text="Pan (L / C / R)" Classes="sliderLabel" ToolTip.Tip="Partial Pan"/>
-                                                <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding PartialPan.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding PartialPan.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPanBrush}"/>
                                             </StackPanel>
                                             <StackPanel Spacing="2" Width="150">
                                                 <TextBlock Text="Chorus Send" Classes="sliderLabel" ToolTip.Tip="Partial Chorus Send Level"/>
-                                                <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
                                             </StackPanel>
                                             <StackPanel Spacing="2" Width="150">
                                                 <TextBlock Text="Reverb Send" Classes="sliderLabel" ToolTip.Tip="Partial Reverb Send Level"/>
-                                                <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
                                             </StackPanel>
                                         </StackPanel>
                                         <controls:MultiStageEnvelopeControl Height="120" FixedEndpoints="True"
@@ -493,30 +493,30 @@
                                             AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
                                             HandleBrush="{StaticResource SnEnvelopeHandleBrush}"
                                             FocusBrush="{StaticResource SnEnvelopeFocusBrush}"/>
-                                        <TextBlock Text="Amp envelope — drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
+                                        <TextBlock Text="Amp envelope â€” drag the graph, or edit below" Opacity="0.6" FontSize="11"/>
                                         <Grid ColumnDefinitions="60,*" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Times" VerticalAlignment="Center" Opacity="0.7"/>
                                             <WrapPanel Grid.Row="0" Grid.Column="1">
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime1.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime2.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime3.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvTime4.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvaEnvTime1.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvaEnvTime2.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvaEnvTime3.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvaEnvTime4.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                             </WrapPanel>
                                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Levels" VerticalAlignment="Center" Opacity="0.7"/>
                                             <WrapPanel Grid.Row="1" Grid.Column="1">
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvLevel1.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvLevel2.Value, Mode=TwoWay}"/>
-                                                <NumericUpDown Width="116" Margin="0,0,6,4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding TvaEnvLevel3.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvaEnvLevel1.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvaEnvLevel2.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                                                <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvaEnvLevel3.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                             </WrapPanel>
                                         </Grid>
                                         <StackPanel Orientation="Horizontal" Spacing="16">
                                             <StackPanel Spacing="2" Width="150">
                                                 <TextBlock Text="Bias Level" Classes="sliderLabel" ToolTip.Tip="Bias Level"/>
-                                                <controls:ValueSlider Minimum="-100" Maximum="100" Value="{Binding BiasLevel.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Minimum="-100" Maximum="100" Value="{Binding BiasLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                             </StackPanel>
                                             <StackPanel Spacing="2" Width="150">
                                                 <TextBlock Text="Bias Position" Classes="sliderLabel" ToolTip.Tip="Bias Position"/>
-                                                <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding BiasPosition.Value, Mode=TwoWay}"/>
+                                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding BiasPosition.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                             </StackPanel>
                                             <StackPanel Spacing="2">
                                                 <TextBlock Text="Bias Dir" ToolTip.Tip="Bias Direction"/>
@@ -524,7 +524,7 @@
                                                           SelectedItem="{Binding BiasDirection.Value, Mode=TwoWay}"/>
                                             </StackPanel>
                                         </StackPanel>
-                                        <Button HorizontalAlignment="Left" Content="Advanced partial parameters…"
+                                        <Button HorizontalAlignment="Left" Content="Advanced partial parametersâ€¦"
                                                 Command="{Binding #Root.((vm:PCMSynthToneEditorViewModel)DataContext).AdvancedPartialCommand}"/>
                                     </StackPanel>
                                 </Border>
@@ -558,26 +558,26 @@
                                 <StackPanel Spacing="12">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <TextBlock Text="Response" FontWeight="Bold"/>
-                                        <TextBlock Text="— how this partial reacts to playing"
+                                        <TextBlock Text="â€” how this partial reacts to playing"
                                                    Opacity="0.6" VerticalAlignment="Bottom"/>
                                     </StackPanel>
                                     <Grid ColumnDefinitions="130,200,200,200" RowDefinitions="Auto,Auto,Auto,Auto"
                                           ColumnSpacing="16" RowSpacing="10">
-                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="→ Brightness (filter)" FontWeight="Bold"/>
-                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="→ Loudness (amp)" FontWeight="Bold"/>
-                                        <TextBlock Grid.Row="0" Grid.Column="3" Text="→ Pitch" FontWeight="Bold"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="â†’ Brightness (filter)" FontWeight="Bold"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="â†’ Loudness (amp)" FontWeight="Bold"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="3" Text="â†’ Pitch" FontWeight="Bold"/>
 
                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Velocity" VerticalAlignment="Center"
                                                    ToolTip.Tip="How hard you play"/>
-                                        <controls:ValueSlider Grid.Row="1" Grid.Column="1" Minimum="-63" Maximum="63"
+                                        <controls:RotaryKnob Grid.Row="1" Grid.Column="1" Minimum="-63" Maximum="63"
                                                 ToolTip.Tip="TVF Cutoff Velocity Sens"
-                                                Value="{Binding TvfCutoffVeloSens.Value, Mode=TwoWay}"/>
-                                        <controls:ValueSlider Grid.Row="1" Grid.Column="2" Minimum="-63" Maximum="63"
+                                                Value="{Binding TvfCutoffVeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                        <controls:RotaryKnob Grid.Row="1" Grid.Column="2" Minimum="-63" Maximum="63"
                                                 ToolTip.Tip="TVA Velocity Sens"
-                                                Value="{Binding TvaVeloSens.Value, Mode=TwoWay}"/>
-                                        <controls:ValueSlider Grid.Row="1" Grid.Column="3" Minimum="-63" Maximum="63"
+                                                Value="{Binding TvaVeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                                        <controls:RotaryKnob Grid.Row="1" Grid.Column="3" Minimum="-63" Maximum="63"
                                                 ToolTip.Tip="Pitch Env Velocity Sens"
-                                                Value="{Binding PitchEnvVeloSens.Value, Mode=TwoWay}"/>
+                                                Value="{Binding PitchEnvVeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
 
                                         <TextBlock Grid.Row="2" Grid.Column="0" Text="Velocity curve" VerticalAlignment="Center"
                                                    ToolTip.Tip="Shape of the velocity response"/>
@@ -592,16 +592,16 @@
 
                                         <TextBlock Grid.Row="3" Grid.Column="0" Text="Key position" VerticalAlignment="Center"
                                                    ToolTip.Tip="Higher vs lower notes (keyfollow)"/>
-                                        <controls:ValueSlider Grid.Row="3" Grid.Column="1" Minimum="-200" Maximum="200"
+                                        <controls:RotaryKnob Grid.Row="3" Grid.Column="1" Minimum="-200" Maximum="200"
                                                 ToolTip.Tip="TVF Cutoff Keyfollow"
-                                                Value="{Binding TvfCutoffKeyfollow.Value, Mode=TwoWay}"/>
-                                        <controls:ValueSlider Grid.Row="3" Grid.Column="3" Minimum="-200" Maximum="200"
+                                                Value="{Binding TvfCutoffKeyfollow.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                        <controls:RotaryKnob Grid.Row="3" Grid.Column="3" Minimum="-200" Maximum="200"
                                                 ToolTip.Tip="Wave Pitch Keyfollow"
-                                                Value="{Binding WavePitchKeyfollow.Value, Mode=TwoWay}"/>
+                                                Value="{Binding WavePitchKeyfollow.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                     </Grid>
-                                    <TextBlock Text="Loudness vs key position is set by Bias (on the Sound tab’s Amp section)."
+                                    <TextBlock Text="Loudness vs key position is set by Bias (on the Sound tabâ€™s Amp section)."
                                                Opacity="0.5" FontSize="11"/>
-                                    <Button HorizontalAlignment="Left" Content="Advanced partial parameters…"
+                                    <Button HorizontalAlignment="Left" Content="Advanced partial parametersâ€¦"
                                             Command="{Binding #Root.((vm:PCMSynthToneEditorViewModel)DataContext).AdvancedPartialCommand}"/>
                                 </StackPanel>
                             </Border>

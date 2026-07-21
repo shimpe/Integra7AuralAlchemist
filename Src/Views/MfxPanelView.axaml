@@ -19,7 +19,7 @@
             <Grid ColumnDefinitions="*,Auto">
                 <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                     <TextBlock Text="Multi-Effect" FontWeight="Bold"/>
-                    <TextBlock Text="— applies to the whole tone" Opacity="0.6" VerticalAlignment="Bottom"/>
+                    <TextBlock Text="â€” applies to the whole tone" Opacity="0.6" VerticalAlignment="Bottom"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Spacing="2">
                     <TextBlock Text="Bypass" ToolTip.Tip="Sets the effect to Thru (no effect); flips back to your last effect."/>
@@ -31,11 +31,11 @@
             <StackPanel Orientation="Horizontal" Spacing="16">
                 <StackPanel Spacing="2" Width="200">
                     <TextBlock Classes="sliderLabel" Text="Chorus send" ToolTip.Tip="MFX Chorus Send Level"/>
-                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="200">
                     <TextBlock Classes="sliderLabel" Text="Reverb send" ToolTip.Tip="MFX Reverb Send Level"/>
-                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
                 </StackPanel>
             </StackPanel>
 
@@ -44,7 +44,7 @@
             <!-- Effect picker (family -> type) + dynamic per-type parameters (shared section) -->
             <ContentControl Content="{Binding Section}"/>
 
-            <Button HorizontalAlignment="Left" Content="Advanced MFX parameters…"
+            <Button HorizontalAlignment="Left" Content="Advanced MFX parametersâ€¦"
                     Command="{Binding AdvancedMfxCommand}"/>
         </StackPanel>
     </Border>

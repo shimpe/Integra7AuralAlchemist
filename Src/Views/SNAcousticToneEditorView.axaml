@@ -9,7 +9,7 @@
 
     <UserControl.Styles>
         <!-- Reserve a uniform 2-line height for control labels so wrapped labels don't push their
-             slider/combo down — keeps every control in a row vertically aligned. -->
+             slider/combo down â€” keeps every control in a row vertically aligned. -->
         <Style Selector="TextBlock.sliderLabel">
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="MinHeight" Value="40"/>
@@ -43,7 +43,7 @@
 
                 <StackPanel Spacing="2" Width="160">
                     <TextBlock Text="Tone Level"/>
-                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding ToneLevel.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ToneLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2">
@@ -54,18 +54,18 @@
 
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Octave Shift" ToolTip.Tip="Octave Shift"/>
-                    <controls:ValueSlider Minimum="-3" Maximum="3" Value="{Binding OctaveShift.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="-3" Maximum="3" Value="{Binding OctaveShift.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Portamento" ToolTip.Tip="Portamento Time Offset"/>
-                    <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding PortamentoOffset.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding PortamentoOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2">
                     <TextBlock Text="Category" ToolTip.Tip="Category"/>
-                    <NumericUpDown Width="110" Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                   Value="{Binding Category.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="0" Maximum="127"
+                                   Value="{Binding Category.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                 </StackPanel>
               </WrapPanel>
 
@@ -79,8 +79,8 @@
                 </StackPanel>
                 <StackPanel Spacing="2">
                     <TextBlock Text="Phrase Octave" ToolTip.Tip="Phrase Octave Shift"/>
-                    <NumericUpDown Width="110" Minimum="-3" Maximum="3" Increment="1" FormatString="0"
-                                   Value="{Binding PhraseOctaveShift.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="-3" Maximum="3"
+                                   Value="{Binding PhraseOctaveShift.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                 </StackPanel>
               </WrapPanel>
             </StackPanel>
@@ -122,33 +122,33 @@
                                 <StackPanel Orientation="Horizontal" Spacing="16">
                                     <StackPanel Spacing="2" Width="150">
                                         <TextBlock Text="Brightness (Cutoff)" Classes="sliderLabel" ToolTip.Tip="Cutoff Offset"/>
-                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding CutoffOffset.Value, Mode=TwoWay}"/>
+                                        <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding CutoffOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="2" Width="150">
                                         <TextBlock Text="Resonance" Classes="sliderLabel" ToolTip.Tip="Resonance Offset"/>
-                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding ResonanceOffset.Value, Mode=TwoWay}"/>
+                                        <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding ResonanceOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="2" Width="150">
                                         <TextBlock Text="Attack" Classes="sliderLabel" ToolTip.Tip="Attack Time Offset"/>
-                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding AttackOffset.Value, Mode=TwoWay}"/>
+                                        <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding AttackOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="2" Width="150">
                                         <TextBlock Text="Release" Classes="sliderLabel" ToolTip.Tip="Release Time Offset"/>
-                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding ReleaseOffset.Value, Mode=TwoWay}"/>
+                                        <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding ReleaseOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                     </StackPanel>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Spacing="16">
                                     <StackPanel Spacing="2" Width="150">
                                         <TextBlock Text="Vibrato Rate" Classes="sliderLabel" ToolTip.Tip="Vibrato Rate"/>
-                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding VibratoRate.Value, Mode=TwoWay}"/>
+                                        <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding VibratoRate.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="2" Width="150">
                                         <TextBlock Text="Vibrato Depth" Classes="sliderLabel" ToolTip.Tip="Vibrato Depth"/>
-                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding VibratoDepth.Value, Mode=TwoWay}"/>
+                                        <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding VibratoDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="2" Width="150">
                                         <TextBlock Text="Vibrato Delay" Classes="sliderLabel" ToolTip.Tip="Vibrato Delay"/>
-                                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding VibratoDelay.Value, Mode=TwoWay}"/>
+                                        <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding VibratoDelay.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
                                     </StackPanel>
                                 </StackPanel>
                             </StackPanel>
@@ -166,7 +166,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Button HorizontalAlignment="Left" Content="Advanced acoustic parameters…"
+                        <Button HorizontalAlignment="Left" Content="Advanced acoustic parametersâ€¦"
                                 Command="{Binding AdvancedAcousticCommand}"/>
                     </StackPanel>
                 </ScrollViewer>

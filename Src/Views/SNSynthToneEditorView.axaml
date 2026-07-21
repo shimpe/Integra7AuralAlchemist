@@ -9,7 +9,7 @@
 
     <UserControl.Styles>
         <!-- Reserve a uniform 2-line height for control labels so wrapped labels don't push their
-             slider/combo down — keeps every control in a row vertically aligned. -->
+             slider/combo down â€” keeps every control in a row vertically aligned. -->
         <Style Selector="TextBlock.sliderLabel">
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="MinHeight" Value="40"/>
@@ -49,7 +49,7 @@
 
                 <StackPanel Spacing="2" Width="160">
                     <TextBlock Text="Tone Level" />
-                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding Header.ToneLevel.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding Header.ToneLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2">
@@ -64,9 +64,9 @@
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Glide" ToolTip.Tip="Portamento"/>
                     <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding Header.Portamento.Value, Mode=TwoWay}"/>
-                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding Header.PortamentoTime.Value, Mode=TwoWay}"
+                    <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding Header.PortamentoTime.Value, Mode=TwoWay}"
                             IsEnabled="{Binding Header.Portamento.Value}"
-                            ToolTip.Tip="Glide time (active only when Glide is on)."/>
+                            ToolTip.Tip="Glide time (active only when Glide is on)." AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2">
@@ -80,7 +80,7 @@
 
                 <StackPanel Spacing="2" Width="150">
                     <TextBlock Text="Vintage Drift" ToolTip.Tip="Analog Feel"/>
-                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding Header.AnalogFeel.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding Header.AnalogFeel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                 </StackPanel>
 
                 <StackPanel Spacing="2">
@@ -88,7 +88,7 @@
                     <ComboBox ItemsSource="{Binding Header.Ring.Options}"
                               SelectedItem="{Binding Header.Ring.Value, Mode=TwoWay}"/>
                 </StackPanel>
-                <Button VerticalAlignment="Bottom" Content="Advanced common parameters…"
+                <Button VerticalAlignment="Bottom" Content="Advanced common parametersâ€¦"
                         Command="{Binding AdvancedCommonCommand}"/>
               </WrapPanel>
 
@@ -102,8 +102,8 @@
                 </StackPanel>
                 <StackPanel Spacing="2">
                     <TextBlock Text="Phrase Octave" ToolTip.Tip="Phrase Octave Shift"/>
-                    <NumericUpDown Width="110" Minimum="-3" Maximum="3" Increment="1" FormatString="0"
-                                   Value="{Binding Header.PhraseOctaveShift.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="-3" Maximum="3"
+                                   Value="{Binding Header.PhraseOctaveShift.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                 </StackPanel>
               </WrapPanel>
             </StackPanel>
@@ -132,7 +132,7 @@
               <Border Grid.Row="0" IsVisible="{Binding IsAuditioning}" Margin="0,0,0,8"
                       Background="{StaticResource SnAuditionBannerBrush}" CornerRadius="6" Padding="8">
                   <StackPanel Spacing="6">
-                      <TextBlock Text="Auditioning (solo/mute) — restore before saving"
+                      <TextBlock Text="Auditioning (solo/mute) â€” restore before saving"
                                  TextWrapping="Wrap" FontSize="12"/>
                       <Button Content="Restore" HorizontalAlignment="Left" Command="{Binding ClearAuditionCommand}"/>
                   </StackPanel>
@@ -260,32 +260,32 @@
                             </StackPanel>
                             <StackPanel Spacing="2" Width="160">
                                 <TextBlock Text="Pitch (semitones)" Classes="sliderLabel" ToolTip.Tip="OSC Pitch"/>
-                                <controls:ValueSlider Minimum="-24" Maximum="24" Value="{Binding OscPitch.Value, Mode=TwoWay}"/>
+                                <controls:RotaryKnob Minimum="-24" Maximum="24" Value="{Binding OscPitch.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="160">
                                 <TextBlock Text="Detune" Classes="sliderLabel" ToolTip.Tip="OSC Detune (Flat / Center / Sharp)"/>
-                                <controls:ValueSlider Minimum="-50" Maximum="50" Value="{Binding OscDetune.Value, Mode=TwoWay}"/>
+                                <controls:RotaryKnob Minimum="-50" Maximum="50" Value="{Binding OscDetune.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                             </StackPanel>
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding ShowsPulseWidth}">
                             <StackPanel Spacing="2" Width="160">
                                 <TextBlock Text="Pulse Width" Classes="sliderLabel" ToolTip.Tip="OSC Pulse Width"/>
-                                <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding OscPulseWidth.Value, Mode=TwoWay}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding OscPulseWidth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="160">
                                 <TextBlock Text="PW Shift" Classes="sliderLabel" ToolTip.Tip="OSC Pulse Width shift"/>
-                                <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding OscPulseWidthShift.Value, Mode=TwoWay}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding OscPulseWidthShift.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="160">
                                 <TextBlock Text="PWM Depth" Classes="sliderLabel" ToolTip.Tip="OSC Pulse Width Mod Depth"/>
-                                <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding OscPwmDepth.Value, Mode=TwoWay}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding OscPwmDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
                             </StackPanel>
                         </StackPanel>
 
                         <StackPanel Spacing="2" Width="200" IsVisible="{Binding ShowsSuperSawDetune}">
                             <TextBlock Text="Super Saw Detune" Classes="sliderLabel" ToolTip.Tip="Super Saw Detune"/>
-                            <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding SuperSawDetune.Value, Mode=TwoWay}"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding SuperSawDetune.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding ShowsPcm}">
@@ -302,7 +302,7 @@
                             </StackPanel>
                         </StackPanel>
 
-                        <Button HorizontalAlignment="Left" Content="Advanced oscillator parameters…"
+                        <Button HorizontalAlignment="Left" Content="Advanced oscillator parametersâ€¦"
                                 Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).AdvancedOscillatorCommand}"/>
                     </StackPanel>
                 </Border>
@@ -318,18 +318,18 @@
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="Octave" ToolTip.Tip="Octave Shift"/>
-                                        <NumericUpDown Width="100" Minimum="-3" Maximum="3" Increment="1" FormatString="0"
-                                                       Value="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).Header.OctaveShift.Value, Mode=TwoWay}"/>
+                                        <controls:RotaryKnob Minimum="-3" Maximum="3"
+                                                       Value="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).Header.OctaveShift.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="Bend Up" ToolTip.Tip="Pitch Bend Range Up"/>
-                                        <NumericUpDown Width="100" Minimum="0" Maximum="24" Increment="1" FormatString="0"
-                                                       Value="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).Header.PitchBendUp.Value, Mode=TwoWay}"/>
+                                        <controls:RotaryKnob Minimum="0" Maximum="24"
+                                                       Value="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).Header.PitchBendUp.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="Bend Down" ToolTip.Tip="Pitch Bend Range Down"/>
-                                        <NumericUpDown Width="100" Minimum="0" Maximum="24" Increment="1" FormatString="0"
-                                                       Value="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).Header.PitchBendDown.Value, Mode=TwoWay}"/>
+                                        <controls:RotaryKnob Minimum="0" Maximum="24"
+                                                       Value="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).Header.PitchBendDown.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                     </StackPanel>
                                 </StackPanel>
                             </StackPanel>
@@ -350,18 +350,18 @@
                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="Attack" ToolTip.Tip="OSC Pitch Env Attack Time"/>
-                                        <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                                       Value="{Binding PitchEnvAttack.Value, Mode=TwoWay}"/>
+                                        <controls:RotaryKnob Minimum="0" Maximum="127"
+                                                       Value="{Binding PitchEnvAttack.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="Decay" ToolTip.Tip="OSC Pitch Env Decay"/>
-                                        <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                                       Value="{Binding PitchEnvDecay.Value, Mode=TwoWay}"/>
+                                        <controls:RotaryKnob Minimum="0" Maximum="127"
+                                                       Value="{Binding PitchEnvDecay.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                     </StackPanel>
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="Depth" ToolTip.Tip="OSC Pitch Env Depth"/>
-                                        <NumericUpDown Width="118" Minimum="-63" Maximum="63" Increment="1" FormatString="0"
-                                                       Value="{Binding PitchEnvDepth.Value, Mode=TwoWay}"/>
+                                        <controls:RotaryKnob Minimum="-63" Maximum="63"
+                                                       Value="{Binding PitchEnvDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                     </StackPanel>
                                 </StackPanel>
                             </StackPanel>
@@ -407,22 +407,22 @@
                         <StackPanel Orientation="Horizontal" Spacing="12">
                             <StackPanel Spacing="2">
                                 <TextBlock Text="Cutoff (Brightness)" ToolTip.Tip="Filter Cutoff"/>
-                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                               Value="{Binding FilterCutoff.Value, Mode=TwoWay}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127"
+                                               Value="{Binding FilterCutoff.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                             </StackPanel>
                             <StackPanel Spacing="2">
                                 <TextBlock Text="Resonance" ToolTip.Tip="Filter Resonance"/>
-                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0"
-                                               Value="{Binding FilterResonance.Value, Mode=TwoWay}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127"
+                                               Value="{Binding FilterResonance.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                             </StackPanel>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="16">
                             <StackPanel Spacing="2" Width="150">
                                 <TextBlock Text="HPF Cutoff" Classes="sliderLabel" ToolTip.Tip="HPF Cutoff"/>
-                                <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding HpfCutoff.Value, Mode=TwoWay}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding HpfCutoff.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                             </StackPanel>
                         </StackPanel>
-                        <Button HorizontalAlignment="Left" Content="Advanced filter parameters…"
+                        <Button HorizontalAlignment="Left" Content="Advanced filter parametersâ€¦"
                                 Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).AdvancedOscillatorCommand}"/>
                     </StackPanel>
                 </Border>
@@ -434,14 +434,14 @@
                         <StackPanel Orientation="Horizontal" Spacing="16">
                             <StackPanel Spacing="2" Width="160">
                                 <TextBlock Text="Level" Classes="sliderLabel" ToolTip.Tip="AMP Level"/>
-                                <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding AmpLevel.Value, Mode=TwoWay}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding AmpLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                             </StackPanel>
                             <StackPanel Spacing="2" Width="160">
                                 <TextBlock Text="Pan (L / C / R)" Classes="sliderLabel" ToolTip.Tip="AMP Pan"/>
-                                <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding AmpPan.Value, Mode=TwoWay}"/>
+                                <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding AmpPan.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPanBrush}"/>
                             </StackPanel>
                         </StackPanel>
-                        <Button HorizontalAlignment="Left" Content="Advanced amp parameters…"
+                        <Button HorizontalAlignment="Left" Content="Advanced amp parametersâ€¦"
                                 Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).AdvancedAmpCommand}"/>
                     </StackPanel>
                 </Border>
@@ -450,11 +450,11 @@
                 <Border Grid.Row="4" Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
                     <Grid RowDefinitions="Auto,*,Auto">
                         <DockPanel Grid.Row="0">
-                            <TextBlock Text="Envelopes — Amp + Filter (shared time / level)" FontWeight="Bold"/>
+                            <TextBlock Text="Envelopes â€” Amp + Filter (shared time / level)" FontWeight="Bold"/>
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10">
                                 <TextBlock Text="Filter Depth" VerticalAlignment="Center" ToolTip.Tip="Filter Env Depth"/>
-                                <controls:ValueSlider Width="120" Minimum="-63" Maximum="63"
-                                        Value="{Binding FilterEnvDepth.Value, Mode=TwoWay}" VerticalAlignment="Center"/>
+                                <controls:RotaryKnob Minimum="-63" Maximum="63"
+                                        Value="{Binding FilterEnvDepth.Value, Mode=TwoWay}" VerticalAlignment="Center" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                 <ComboBox SelectedIndex="{Binding ActiveEnvelope, Mode=TwoWay}" VerticalAlignment="Center"
                                           ToolTip.Tip="Which envelope the keyboard edits">
                                     <ComboBoxItem>Amp</ComboBoxItem>
@@ -485,18 +485,18 @@
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Amp A/D/S/R" Foreground="{StaticResource SnAmpEnvelopeBrush}"
                                        VerticalAlignment="Center" Margin="0,0,8,2"/>
                             <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,0,2">
-                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvAttack.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvDecay.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvSustain.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding AmpEnvRelease.Value, Mode=TwoWay}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding AmpEnvAttack.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding AmpEnvDecay.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding AmpEnvSustain.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding AmpEnvRelease.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                             </StackPanel>
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Filter A/D/S/R" Foreground="{StaticResource SnFilterEnvelopeBrush}"
                                        VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvAttack.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvDecay.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvSustain.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Width="118" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding FilterEnvRelease.Value, Mode=TwoWay}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding FilterEnvAttack.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding FilterEnvDecay.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding FilterEnvSustain.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding FilterEnvRelease.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                             </StackPanel>
                         </Grid>
                     </Grid>
@@ -529,42 +529,42 @@
                                 <StackPanel Spacing="12">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <TextBlock Text="Response" FontWeight="Bold"/>
-                                        <TextBlock Text="— how this partial reacts to playing"
+                                        <TextBlock Text="â€” how this partial reacts to playing"
                                                    Opacity="0.6" VerticalAlignment="Bottom"/>
                                     </StackPanel>
                                     <Grid ColumnDefinitions="130,210,210" RowDefinitions="Auto,Auto,Auto,Auto"
                                           ColumnSpacing="16" RowSpacing="10">
-                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="→ Brightness (filter)" FontWeight="Bold"/>
-                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="→ Loudness (amp)" FontWeight="Bold"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="â†’ Brightness (filter)" FontWeight="Bold"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="â†’ Loudness (amp)" FontWeight="Bold"/>
 
                                         <TextBlock Grid.Row="1" Grid.Column="0" Text="Velocity" VerticalAlignment="Center"
                                                    ToolTip.Tip="How hard you play"/>
-                                        <controls:ValueSlider Grid.Row="1" Grid.Column="1" Minimum="-63" Maximum="63"
+                                        <controls:RotaryKnob Grid.Row="1" Grid.Column="1" Minimum="-63" Maximum="63"
                                                 ToolTip.Tip="Filter Env Velocity Sens"
-                                                Value="{Binding FilterEnvVeloSens.Value, Mode=TwoWay}"/>
-                                        <controls:ValueSlider Grid.Row="1" Grid.Column="2" Minimum="-63" Maximum="63"
+                                                Value="{Binding FilterEnvVeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                        <controls:RotaryKnob Grid.Row="1" Grid.Column="2" Minimum="-63" Maximum="63"
                                                 ToolTip.Tip="AMP Level Velocity Sens"
-                                                Value="{Binding AmpVeloSens.Value, Mode=TwoWay}"/>
+                                                Value="{Binding AmpVeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
 
                                         <TextBlock Grid.Row="2" Grid.Column="0" Text="Aftertouch" VerticalAlignment="Center"
                                                    ToolTip.Tip="Pressure after the key is down"/>
-                                        <controls:ValueSlider Grid.Row="2" Grid.Column="1" Minimum="-63" Maximum="63"
+                                        <controls:RotaryKnob Grid.Row="2" Grid.Column="1" Minimum="-63" Maximum="63"
                                                 ToolTip.Tip="Cutoff Aftertouch Sens"
-                                                Value="{Binding CutoffAftertouchSens.Value, Mode=TwoWay}"/>
-                                        <controls:ValueSlider Grid.Row="2" Grid.Column="2" Minimum="-63" Maximum="63"
+                                                Value="{Binding CutoffAftertouchSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                        <controls:RotaryKnob Grid.Row="2" Grid.Column="2" Minimum="-63" Maximum="63"
                                                 ToolTip.Tip="Level Aftertouch Sens"
-                                                Value="{Binding LevelAftertouchSens.Value, Mode=TwoWay}"/>
+                                                Value="{Binding LevelAftertouchSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
 
                                         <TextBlock Grid.Row="3" Grid.Column="0" Text="Key position" VerticalAlignment="Center"
                                                    ToolTip.Tip="Higher vs lower notes (keyfollow)"/>
-                                        <controls:ValueSlider Grid.Row="3" Grid.Column="1" Minimum="-100" Maximum="100"
+                                        <controls:RotaryKnob Grid.Row="3" Grid.Column="1" Minimum="-100" Maximum="100"
                                                 ToolTip.Tip="Filter Cutoff Keyfollow"
-                                                Value="{Binding FilterCutoffKeyfollow.Value, Mode=TwoWay}"/>
-                                        <controls:ValueSlider Grid.Row="3" Grid.Column="2" Minimum="-100" Maximum="100"
+                                                Value="{Binding FilterCutoffKeyfollow.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                                        <controls:RotaryKnob Grid.Row="3" Grid.Column="2" Minimum="-100" Maximum="100"
                                                 ToolTip.Tip="AMP Level Keyfollow"
-                                                Value="{Binding AmpKeyfollow.Value, Mode=TwoWay}"/>
+                                                Value="{Binding AmpKeyfollow.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                     </Grid>
-                                    <Button HorizontalAlignment="Left" Content="Advanced partial parameters…"
+                                    <Button HorizontalAlignment="Left" Content="Advanced partial parametersâ€¦"
                                             Command="{Binding #Root.((vm:SNSynthToneEditorViewModel)DataContext).AdvancedOscillatorCommand}"/>
                                 </StackPanel>
                             </Border>

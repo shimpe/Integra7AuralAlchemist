@@ -40,7 +40,7 @@
                                              MinimumPrefixLength="0" FilterMode="Contains"
                                              ItemsSource="{Binding WaveNumberL.Options}"
                                              SelectedItem="{Binding WaveNumberL.Value, Mode=TwoWay}"/>
-                            <Button Content="▾" Padding="8,4" VerticalAlignment="Center"
+                            <Button Content="â–¾" Padding="8,4" VerticalAlignment="Center"
                                     Click="BrowseWaveL" ToolTip.Tip="Browse all waves"/>
                         </StackPanel>
                     </StackPanel>
@@ -56,7 +56,7 @@
                                              MinimumPrefixLength="0" FilterMode="Contains"
                                              ItemsSource="{Binding WaveNumberR.Options}"
                                              SelectedItem="{Binding WaveNumberR.Value, Mode=TwoWay}"/>
-                            <Button Content="▾" Padding="8,4" VerticalAlignment="Center"
+                            <Button Content="â–¾" Padding="8,4" VerticalAlignment="Center"
                                     Click="BrowseWaveR" ToolTip.Tip="Browse all waves"/>
                         </StackPanel>
                     </StackPanel>
@@ -71,19 +71,19 @@
                 <WrapPanel Orientation="Horizontal">
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Level" Classes="sliderLabel"/>
-                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding Level.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding Level.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Pan (L / C / R)" Classes="sliderLabel"/>
-                        <controls:ValueSlider Minimum="-64" Maximum="63" Value="{Binding Pan.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding Pan.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPanBrush}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Coarse Tune" Classes="sliderLabel"/>
-                        <controls:ValueSlider Minimum="-48" Maximum="48" Value="{Binding CoarseTune.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="-48" Maximum="48" Value="{Binding CoarseTune.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Fine Tune" Classes="sliderLabel"/>
-                        <controls:ValueSlider Minimum="-50" Maximum="50" Value="{Binding FineTune.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="-50" Maximum="50" Value="{Binding FineTune.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Margin="0,0,16,8">
                         <TextBlock Text="Metallic (FXM)" ToolTip.Tip="Wave FXM Switch"/>
@@ -91,13 +91,13 @@
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="FXM Color" Classes="sliderLabel"/>
-                        <controls:ValueSlider Minimum="1" Maximum="4" Value="{Binding FxmColor.Value, Mode=TwoWay}"
-                                              IsEnabled="{Binding FxmSwitch.Value}"/>
+                        <controls:RotaryKnob Minimum="1" Maximum="4" Value="{Binding FxmColor.Value, Mode=TwoWay}"
+                                              IsEnabled="{Binding FxmSwitch.Value}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="FXM Depth" Classes="sliderLabel"/>
-                        <controls:ValueSlider Minimum="0" Maximum="16" Value="{Binding FxmDepth.Value, Mode=TwoWay}"
-                                              IsEnabled="{Binding FxmSwitch.Value}"/>
+                        <controls:RotaryKnob Minimum="0" Maximum="16" Value="{Binding FxmDepth.Value, Mode=TwoWay}"
+                                              IsEnabled="{Binding FxmSwitch.Value}" AccentBrush="{StaticResource KnobLfoBrush}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Margin="0,0,16,8">
                         <TextBlock Text="Tempo Sync" ToolTip.Tip="Wave Tempo Sync"/>
@@ -123,19 +123,19 @@
                 <WrapPanel Orientation="Horizontal">
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Range Lower" Classes="sliderLabel"/>
-                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding RangeLower.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding RangeLower.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Range Upper" Classes="sliderLabel"/>
-                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding RangeUpper.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding RangeUpper.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Fade Lower" Classes="sliderLabel"/>
-                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding FadeLower.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding FadeLower.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="160" Margin="0,0,16,8">
                         <TextBlock Text="Fade Upper" Classes="sliderLabel"/>
-                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding FadeUpper.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding FadeUpper.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
                     </StackPanel>
                 </WrapPanel>
             </StackPanel>

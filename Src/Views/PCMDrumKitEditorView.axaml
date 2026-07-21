@@ -42,7 +42,7 @@
                 </StackPanel>
                 <StackPanel Spacing="2" Width="160">
                     <TextBlock Text="Kit Level"/>
-                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding KitLevel.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding KitLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                 </StackPanel>
                 <StackPanel Spacing="2" Width="260">
                     <TextBlock Text="Phrase" ToolTip.Tip="Phrase Number"/>
@@ -54,7 +54,7 @@
                     <TextBlock Text="Tone FX" ToolTip.Tip="TFX Switch"/>
                     <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding TfxSwitch.Value, Mode=TwoWay}"/>
                 </StackPanel>
-                <Button VerticalAlignment="Bottom" Content="Advanced common parameters…"
+                <Button VerticalAlignment="Bottom" Content="Advanced common parametersâ€¦"
                         Command="{Binding AdvancedCommonCommand}"/>
             </WrapPanel>
             </ScrollViewer>

@@ -47,11 +47,11 @@
                 <StackPanel Orientation="Horizontal" Spacing="16">
                     <StackPanel Spacing="2" Width="200">
                         <TextBlock Text="Threshold"/>
-                        <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding CompThreshold.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding CompThreshold.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                     </StackPanel>
                     <StackPanel Spacing="2" Width="200">
                         <TextBlock Text="Output Gain"/>
-                        <controls:ValueSlider Minimum="0" Maximum="24" Unit="dB" Value="{Binding CompGain.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="0" Maximum="24" Unit="dB" Value="{Binding CompGain.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                     </StackPanel>
                 </StackPanel>
             </StackPanel>
@@ -73,7 +73,7 @@
                     </StackPanel>
                     <StackPanel Spacing="2" Width="200">
                         <TextBlock Text="Low Gain"/>
-                        <controls:ValueSlider Minimum="-15" Maximum="15" Unit="dB" Value="{Binding EqLowGain.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="-15" Maximum="15" Unit="dB" Value="{Binding EqLowGain.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="16">
@@ -87,7 +87,7 @@
                     </StackPanel>
                     <StackPanel Spacing="2" Width="200">
                         <TextBlock Text="Mid Gain"/>
-                        <controls:ValueSlider Minimum="-15" Maximum="15" Unit="dB" Value="{Binding EqMidGain.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="-15" Maximum="15" Unit="dB" Value="{Binding EqMidGain.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="16">
@@ -97,7 +97,7 @@
                     </StackPanel>
                     <StackPanel Spacing="2" Width="200">
                         <TextBlock Text="High Gain"/>
-                        <controls:ValueSlider Minimum="-15" Maximum="15" Unit="dB" Value="{Binding EqHighGain.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="-15" Maximum="15" Unit="dB" Value="{Binding EqHighGain.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                     </StackPanel>
                 </StackPanel>
             </StackPanel>
