@@ -12,7 +12,7 @@
              slider/combo down — keeps every control in a row vertically aligned. -->
         <Style Selector="TextBlock.sliderLabel">
             <Setter Property="TextWrapping" Value="Wrap"/>
-            <Setter Property="MinHeight" Value="30"/>
+            <Setter Property="MinHeight" Value="38"/>
             <Setter Property="VerticalAlignment" Value="Bottom"/>
         </Style>
     </UserControl.Styles>
