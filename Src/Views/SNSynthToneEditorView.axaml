@@ -534,7 +534,7 @@
                                         <TextBlock Text="— how this partial reacts to playing"
                                                    Opacity="0.6" VerticalAlignment="Bottom"/>
                                     </StackPanel>
-                                    <Grid ColumnDefinitions="130,210,210" RowDefinitions="Auto,Auto,Auto,Auto"
+                                    <Grid ColumnDefinitions="90,130,130" RowDefinitions="Auto,Auto,Auto,Auto"
                                           ColumnSpacing="6" RowSpacing="10">
                                         <TextBlock Grid.Row="0" Grid.Column="1" Text="→ Brightness (filter)" FontWeight="Bold"/>
                                         <TextBlock Grid.Row="0" Grid.Column="2" Text="→ Loudness (amp)" FontWeight="Bold"/>

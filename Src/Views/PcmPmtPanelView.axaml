@@ -62,7 +62,7 @@
         <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
             <StackPanel Spacing="6">
                 <TextBlock Text="Precise values" FontWeight="Bold"/>
-                <Grid ColumnDefinitions="40,60,110,110,110,110,110,110,110,110" ColumnSpacing="6">
+                <Grid ColumnDefinitions="40,60,64,64,64,64,64,64,64,64" ColumnSpacing="6">
                     <TextBlock Grid.Column="2" Text="Key Lo" Opacity="0.6" FontSize="11"/>
                     <TextBlock Grid.Column="3" Text="Key Hi" Opacity="0.6" FontSize="11"/>
                     <TextBlock Grid.Column="4" Text="Key Fade Lo" Opacity="0.6" FontSize="11"/>
@@ -75,7 +75,7 @@
                 <ItemsControl ItemsSource="{Binding Zones}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:PcmPmtZoneViewModel">
-                            <Grid ColumnDefinitions="40,60,110,110,110,110,110,110,110,110" ColumnSpacing="6" Margin="0,2">
+                            <Grid ColumnDefinitions="40,60,64,64,64,64,64,64,64,64" ColumnSpacing="6" Margin="0,2">
                                 <TextBlock Grid.Column="0" Text="{Binding Title}" VerticalAlignment="Center" FontWeight="SemiBold"/>
                                 <ToggleSwitch Grid.Column="1" OnContent="" OffContent="" IsChecked="{Binding On.Value, Mode=TwoWay}" VerticalAlignment="Center"/>
                                 <controls:RotaryKnob Grid.Column="2" Minimum="0" Maximum="127" Value="{Binding KeyLo.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
