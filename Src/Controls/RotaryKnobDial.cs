@@ -16,8 +16,8 @@ namespace Integra7AuralAlchemist.Controls;
 /// The value is kept integer-rounded because every friendly parameter is an integer MIDI value.</summary>
 public class RotaryKnobDial : Control
 {
-    private const double ArcThickness = 5.0;
-    private const double Gap = 4.0;
+    private const double ArcThickness = 4.0;
+    private const double Gap = 3.0;
 
     // Dragging this many pixels vertically covers the whole range; Shift divides the step for fine work.
     private const double PixelsForFullRange = 200.0;
