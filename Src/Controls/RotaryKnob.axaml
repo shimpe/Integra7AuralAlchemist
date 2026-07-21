@@ -12,7 +12,7 @@
                                  AccentBrush="{Binding #Root.AccentBrush}"/>
         <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Center">
             <TextBox x:Name="Editor" MinWidth="34" MaxWidth="56"
-                     Padding="3,0" FontSize="11" TextAlignment="Right"
+                     MinHeight="0" Height="20" Padding="3,0" FontSize="11" TextAlignment="Right"
                      VerticalContentAlignment="Center"
                      Text="{Binding #Root.EditText, Mode=TwoWay}"/>
             <TextBlock x:Name="UnitText" VerticalAlignment="Center" Opacity="0.7" FontSize="10"
