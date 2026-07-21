@@ -9,13 +9,13 @@ using Avalonia.Media;
 
 namespace Integra7AuralAlchemist.Controls;
 
-/// <summary>A rotary knob with an editable value box and an optional unit: the drop-in replacement for
-/// ValueSlider in the friendly editors. Same Minimum / Maximum / Value (TwoWay) surface, plus a Unit
-/// and an AccentBrush used to colour the value strip so controls can be grouped by function.
+/// <summary>A rotary knob with an editable value box and an optional unit: the value control of the
+/// friendly editors. Minimum / Maximum / Value (TwoWay) surface, plus a Unit and an AccentBrush used to
+/// colour the value strip so controls can be grouped by function.
 ///
 /// The dial does the drawing and the dragging (RotaryKnobDial); this wraps it with the readout. The
 /// text box commits on Enter or lost focus, clamped to the range -- it never streams keystrokes to the
-/// hardware. The label stays outside the control, exactly where ValueSlider's label sat.</summary>
+/// hardware. The label stays outside the control, in the surrounding layout.</summary>
 public partial class RotaryKnob : UserControl
 {
     public static readonly StyledProperty<double> ValueProperty =
