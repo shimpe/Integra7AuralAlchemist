@@ -54,6 +54,11 @@ public class RotaryKnobDial : Control
     private double _dragStartY;
     private double _dragStartValue;
 
+    /// <summary>Optional allowed values. When set, Value snaps to the nearest of these instead of to the
+    /// nearest integer -- used for the FX parameters, whose displayed values are a non-uniform mapped
+    /// list (e.g. LFO rate in Hz). Left null for the ordinary integer-valued knobs.</summary>
+    public System.Collections.Generic.IReadOnlyList<double>? SnapValues { get; set; }
+
     static RotaryKnobDial()
     {
         AffectsRender<RotaryKnobDial>(ValueProperty, MinimumProperty, MaximumProperty,
@@ -68,8 +73,25 @@ public class RotaryKnobDial : Control
 
     private void Commit(double raw)
     {
-        var clamped = Math.Clamp(Math.Round(raw), Minimum, Maximum);
-        if (Math.Abs(clamped - Value) > double.Epsilon) Value = clamped;
+        var snapped = Snap(raw);
+        if (Math.Abs(snapped - Value) > double.Epsilon) Value = snapped;
+    }
+
+    /// <summary>Round to the nearest allowed value: an entry of <see cref="SnapValues"/> when set,
+    /// otherwise the nearest integer within the range.</summary>
+    private double Snap(double raw)
+    {
+        if (SnapValues is not { Count: > 0 } vals)
+            return Math.Clamp(Math.Round(raw), Minimum, Maximum);
+
+        var best = vals[0];
+        var bestDist = Math.Abs(raw - best);
+        for (var i = 1; i < vals.Count; i++)
+        {
+            var d = Math.Abs(raw - vals[i]);
+            if (d < bestDist) { bestDist = d; best = vals[i]; }
+        }
+        return best;
     }
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
@@ -117,9 +139,36 @@ public class RotaryKnobDial : Control
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
+        var dir = Math.Sign(e.Delta.Y);
+
+        if (SnapValues is { Count: > 0 } vals)
+        {
+            // Step to the adjacent allowed value; the list is monotonic, so find where the current
+            // value sits and move one entry along.
+            var ascending = vals[^1] >= vals[0];
+            var idx = NearestIndex(vals, Value);
+            var next = idx + (ascending ? dir : -dir);
+            if (next >= 0 && next < vals.Count && Math.Abs(vals[next] - Value) > double.Epsilon)
+                Value = vals[next];
+            e.Handled = true;
+            return;
+        }
+
         var step = e.KeyModifiers.HasFlag(KeyModifiers.Shift) ? 5 : 1;
-        Commit(Value + Math.Sign(e.Delta.Y) * step);
+        Commit(Value + dir * step);
         e.Handled = true;
+    }
+
+    private static int NearestIndex(System.Collections.Generic.IReadOnlyList<double> vals, double v)
+    {
+        var best = 0;
+        var bestDist = Math.Abs(v - vals[0]);
+        for (var i = 1; i < vals.Count; i++)
+        {
+            var d = Math.Abs(v - vals[i]);
+            if (d < bestDist) { bestDist = d; best = i; }
+        }
+        return best;
     }
 
     public override void Render(DrawingContext context)

@@ -27,10 +27,11 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:DisplayParam">
-                    <StackPanel Width="300" Spacing="2" Margin="0,0,12,10">
-                        <TextBlock Text="{Binding Label}" TextWrapping="Wrap" MinHeight="40"/>
+                    <StackPanel Width="96" Spacing="1" Margin="0,0,8,8">
+                        <TextBlock Text="{Binding Label}" TextWrapping="Wrap" MinHeight="38"
+                                   VerticalAlignment="Bottom"/>
                         <ContentControl Content="{Binding Param}"
-                                        ContentTemplate="{x:Static dataTemplates:DataTemplateProvider.ParameterValueTemplate}"/>
+                                        ContentTemplate="{x:Static dataTemplates:DataTemplateProvider.ParameterKnobTemplate}"/>
                     </StackPanel>
                 </DataTemplate>
             </ItemsControl.ItemTemplate>
