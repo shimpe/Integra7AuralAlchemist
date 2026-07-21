@@ -3,7 +3,7 @@
              xmlns:controls="using:Integra7AuralAlchemist.Controls"
              x:Name="Root"
              x:Class="Integra7AuralAlchemist.Controls.RotaryKnob">
-    <StackPanel Spacing="0" HorizontalAlignment="Center" Margin="0,-3,0,0">
+    <StackPanel Spacing="0" HorizontalAlignment="Center">
         <controls:RotaryKnobDial x:Name="Dial" Width="40" Height="40"
                                  HorizontalAlignment="Center"
                                  Minimum="{Binding #Root.Minimum}"

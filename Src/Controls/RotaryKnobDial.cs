@@ -127,7 +127,9 @@ public class RotaryKnobDial : Control
         double w = Bounds.Width, h = Bounds.Height;
         var cx = w / 2;
         var cy = h / 2;
-        var radius = Math.Min(w, h) / 2 - ArcThickness / 2;
+        // Keep the whole stroke inside the bounds: half the arc thickness plus a hair, so a round cap
+        // never gets clipped by a tight parent.
+        var radius = Math.Min(w, h) / 2 - ArcThickness / 2 - 1;
         if (radius <= 0) return;
 
         // The dim full-sweep track, then the accent value arc on top of it.
