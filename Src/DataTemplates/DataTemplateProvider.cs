@@ -2,11 +2,14 @@ using System;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Threading;
+using Integra7AuralAlchemist.Controls;
 using Integra7AuralAlchemist.Models.Data;
 using ReactiveUI;
 
@@ -14,8 +17,16 @@ namespace Integra7AuralAlchemist.DataTemplates;
 
 public static class DataTemplateProvider
 {
+    /// <summary>Renders a parameter with a slider for its numeric value. Used by the advanced raw
+    /// parameter grid.</summary>
     public static FuncDataTemplate<FullyQualifiedParameter> ParameterValueTemplate { get; }
         = new(parameter => parameter is not null, BuildParameterValuePresenter);
+
+    /// <summary>Renders a parameter with a rotary knob (and a read-only mapped readout) for its numeric
+    /// value. Used by the friendly editors' FX / Instrument sections. Non-numeric parameters render
+    /// exactly as in <see cref="ParameterValueTemplate"/>.</summary>
+    public static FuncDataTemplate<FullyQualifiedParameter> ParameterKnobTemplate { get; }
+        = new(parameter => parameter is not null, BuildParameterKnobPresenter);
 
     // Subscribes a control to the parameter's StringValue changes so the displayed value updates
     // when the value is read from the Integra-7 (FullyQualifiedParameter raises INotifyPropertyChanged).
@@ -53,6 +64,14 @@ public static class DataTemplateProvider
     }
 
     private static Control BuildParameterValuePresenter(FullyQualifiedParameter p)
+        => BuildNonNumericPresenter(p) ?? BuildSliderNumericPresenter(p);
+
+    private static Control BuildParameterKnobPresenter(FullyQualifiedParameter p)
+        => BuildNonNumericPresenter(p) ?? BuildKnobNumericPresenter(p);
+
+    /// <summary>The text / combo / toggle editors, shared by both templates. Returns null when the
+    /// parameter is numeric, so the caller renders the number its own way (slider or knob).</summary>
+    private static Control? BuildNonNumericPresenter(FullyQualifiedParameter p)
     {
         var suppressPush = false;
 
@@ -106,34 +125,39 @@ public static class DataTemplateProvider
                     () => suppressPush, v => suppressPush = v);
                 return c;
             }
-            else
+
+            ComboBox c2 = new();
+            foreach (var el in repr) c2.Items.Add(el.Value);
+            c2.SelectedItem = p.StringValue;
+            c2.SelectionChanged += (s, e) =>
             {
-                ComboBox c = new();
-                foreach (var el in repr) c.Items.Add(el.Value);
-                c.SelectedItem = p.StringValue;
-                c.SelectionChanged += (s, e) =>
+                if (suppressPush) return;
+                MessageBus.Current.SendMessage(new UpdateMessageSpec(p, $"{e.AddedItems[0]}"), "ui2hw");
+            };
+            BindToModel(c2, p, () =>
+            {
+                var cur = p.EffectiveRepr ?? p.ParSpec.Repr;
+                if (cur != null)
                 {
-                    if (suppressPush) return;
-                    MessageBus.Current.SendMessage(new UpdateMessageSpec(p, $"{e.AddedItems[0]}"), "ui2hw");
-                };
-                BindToModel(c, p, () =>
-                {
-                    var cur = p.EffectiveRepr ?? p.ParSpec.Repr;
-                    if (cur != null)
+                    var want = cur.Select(kv => kv.Value).ToList();
+                    var have = c2.Items.Cast<object?>().Select(o => o?.ToString()).ToList();
+                    if (!have.SequenceEqual(want))
                     {
-                        var want = cur.Select(kv => kv.Value).ToList();
-                        var have = c.Items.Cast<object?>().Select(o => o?.ToString()).ToList();
-                        if (!have.SequenceEqual(want))
-                        {
-                            c.Items.Clear();
-                            foreach (var v in want) c.Items.Add(v);
-                        }
+                        c2.Items.Clear();
+                        foreach (var v in want) c2.Items.Add(v);
                     }
-                    c.SelectedItem = p.StringValue;
-                }, () => suppressPush, v => suppressPush = v);
-                return c;
-            }
+                }
+                c2.SelectedItem = p.StringValue;
+            }, () => suppressPush, v => suppressPush = v);
+            return c2;
         }
+
+        return null; // numeric
+    }
+
+    private static Control BuildSliderNumericPresenter(FullyQualifiedParameter p)
+    {
+        var suppressPush = false;
 
         if (!float.IsNaN(p.ParSpec.OMin2) && !float.IsNaN(p.ParSpec.OMax2))
         {
@@ -192,27 +216,61 @@ public static class DataTemplateProvider
                 () => suppressPush, v => suppressPush = v);
             return BuildSliderPanel(s, p);
         }
-        else
+
+        Slider sd = new()
         {
-            Slider s = new()
-            {
-                Minimum = 0,
-                Maximum = 127,
-                Width = 200,
-                Orientation = Orientation.Horizontal,
-                IsSnapToTickEnabled = true,
-                Ticks = p.ParSpec.Ticks
-            };
-            ApplyStringValueToSlider(s, p, 0);
-            s.ValueChanged += (s, e) =>
-            {
-                if (suppressPush) return;
-                MessageBus.Current.SendMessage(new UpdateMessageSpec(p, $"{e.NewValue:0.##}"), "ui2hw");
-            };
-            BindToModel(s, p, () => ApplyStringValueToSlider(s, p, 0),
-                () => suppressPush, v => suppressPush = v);
-            return BuildSliderPanel(s, p);
-        }
+            Minimum = 0,
+            Maximum = 127,
+            Width = 200,
+            Orientation = Orientation.Horizontal,
+            IsSnapToTickEnabled = true,
+            Ticks = p.ParSpec.Ticks
+        };
+        ApplyStringValueToSlider(sd, p, 0);
+        sd.ValueChanged += (s, e) =>
+        {
+            if (suppressPush) return;
+            MessageBus.Current.SendMessage(new UpdateMessageSpec(p, $"{e.NewValue:0.##}"), "ui2hw");
+        };
+        BindToModel(sd, p, () => ApplyStringValueToSlider(sd, p, 0),
+            () => suppressPush, v => suppressPush = v);
+        return BuildSliderPanel(sd, p);
+    }
+
+    /// <summary>A rotary knob over the parameter's displayed value, snapping to the allowed steps. It
+    /// operates in the same displayed-value space the slider used, and sends the same displayed value on
+    /// the ui2hw bus, so the write behaviour is identical -- only the control differs.</summary>
+    private static Control BuildKnobNumericPresenter(FullyQualifiedParameter p)
+    {
+        var suppressPush = false;
+
+        var ticks = p.ParSpec.Ticks;
+        if (ticks.Count == 0) for (var i = 0; i <= 127; i++) ticks.Add(i);
+        var snap = ticks.ToList();
+        double dmin = snap.Min(), dmax = snap.Max();
+
+        RotaryKnobDial dial = new()
+        {
+            Minimum = dmin,
+            Maximum = dmax,
+            SnapValues = snap,
+            Width = 40,
+            Height = 40,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            AccentBrush = FxAccentBrush()
+        };
+
+        ApplyStringValueToDial(dial, p, dmin);
+        dial.PropertyChanged += (_, e) =>
+        {
+            if (suppressPush) return;
+            if (e.Property == RotaryKnobDial.ValueProperty)
+                MessageBus.Current.SendMessage(new UpdateMessageSpec(p, $"{dial.Value:0.##}"), "ui2hw");
+        };
+        BindToModel(dial, p, () => ApplyStringValueToDial(dial, p, dmin),
+            () => suppressPush, v => suppressPush = v);
+
+        return BuildKnobPanel(dial, p);
     }
 
     private static void ApplyStringValueToSlider(Slider s, FullyQualifiedParameter p, double fallback)
@@ -223,6 +281,20 @@ public static class DataTemplateProvider
         else
             s.Value = fallback;
     }
+
+    private static void ApplyStringValueToDial(RotaryKnobDial d, FullyQualifiedParameter p, double fallback)
+    {
+        if (double.TryParse(p.StringValue, NumberStyles.Any, CultureInfo.InvariantCulture, out var value) ||
+            double.TryParse(p.StringValue, out value))
+            d.Value = Math.Round(value, 2);
+        else
+            d.Value = fallback;
+    }
+
+    private static IBrush FxAccentBrush()
+        => Application.Current?.TryFindResource("KnobFxBrush", out var b) == true && b is IBrush brush
+            ? brush
+            : new SolidColorBrush(Color.Parse("#B0895F"));
 
     private static StackPanel BuildSliderPanel(Slider s, FullyQualifiedParameter p)
     {
@@ -252,6 +324,36 @@ public static class DataTemplateProvider
             pan.Children.Add(u);
         }
 
+        return pan;
+    }
+
+    private static StackPanel BuildKnobPanel(RotaryKnobDial d, FullyQualifiedParameter p)
+    {
+        TextBlock v = new()
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            FontSize = 11,
+            [!TextBlock.TextProperty] = new Binding
+            {
+                Source = d,
+                Path = nameof(d.Value),
+                StringFormat = "0.##"
+            }
+        };
+        StackPanel readout = new() { Orientation = Orientation.Horizontal, Spacing = 2, HorizontalAlignment = HorizontalAlignment.Center };
+        readout.Children.Add(v);
+        if (p.ParSpec.Unit != "")
+            readout.Children.Add(new TextBlock
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                FontSize = 10,
+                Opacity = 0.7,
+                Text = p.ParSpec.Unit
+            });
+
+        StackPanel pan = new() { Spacing = 0, HorizontalAlignment = HorizontalAlignment.Left };
+        pan.Children.Add(d);
+        pan.Children.Add(readout);
         return pan;
     }
 }
