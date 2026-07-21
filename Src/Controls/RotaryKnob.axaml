@@ -22,6 +22,7 @@
             <TextBox x:Name="Editor" MinWidth="34" MaxWidth="56"
                      MinHeight="0" Height="20" Padding="3,0" FontSize="11" TextAlignment="Right"
                      VerticalContentAlignment="Center"
+                     Background="{Binding #Root.AccentBrush}"
                      Text="{Binding #Root.EditText, Mode=TwoWay}"/>
             <TextBlock x:Name="UnitText" VerticalAlignment="Center" Opacity="0.7" FontSize="10"
                        Text="{Binding #Root.Unit}"
