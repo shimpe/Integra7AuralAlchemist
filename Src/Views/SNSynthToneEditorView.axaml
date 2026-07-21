@@ -140,7 +140,8 @@
               </Border>
               <ListBox Grid.Row="1"
                      ItemsSource="{Binding Partials}"
-                     SelectedItem="{Binding SelectedPartial, Mode=TwoWay}">
+                     SelectedItem="{Binding SelectedPartial, Mode=TwoWay}"
+                     Padding="0,0,16,0">
                 <ListBox.Styles>
                     <!-- The card Border carries the selection colour; suppress the theme's faint
                          item highlight (almost invisible on the dark cards). -->

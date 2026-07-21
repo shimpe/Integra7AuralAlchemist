@@ -154,7 +154,8 @@
               </Border>
               <ListBox Grid.Row="1"
                      ItemsSource="{Binding Partials}"
-                     SelectedItem="{Binding SelectedPartial, Mode=TwoWay}">
+                     SelectedItem="{Binding SelectedPartial, Mode=TwoWay}"
+                     Padding="0,0,16,0">
                 <ListBox.Styles>
                     <Style Selector="ListBoxItem">
                         <Setter Property="Padding" Value="2"/>
