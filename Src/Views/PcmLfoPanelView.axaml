@@ -27,7 +27,7 @@
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" Spacing="6">
-                <StackPanel Spacing="1" Width="160">
+                <StackPanel Spacing="1" Width="76">
                     <TextBlock Text="Fade-in" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Fade Time'}"/>
                     <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding FadeTime.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
                 </StackPanel>
@@ -39,19 +39,19 @@
 
             <TextBlock Text="Motion amount (bipolar)" Opacity="0.7"/>
             <StackPanel Orientation="Horizontal" Spacing="6">
-                <StackPanel Spacing="1" Width="150">
+                <StackPanel Spacing="1" Width="76">
                     <TextBlock Text="Vibrato (pitch)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Pitch Depth'}"/>
                     <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding PitchDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="1" Width="150">
+                <StackPanel Spacing="1" Width="76">
                     <TextBlock Text="Wah (filter)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}TVF Depth'}"/>
                     <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding TvfDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="1" Width="150">
+                <StackPanel Spacing="1" Width="76">
                     <TextBlock Text="Tremolo (amp)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}TVA Depth'}"/>
                     <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding TvaDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="1" Width="150">
+                <StackPanel Spacing="1" Width="76">
                     <TextBlock Text="Auto-pan (pan)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Pan Depth'}"/>
                     <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding PanDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPanBrush}"/>
                 </StackPanel>

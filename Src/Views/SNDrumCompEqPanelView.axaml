@@ -45,11 +45,11 @@
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="6">
-                    <StackPanel Spacing="1" Width="200">
+                    <StackPanel Spacing="1" Width="76">
                         <TextBlock Text="Threshold"/>
                         <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding CompThreshold.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                     </StackPanel>
-                    <StackPanel Spacing="1" Width="200">
+                    <StackPanel Spacing="1" Width="76">
                         <TextBlock Text="Output Gain"/>
                         <controls:RotaryKnob Minimum="0" Maximum="24" Unit="dB" Value="{Binding CompGain.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                     </StackPanel>
@@ -71,7 +71,7 @@
                         <TextBlock Text="Low Freq (Hz)"/>
                         <ComboBox ItemsSource="{Binding EqLowFreq.Options}" SelectedItem="{Binding EqLowFreq.Value, Mode=TwoWay}"/>
                     </StackPanel>
-                    <StackPanel Spacing="1" Width="200">
+                    <StackPanel Spacing="1" Width="76">
                         <TextBlock Text="Low Gain"/>
                         <controls:RotaryKnob Minimum="-15" Maximum="15" Unit="dB" Value="{Binding EqLowGain.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                     </StackPanel>
@@ -85,7 +85,7 @@
                         <TextBlock Text="Mid Q"/>
                         <ComboBox ItemsSource="{Binding EqMidQ.Options}" SelectedItem="{Binding EqMidQ.Value, Mode=TwoWay}"/>
                     </StackPanel>
-                    <StackPanel Spacing="1" Width="200">
+                    <StackPanel Spacing="1" Width="76">
                         <TextBlock Text="Mid Gain"/>
                         <controls:RotaryKnob Minimum="-15" Maximum="15" Unit="dB" Value="{Binding EqMidGain.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                     </StackPanel>
@@ -95,7 +95,7 @@
                         <TextBlock Text="High Freq (Hz)"/>
                         <ComboBox ItemsSource="{Binding EqHighFreq.Options}" SelectedItem="{Binding EqHighFreq.Value, Mode=TwoWay}"/>
                     </StackPanel>
-                    <StackPanel Spacing="1" Width="200">
+                    <StackPanel Spacing="1" Width="76">
                         <TextBlock Text="High Gain"/>
                         <controls:RotaryKnob Minimum="-15" Maximum="15" Unit="dB" Value="{Binding EqHighGain.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                     </StackPanel>

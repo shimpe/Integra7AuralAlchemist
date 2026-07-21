@@ -8,7 +8,7 @@
     <UserControl.Styles>
         <Style Selector="TextBlock.sliderLabel">
             <Setter Property="TextWrapping" Value="Wrap"/>
-            <Setter Property="MinHeight" Value="30"/>
+            <Setter Property="MinHeight" Value="38"/>
             <Setter Property="VerticalAlignment" Value="Bottom"/>
         </Style>
     </UserControl.Styles>
@@ -30,11 +30,11 @@
 
             <!-- Sends -->
             <StackPanel Orientation="Horizontal" Spacing="6">
-                <StackPanel Spacing="1" Width="200">
+                <StackPanel Spacing="1" Width="76">
                     <TextBlock Classes="sliderLabel" Text="Chorus send" ToolTip.Tip="MFX Chorus Send Level"/>
                     <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="1" Width="200">
+                <StackPanel Spacing="1" Width="76">
                     <TextBlock Classes="sliderLabel" Text="Reverb send" ToolTip.Tip="MFX Reverb Send Level"/>
                     <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
                 </StackPanel>
