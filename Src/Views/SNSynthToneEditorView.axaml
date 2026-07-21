@@ -48,7 +48,7 @@
                     <TextBlock Text="{Binding Header.ToneName}" FontSize="16" FontWeight="Bold"/>
                 </StackPanel>
 
-                <StackPanel Spacing="1" Width="160">
+                <StackPanel Spacing="1" Width="76">
                     <TextBlock Text="Tone Level" />
                     <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding Header.ToneLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                 </StackPanel>
@@ -79,7 +79,7 @@
                               ToolTip.Tip="Unison voice count (active only when Unison is on)."/>
                 </StackPanel>
 
-                <StackPanel Spacing="1" Width="150">
+                <StackPanel Spacing="1" Width="76">
                     <TextBlock Text="Vintage Drift" ToolTip.Tip="Analog Feel"/>
                     <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding Header.AnalogFeel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                 </StackPanel>
@@ -260,32 +260,32 @@
                                 <ComboBox ItemsSource="{Binding OscWaveVariation.Options}"
                                           SelectedItem="{Binding OscWaveVariation.Value, Mode=TwoWay}"/>
                             </StackPanel>
-                            <StackPanel Spacing="1" Width="160">
+                            <StackPanel Spacing="1" Width="76">
                                 <TextBlock Text="Pitch (semitones)" Classes="sliderLabel" ToolTip.Tip="OSC Pitch"/>
                                 <controls:RotaryKnob Minimum="-24" Maximum="24" Value="{Binding OscPitch.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                             </StackPanel>
-                            <StackPanel Spacing="1" Width="160">
+                            <StackPanel Spacing="1" Width="76">
                                 <TextBlock Text="Detune" Classes="sliderLabel" ToolTip.Tip="OSC Detune (Flat / Center / Sharp)"/>
                                 <controls:RotaryKnob Minimum="-50" Maximum="50" Value="{Binding OscDetune.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                             </StackPanel>
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowsPulseWidth}">
-                            <StackPanel Spacing="1" Width="160">
+                            <StackPanel Spacing="1" Width="76">
                                 <TextBlock Text="Pulse Width" Classes="sliderLabel" ToolTip.Tip="OSC Pulse Width"/>
                                 <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding OscPulseWidth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                             </StackPanel>
-                            <StackPanel Spacing="1" Width="160">
+                            <StackPanel Spacing="1" Width="76">
                                 <TextBlock Text="PW Shift" Classes="sliderLabel" ToolTip.Tip="OSC Pulse Width shift"/>
                                 <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding OscPulseWidthShift.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                             </StackPanel>
-                            <StackPanel Spacing="1" Width="160">
+                            <StackPanel Spacing="1" Width="76">
                                 <TextBlock Text="PWM Depth" Classes="sliderLabel" ToolTip.Tip="OSC Pulse Width Mod Depth"/>
                                 <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding OscPwmDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
                             </StackPanel>
                         </StackPanel>
 
-                        <StackPanel Spacing="1" Width="200" IsVisible="{Binding ShowsSuperSawDetune}">
+                        <StackPanel Spacing="1" Width="76" IsVisible="{Binding ShowsSuperSawDetune}">
                             <TextBlock Text="Super Saw Detune" Classes="sliderLabel" ToolTip.Tip="Super Saw Detune"/>
                             <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding SuperSawDetune.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                         </StackPanel>
@@ -419,7 +419,7 @@
                             </StackPanel>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <StackPanel Spacing="1" Width="150">
+                            <StackPanel Spacing="1" Width="76">
                                 <TextBlock Text="HPF Cutoff" Classes="sliderLabel" ToolTip.Tip="HPF Cutoff"/>
                                 <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding HpfCutoff.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                             </StackPanel>
@@ -434,11 +434,11 @@
                     <StackPanel Spacing="8">
                         <TextBlock Text="Amp" FontWeight="Bold"/>
                         <StackPanel Orientation="Horizontal" Spacing="6">
-                            <StackPanel Spacing="1" Width="160">
+                            <StackPanel Spacing="1" Width="76">
                                 <TextBlock Text="Level" Classes="sliderLabel" ToolTip.Tip="AMP Level"/>
                                 <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding AmpLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                             </StackPanel>
-                            <StackPanel Spacing="1" Width="160">
+                            <StackPanel Spacing="1" Width="76">
                                 <TextBlock Text="Pan (L / C / R)" Classes="sliderLabel" ToolTip.Tip="AMP Pan"/>
                                 <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding AmpPan.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPanBrush}"/>
                             </StackPanel>

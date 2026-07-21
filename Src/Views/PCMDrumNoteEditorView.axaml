@@ -116,19 +116,19 @@
                             <StackPanel Spacing="8">
                                 <TextBlock Text="Pitch amount &amp; velocity" FontWeight="Bold"/>
                                 <WrapPanel Orientation="Horizontal">
-                                    <StackPanel Spacing="1" Width="170" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Env Depth (semitones)" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-12" Maximum="12" Value="{Binding PitchEnvDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="170" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Env Velocity Sens" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding PitchEnvVeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="170" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="T1 Velocity Sens" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding PitchEnvTime1VeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="170" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="T4 Velocity Sens" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding PitchEnvTime4VeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                     </StackPanel>
@@ -163,15 +163,15 @@
                                     AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
                                     HandleBrush="{StaticResource SnEnvelopeHandleBrush}"/>
                                 <WrapPanel Orientation="Horizontal">
-                                    <StackPanel Spacing="1" Width="160" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Cutoff" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding TvfCutoff.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="160" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Resonance" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding TvfResonance.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="160" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Env Depth" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding TvfEnvDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                     </StackPanel>
@@ -227,7 +227,7 @@
                             <StackPanel Spacing="8">
                                 <TextBlock Text="Velocity response" FontWeight="Bold"/>
                                 <WrapPanel Orientation="Horizontal">
-                                    <StackPanel Spacing="1" Width="180" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Cutoff Velocity Sens" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding TvfCutoffVeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                     </StackPanel>
@@ -236,11 +236,11 @@
                                         <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding TvfCutoffVeloCurve.Options}"
                                                   SelectedItem="{Binding TvfCutoffVeloCurve.Value, Mode=TwoWay}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="180" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Resonance Velocity Sens" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding TvfResonanceVeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="180" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Env Velocity Sens" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding TvfEnvVeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                     </StackPanel>
@@ -249,11 +249,11 @@
                                         <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding TvfEnvVeloCurve.Options}"
                                                   SelectedItem="{Binding TvfEnvVeloCurve.Value, Mode=TwoWay}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="180" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Env T1 Velocity Sens" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding TvfEnvTime1VeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="180" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Env T4 Velocity Sens" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding TvfEnvTime4VeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                                     </StackPanel>
@@ -272,11 +272,11 @@
                             <StackPanel Spacing="8">
                                 <TextBlock Text="Amplifier (TVA)" FontWeight="Bold"/>
                                 <WrapPanel Orientation="Horizontal">
-                                    <StackPanel Spacing="1" Width="160" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Level" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding Level.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="160" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Velocity Sens" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding TvaVeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                     </StackPanel>
@@ -328,11 +328,11 @@
                                             <controls:RotaryKnob Margin="0,0,6,4" Minimum="0" Maximum="127" Value="{Binding TvaEnvLevel3.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                         </StackPanel>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="200" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="T1 Velocity Sens" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding TvaEnvTime1VeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="200" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="T4 Velocity Sens" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding TvaEnvTime4VeloSens.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                     </StackPanel>
@@ -387,15 +387,15 @@
                             <StackPanel Spacing="8">
                                 <TextBlock Text="Pitch &amp; pan" FontWeight="Bold"/>
                                 <WrapPanel Orientation="Horizontal">
-                                    <StackPanel Spacing="1" Width="160" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Coarse Tune" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding CoarseTune.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="160" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Fine Tune" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-50" Maximum="50" Value="{Binding FineTune.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="160" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Pitch Bend Range" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="0" Maximum="48" Value="{Binding PitchBendRange.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                                     </StackPanel>
@@ -403,15 +403,15 @@
                                         <TextBlock Text="Random Pitch Depth" Classes="sliderLabel"/>
                                         <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch" ItemsSource="{Binding RandomPitchDepth.Options}" SelectedItem="{Binding RandomPitchDepth.Value, Mode=TwoWay}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="160" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Pan (L / C / R)" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding Pan.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPanBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="160" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Random Pan Depth" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="0" Maximum="63" Value="{Binding RandomPanDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPanBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="160" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Alternate Pan Depth" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding AlternatePanDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPanBrush}"/>
                                     </StackPanel>
@@ -427,15 +427,15 @@
                                         <TextBlock Text="Output Assign" Classes="sliderLabel"/>
                                         <ComboBox HorizontalAlignment="Stretch" ItemsSource="{Binding OutputAssign.Options}" SelectedItem="{Binding OutputAssign.Value, Mode=TwoWay}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="160" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Output Level" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding OutputLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="160" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Chorus Send" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
                                     </StackPanel>
-                                    <StackPanel Spacing="1" Width="160" Margin="0,0,16,8">
+                                    <StackPanel Spacing="1" Width="76" Margin="0,0,16,8">
                                         <TextBlock Text="Reverb Send" Classes="sliderLabel"/>
                                         <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
                                     </StackPanel>

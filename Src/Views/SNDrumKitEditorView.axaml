@@ -40,11 +40,11 @@
                     </Border>
                     <TextBlock Text="{Binding KitName}" FontSize="16" FontWeight="Bold"/>
                 </StackPanel>
-                <StackPanel Spacing="1" Width="160">
+                <StackPanel Spacing="1" Width="76">
                     <TextBlock Text="Kit Level"/>
                     <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding KitLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="1" Width="160">
+                <StackPanel Spacing="1" Width="76">
                     <TextBlock Text="Ambience" ToolTip.Tip="Ambience Level"/>
                     <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding AmbienceLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                 </StackPanel>
