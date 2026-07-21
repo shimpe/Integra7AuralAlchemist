@@ -9,8 +9,8 @@
         <StackPanel Spacing="8">
             <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
 
-            <StackPanel Orientation="Horizontal" Spacing="16">
-                <StackPanel Spacing="2">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Spacing="1">
                     <TextBlock Text="Waveform" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Waveform'}"/>
                     <ComboBox ItemsSource="{Binding Waveform.Options}" SelectedItem="{Binding Waveform.Value, Mode=TwoWay}"/>
                 </StackPanel>
@@ -19,39 +19,39 @@
                     LineBrush="{StaticResource SnLfoWaveformBrush}"
                     BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
                     AxisBrush="{StaticResource SnEnvelopeAxisBrush}"/>
-                <StackPanel Spacing="2" Width="180">
+                <StackPanel Spacing="1" Width="180">
                     <TextBlock Text="Rate" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Rate'}"/>
                     <ComboBox MaxDropDownHeight="320" HorizontalAlignment="Stretch"
                               ItemsSource="{Binding Rate.Options}" SelectedItem="{Binding Rate.Value, Mode=TwoWay}"/>
                 </StackPanel>
             </StackPanel>
 
-            <StackPanel Orientation="Horizontal" Spacing="16">
-                <StackPanel Spacing="2" Width="160">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Spacing="1" Width="160">
                     <TextBlock Text="Fade-in" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Fade Time'}"/>
                     <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding FadeTime.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="2">
+                <StackPanel Spacing="1">
                     <TextBlock Text="Restart on note" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Key Trigger'}"/>
                     <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding KeyTrigger.Value, Mode=TwoWay}"/>
                 </StackPanel>
             </StackPanel>
 
             <TextBlock Text="Motion amount (bipolar)" Opacity="0.7"/>
-            <StackPanel Orientation="Horizontal" Spacing="16">
-                <StackPanel Spacing="2" Width="150">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Spacing="1" Width="150">
                     <TextBlock Text="Vibrato (pitch)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Pitch Depth'}"/>
                     <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding PitchDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="2" Width="150">
+                <StackPanel Spacing="1" Width="150">
                     <TextBlock Text="Wah (filter)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}TVF Depth'}"/>
                     <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding TvfDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="2" Width="150">
+                <StackPanel Spacing="1" Width="150">
                     <TextBlock Text="Tremolo (amp)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}TVA Depth'}"/>
                     <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding TvaDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="2" Width="150">
+                <StackPanel Spacing="1" Width="150">
                     <TextBlock Text="Auto-pan (pan)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Pan Depth'}"/>
                     <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding PanDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPanBrush}"/>
                 </StackPanel>

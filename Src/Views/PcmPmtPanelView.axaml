@@ -5,34 +5,34 @@
              x:DataType="vm:PcmPmtPanelViewModel"
              x:CompileBindings="True"
              x:Class="Integra7AuralAlchemist.Views.PcmPmtPanelView">
-    <StackPanel Spacing="12">
+    <StackPanel Spacing="6">
 
         <!-- Structure / Booster / Velocity control -->
         <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
             <StackPanel Spacing="8">
                 <TextBlock Text="Structure" FontWeight="Bold"/>
-                <StackPanel Orientation="Horizontal" Spacing="16">
-                    <StackPanel Spacing="2">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <StackPanel Spacing="1">
                         <TextBlock Text="Velocity control" ToolTip.Tip="PMT Velocity Control"/>
                         <ComboBox ItemsSource="{Binding VelocityControl.Options}"
                                   SelectedItem="{Binding VelocityControl.Value, Mode=TwoWay}"/>
                     </StackPanel>
-                    <StackPanel Spacing="2">
+                    <StackPanel Spacing="1">
                         <TextBlock Text="Structure 1&amp;2" ToolTip.Tip="Structure Type 1 &amp; 2"/>
                         <controls:RotaryKnob Minimum="1" Maximum="10"
                                        Value="{Binding Structure12.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                     </StackPanel>
-                    <StackPanel Spacing="2">
+                    <StackPanel Spacing="1">
                         <TextBlock Text="Booster 1&amp;2 (dB)" ToolTip.Tip="Booster 1 &amp; 2"/>
                         <ComboBox ItemsSource="{Binding Booster12.Options}"
                                   SelectedItem="{Binding Booster12.Value, Mode=TwoWay}"/>
                     </StackPanel>
-                    <StackPanel Spacing="2">
+                    <StackPanel Spacing="1">
                         <TextBlock Text="Structure 3&amp;4" ToolTip.Tip="Structure Type 3 &amp; 4"/>
                         <controls:RotaryKnob Minimum="1" Maximum="10"
                                        Value="{Binding Structure34.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                     </StackPanel>
-                    <StackPanel Spacing="2">
+                    <StackPanel Spacing="1">
                         <TextBlock Text="Booster 3&amp;4 (dB)" ToolTip.Tip="Booster 3 &amp; 4"/>
                         <ComboBox ItemsSource="{Binding Booster34.Options}"
                                   SelectedItem="{Binding Booster34.Value, Mode=TwoWay}"/>

@@ -9,8 +9,8 @@
         <StackPanel Spacing="8">
             <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
 
-            <StackPanel Orientation="Horizontal" Spacing="16">
-                <StackPanel Spacing="2">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Spacing="1">
                     <TextBlock Text="Shape" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Shape'}"/>
                     <ComboBox ItemsSource="{Binding Shape.Options}" SelectedItem="{Binding Shape.Value, Mode=TwoWay}"/>
                 </StackPanel>
@@ -19,57 +19,57 @@
                     LineBrush="{StaticResource SnLfoWaveformBrush}"
                     BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
                     AxisBrush="{StaticResource SnEnvelopeAxisBrush}"/>
-                <StackPanel Spacing="2">
+                <StackPanel Spacing="1">
                     <TextBlock Text="Tempo Sync" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Tempo Sync Switch'}"/>
                     <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding TempoSync.Value, Mode=TwoWay}"/>
                 </StackPanel>
-                <StackPanel Spacing="2" IsVisible="{Binding !TempoSync.Value}">
+                <StackPanel Spacing="1" IsVisible="{Binding !TempoSync.Value}">
                     <TextBlock Text="Rate" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Rate'}"/>
                     <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding Rate.Value, Mode=TwoWay}"
                                          AccentBrush="{StaticResource SnAccentBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="2" IsVisible="{Binding TempoSync.Value}">
+                <StackPanel Spacing="1" IsVisible="{Binding TempoSync.Value}">
                     <TextBlock Text="Note" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Tempo Sync Note'}"/>
                     <ComboBox ItemsSource="{Binding TempoSyncNote.Options}" SelectedItem="{Binding TempoSyncNote.Value, Mode=TwoWay}"/>
                 </StackPanel>
             </StackPanel>
 
-            <StackPanel Orientation="Horizontal" Spacing="16" IsVisible="{Binding HasFade}">
-                <StackPanel Spacing="2">
+            <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasFade}">
+                <StackPanel Spacing="1">
                     <TextBlock Text="Fade-in" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Fade Time'}"/>
                     <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding FadeTime.Value, Mode=TwoWay}"
                                          AccentBrush="{StaticResource SnAccentBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="2">
+                <StackPanel Spacing="1">
                     <TextBlock Text="Restart on note" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Key Trigger'}"/>
                     <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding KeyTrigger.Value, Mode=TwoWay}"/>
                 </StackPanel>
             </StackPanel>
 
-            <StackPanel Spacing="2" IsVisible="{Binding HasRateControl}" HorizontalAlignment="Left">
+            <StackPanel Spacing="1" IsVisible="{Binding HasRateControl}" HorizontalAlignment="Left">
                 <TextBlock Text="Wheel changes speed" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Rate Control'}"/>
                 <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding RateControl.Value, Mode=TwoWay}"
                                      AccentBrush="{StaticResource SnAccentBrush}"/>
             </StackPanel>
 
             <TextBlock Text="Motion amount (bipolar)" Opacity="0.7"/>
-            <StackPanel Orientation="Horizontal" Spacing="16">
-                <StackPanel Spacing="2">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Spacing="1">
                     <TextBlock Text="Vibrato (pitch)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Pitch Depth'}"/>
                     <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding PitchDepth.Value, Mode=TwoWay}"
                                          AccentBrush="{StaticResource SnPitchEnvelopeBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="2">
+                <StackPanel Spacing="1">
                     <TextBlock Text="Wah (filter)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Filter Depth'}"/>
                     <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding FilterDepth.Value, Mode=TwoWay}"
                                          AccentBrush="{StaticResource SnFilterEnvelopeBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="2">
+                <StackPanel Spacing="1">
                     <TextBlock Text="Tremolo (amp)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}AMP Depth'}"/>
                     <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding AmpDepth.Value, Mode=TwoWay}"
                                          AccentBrush="{StaticResource SnAmpEnvelopeBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="2">
+                <StackPanel Spacing="1">
                     <TextBlock Text="Auto-pan (pan)" ToolTip.Tip="{Binding Prefix, StringFormat='{}{0}Pan Depth'}"/>
                     <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding PanDepth.Value, Mode=TwoWay}"
                                          AccentBrush="{StaticResource SnLfoWaveformBrush}"/>

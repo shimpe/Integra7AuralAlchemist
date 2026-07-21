@@ -21,19 +21,19 @@
                     <TextBlock Text="Multi-Effect" FontWeight="Bold"/>
                     <TextBlock Text="â€” applies to the whole tone" Opacity="0.6" VerticalAlignment="Bottom"/>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Spacing="2">
+                <StackPanel Grid.Column="1" Spacing="1">
                     <TextBlock Text="Bypass" ToolTip.Tip="Sets the effect to Thru (no effect); flips back to your last effect."/>
                     <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding Bypass, Mode=TwoWay}"/>
                 </StackPanel>
             </Grid>
 
             <!-- Sends -->
-            <StackPanel Orientation="Horizontal" Spacing="16">
-                <StackPanel Spacing="2" Width="200">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+                <StackPanel Spacing="1" Width="200">
                     <TextBlock Classes="sliderLabel" Text="Chorus send" ToolTip.Tip="MFX Chorus Send Level"/>
                     <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="2" Width="200">
+                <StackPanel Spacing="1" Width="200">
                     <TextBlock Classes="sliderLabel" Text="Reverb send" ToolTip.Tip="MFX Reverb Send Level"/>
                     <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
                 </StackPanel>
