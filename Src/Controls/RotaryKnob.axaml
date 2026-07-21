@@ -11,14 +11,9 @@
             <Setter Property="Opacity" Value="0.4" />
         </Style>
 
-        <!-- The value box carries the knob's accent on the border element across every state. Setting
-             just Background is not enough: FluentAvalonia swaps the border's fill to its own theme
-             brushes on hover and focus, which flickered the accent away. Pin the template border on
-             each state so it stays the accent. -->
-        <Style Selector="TextBox#Editor /template/ Border#PART_BorderElement">
-            <Setter Property="Background"
-                    Value="{Binding AccentBrush, RelativeSource={RelativeSource AncestorType=controls:RotaryKnob}}" />
-        </Style>
+        <!-- The base background comes from the TextBox.Background binding above. FluentAvalonia swaps
+             the border's fill to its own theme brushes on hover and focus, which flickered the accent
+             away, so pin the template border to the accent on those two states. -->
         <Style Selector="TextBox#Editor:pointerover /template/ Border#PART_BorderElement">
             <Setter Property="Background"
                     Value="{Binding AccentBrush, RelativeSource={RelativeSource AncestorType=controls:RotaryKnob}}" />
@@ -52,6 +47,7 @@
             <TextBox x:Name="Editor" MinWidth="34" MaxWidth="56"
                      MinHeight="0" Height="20" Padding="3,0" FontSize="11" TextAlignment="Right"
                      VerticalContentAlignment="Center"
+                     Background="{Binding #Root.AccentBrush}"
                      Text="{Binding #Root.EditText, Mode=TwoWay}"/>
             <TextBlock x:Name="UnitText" VerticalAlignment="Center" Opacity="0.7" FontSize="10"
                        Text="{Binding #Root.Unit}"
