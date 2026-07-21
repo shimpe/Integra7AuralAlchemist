@@ -8,7 +8,8 @@
     <UserControl.Styles>
         <Style Selector="TextBlock.sliderLabel">
             <Setter Property="TextWrapping" Value="Wrap"/>
-            <Setter Property="MinHeight" Value="34"/>
+            <Setter Property="MinHeight" Value="24"/>
+            <Setter Property="VerticalAlignment" Value="Bottom"/>
         </Style>
     </UserControl.Styles>
 
