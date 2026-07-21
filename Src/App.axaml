@@ -80,5 +80,14 @@
         <Style Selector="ScrollViewer">
             <Setter Property="ScrollViewer.AllowAutoHide" Value="False" />
         </Style>
+
+        <!-- A ListBox binds its inner ScrollViewer's AllowAutoHide from its own attached property
+             (default true). That is a local value on the inner viewer and beats the implicit
+             ScrollViewer style above, so the scrollbar still floated over the last item (e.g. the SN-S
+             partial cards). Set the attached property on the ListBox itself so the reserve reaches the
+             inner viewer. -->
+        <Style Selector="ListBox">
+            <Setter Property="ScrollViewer.AllowAutoHide" Value="False" />
+        </Style>
     </Application.Styles>
 </Application>
