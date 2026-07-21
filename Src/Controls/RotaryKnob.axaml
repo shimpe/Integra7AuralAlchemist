@@ -3,6 +3,14 @@
              xmlns:controls="using:Integra7AuralAlchemist.Controls"
              x:Name="Root"
              x:Class="Integra7AuralAlchemist.Controls.RotaryKnob">
+    <UserControl.Styles>
+        <!-- The dial is owner-drawn, so it does not fade on its own when the knob is disabled the way
+             the themed text box does. Dim it to match. IsEnabled propagates to the child dial, so its
+             :disabled pseudo-class tracks the knob's. -->
+        <Style Selector="controls|RotaryKnobDial:disabled">
+            <Setter Property="Opacity" Value="0.4" />
+        </Style>
+    </UserControl.Styles>
     <StackPanel Spacing="0" HorizontalAlignment="Center">
         <controls:RotaryKnobDial x:Name="Dial" Width="40" Height="40"
                                  HorizontalAlignment="Center"
