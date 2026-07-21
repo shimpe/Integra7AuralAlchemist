@@ -17,16 +17,16 @@
         <StackPanel Spacing="10">
 
             <!-- Title + bypass -->
-            <Grid ColumnDefinitions="*,Auto">
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="24" VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                     <TextBlock Text="Multi-Effect" FontWeight="Bold"/>
                     <TextBlock Text="— applies to the whole tone" Opacity="0.6" VerticalAlignment="Bottom"/>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Spacing="1">
+                <StackPanel Spacing="1">
                     <TextBlock Text="Bypass" ToolTip.Tip="Sets the effect to Thru (no effect); flips back to your last effect."/>
                     <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding Bypass, Mode=TwoWay}"/>
                 </StackPanel>
-            </Grid>
+            </StackPanel>
 
             <!-- Sends -->
             <StackPanel Orientation="Horizontal" Spacing="6">
