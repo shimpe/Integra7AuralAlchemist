@@ -1,0 +1,23 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             x:Name="Root"
+             x:Class="Integra7AuralAlchemist.Controls.RotaryKnob">
+    <StackPanel Spacing="0" HorizontalAlignment="Center">
+        <controls:RotaryKnobDial x:Name="Dial" Width="40" Height="40"
+                                 HorizontalAlignment="Center"
+                                 Minimum="{Binding #Root.Minimum}"
+                                 Maximum="{Binding #Root.Maximum}"
+                                 Value="{Binding #Root.Value, Mode=TwoWay}"
+                                 AccentBrush="{Binding #Root.AccentBrush}"/>
+        <StackPanel Orientation="Horizontal" Spacing="2" HorizontalAlignment="Center">
+            <TextBox x:Name="Editor" MinWidth="34" MaxWidth="56"
+                     MinHeight="0" Height="20" Padding="3,0" FontSize="11" TextAlignment="Right"
+                     VerticalContentAlignment="Center"
+                     Text="{Binding #Root.EditText, Mode=TwoWay}"/>
+            <TextBlock x:Name="UnitText" VerticalAlignment="Center" Opacity="0.7" FontSize="10"
+                       Text="{Binding #Root.Unit}"
+                       IsVisible="{Binding #Root.HasUnit}"/>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

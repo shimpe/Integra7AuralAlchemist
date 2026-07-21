@@ -5,34 +5,34 @@
              x:DataType="vm:PcmPmtPanelViewModel"
              x:CompileBindings="True"
              x:Class="Integra7AuralAlchemist.Views.PcmPmtPanelView">
-    <StackPanel Spacing="12">
+    <StackPanel Spacing="6">
 
         <!-- Structure / Booster / Velocity control -->
         <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
             <StackPanel Spacing="8">
                 <TextBlock Text="Structure" FontWeight="Bold"/>
-                <StackPanel Orientation="Horizontal" Spacing="16">
-                    <StackPanel Spacing="2">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <StackPanel Spacing="1">
                         <TextBlock Text="Velocity control" ToolTip.Tip="PMT Velocity Control"/>
                         <ComboBox ItemsSource="{Binding VelocityControl.Options}"
                                   SelectedItem="{Binding VelocityControl.Value, Mode=TwoWay}"/>
                     </StackPanel>
-                    <StackPanel Spacing="2">
+                    <StackPanel Spacing="1">
                         <TextBlock Text="Structure 1&amp;2" ToolTip.Tip="Structure Type 1 &amp; 2"/>
-                        <NumericUpDown Width="110" Minimum="1" Maximum="10" Increment="1" FormatString="0"
-                                       Value="{Binding Structure12.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="1" Maximum="10"
+                                       Value="{Binding Structure12.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                     </StackPanel>
-                    <StackPanel Spacing="2">
+                    <StackPanel Spacing="1">
                         <TextBlock Text="Booster 1&amp;2 (dB)" ToolTip.Tip="Booster 1 &amp; 2"/>
                         <ComboBox ItemsSource="{Binding Booster12.Options}"
                                   SelectedItem="{Binding Booster12.Value, Mode=TwoWay}"/>
                     </StackPanel>
-                    <StackPanel Spacing="2">
+                    <StackPanel Spacing="1">
                         <TextBlock Text="Structure 3&amp;4" ToolTip.Tip="Structure Type 3 &amp; 4"/>
-                        <NumericUpDown Width="110" Minimum="1" Maximum="10" Increment="1" FormatString="0"
-                                       Value="{Binding Structure34.Value, Mode=TwoWay}"/>
+                        <controls:RotaryKnob Minimum="1" Maximum="10"
+                                       Value="{Binding Structure34.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                     </StackPanel>
-                    <StackPanel Spacing="2">
+                    <StackPanel Spacing="1">
                         <TextBlock Text="Booster 3&amp;4 (dB)" ToolTip.Tip="Booster 3 &amp; 4"/>
                         <ComboBox ItemsSource="{Binding Booster34.Options}"
                                   SelectedItem="{Binding Booster34.Value, Mode=TwoWay}"/>
@@ -78,14 +78,14 @@
                             <Grid ColumnDefinitions="40,60,110,110,110,110,110,110,110,110" ColumnSpacing="6" Margin="0,2">
                                 <TextBlock Grid.Column="0" Text="{Binding Title}" VerticalAlignment="Center" FontWeight="SemiBold"/>
                                 <ToggleSwitch Grid.Column="1" OnContent="" OffContent="" IsChecked="{Binding On.Value, Mode=TwoWay}" VerticalAlignment="Center"/>
-                                <NumericUpDown Grid.Column="2" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding KeyLo.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Grid.Column="3" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding KeyHi.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Grid.Column="4" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding KeyFadeLo.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Grid.Column="5" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding KeyFadeHi.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Grid.Column="6" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding VelLo.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Grid.Column="7" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding VelHi.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Grid.Column="8" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding VelWidthLo.Value, Mode=TwoWay}"/>
-                                <NumericUpDown Grid.Column="9" Minimum="0" Maximum="127" Increment="1" FormatString="0" Value="{Binding VelWidthHi.Value, Mode=TwoWay}"/>
+                                <controls:RotaryKnob Grid.Column="2" Minimum="0" Maximum="127" Value="{Binding KeyLo.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
+                                <controls:RotaryKnob Grid.Column="3" Minimum="0" Maximum="127" Value="{Binding KeyHi.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
+                                <controls:RotaryKnob Grid.Column="4" Minimum="0" Maximum="127" Value="{Binding KeyFadeLo.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
+                                <controls:RotaryKnob Grid.Column="5" Minimum="0" Maximum="127" Value="{Binding KeyFadeHi.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
+                                <controls:RotaryKnob Grid.Column="6" Minimum="0" Maximum="127" Value="{Binding VelLo.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
+                                <controls:RotaryKnob Grid.Column="7" Minimum="0" Maximum="127" Value="{Binding VelHi.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
+                                <controls:RotaryKnob Grid.Column="8" Minimum="0" Maximum="127" Value="{Binding VelWidthLo.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
+                                <controls:RotaryKnob Grid.Column="9" Minimum="0" Maximum="127" Value="{Binding VelWidthHi.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                             </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

@@ -33,28 +33,28 @@
             <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto"
                           MaxHeight="300">
 
-            <WrapPanel Orientation="Horizontal" ItemSpacing="16" LineSpacing="8">
-                <StackPanel Spacing="2">
+            <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="8">
+                <StackPanel Spacing="1">
                     <Border Background="{StaticResource SnAccentBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
                         <TextBlock Text="SN Drums" Foreground="{StaticResource SnBadgeForegroundBrush}" FontSize="11"/>
                     </Border>
                     <TextBlock Text="{Binding KitName}" FontSize="16" FontWeight="Bold"/>
                 </StackPanel>
-                <StackPanel Spacing="2" Width="160">
+                <StackPanel Spacing="1" Width="160">
                     <TextBlock Text="Kit Level"/>
-                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding KitLevel.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding KitLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="2" Width="160">
+                <StackPanel Spacing="1" Width="160">
                     <TextBlock Text="Ambience" ToolTip.Tip="Ambience Level"/>
-                    <controls:ValueSlider Minimum="0" Maximum="127" Value="{Binding AmbienceLevel.Value, Mode=TwoWay}"/>
+                    <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding AmbienceLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
                 </StackPanel>
-                <StackPanel Spacing="2" Width="260">
+                <StackPanel Spacing="1" Width="260">
                     <TextBlock Text="Phrase" ToolTip.Tip="Phrase Number"/>
                     <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch"
                               ItemsSource="{Binding PhraseNumber.Options}"
                               SelectedItem="{Binding PhraseNumber.Value, Mode=TwoWay}"/>
                 </StackPanel>
-                <StackPanel Spacing="2">
+                <StackPanel Spacing="1">
                     <TextBlock Text="Tone FX" ToolTip.Tip="TFX Switch"/>
                     <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding TfxSwitch.Value, Mode=TwoWay}"/>
                 </StackPanel>
