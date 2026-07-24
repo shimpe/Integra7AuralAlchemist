@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="194.24518mm"
+   height="169.34225mm"
+   viewBox="0 0 194.24518 169.34225"
+   version="1.1"
+   id="svg1"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <linearGradient
+       id="linearGradient4">
+      <stop
+         style="stop-color:#8f115f;stop-opacity:1;"
+         offset="0.00000053"
+         id="stop4" />
+      <stop
+         style="stop-color:#8f0ce0;stop-opacity:0.54125112;"
+         offset="1"
+         id="stop5" />
+    </linearGradient>
+    <radialGradient
+       xlink:href="#linearGradient4"
+       id="radialGradient5"
+       cx="105"
+       cy="148.49998"
+       fx="105"
+       fy="148.49998"
+       r="39.503944"
+       gradientTransform="matrix(1,0,0,1.0464498,0,-6.8977915)"
+       gradientUnits="userSpaceOnUse" />
+    <meshgradient
+       id="meshgradient5"
+       gradientUnits="userSpaceOnUse"
+       x="57.205116"
+       y="99.75238">
+      <meshrow
+         id="meshrow5">
+        <meshpatch
+           id="meshpatch5">
+          <stop
+             path="c 26.3964,-26.9226  69.1934,-26.9226  95.5898,0"
+             style="stop-color:#ffffff;stop-opacity:1"
+             id="stop6" />
+          <stop
+             path="c 26.3964,26.9226  26.3964,70.5726  0,97.4952"
+             style="stop-color:#800080;stop-opacity:1"
+             id="stop7" />
+          <stop
+             path="c -26.3964,26.9226  -69.1934,26.9226  -95.5898,0"
+             style="stop-color:#ffffff;stop-opacity:1"
+             id="stop8" />
+          <stop
+             path="c -26.3964,-26.9226  -26.3964,-70.5726  -1.42109e-14,-97.4952"
+             style="stop-color:#800080;stop-opacity:1"
+             id="stop9" />
+        </meshpatch>
+      </meshrow>
+    </meshgradient>
+    <meshgradient
+       id="meshgradient11"
+       gradientUnits="userSpaceOnUse"
+       x="36.613884"
+       y="45.038795">
+      <meshrow
+         id="meshrow11">
+        <meshpatch
+           id="meshpatch11">
+          <stop
+             path="c 37.7616,-30.5152  98.9852,-30.5152  136.747,0"
+             style="stop-color:#ffffff;stop-opacity:1"
+             id="stop12" />
+          <stop
+             path="c 37.7616,30.5152  37.7616,79.9901  0,110.505"
+             style="stop-color:#800080;stop-opacity:1"
+             id="stop13" />
+          <stop
+             path="c -37.7616,30.5152  -98.9852,30.5152  -136.747,0"
+             style="stop-color:#ffffff;stop-opacity:1"
+             id="stop14" />
+          <stop
+             path="c -37.7616,-30.5152  -37.7616,-79.9901  -1.42109e-14,-110.505"
+             style="stop-color:#800080;stop-opacity:1"
+             id="stop15" />
+        </meshpatch>
+      </meshrow>
+    </meshgradient>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath20">
+      <rect
+         style="opacity:0.491722;fill:#ff5c42;fill-opacity:0.826972;stroke:#8f7ba6;stroke-width:0.333441;stroke-dasharray:none;stroke-opacity:1"
+         id="rect21"
+         width="193.91174"
+         height="169.0088"
+         x="7.6363711"
+         y="21.529568"
+         ry="1.2293791" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath21">
+      <rect
+         style="opacity:0.491722;fill:#ff5c42;fill-opacity:0.826972;stroke:#8f7ba6;stroke-width:0.333441;stroke-dasharray:none;stroke-opacity:1"
+         id="rect22"
+         width="193.91174"
+         height="169.0088"
+         x="7.6363711"
+         y="21.529568"
+         ry="1.2293791" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath22">
+      <rect
+         style="opacity:0.491722;fill:#ff5c42;fill-opacity:0.826972;stroke:#8f7ba6;stroke-width:0.333441;stroke-dasharray:none;stroke-opacity:1"
+         id="rect23"
+         width="193.91174"
+         height="169.0088"
+         x="7.6363711"
+         y="21.529568"
+         ry="1.2293791" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath23">
+      <rect
+         style="opacity:0.491722;fill:#ff5c42;fill-opacity:0.826972;stroke:#8f7ba6;stroke-width:0.333441;stroke-dasharray:none;stroke-opacity:1"
+         id="rect24"
+         width="193.91174"
+         height="169.0088"
+         x="7.6363711"
+         y="21.529568"
+         ry="1.2293791" />
+    </clipPath>
+    <clipPath
+       clipPathUnits="userSpaceOnUse"
+       id="clipPath24">
+      <rect
+         style="opacity:0.491722;fill:#ff5c42;fill-opacity:0.826972;stroke:#8f7ba6;stroke-width:0.333441;stroke-dasharray:none;stroke-opacity:1"
+         id="rect25"
+         width="193.91174"
+         height="169.0088"
+         x="7.6363711"
+         y="21.529568"
+         ry="1.2293791" />
+    </clipPath>
+  </defs>
+  <g
+     id="layer1"
+     transform="translate(-7.46965,-21.362846)">
+    <g
+       id="g25">
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:2.08566;stroke-dasharray:none;stroke-opacity:1"
+         id="rect4"
+         width="152.30098"
+         height="60.29126"
+         x="29.097088"
+         y="152.82523"
+         ry="0.95911562"
+         clip-path="url(#clipPath24)" />
+      <ellipse
+         style="fill:none;fill-opacity:1;stroke:url(#meshgradient11);stroke-width:18.6737;stroke-dasharray:none;stroke-opacity:1"
+         id="path3"
+         cx="104.98725"
+         cy="100.29144"
+         rx="96.694542"
+         ry="78.139046"
+         clip-path="url(#clipPath23)" />
+      <ellipse
+         style="fill:none;stroke:url(#meshgradient5);stroke-width:33.9983;stroke-opacity:1"
+         id="path1"
+         cx="105"
+         cy="148.49998"
+         rx="67.592171"
+         ry="68.939522"
+         clip-path="url(#clipPath22)" />
+      <ellipse
+         style="fill:none;stroke:url(#radialGradient5);stroke-width:39.6875;stroke-opacity:1"
+         id="path2"
+         cx="105"
+         cy="148.49998"
+         rx="19.660194"
+         ry="21.495144"
+         clip-path="url(#clipPath21)" />
+      <rect
+         style="fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:3.41024;stroke-dasharray:none"
+         id="rect3"
+         width="182.70874"
+         height="53.999996"
+         x="8.126214"
+         y="190.5728"
+         ry="0.95911562"
+         clip-path="url(#clipPath20)" />
+      <rect
+         style="opacity:0.491722;fill:#ff5c42;fill-opacity:0.826972;stroke:#8f7ba6;stroke-width:0.333442;stroke-dasharray:none;stroke-opacity:1"
+         id="rect20"
+         width="193.91174"
+         height="169.0088"
+         x="7.6363711"
+         y="21.529568"
+         ry="1.2293791" />
+    </g>
+  </g>
+</svg>

@@ -37,10 +37,24 @@
                 Height="32"
                 Background="Transparent"
                 PointerPressed="TitleBarDragStrip_PointerPressed">
-            <TextBlock Text="Integra-7 Aural Alchemist"
-                       VerticalAlignment="Center"
-                       IsHitTestVisible="False"
-                       Margin="10,0" />
+            <StackPanel Orientation="Horizontal"
+                        Spacing="8"
+                        VerticalAlignment="Center"
+                        IsHitTestVisible="False"
+                        Margin="10,0">
+                <!-- Same artwork as the window/exe icon; a Border clips it to a rounded
+                     tile so the opaque square does not read as a sticker on the dark strip. -->
+                <Border Width="20"
+                        Height="20"
+                        CornerRadius="4"
+                        ClipToBounds="True">
+                    <Image Source="/Assets/integra7-icon.png"
+                           Width="20"
+                           Height="20" />
+                </Border>
+                <TextBlock Text="Integra-7 Aural Alchemist"
+                           VerticalAlignment="Center" />
+            </StackPanel>
         </Border>
 
         <Border Grid.Row="1"
