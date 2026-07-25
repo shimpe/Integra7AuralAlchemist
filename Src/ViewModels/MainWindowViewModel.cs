@@ -177,7 +177,7 @@ public partial class MainWindowViewModel : ViewModelBase
             await using (var lease = await api.BeginConversationAsync("capture Studio Set"))
             {
                 var snapshot = await StudioSetSnapshotService.CaptureAsync(communicator, name, lease);
-                json = StudioSetSnapshot.ToJson(snapshot);
+                json = Integra7Snapshot.ToJson(snapshot);
             }
 
             // Write atomically. These files are the user's only copy of a Studio Set, so a failure
@@ -237,7 +237,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             SignalStartSync();
             SyncInfo = "Writing Studio Set";
-            var snapshot = StudioSetSnapshot.FromJson(await File.ReadAllTextAsync(path));
+            var snapshot = Integra7Snapshot.FromJson(await File.ReadAllTextAsync(path));
             // One conversation for the whole restore, same reasoning as the capture. Note that a
             // restore failing partway through leaves the instrument holding a mix of the snapshot and
             // what was there before -- RestoreAsync's own XML doc explains why nothing here can tell

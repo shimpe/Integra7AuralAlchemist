@@ -17,7 +17,9 @@ public sealed record SnapshotValue(string Path, string Value, long? Raw = null);
 /// the parameters that only exist because of it, and address order gives exactly that.</summary>
 public sealed record SnapshotDomain(string Start, string Offset, string Offset2, List<SnapshotValue> Values);
 
-/// <summary>A complete Studio Set. Pure data — no Avalonia, no MIDI.
+/// <summary>A complete Studio Set. Pure data — no Avalonia, no MIDI. Named for the instrument rather
+/// than for the Studio Set because the same record is about to carry a single tone as well; the shape
+/// (a version, a name, an ordered list of address-identified blocks) is the same for both.
 ///
 /// Format version 2 records, for every numeric and discrete parameter, the raw value the device stores
 /// alongside the string the UI displayed. The string is what makes these files readable and diffable,
@@ -46,21 +48,21 @@ public sealed record SnapshotDomain(string Start, string Offset, string Offset2,
 /// path with the old exposure, and no version 1 file was ever released -- the format changed while the
 /// feature was still being verified. Refusing with a message that names the version is better than
 /// silently restoring through the weaker path.</summary>
-public sealed record StudioSetSnapshot(int FormatVersion, string Name, List<SnapshotDomain> Domains)
+public sealed record Integra7Snapshot(int FormatVersion, string Name, List<SnapshotDomain> Domains)
 {
     public const int CurrentFormatVersion = 2;
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
     /// <summary>Indented deliberately: these files are meant to be read and diffed.</summary>
-    public static string ToJson(StudioSetSnapshot snapshot) => JsonSerializer.Serialize(snapshot, Options);
+    public static string ToJson(Integra7Snapshot snapshot) => JsonSerializer.Serialize(snapshot, Options);
 
-    public static StudioSetSnapshot FromJson(string json)
+    public static Integra7Snapshot FromJson(string json)
     {
-        StudioSetSnapshot? snapshot;
+        Integra7Snapshot? snapshot;
         try
         {
-            snapshot = JsonSerializer.Deserialize<StudioSetSnapshot>(json, Options);
+            snapshot = JsonSerializer.Deserialize<Integra7Snapshot>(json, Options);
         }
         catch (JsonException e)
         {

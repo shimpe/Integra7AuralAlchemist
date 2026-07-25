@@ -9,10 +9,10 @@ using Integra7AuralAlchemist.Models.Services;
 
 namespace Tests;
 
-public class StudioSetSnapshotTests
+public class Integra7SnapshotTests
 {
-    private static StudioSetSnapshot Sample() => new(
-        StudioSetSnapshot.CurrentFormatVersion,
+    private static Integra7Snapshot Sample() => new(
+        Integra7Snapshot.CurrentFormatVersion,
         "World Pop Set",
         [
             new SnapshotDomain("Temporary Studio Set", "Offset/Not Used", "Offset2/Studio Set Common",
@@ -25,7 +25,7 @@ public class StudioSetSnapshotTests
     [Test]
     public void Round_trips_through_json()
     {
-        var restored = StudioSetSnapshot.FromJson(StudioSetSnapshot.ToJson(Sample()));
+        var restored = Integra7Snapshot.FromJson(Integra7Snapshot.ToJson(Sample()));
 
         Assert.That(restored.Name, Is.EqualTo("World Pop Set"));
         Assert.That(restored.Domains, Has.Count.EqualTo(1));
@@ -37,9 +37,9 @@ public class StudioSetSnapshotTests
     [Test]
     public void Rejects_a_future_format_version()
     {
-        var json = StudioSetSnapshot.ToJson(Sample() with { FormatVersion = 99 });
+        var json = Integra7Snapshot.ToJson(Sample() with { FormatVersion = 99 });
 
-        var e = Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshot.FromJson(json));
+        var e = Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson(json));
         Assert.That(e!.Message, Does.Contain("99"));
     }
 
@@ -48,9 +48,9 @@ public class StudioSetSnapshotTests
     {
         // 3 is the version an off-by-one or a "<=" would most easily let through, and the one a future
         // build will really write, carrying fields this build would silently ignore.
-        var json = StudioSetSnapshot.ToJson(Sample() with { FormatVersion = 3 });
+        var json = Integra7Snapshot.ToJson(Sample() with { FormatVersion = 3 });
 
-        var e = Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshot.FromJson(json));
+        var e = Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson(json));
         Assert.That(e!.Message, Does.Contain("3"));
     }
 
@@ -82,16 +82,51 @@ public class StudioSetSnapshotTests
         // conversion this whole format version exists to stop relying on. No version 1 file was ever
         // released, so refusing with a message naming the version beats silently restoring it the
         // weak way.
-        var e = Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshot.FromJson(VersionOneFile));
+        var e = Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson(VersionOneFile));
 
         Assert.That(e!.Message, Does.Contain("1"));
         Assert.That(e.Message, Does.Contain("2"));
     }
 
+    /// <summary>A file exactly as one written before the record was renamed from StudioSetSnapshot to
+    /// Integra7Snapshot: hand-written, not serialised here, so it cannot accidentally acquire whatever
+    /// this build's type happens to emit. System.Text.Json records no .NET type name anywhere in the
+    /// document -- only the property names -- so the rename is invisible on disk and every file already
+    /// written keeps loading. This test is what says so rather than the claim being taken on trust.</summary>
+    private const string FileWrittenBeforeTheRename = """
+        {
+          "FormatVersion": 2,
+          "Name": "World Pop Set",
+          "Domains": [
+            {
+              "Start": "Temporary Studio Set",
+              "Offset": "Offset/Not Used",
+              "Offset2": "Offset2/Studio Set Common",
+              "Values": [
+                { "Path": "Studio Set Common/Studio Set Name", "Value": "World Pop Set", "Raw": null },
+                { "Path": "Studio Set Common/Studio Set Tempo", "Value": "120", "Raw": 120 }
+              ]
+            }
+          ]
+        }
+        """;
+
+    [Test]
+    public void Still_loads_a_file_written_before_the_record_was_renamed()
+    {
+        var restored = Integra7Snapshot.FromJson(FileWrittenBeforeTheRename);
+
+        Assert.That(restored.Name, Is.EqualTo("World Pop Set"));
+        Assert.That(restored.Domains, Has.Count.EqualTo(1));
+        Assert.That(restored.Domains[0].Offset2, Is.EqualTo("Offset2/Studio Set Common"));
+        Assert.That(restored.Domains[0].Values[0].Raw, Is.Null, "a text parameter still has no raw form");
+        Assert.That(restored.Domains[0].Values[1].Raw, Is.EqualTo(120));
+    }
+
     [Test]
     public void Round_trips_the_raw_value()
     {
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain("Temporary Studio Set", "Offset/Not Used", "Offset2/Studio Set Common Reverb",
             [
@@ -100,8 +135,8 @@ public class StudioSetSnapshotTests
             ]),
         ]);
 
-        var json = StudioSetSnapshot.ToJson(snapshot);
-        var restored = StudioSetSnapshot.FromJson(json);
+        var json = Integra7Snapshot.ToJson(snapshot);
+        var restored = Integra7Snapshot.FromJson(json);
 
         Assert.That(restored.FormatVersion, Is.EqualTo(2));
         Assert.That(restored.Domains[0].Values[0].Raw, Is.EqualTo(1));
@@ -113,7 +148,7 @@ public class StudioSetSnapshotTests
     [Test]
     public void Rejects_something_that_is_not_a_snapshot()
     {
-        Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshot.FromJson("not json at all"));
+        Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson("not json at all"));
     }
 
     [Test]
@@ -121,7 +156,7 @@ public class StudioSetSnapshotTests
     {
         // Restoring depends on this: a discriminator has to be applied before the parameters that
         // only exist because of its value.
-        var ordered = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var ordered = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain("s", "o", "o2",
             [
@@ -131,7 +166,7 @@ public class StudioSetSnapshotTests
             ]),
         ]);
 
-        var restored = StudioSetSnapshot.FromJson(StudioSetSnapshot.ToJson(ordered));
+        var restored = Integra7Snapshot.FromJson(Integra7Snapshot.ToJson(ordered));
 
         Assert.That(restored.Domains[0].Values.ConvertAll(v => v.Path), Is.EqualTo(
             ordered.Domains[0].Values.ConvertAll(v => v.Path)));
@@ -144,7 +179,7 @@ public class StudioSetSnapshotTests
         // whose version happens to be right would otherwise load "successfully" as a snapshot with a
         // null name and null domains, and fail much later.
         Assert.Throws<SnapshotFormatException>(
-            () => StudioSetSnapshot.FromJson($$"""{"FormatVersion":{{StudioSetSnapshot.CurrentFormatVersion}}}"""));
+            () => Integra7Snapshot.FromJson($$"""{"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}}}"""));
     }
 
     [Test]
@@ -153,8 +188,8 @@ public class StudioSetSnapshotTests
         // Restoring calls GetDomain(Start, Offset, Offset2) directly; a null there is a
         // NullReferenceException the moment restore runs, not a graceful failure.
         Assert.Throws<SnapshotFormatException>(
-            () => StudioSetSnapshot.FromJson($$"""
-                {"FormatVersion":{{StudioSetSnapshot.CurrentFormatVersion}},"Name":"x","Domains":[{"Values":[]}]}
+            () => Integra7Snapshot.FromJson($$"""
+                {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Domains":[{"Values":[]}]}
                 """));
     }
 
@@ -164,8 +199,8 @@ public class StudioSetSnapshotTests
         // Restoring calls ModifySingleParameterDisplayedValue(Path, Value) directly; a null Value
         // there is a NullReferenceException the moment restore runs.
         Assert.Throws<SnapshotFormatException>(
-            () => StudioSetSnapshot.FromJson($$"""
-                {"FormatVersion":{{StudioSetSnapshot.CurrentFormatVersion}},"Name":"x","Domains":[
+            () => Integra7Snapshot.FromJson($$"""
+                {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Domains":[
                     {"Start":"s","Offset":"o","Offset2":"o2","Values":[{"Path":"p"}]}
                 ]}
                 """));
@@ -177,8 +212,8 @@ public class StudioSetSnapshotTests
         // A captured Studio Set always has blocks. An empty list means a truncated capture, and
         // restoring it would silently do nothing.
         Assert.Throws<SnapshotFormatException>(
-            () => StudioSetSnapshot.FromJson(
-                $$"""{"FormatVersion":{{StudioSetSnapshot.CurrentFormatVersion}},"Name":"x","Domains":[]}"""));
+            () => Integra7Snapshot.FromJson(
+                $$"""{"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Domains":[]}"""));
     }
 }
 
@@ -305,9 +340,9 @@ public class ToneDomainNamesTests
 
 public class StudioSetSnapshotServiceTests
 {
-    private static StudioSetSnapshot SnapshotFromBlocks(
+    private static Integra7Snapshot SnapshotFromBlocks(
         IEnumerable<(string Start, string Offset, string Offset2)> blocks) => new(
-        StudioSetSnapshot.CurrentFormatVersion,
+        Integra7Snapshot.CurrentFormatVersion,
         "x",
         new List<SnapshotDomain>(
             blocks.Select(b => new SnapshotDomain(b.Start, b.Offset, b.Offset2, []))));
@@ -405,7 +440,7 @@ public class StudioSetSnapshotServiceTests
         var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
         const string path = "Studio Set Common Reverb/Reverb Type";
 
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2,
                 [new SnapshotValue(path, "Not A Reverb Type Any More", 1)]),
@@ -430,7 +465,7 @@ public class StudioSetSnapshotServiceTests
         var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
         const string path = "Studio Set Common Reverb/Reverb Type";
 
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2, [new SnapshotValue(path, "Hall 1")]),
         ]);
@@ -453,7 +488,7 @@ public class StudioSetSnapshotServiceTests
         var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
         const string path = "Studio Set Common/Studio Set Name";
 
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2,
                 [new SnapshotValue(path, "World Pop Set", 42)]),
@@ -498,7 +533,7 @@ public class StudioSetSnapshotServiceTests
         Assert.That(d.GetRelevantParameters(true, false).Select(p => p.ParSpec.Path), Does.Not.Contain(path));
         Assert.That(d.GetRelevantParameters(true, true).Select(p => p.ParSpec.Path), Does.Contain(path));
 
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2, [new SnapshotValue(path, "0")]),
         ]);
@@ -512,7 +547,7 @@ public class StudioSetSnapshotServiceTests
         var domain = BuildDomain(new TestFailedReadKeepsValues.SilentApi());
         var block = StudioSetDomainNames.All[0];
 
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2,
             [
@@ -553,13 +588,13 @@ public class StudioSetSnapshotServiceTests
 
         // capture
         var captured = new SnapshotValue(reserved.ParSpec.Path, "42");
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2, [captured]),
         ]);
 
         // JSON
-        var restored = StudioSetSnapshot.FromJson(StudioSetSnapshot.ToJson(snapshot));
+        var restored = Integra7Snapshot.FromJson(Integra7Snapshot.ToJson(snapshot));
 
         // validate
         Assert.DoesNotThrow(() => StudioSetSnapshotService.ValidateParametersAreKnown(domain, restored));
@@ -577,7 +612,7 @@ public class StudioSetSnapshotServiceTests
         var api = new TestFailedReadKeepsValues.SilentApi();
         var domain = BuildDomain(api);
 
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain("Temporary Studio Set", "Offset/Not Used", "Offset2/Not A Real Block", []),
         ]);
@@ -599,7 +634,7 @@ public class StudioSetSnapshotServiceTests
         var domain = BuildDomain(api);
         var block = StudioSetDomainNames.All[0];
 
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2,
             [
@@ -629,7 +664,7 @@ public class StudioSetSnapshotServiceTests
     /// no variant of the dependent group is context-valid, that group contributes zero bytes, and every
     /// parameter after it lands one group too early -- silent corruption of addresses the code never
     /// names. Reachable from a hand-edited file or a snapshot captured against a build with different
-    /// enum strings (see StudioSetSnapshot's format-version-1 note, and note that
+    /// enum strings (see Integra7Snapshot's format-version-1 note, and note that
     /// UpdateFromDisplayedValue assigns the unmatched string to StringValue as-is, which is what poisons
     /// the context). This feature is the only caller of the bulk write in the whole application.</summary>
     [Test]

@@ -7,8 +7,8 @@ using Serilog;
 
 namespace Integra7AuralAlchemist.Models.Services;
 
-/// <summary>Captures a live Studio Set to a <see cref="StudioSetSnapshot"/> and restores one back to
-/// the instrument. Pure data movement -- the file format lives in StudioSetSnapshot, the address list
+/// <summary>Captures a live Studio Set to an <see cref="Integra7Snapshot"/> and restores one back to
+/// the instrument. Pure data movement -- the file format lives in Integra7Snapshot, the address list
 /// in StudioSetDomainNames.</summary>
 public static class StudioSetSnapshotService
 {
@@ -38,7 +38,7 @@ public static class StudioSetSnapshotService
     /// with an unknown block would silently have its values applied to that unrelated block and then
     /// bulk-written to the instrument -- corruption with nothing to say so. Validating every block up
     /// front, before any write happens, means a bad file cannot leave the instrument half restored.</summary>
-    public static void ValidateBlocksAreKnown(StudioSetSnapshot snapshot)
+    public static void ValidateBlocksAreKnown(Integra7Snapshot snapshot)
     {
         var known = new HashSet<(string Start, string Offset, string Offset2)>(StudioSetDomainNames.All);
         foreach (var d in snapshot.Domains)
@@ -68,7 +68,7 @@ public static class StudioSetSnapshotService
     /// <see cref="ValidateBlocksAreKnown"/> first. <c>Integra7Domain.GetDomain</c> falls back to an
     /// unrelated block for an address it does not recognise, and this would then validate paths against
     /// the wrong block instead of catching the real problem.</summary>
-    public static void ValidateParametersAreKnown(Integra7Domain domain, StudioSetSnapshot snapshot)
+    public static void ValidateParametersAreKnown(Integra7Domain domain, Integra7Snapshot snapshot)
     {
         foreach (var block in snapshot.Domains)
         {
@@ -91,7 +91,7 @@ public static class StudioSetSnapshotService
     /// but wrong for a file -- silently recording stale (or, for a block never read this session, blank)
     /// values would produce a snapshot that looks complete and later gets written back to hardware with
     /// confidence. A partial capture is worse than none, so the whole capture fails instead.</summary>
-    public static async Task<StudioSetSnapshot> CaptureAsync(Integra7Domain domain, string name, IMidiLease lease)
+    public static async Task<Integra7Snapshot> CaptureAsync(Integra7Domain domain, string name, IMidiLease lease)
     {
         List<SnapshotDomain> domains = [];
         foreach (var (start, offset, offset2) in StudioSetDomainNames.All)
@@ -127,7 +127,7 @@ public static class StudioSetSnapshotService
         }
 
         Log.Information("Captured Studio Set snapshot {Name} ({BlockCount} blocks).", name, domains.Count);
-        return new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, name, domains);
+        return new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, name, domains);
     }
 
     /// <summary>Write a captured Studio Set back to the instrument, one block at a time.
@@ -143,7 +143,7 @@ public static class StudioSetSnapshotService
     /// are untouched. Restoring the very same snapshot again is safe and finishes the job rather than
     /// compounding the problem -- every block is applied independently, in the same order, from the same
     /// file.</summary>
-    public static async Task RestoreAsync(Integra7Domain domain, StudioSetSnapshot snapshot, IMidiLease lease)
+    public static async Task RestoreAsync(Integra7Domain domain, Integra7Snapshot snapshot, IMidiLease lease)
     {
         ValidateBlocksAreKnown(snapshot);
         ValidateParametersAreKnown(domain, snapshot);
