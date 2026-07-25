@@ -203,6 +203,9 @@ public partial class PartViewModel : ViewModelBase
     [Reactive] private SNDrumKitEditorViewModel? _sNDrumKitEditor;
     [Reactive] private StudioSetPartEditorViewModel? _studioSetPartEditor;
     [Reactive] private StudioSetPartEqEditorViewModel? _studioSetPartEqEditor;
+    [Reactive] private StudioSetEffectEditorViewModel? _studioSetChorusEditor;
+    [Reactive] private StudioSetEffectEditorViewModel? _studioSetReverbEditor;
+    [Reactive] private StudioSetMasterEqEditorViewModel? _studioSetMasterEqEditor;
     private IDisposable? _cleanupStudioSetChorus;
     private IDisposable? _cleanupStudioSetCommon;
     private IDisposable? _cleanupStudioSetMasterEQ;
@@ -255,6 +258,10 @@ public partial class PartViewModel : ViewModelBase
     // (Avalonia #16879 workaround, see ResyncPartAsync). Same-type changes leave it unchanged, so the
     // user's current tab is kept.
     [Reactive] private string _toneTabKey = "";
+
+    // The same idea for the common tab's own tab strip: the friendly Chorus / Reverb / Master EQ
+    // editors set this to open their raw grid under "Advanced".
+    [Reactive] private string _commonTabKey = "";
 
     // Selected partial in the raw "Advanced — Partials" SN-S tab. The friendly editor's
     // "Advanced … parameters…" links set this so the advanced view opens on the same partial.
@@ -1789,6 +1796,24 @@ public partial class PartViewModel : ViewModelBase
             await _i7domain?.StudioSetCommonMasterEQ.ReadFromIntegraAsync();
             List<FullyQualifiedParameter> p_meq = _i7domain?.StudioSetCommonMasterEQ.GetRelevantParameters(true, true);
             _sourceCacheStudioSetCommonMasterEQParameters.AddOrUpdate(p_meq);
+
+            // Friendly Chorus / Reverb / Master EQ editors. Like the part editors they bind to the live
+            // FQP instances read above — the same ones the raw grids show — and their "Advanced …"
+            // buttons clear-then-set CommonTabKey so repeat navigations always fire SelectTabByTag.
+            void OpenRawCommonTab(string tag)
+            {
+                CommonTabKey = "";
+                CommonTabKey = tag;
+            }
+
+            _studioSetChorusEditor?.Dispose();
+            StudioSetChorusEditor = StudioSetEffectEditorViewModel.ForChorus(_i7domain, OpenRawCommonTab);
+
+            _studioSetReverbEditor?.Dispose();
+            StudioSetReverbEditor = StudioSetEffectEditorViewModel.ForReverb(_i7domain, OpenRawCommonTab);
+
+            _studioSetMasterEqEditor?.Dispose();
+            StudioSetMasterEqEditor = new StudioSetMasterEqEditorViewModel(_i7domain, OpenRawCommonTab);
         }
     }
 
