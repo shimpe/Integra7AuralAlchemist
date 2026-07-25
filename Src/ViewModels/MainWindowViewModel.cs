@@ -86,6 +86,74 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <see cref="ShowSaveSnapshotDialog"/> for why "" is a safe sentinel here.</summary>
     public Interaction<Unit, string?> ShowOpenSnapshotDialog { get; }
 
+    /// <summary>Whether the journal has anything left to take back, and anything to put back. Mirrored
+    /// onto the UI thread from <c>EditJournal.Changed</c> in the constructor, because the journal is
+    /// mutated from both the UI thread and the pool -- see <see cref="EditJournal"/>'s class remarks.
+    /// The toolbar buttons bind to these rather than to the commands' CanExecute: an empty history is
+    /// the whole reason to disable them, and the journal cannot fill while disconnected.</summary>
+    [Reactive] private bool _canUndo;
+
+    [Reactive] private bool _canRedo;
+
+    /// <summary>Take back the last edit the user made, from either editor.</summary>
+    [ReactiveCommand]
+    public async Task UndoAsync()
+    {
+        if (!EditJournal.Default.TryUndo(out var pending)) return;
+        UserActionLog.Action($"undo '{pending.Path}' -> '{pending.ValueToApply}'");
+        await ApplyEditAsync(pending);
+    }
+
+    /// <summary>Put back the edit the last undo took away.</summary>
+    [ReactiveCommand]
+    public async Task RedoAsync()
+    {
+        if (!EditJournal.Default.TryRedo(out var pending)) return;
+        UserActionLog.Action($"redo '{pending.Path}' -> '{pending.ValueToApply}'");
+        await ApplyEditAsync(pending);
+    }
+
+    /// <summary>Write one journal step's value back to the instrument. Shared by undo and redo, which
+    /// differ only in which of the step's two values the journal hands back.</summary>
+    private async Task ApplyEditAsync(PendingEdit pending)
+    {
+        // Locals, not the properties: everything below runs after awaits, and a rescan in the meantime
+        // replaces both of them. Same reasoning as SaveStudioSetAsync.
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null) return;
+
+        var step = pending.Step;
+        try
+        {
+            // TryGetDomain, not GetDomain: the latter answers an address it does not recognise with an
+            // unrelated block rather than refusing, and writing this step into that block would change a
+            // part of the instrument the user never touched. Every triple in the journal was read off a
+            // live domain, so this should be unreachable -- which is exactly what makes it worth a guard
+            // rather than a comment. StudioSetSnapshotService validates a whole snapshot for this reason.
+            if (!communicator.TryGetDomain(step.Start, step.Offset, step.Offset2, out var domain))
+            {
+                UserActionLog.Failed($"apply '{step.Path}'",
+                    $"no such block (\"{step.Start}\", \"{step.Offset}\", \"{step.Offset2}\"); the step was dropped");
+                return;
+            }
+
+            // The lease is acquired outside ApplyAsync deliberately. Recording is suppressed for the
+            // whole of ApplyAsync (otherwise this write would record itself and the history would never
+            // empty), and an edit the user makes inside that window is dropped -- so the window has to
+            // cover the write and nothing more. Waiting for the wire to come free is the long part of
+            // this and is not the write, so it happens first, outside. The write itself is awaited
+            // wholly inside, which is what stops it escaping the suppression.
+            await using var lease = await api.BeginConversationAsync($"undo/redo {step.Path}");
+            await EditJournal.Default.ApplyAsync(() =>
+                domain.WriteToIntegraAsync(step.Path, pending.ValueToApply, lease));
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed($"apply '{step.Path}'", e.ToString());
+        }
+    }
+
     [ReactiveCommand]
     public async Task SaveUserTone()
     {
@@ -275,6 +343,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (restored)
         {
+            // A different Studio Set is now loaded, so every step in the history describes a value in
+            // the one it replaced.
+            EditJournal.Default.Clear();
+
             // A restore changes all 16 parts, including ones the user has never opened -- and
             // ResyncAllPartsAsync deliberately skips those. Left alone they keep the previous Studio
             // Set's tone type, and opening one later reads the wrong engine's domains, which the device
@@ -517,10 +589,16 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         if (restored)
+        {
+            // A different tone is now in the part, so any step naming one of its parameters describes
+            // the tone that was replaced. The history is not per-part, so this drops the lot.
+            EditJournal.Default.Clear();
+
             // Only this part changed, so only this part is re-read -- a Studio Set restore has to resync
             // all 16, a tone restore does not. Outside the lease above, since the resync acquires its
             // own, and not at all when the restore failed, because the screen still matches the device.
             await ResyncPartAsync((byte)selected.ZeroBasedPartNo);
+        }
     }
 
     [ReactiveCommand]
@@ -1069,6 +1147,18 @@ public partial class MainWindowViewModel : ViewModelBase
             .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
             .Subscribe(async m => await SetPresetAndResyncPartAsync(m.PartNo));
 
+        // The journal is mutated from whichever thread made the edit -- the friendly editors record on
+        // the UI thread, the raw grid's path on a pool thread (its message bus subscription is
+        // throttled) -- and Changed fires from that thread, so the property writes have to be posted.
+        // It fires once per setter call, so a knob drag raises it hundreds of times; every one of those
+        // is a no-op assignment that ReactiveUI drops, which is cheap enough not to coalesce until
+        // something shows it is not.
+        EditJournal.Default.Changed += () => Dispatcher.UIThread.Post(() =>
+        {
+            CanUndo = EditJournal.Default.CanUndo;
+            CanRedo = EditJournal.Default.CanRedo;
+        });
+
         ShowSaveUserToneDialog = new Interaction<SaveUserToneViewModel, UserToneToSave?>();
         ShowSaveSnapshotDialog = new Interaction<string, string?>();
         ShowOpenSnapshotDialog = new Interaction<Unit, string?>();
@@ -1126,6 +1216,10 @@ public partial class MainWindowViewModel : ViewModelBase
         if (parameters.Any(spec => StudioSetSelectors.Contains(spec.Par.ParSpec.Path)))
         {
             UserActionLog.Action("device reported a Studio Set change; resyncing everything");
+            // A Studio Set was selected on the front panel: every step in the history names a value in
+            // the Studio Set that just went away, so applying one would write it into a patch that never
+            // had it.
+            EditJournal.Default.Clear();
             await ResyncAllPartsAsync();
             return;
         }

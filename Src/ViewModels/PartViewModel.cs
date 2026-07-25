@@ -1876,6 +1876,11 @@ public partial class PartViewModel : ViewModelBase
             if (!_load.IsCurrent(decision.Epoch)) return;
 
             await BeginLoadAsync();
+
+            // A preset change: this part now holds a different tone, so every step in the history that
+            // names one of its parameters describes the tone that just went away. The history is not
+            // per-part, so this drops the lot rather than trying to keep the other parts' steps.
+            EditJournal.Default.Clear();
         }
         catch (Exception e)
         {

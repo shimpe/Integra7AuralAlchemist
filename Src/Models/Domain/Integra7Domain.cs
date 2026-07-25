@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using Integra7AuralAlchemist.Models.Data;
@@ -446,5 +447,21 @@ public class Integra7Domain
         }
 
         return _parameterMapper[key];
+    }
+
+    /// <summary>The answerable form of <see cref="GetDomain(string,string,string)"/>, for callers that
+    /// hold an address triple from outside this object and are about to write through it.
+    ///
+    /// <c>GetDomain</c> cannot say no: an address it does not recognise is logged and answered with
+    /// <c>_parameterMapper.First().Value</c>, an unrelated block. A caller that then writes into it
+    /// corrupts a part of the instrument the user never touched, with only a log line to say so --
+    /// which is why <c>StudioSetSnapshotService</c> validates every block of a snapshot up front rather
+    /// than trusting the lookup. This gives a caller holding a single triple the same protection
+    /// without a whole validation pass.</summary>
+    public bool TryGetDomain(string StartAddressName, string OffsetAddressName, string Offset2AddressName,
+        [NotNullWhen(true)] out DomainBase? domain)
+    {
+        Tuple<string, string, string> key = new(StartAddressName, OffsetAddressName, Offset2AddressName);
+        return _parameterMapper.TryGetValue(key, out domain);
     }
 }
