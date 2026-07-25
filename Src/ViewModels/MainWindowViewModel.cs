@@ -101,7 +101,10 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (!EditJournal.Default.TryUndo(out var pending)) return;
         UserActionLog.Action($"undo '{pending.Path}' -> '{pending.ValueToApply}'");
-        await ApplyEditAsync(pending);
+        // TryUndo has already moved the step to the redo side, so a write that never happened would
+        // leave the history describing an instrument state that was never reached. Moving it back is
+        // what TryRedo does, so the failure path is the opposite move rather than a special case.
+        if (!await ApplyEditAsync(pending)) EditJournal.Default.TryRedo(out _);
     }
 
     /// <summary>Put back the edit the last undo took away.</summary>
@@ -110,18 +113,22 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         if (!EditJournal.Default.TryRedo(out var pending)) return;
         UserActionLog.Action($"redo '{pending.Path}' -> '{pending.ValueToApply}'");
-        await ApplyEditAsync(pending);
+        // Mirror of UndoAsync: put the step back where it came from when the write did not happen.
+        if (!await ApplyEditAsync(pending)) EditJournal.Default.TryUndo(out _);
     }
 
     /// <summary>Write one journal step's value back to the instrument. Shared by undo and redo, which
     /// differ only in which of the step's two values the journal hands back.</summary>
-    private async Task ApplyEditAsync(PendingEdit pending)
+    /// <summary>Write one journal step back to the instrument. Returns false when nothing was written,
+    /// so the caller can put the step back rather than leave the history describing a state the
+    /// instrument never reached.</summary>
+    private async Task<bool> ApplyEditAsync(PendingEdit pending)
     {
         // Locals, not the properties: everything below runs after awaits, and a rescan in the meantime
         // replaces both of them. Same reasoning as SaveStudioSetAsync.
         var api = Integra7;
         var communicator = _integra7Communicator;
-        if (api is null || communicator is null) return;
+        if (api is null || communicator is null) return false;
 
         var step = pending.Step;
         try
@@ -135,7 +142,7 @@ public partial class MainWindowViewModel : ViewModelBase
             {
                 UserActionLog.Failed($"apply '{step.Path}'",
                     $"no such block (\"{step.Start}\", \"{step.Offset}\", \"{step.Offset2}\"); the step was dropped");
-                return;
+                return false;
             }
 
             // The lease is acquired outside ApplyAsync deliberately. Recording is suppressed for the
@@ -147,10 +154,12 @@ public partial class MainWindowViewModel : ViewModelBase
             await using var lease = await api.BeginConversationAsync($"undo/redo {step.Path}");
             await EditJournal.Default.ApplyAsync(() =>
                 domain.WriteToIntegraAsync(step.Path, pending.ValueToApply, lease));
+            return true;
         }
         catch (Exception e)
         {
             UserActionLog.Failed($"apply '{step.Path}'", e.ToString());
+            return false;
         }
     }
 
