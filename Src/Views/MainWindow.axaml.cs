@@ -85,7 +85,9 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
     {
         var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
         {
-            Title = "Save Studio Set Snapshot",
+            // Deliberately not "Save Studio Set Snapshot": both the Studio Set and the tone commands
+            // share this picker, and the suggested file name already says which one is being saved.
+            Title = "Save Snapshot",
             SuggestedFileName = interaction.Input,
             DefaultExtension = "json",
             FileTypeChoices = [SnapshotFileType]
@@ -101,7 +103,9 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Open Studio Set Snapshot",
+            // Shared by the Studio Set and tone commands; each refuses a file of the wrong kind with a
+            // message naming the button that would have worked.
+            Title = "Open Snapshot",
             AllowMultiple = false,
             FileTypeFilter = [SnapshotFileType]
         });
