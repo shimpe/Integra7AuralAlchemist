@@ -15,10 +15,11 @@ public class SysexDataTransmissionParser
         {
             if (s is null)
             {
-                // SplitAfterF7 leaves a null slot for the bytes after the last terminator -- so a
-                // message carrying no f7 at all arrives here as a single null. Say so: every other
+                // SplitAfterF7 marks bytes left over after the last terminator with a null slot -- a
+                // chunk carrying no f7 at all arrives here as a single null. Say so: every other
                 // rejection on this path logs, and a silently discarded update is the hardest kind
-                // to notice.
+                // to notice. A chunk that ends exactly at its f7 produces no such slot, so this does
+                // not fire for ordinary well-formed messages.
                 Log.Debug("Ignoring a sysex fragment with no end-of-sysex marker.");
                 continue;
             }
