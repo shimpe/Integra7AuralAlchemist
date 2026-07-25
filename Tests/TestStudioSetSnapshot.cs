@@ -97,4 +97,14 @@ public class StudioSetSnapshotTests
                 ]}
                 """));
     }
+
+    [Test]
+    public void Rejects_a_snapshot_with_no_blocks()
+    {
+        // A captured Studio Set always has blocks. An empty list means a truncated capture, and
+        // restoring it would silently do nothing.
+        Assert.Throws<SnapshotFormatException>(
+            () => StudioSetSnapshot.FromJson(
+                $$"""{"FormatVersion":{{StudioSetSnapshot.CurrentFormatVersion}},"Name":"x","Domains":[]}"""));
+    }
 }
