@@ -176,6 +176,36 @@ public class FullyQualifiedParameter : INotifyPropertyChanged
         }
     }
 
+    /// <summary>Set the value from the raw form the device stores, and bring StringValue back in
+    /// step. Round-tripping through the sysex bytes reuses the same interpretation a device read
+    /// performs, rather than duplicating the mapping and repr lookup. Text parameters have no raw
+    /// form -- their value IS the string -- so callers must set those through StringValue.</summary>
+    /// <exception cref="InvalidOperationException">This is a text parameter. Throwing rather than
+    /// no-opping is deliberate: a caller that reaches here believes it applied a value, and a silent
+    /// no-op would leave the parameter holding whatever it held before while the caller carries on --
+    /// exactly the class of quiet wrong-data-to-the-instrument failure this whole change is about.
+    /// Every caller can tell a text parameter apart before calling (IsNumeric/IsDiscrete), so this is
+    /// unreachable except from a bug.</exception>
+    public void ApplyRawValue(long raw)
+    {
+        if (!IsNumeric && !IsDiscrete)
+            throw new InvalidOperationException(
+                $"{ParSpec.Path} is a text parameter and has no raw value; set StringValue instead.");
+
+        // GetSysexDataFragment encodes the backing field, so it has to hold the new value first.
+        // Assigning the field rather than the property keeps this to one notification per property,
+        // raised at the end with the interpreted values, instead of briefly publishing a raw value
+        // whose StringValue still describes the old one.
+        _rawNumericValue = raw;
+        SysexParameterValueInterpreter.Interpret(GetSysexDataFragment(), ParSpec, out var rawValue,
+            out var stringValue);
+        // Route through the properties so INotifyPropertyChanged fires (see ParseFromSysexReply).
+        // Interpret is also what decides what an out-of-range raw means -- a discrete value no entry
+        // matches falls back to the first entry, the same as it would on a read from the device.
+        RawNumericValue = rawValue;
+        StringValue = stringValue;
+    }
+
     public byte[] GetSysexDataFragment()
     {
         if (IsNumeric)

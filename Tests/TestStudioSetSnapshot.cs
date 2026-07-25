@@ -43,6 +43,77 @@ public class StudioSetSnapshotTests
     }
 
     [Test]
+    public void Rejects_the_next_format_version_up()
+    {
+        // Version 2 accepts version 1 as well, so the version check is a set membership now rather
+        // than an equality. 3 is the version that check could most easily let through by accident --
+        // a "<= current" or an off-by-one in the set -- and it is the one a future build will really
+        // write, carrying fields this build would silently ignore.
+        var json = StudioSetSnapshot.ToJson(Sample() with { FormatVersion = 3 });
+
+        var e = Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshot.FromJson(json));
+        Assert.That(e!.Message, Does.Contain("3"));
+    }
+
+    /// <summary>The on-disk shape of a version 1 file, written out by hand rather than serialised from
+    /// a version 1 object -- there is no version 1 object any more, and a serialised one would carry
+    /// today's fields. Files in exactly this shape are on the user's disk (the feature was hardware
+    /// verified before raw values existed), so this is the compatibility contract, not a nicety.</summary>
+    private const string VersionOneFile = """
+        {
+          "FormatVersion": 1,
+          "Name": "World Pop Set",
+          "Domains": [
+            {
+              "Start": "Temporary Studio Set",
+              "Offset": "Offset/Not Used",
+              "Offset2": "Offset2/Studio Set Common",
+              "Values": [
+                { "Path": "Studio Set Common/Studio Set Name", "Value": "World Pop Set" },
+                { "Path": "Studio Set Common/Studio Set Tempo", "Value": "120" }
+              ]
+            }
+          ]
+        }
+        """;
+
+    [Test]
+    public void Still_loads_a_version_1_file()
+    {
+        var restored = StudioSetSnapshot.FromJson(VersionOneFile);
+
+        Assert.That(restored.FormatVersion, Is.EqualTo(1));
+        Assert.That(restored.Name, Is.EqualTo("World Pop Set"));
+        Assert.That(restored.Domains[0].Values[1].Value, Is.EqualTo("120"));
+        // A missing Raw property must deserialize to null, not to 0: null means "this file has no raw
+        // value, restore from the string", and 0 would mean "restore this parameter to raw 0".
+        Assert.That(restored.Domains[0].Values[0].Raw, Is.Null);
+        Assert.That(restored.Domains[0].Values[1].Raw, Is.Null);
+    }
+
+    [Test]
+    public void Round_trips_the_raw_value()
+    {
+        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        [
+            new SnapshotDomain("Temporary Studio Set", "Offset/Not Used", "Offset2/Studio Set Common Reverb",
+            [
+                new SnapshotValue("Studio Set Common Reverb/Reverb Type", "Room1", 1),
+                new SnapshotValue("Studio Set Common/Studio Set Name", "World Pop Set"),
+            ]),
+        ]);
+
+        var json = StudioSetSnapshot.ToJson(snapshot);
+        var restored = StudioSetSnapshot.FromJson(json);
+
+        Assert.That(restored.FormatVersion, Is.EqualTo(2));
+        Assert.That(restored.Domains[0].Values[0].Raw, Is.EqualTo(1));
+        Assert.That(restored.Domains[0].Values[0].Value, Is.EqualTo("Room1"),
+            "the display string stays in the file: these are meant to be read and diffed");
+        Assert.That(restored.Domains[0].Values[1].Raw, Is.Null, "a text parameter has no raw form");
+    }
+
+    [Test]
     public void Rejects_something_that_is_not_a_snapshot()
     {
         Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshot.FromJson("not json at all"));
@@ -199,6 +270,121 @@ public class StudioSetSnapshotServiceTests
         public Task<byte[]> RequestAsync(byte[] request, IReplyMatcher expected) => throw Bug();
         public Task<byte[]> ReadNextAsync(IReplyMatcher expected) => throw Bug();
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    /// <summary>A SilentApi whose reads succeed instead, with a well-formed all-zero reply of the
+    /// requested length. Capture and restore both abort on a read the device does not answer -- by
+    /// design, a half-read Studio Set must reach neither a file nor the instrument -- so a fake that
+    /// answers is the only way to drive either of them without hardware. Zeros are a legitimate
+    /// reading: raw 0 is a real value for every parameter in a Studio Set.</summary>
+    private sealed class BlankReplyApi : TestFailedReadKeepsValues.SilentApi
+    {
+        /// <summary>The 11 header bytes FullyQualifiedParameter.ParseFromSysexReply skips, plus the
+        /// checksum and F7 a real reply ends with -- the parser requires the reply to be strictly
+        /// longer than header plus block, so the two trailing bytes are not padding for its own sake.</summary>
+        private const int ReplyOverhead = 11 + 2;
+
+        public override Task<byte[]> MakeDataRequestAsync(byte[] address, long size, IMidiLease? lease = null)
+        {
+            Requests++;
+            return Task.FromResult(new byte[ReplyOverhead + (int)size]);
+        }
+    }
+
+    /// <summary>Nothing in these tests reaches real MIDI -- BlankReplyApi ignores the lease it is
+    /// handed -- so the lease that throws on every member doubles as proof of that.</summary>
+    private static IMidiLease NoRealMidi() => new NeverUsedLease();
+
+    /// <summary>The scenario the whole raw-value format exists for. "Not A Reverb Type Any More" stands
+    /// in for a display string this build's parameter database no longer contains -- an enum entry
+    /// renamed or reordered since the snapshot was captured. Restoring it as a string sets raw 0 with no
+    /// diagnostic at all in Release, and because Reverb Type is a discriminator it also poisons the
+    /// parser context, so the block's bulk write assembles the wrong number of bytes and is refused
+    /// outright (see Refuses_to_bulk_write_a_block_whose_discriminator_matches_no_variant). With the raw
+    /// value in the file the string is never consulted: the parameter lands on raw 1, the block tiles,
+    /// and it goes out.</summary>
+    [Test]
+    public async Task Restores_from_the_raw_value_when_the_display_string_matches_nothing_in_the_repr()
+    {
+        var api = new BlankReplyApi();
+        var domain = BuildDomain(api);
+        var block = StudioSetDomainNames.All[2]; // Offset2/Studio Set Common Reverb
+        var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
+        const string path = "Studio Set Common Reverb/Reverb Type";
+
+        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        [
+            new SnapshotDomain(block.Start, block.Offset, block.Offset2,
+                [new SnapshotValue(path, "Not A Reverb Type Any More", 1)]),
+        ]);
+
+        await StudioSetSnapshotService.RestoreAsync(domain, snapshot, NoRealMidi());
+
+        Assert.That(d.LookupSingleParameterDisplayedValue(path), Is.EqualTo("Room1"),
+            "the raw value must win over a display string this build cannot resolve");
+        Assert.That(api.Transmissions, Is.EqualTo(1), "the block must still tile, so it must still be sent");
+    }
+
+    [Test]
+    public async Task Restores_a_value_with_no_raw_from_its_display_string()
+    {
+        // A version 1 file carries no raw values at all, and must keep restoring exactly as it did
+        // before version 2 existed.
+        var api = new BlankReplyApi();
+        var domain = BuildDomain(api);
+        var block = StudioSetDomainNames.All[2]; // Offset2/Studio Set Common Reverb
+        var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
+        const string path = "Studio Set Common Reverb/Reverb Type";
+
+        var snapshot = new StudioSetSnapshot(1, "x",
+        [
+            new SnapshotDomain(block.Start, block.Offset, block.Offset2, [new SnapshotValue(path, "Hall 1")]),
+        ]);
+
+        await StudioSetSnapshotService.RestoreAsync(domain, snapshot, NoRealMidi());
+
+        Assert.That(d.LookupSingleParameterDisplayedValue(path), Is.EqualTo("Hall 1"));
+        Assert.That(api.Transmissions, Is.EqualTo(1));
+    }
+
+    [Test]
+    public async Task Restores_a_text_parameter_from_its_string_even_when_the_file_carries_a_raw()
+    {
+        // A text parameter's value IS its string; it has no raw form, and ApplyRawValue throws for one.
+        // Capture never writes a Raw for one, but a hand-edited file can, so restore has to ask what
+        // kind of parameter it is rather than trust the field's presence.
+        var api = new BlankReplyApi();
+        var domain = BuildDomain(api);
+        var block = StudioSetDomainNames.All[0]; // Offset2/Studio Set Common
+        var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
+        const string path = "Studio Set Common/Studio Set Name";
+
+        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        [
+            new SnapshotDomain(block.Start, block.Offset, block.Offset2,
+                [new SnapshotValue(path, "World Pop Set", 42)]),
+        ]);
+
+        Assert.DoesNotThrowAsync(async () => await StudioSetSnapshotService.RestoreAsync(domain, snapshot, NoRealMidi()));
+        Assert.That(d.LookupSingleParameterDisplayedValue(path), Is.EqualTo("World Pop Set"));
+    }
+
+    [Test]
+    public async Task Captures_the_raw_value_next_to_the_displayed_one()
+    {
+        var api = new BlankReplyApi();
+        var domain = BuildDomain(api);
+
+        var snapshot = await StudioSetSnapshotService.CaptureAsync(domain, "x", NoRealMidi());
+
+        Assert.That(snapshot.FormatVersion, Is.EqualTo(2));
+        var common = snapshot.Domains[0].Values;
+        // Every numeric and discrete parameter carries a raw value; only text ones do not.
+        Assert.That(common.Find(v => v.Path == "Studio Set Common/Studio Set Tempo")!.Raw, Is.Not.Null);
+        Assert.That(common.Find(v => v.Path == "Studio Set Common/Studio Set Name")!.Raw, Is.Null,
+            "a text parameter has no raw form, so recording one would be a lie");
+        Assert.That(common.TrueForAll(v => v.Value is not null),
+            "the displayed value stays in every entry: it is what makes these files readable");
     }
 
     [Test]

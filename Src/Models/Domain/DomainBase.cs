@@ -61,8 +61,12 @@ public class DomainBase
         }
 
         for (var i = 0; i < r.Range.Count; i++) _domainParameters[i].CopyParsedDataFrom(r.Range[i]);
-        // Resolve bank-selected waveform names (no-op for domains without wave params).
-        WaveNameResolution.Apply(_domainParameters, WaveformBanks.Default);
+        // Resolve bank-selected waveform names. Asking Applies first rather than calling into what is
+        // already a no-op for a domain without wave params: the argument is evaluated either way, and
+        // evaluating WaveformBanks.Default parses 13 CSV assets through Avalonia's asset loader. No
+        // Studio Set or system block has any use for those.
+        if (WaveNameResolution.Applies(_domainParameters))
+            WaveNameResolution.Apply(_domainParameters, WaveformBanks.Default);
         // Filter the Wave Group ID (SRX board) options to the currently-loaded SRX boards.
         SrxGroupIdResolution.Apply(_domainParameters, LoadedSrxState.Default.Boards);
         return true;
@@ -181,6 +185,33 @@ public class DomainBase
             // as a delay's ms/Note selector) changed before the debounced write fired. Skip it
             // gracefully and log (matching WriteToIntegraAsync(parameterName)) rather than asserting,
             // which would terminate a Debug build on a benign race.
+            Log.Error($"Parameter {parameterName} does not exist or is not valid in the current context; skipping stale write.");
+    }
+
+    /// <summary>The raw-valued sibling of <see cref="ModifySingleParameterDisplayedValue"/>: sets the
+    /// value from the raw form the device stores rather than from a display string, and lets
+    /// <c>FullyQualifiedParameter.ApplyRawValue</c> derive the display string from it. Used by the
+    /// Studio Set restore, where raw is the value that survives a build renaming an enum string.
+    /// Skips-and-logs an unknown or context-invalid parameter for exactly the reason spelled out in
+    /// <see cref="ModifySingleParameterDisplayedValue"/>.</summary>
+    public void ModifySingleParameterRawValue(string parameterName, long raw)
+    {
+        var found = false;
+        var ctx = new ParserContext();
+        ctx.InitializeFromExistingData(_domainParameters);
+
+        for (var i = 0; i < _domainParameters.Count && !found; i++)
+        {
+            var p = _domainParameters[i];
+            if (p.ValidInContext(ctx) && p.ParSpec.Path == parameterName)
+            {
+                found = true;
+                p.ApplyRawValue(raw);
+                p.DebugLog();
+            }
+        }
+
+        if (!found)
             Log.Error($"Parameter {parameterName} does not exist or is not valid in the current context; skipping stale write.");
     }
 
