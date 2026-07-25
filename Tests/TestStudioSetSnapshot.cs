@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
@@ -203,6 +204,102 @@ public class StudioSetDomainNamesTests
     public void Has_no_duplicates()
     {
         Assert.That(StudioSetDomainNames.All, Is.Unique);
+    }
+}
+
+public class ToneDomainNamesTests
+{
+    private static readonly string[] AllToneTypes = ["PCMS", "PCMD", "SN-S", "SN-A", "SN-D"];
+
+    /// <summary>A block's Offset2 ends in "Partial &lt;n&gt;" only for an actual partial block. This is
+    /// deliberately anchored so it does not also match "PCM Synth Tone Partial Mix Table", a *common*
+    /// block whose name happens to contain the word "Partial" too.</summary>
+    private static readonly Regex PartialSuffix = new(@"Partial (\d+)$");
+
+    private static Integra7Domain BuildDomain(IIntegra7Api api) =>
+        new(api, new Integra7StartAddresses(), TestFailedReadKeepsValues.LoadParameters());
+
+    [Test]
+    public void Counts_the_right_number_of_blocks_per_engine()
+    {
+        // The partial counts come from Constants, not a literal, so a change to a NO_OF_PARTIALS_*
+        // value fails here rather than only showing up as a mismatched capture much later.
+        Assert.That(ToneDomainNames.For("PCMS", 0), Has.Count.EqualTo(4 + Constants.NO_OF_PARTIALS_PCM_SYNTH_TONE));
+        Assert.That(ToneDomainNames.For("PCMD", 0), Has.Count.EqualTo(4 + Constants.NO_OF_PARTIALS_PCM_DRUM));
+        Assert.That(ToneDomainNames.For("SN-S", 0), Has.Count.EqualTo(2 + Constants.NO_OF_PARTIALS_SN_SYNTH_TONE));
+        Assert.That(ToneDomainNames.For("SN-A", 0), Has.Count.EqualTo(2));
+        Assert.That(ToneDomainNames.For("SN-D", 0), Has.Count.EqualTo(3 + Constants.NO_OF_PARTIALS_SN_DRUM));
+    }
+
+    [TestCase(0)]
+    [TestCase(9)]
+    public void Every_block_names_the_requested_part_in_its_start(int zeroBasedPartNo)
+    {
+        var expectedStart = $"Temporary Tone Part {zeroBasedPartNo + 1}";
+
+        foreach (var toneType in AllToneTypes)
+            Assert.That(ToneDomainNames.For(toneType, zeroBasedPartNo).Select(b => b.Start),
+                Has.All.EqualTo(expectedStart), $"tone type {toneType}");
+    }
+
+    [TestCase("PCMS", 4)]
+    [TestCase("PCMD", 4)]
+    [TestCase("SN-S", 2)]
+    [TestCase("SN-A", 2)]
+    [TestCase("SN-D", 3)]
+    public void Orders_common_blocks_before_ascending_partials(string toneType, int commonBlockCount)
+    {
+        var names = ToneDomainNames.For(toneType, 0);
+
+        Assert.That(names.Take(commonBlockCount).Select(b => b.Offset2),
+            Has.None.Matches<string>(o => PartialSuffix.IsMatch(o)),
+            "the common blocks must all precede the partials");
+
+        var partialNumbers = names.Skip(commonBlockCount)
+            .Select(b => int.Parse(PartialSuffix.Match(b.Offset2).Groups[1].Value))
+            .ToList();
+        Assert.That(partialNumbers, Is.EqualTo(Enumerable.Range(1, partialNumbers.Count)),
+            "partials must ascend starting from 1");
+    }
+
+    [Test]
+    public void Every_tone_block_resolves_to_its_own_domain()
+    {
+        // GetDomain falls back to an unrelated block rather than throwing, so a typo in
+        // ToneDomainNames would silently capture and restore the wrong addresses.
+        var domain = BuildDomain(new TestFailedReadKeepsValues.SilentApi());
+
+        foreach (var toneType in AllToneTypes)
+        foreach (var (start, offset, offset2) in ToneDomainNames.For(toneType, 0))
+            Assert.That(domain.GetDomain(start, offset, offset2).Offset2AddressName, Is.EqualTo(offset2),
+                $"tone type {toneType}, block {offset2}");
+    }
+
+    [Test]
+    public void Throws_for_an_unrecognised_tone_type()
+    {
+        var e = Assert.Throws<ArgumentException>(() => ToneDomainNames.For("bogus", 0));
+        Assert.That(e!.Message, Does.Contain("bogus"));
+    }
+
+    [TestCase("PCMS")]
+    [TestCase("PCMD")]
+    [TestCase("SN-S")]
+    [TestCase("SN-A")]
+    [TestCase("SN-D")]
+    public void IsKnownToneType_agrees_with_For_for_a_known_type(string toneType)
+    {
+        Assert.That(ToneDomainNames.IsKnownToneType(toneType), Is.True);
+        Assert.DoesNotThrow(() => ToneDomainNames.For(toneType, 0));
+    }
+
+    [TestCase("bogus")]
+    [TestCase("")]
+    [TestCase("pcms")]
+    public void IsKnownToneType_agrees_with_For_for_an_unknown_type(string toneType)
+    {
+        Assert.That(ToneDomainNames.IsKnownToneType(toneType), Is.False);
+        Assert.Throws<ArgumentException>(() => ToneDomainNames.For(toneType, 0));
     }
 }
 
