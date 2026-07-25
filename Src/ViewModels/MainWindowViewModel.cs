@@ -1006,8 +1006,13 @@ public partial class MainWindowViewModel : ViewModelBase
                         // The preset itself is refreshed even for a part that was never opened: it is a
                         // single read, and the preset list and tab visibility show it everywhere.
                         var b = _integra7Communicator.StudioSetPart(part);
-                        await b.ReadFromIntegraAsync();
-                        pvm.PreSelectConfiguredPreset(b);
+                        // Only when the read answered: a failed one keeps the previous values, and a
+                        // preset derived from those claims a patch the device never reported. See
+                        // PartViewModel.EnsurePreselectIsNotNullAsync.
+                        if (await b.ReadFromIntegraAsync())
+                            pvm.PreSelectConfiguredPreset(b);
+                        else
+                            Log.Warning("Part {Part}: not preselecting a preset, the device did not answer.", part);
                         // The full resync is not, since an unopened part reads everything when opened.
                         // A part whose initialization was cancelled by this very preset change does
                         // need it though: ResyncPartAsync re-initializes it, now that the device has
