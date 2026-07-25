@@ -1,0 +1,113 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             x:DataType="vm:StudioSetPartEqEditorViewModel"
+             x:CompileBindings="True"
+             x:Class="Integra7AuralAlchemist.Views.StudioSetPartEqEditorView">
+
+    <UserControl.Styles>
+        <!-- Reserve a uniform 2-line height for control labels so wrapped labels don't push their
+             knob down — keeps every control in a row vertically aligned. -->
+        <Style Selector="TextBlock.sliderLabel">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="MinHeight" Value="38"/>
+            <Setter Property="VerticalAlignment" Value="Bottom"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="6" Margin="8">
+
+            <!-- ===== Response curve ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="24">
+                        <TextBlock Text="{Binding Title}" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <ToggleSwitch OnContent="EQ on" OffContent="EQ off"
+                                      IsChecked="{Binding EqSwitch.Value, Mode=TwoWay}"/>
+                    </StackPanel>
+                    <TextBlock Text="Drag a band handle sideways to change its frequency and up/down to change its gain. Double-click a handle to flatten that band."
+                               Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
+                    <controls:EqCurveControl Height="240" MinWidth="420" HorizontalAlignment="Stretch"
+                        IsOn="{Binding EqSwitch.Value}"
+                        LowHz="{Binding LowFreqHz, Mode=TwoWay}" LowGain="{Binding LowGain.Value, Mode=TwoWay}"
+                        MidHz="{Binding MidFreqHz, Mode=TwoWay}" MidGain="{Binding MidGain.Value, Mode=TwoWay}"
+                        MidQ="{Binding MidQValue}"
+                        HighHz="{Binding HighFreqHz, Mode=TwoWay}" HighGain="{Binding HighGain.Value, Mode=TwoWay}"
+                        LowBandBrush="{StaticResource EqLowBandBrush}"
+                        MidBandBrush="{StaticResource EqMidBandBrush}"
+                        HighBandBrush="{StaticResource EqHighBandBrush}"
+                        LineBrush="{StaticResource SnAmpEnvelopeBrush}"
+                        FillBrush="{StaticResource SnAmpEnvelopeFillBrush}"
+                        BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                        GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                        AxisBrush="{StaticResource SnEnvelopeAxisBrush}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Bands ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Bands" FontWeight="Bold"/>
+
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Low" Width="40" VerticalAlignment="Center" FontWeight="SemiBold"
+                                   Foreground="{StaticResource EqLowBandBrush}"/>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Shelf freq (Hz)" Classes="sliderLabel" ToolTip.Tip="EQ Low Freq"/>
+                            <ComboBox ItemsSource="{Binding LowFreq.Options}"
+                                      SelectedItem="{Binding LowFreq.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Gain" Classes="sliderLabel" ToolTip.Tip="EQ Low Gain"/>
+                            <controls:RotaryKnob Minimum="-15" Maximum="15" Unit="dB"
+                                                 Value="{Binding LowGain.Value, Mode=TwoWay}"
+                                                 AccentBrush="{StaticResource KnobAmpBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="Mid" Width="40" VerticalAlignment="Center" FontWeight="SemiBold"
+                                   Foreground="{StaticResource EqMidBandBrush}"/>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Centre freq (Hz)" Classes="sliderLabel" ToolTip.Tip="EQ Mid Freq"/>
+                            <ComboBox ItemsSource="{Binding MidFreq.Options}"
+                                      SelectedItem="{Binding MidFreq.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Width (Q)" Classes="sliderLabel" ToolTip.Tip="EQ Mid Q — higher is narrower"/>
+                            <ComboBox ItemsSource="{Binding MidQ.Options}"
+                                      SelectedItem="{Binding MidQ.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Gain" Classes="sliderLabel" ToolTip.Tip="EQ Mid Gain"/>
+                            <controls:RotaryKnob Minimum="-15" Maximum="15" Unit="dB"
+                                                 Value="{Binding MidGain.Value, Mode=TwoWay}"
+                                                 AccentBrush="{StaticResource KnobAmpBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="High" Width="40" VerticalAlignment="Center" FontWeight="SemiBold"
+                                   Foreground="{StaticResource EqHighBandBrush}"/>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Shelf freq (Hz)" Classes="sliderLabel" ToolTip.Tip="EQ High Freq"/>
+                            <ComboBox ItemsSource="{Binding HighFreq.Options}"
+                                      SelectedItem="{Binding HighFreq.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Gain" Classes="sliderLabel" ToolTip.Tip="EQ High Gain"/>
+                            <controls:RotaryKnob Minimum="-15" Maximum="15" Unit="dB"
+                                                 Value="{Binding HighGain.Value, Mode=TwoWay}"
+                                                 AccentBrush="{StaticResource KnobAmpBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Button HorizontalAlignment="Left" Content="Advanced part EQ parameters…"
+                    Command="{Binding AdvancedPartEqCommand}"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,315 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             x:DataType="vm:StudioSetPartEditorViewModel"
+             x:CompileBindings="True"
+             x:Class="Integra7AuralAlchemist.Views.StudioSetPartEditorView">
+
+    <UserControl.Styles>
+        <!-- Reserve a uniform 2-line height for control labels so wrapped labels don't push their
+             knob down — keeps every control in a row vertically aligned. -->
+        <Style Selector="TextBlock.sliderLabel">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="MinHeight" Value="38"/>
+            <Setter Property="VerticalAlignment" Value="Bottom"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="6" Margin="8">
+
+            <!-- ===== Mix / routing ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="8">
+                        <StackPanel Spacing="1">
+                            <Border Background="{StaticResource SnAccentBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding Title}" Foreground="{StaticResource SnBadgeForegroundBrush}" FontSize="11"/>
+                            </Border>
+                            <!-- Which patch the part holds. The preset list above is what changes it. -->
+                            <TextBlock Text="{Binding ToneBankSummary}" FontSize="11" Opacity="0.7"
+                                       ToolTip.Tip="Tone Bank Select MSB / LSB and Program Number"/>
+                        </StackPanel>
+
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Level" Classes="sliderLabel" ToolTip.Tip="Part Level"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding Level.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Pan" Classes="sliderLabel" ToolTip.Tip="Part Pan (L64 … 0 … R63)"/>
+                            <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding Pan.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPanBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Chorus send" Classes="sliderLabel" ToolTip.Tip="Part Chorus Send Level"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ChorusSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Reverb send" Classes="sliderLabel" ToolTip.Tip="Part Reverb Send Level"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ReverbSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Output" Classes="sliderLabel" ToolTip.Tip="Part Output Assign"/>
+                            <ComboBox ItemsSource="{Binding OutputAssign.Options}"
+                                      SelectedItem="{Binding OutputAssign.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="MIDI channel" Classes="sliderLabel" ToolTip.Tip="Receive Channel"/>
+                            <controls:RotaryKnob Minimum="1" Maximum="16" Value="{Binding ReceiveChannel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Receive" Classes="sliderLabel" ToolTip.Tip="Receive Switch — whether the part listens to its MIDI channel at all"/>
+                            <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding ReceiveSwitch.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Mute" Classes="sliderLabel" ToolTip.Tip="Mute Switch"/>
+                            <ToggleSwitch OnContent="Muted" OffContent="Not muted" IsChecked="{Binding MuteSwitch.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Pitch & voicing ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Pitch &amp; voicing" FontWeight="Bold"/>
+                    <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="8">
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Octave" Classes="sliderLabel" ToolTip.Tip="Part Octave Shift"/>
+                            <controls:RotaryKnob Minimum="-3" Maximum="3" Value="{Binding OctaveShift.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Coarse tune" Classes="sliderLabel" ToolTip.Tip="Part Coarse Tune (semitones)"/>
+                            <controls:RotaryKnob Minimum="-48" Maximum="48" Value="{Binding CoarseTune.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Fine tune" Classes="sliderLabel" ToolTip.Tip="Part Fine Tune (cents)"/>
+                            <controls:RotaryKnob Minimum="-50" Maximum="50" Value="{Binding FineTune.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Voice" Classes="sliderLabel" ToolTip.Tip="Part Mono-Poly"/>
+                            <ComboBox ItemsSource="{Binding MonoPoly.Options}"
+                                      SelectedItem="{Binding MonoPoly.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Legato" Classes="sliderLabel" ToolTip.Tip="Part Legato Switch"/>
+                            <ComboBox ItemsSource="{Binding LegatoSwitch.Options}"
+                                      SelectedItem="{Binding LegatoSwitch.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Bend range" Classes="sliderLabel" ToolTip.Tip="Part Pitch Bend Range (semitones)"/>
+                            <ComboBox ItemsSource="{Binding PitchBendRange.Options}"
+                                      SelectedItem="{Binding PitchBendRange.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Portamento" Classes="sliderLabel" ToolTip.Tip="Part Portamento Switch"/>
+                            <ComboBox ItemsSource="{Binding PortamentoSwitch.Options}"
+                                      SelectedItem="{Binding PortamentoSwitch.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Portamento time" Classes="sliderLabel" ToolTip.Tip="Part Portamento Time"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="128" Value="{Binding PortamentoTime.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
+                        </StackPanel>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Tone offsets ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Tone offsets" FontWeight="Bold"/>
+                    <TextBlock Text="Nudges applied on top of whatever the part's own patch already does — zero changes nothing."
+                               Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
+                    <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="8">
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Brightness (Cutoff)" Classes="sliderLabel" ToolTip.Tip="Part Cutoff Offset"/>
+                            <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding CutoffOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Resonance" Classes="sliderLabel" ToolTip.Tip="Part Resonance Offset"/>
+                            <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding ResonanceOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFilterBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Attack" Classes="sliderLabel" ToolTip.Tip="Part Attack Time Offset"/>
+                            <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding AttackOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Decay" Classes="sliderLabel" ToolTip.Tip="Part Decay Time Offset"/>
+                            <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding DecayOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Release" Classes="sliderLabel" ToolTip.Tip="Part Release Time Offset"/>
+                            <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding ReleaseOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Vibrato rate" Classes="sliderLabel" ToolTip.Tip="Part Vibrato Rate"/>
+                            <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding VibratoRate.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Vibrato depth" Classes="sliderLabel" ToolTip.Tip="Part Vibrato Depth"/>
+                            <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding VibratoDepth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Vibrato delay" Classes="sliderLabel" ToolTip.Tip="Part Vibrato Delay"/>
+                            <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding VibratoDelay.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Velocity sens" Classes="sliderLabel" ToolTip.Tip="Part Velocity Sens Offset"/>
+                            <controls:RotaryKnob Minimum="-63" Maximum="63" Value="{Binding VelocitySensOffset.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Velocity curve" Classes="sliderLabel" ToolTip.Tip="Velocity Curve Type"/>
+                            <ComboBox ItemsSource="{Binding VelocityCurveType.Options}"
+                                      SelectedItem="{Binding VelocityCurveType.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Key & velocity zone ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Key &amp; velocity zone" FontWeight="Bold"/>
+                    <TextBlock Text="Where this part answers — key (left→right) × velocity (loud at top). Drag to move, drag an edge to resize."
+                               Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
+                    <!-- One zone: the same editor the PCM PMT tab uses, with the other three off. -->
+                    <controls:PmtZoneEditorControl Height="280" Width="760" HorizontalAlignment="Left"
+                        Partial1On="True"
+                        Key1Lo="{Binding KeyRangeLower.Value, Mode=TwoWay}" Key1Hi="{Binding KeyRangeUpper.Value, Mode=TwoWay}"
+                        Vel1Lo="{Binding VelocityRangeLower.Value, Mode=TwoWay}" Vel1Hi="{Binding VelocityRangeUpper.Value, Mode=TwoWay}"
+                        Zone1Brush="{StaticResource PmtZone1Brush}"
+                        BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                        GridBrush="{StaticResource SnEnvelopeGridBrush}"
+                        AxisBrush="{StaticResource SnEnvelopeAxisBrush}"/>
+                    <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="8">
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Key lo" Classes="sliderLabel" ToolTip.Tip="Keyboard Range Lower"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding KeyRangeLower.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Key hi" Classes="sliderLabel" ToolTip.Tip="Keyboard Range Upper"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding KeyRangeUpper.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Key fade lo" Classes="sliderLabel" ToolTip.Tip="Keyboard Fade Width Lower"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding KeyFadeLower.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Key fade hi" Classes="sliderLabel" ToolTip.Tip="Keyboard Fade Width Upper"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding KeyFadeUpper.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Vel lo" Classes="sliderLabel" ToolTip.Tip="Velocity Range Lower"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding VelocityRangeLower.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Vel hi" Classes="sliderLabel" ToolTip.Tip="Velocity Range Upper"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding VelocityRangeUpper.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Vel fade lo" Classes="sliderLabel" ToolTip.Tip="Velocity Fade Width Lower"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding VelocityFadeLower.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Vel fade hi" Classes="sliderLabel" ToolTip.Tip="Velocity Fade Width Upper"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding VelocityFadeUpper.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
+                        </StackPanel>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Scale tune ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Scale tune" FontWeight="Bold"/>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Temperament" Classes="sliderLabel" ToolTip.Tip="Part Scale Tune Type"/>
+                            <ComboBox ItemsSource="{Binding ScaleTuneType.Options}"
+                                      SelectedItem="{Binding ScaleTuneType.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Key" Classes="sliderLabel" ToolTip.Tip="Part Scale Tune Key"/>
+                            <ComboBox ItemsSource="{Binding ScaleTuneKey.Options}"
+                                      SelectedItem="{Binding ScaleTuneKey.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <TextBlock Text="Per-note detune in cents. Only a Custom temperament uses these; the named ones set them for you."
+                               Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
+                    <ItemsControl ItemsSource="{Binding ScaleTunes}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="8"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PartOffsetViewModel">
+                                <StackPanel Spacing="1" Width="76">
+                                    <TextBlock Text="{Binding Label}"/>
+                                    <controls:RotaryKnob Minimum="-64" Maximum="63"
+                                                         Value="{Binding Param.Value, Mode=TwoWay}"
+                                                         AccentBrush="{StaticResource KnobPitchDriftBrush}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Motional Surround ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Motional Surround" FontWeight="Bold"/>
+                    <TextBlock Text="The same placement the Motional Surround tab drags around, as numbers."
+                               Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
+                    <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="8">
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Left–right" Classes="sliderLabel" ToolTip.Tip="Motional Surround L-R"/>
+                            <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding SurroundLeftRight.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPanBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Front–back" Classes="sliderLabel" ToolTip.Tip="Motional Surround F-B"/>
+                            <controls:RotaryKnob Minimum="-64" Maximum="63" Value="{Binding SurroundFrontBack.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPanBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Width" Classes="sliderLabel" ToolTip.Tip="Motional Surround Width"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="32" Value="{Binding SurroundWidth.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPanBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Ambience send" Classes="sliderLabel" ToolTip.Tip="Motional Surround Ambience Send Level"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding SurroundAmbienceSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
+                        </StackPanel>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== MIDI receive ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="MIDI receive" FontWeight="Bold"/>
+                    <TextBlock Text="Which messages this part accepts on its channel."
+                               Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
+                    <ItemsControl ItemsSource="{Binding ReceiveSwitches}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="8"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PartSwitchViewModel">
+                                <StackPanel Spacing="1" Width="150">
+                                    <TextBlock Text="{Binding Label}" Classes="sliderLabel"/>
+                                    <ToggleSwitch OnContent="On" OffContent="Off"
+                                                  IsChecked="{Binding Param.Value, Mode=TwoWay}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Button HorizontalAlignment="Left" Content="Advanced part parameters…"
+                    Command="{Binding AdvancedPartCommand}"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

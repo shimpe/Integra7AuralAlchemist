@@ -201,6 +201,8 @@ public partial class PartViewModel : ViewModelBase
     [Reactive] private PCMSynthToneEditorViewModel? _pcmSynthToneEditor;
     [Reactive] private PCMDrumKitEditorViewModel? _pcmDrumKitEditor;
     [Reactive] private SNDrumKitEditorViewModel? _sNDrumKitEditor;
+    [Reactive] private StudioSetPartEditorViewModel? _studioSetPartEditor;
+    [Reactive] private StudioSetPartEqEditorViewModel? _studioSetPartEqEditor;
     private IDisposable? _cleanupStudioSetChorus;
     private IDisposable? _cleanupStudioSetCommon;
     private IDisposable? _cleanupStudioSetMasterEQ;
@@ -1469,6 +1471,24 @@ public partial class PartViewModel : ViewModelBase
             List<FullyQualifiedParameter>
                 p_parteq = _i7domain.StudioSetPartEQ(PartNo).GetRelevantParameters(true, true);
             _sourceCacheStudioSetPartEQParameters.AddOrUpdate(p_parteq);
+
+            // Friendly Studio Set Part / Part EQ editors for this part. Like the tone editors they bind
+            // to the live FQP instances of their domain — the same ones the raw grids show — so they
+            // track preset and hardware changes for free, and their "Advanced …" buttons clear-then-set
+            // ToneTabKey so repeat navigations always fire SelectTabByTag.
+            _studioSetPartEditor?.Dispose();
+            StudioSetPartEditor = new StudioSetPartEditorViewModel(_i7domain, PartNo, (tag, _) =>
+            {
+                ToneTabKey = "";
+                ToneTabKey = tag;
+            });
+
+            _studioSetPartEqEditor?.Dispose();
+            StudioSetPartEqEditor = new StudioSetPartEqEditorViewModel(_i7domain, PartNo, (tag, _) =>
+            {
+                ToneTabKey = "";
+                ToneTabKey = tag;
+            });
 
             // From here on every read is specific to `toneType`. The device answers only for the tone a
             // part currently holds, so if the preset has changed these reads would all go unanswered.
