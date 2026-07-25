@@ -998,6 +998,17 @@ public partial class PartViewModel : ViewModelBase
     }
 
     public ReadOnlyObservableCollection<Integra7Preset> Presets => _presets;
+
+    /// <summary>Every preset the app knows about, unfiltered and unsorted. This is the one shared list
+    /// all part view models are constructed with by reference and that AddUserDefinedPresets appends the
+    /// user tones to, so it is the same object for every part.
+    ///
+    /// <see cref="Presets" /> is not a substitute: it is filtered by this part's search box and by which
+    /// SRX banks are loaded, and re-sorted. Anything computing a user memory slot number must count over
+    /// this list -- a position in a filtered view is a position in a subset, and the slot number is a
+    /// hardware address (see <see cref="UserToneSlots" />).</summary>
+    public IReadOnlyList<Integra7Preset> AllPresets => _i7presets;
+
     public ReadOnlyObservableCollection<FullyQualifiedParameter> StudioSetMidiParameters => _studioSetMidiParameters;
     public ReadOnlyObservableCollection<FullyQualifiedParameter> StudioSetPartParameters => _studioSetPartParameters;
 

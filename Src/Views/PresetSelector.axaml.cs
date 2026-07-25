@@ -20,10 +20,6 @@ public partial class PresetSelector : UserControl
     public static readonly StyledProperty<Integra7Preset> SelectedPresetProperty =
         AvaloniaProperty.Register<PresetSelector, Integra7Preset>(nameof(SelectedPreset));
 
-    // add an argument "SelectedPresetIndex" to the user control
-    public static readonly StyledProperty<int> SelectedPresetIndexProperty =
-        AvaloniaProperty.Register<PresetSelector, int>(nameof(SelectedPresetIndex));
-
     public PresetSelector()
     {
         InitializeComponent();
@@ -47,16 +43,14 @@ public partial class PresetSelector : UserControl
         set => SetValue(SelectedPresetProperty, value);
     }
 
-    public int SelectedPresetIndex
-    {
-        get => GetValue(SelectedPresetIndexProperty);
-        set => SetValue(SelectedPresetIndexProperty, value);
-    }
-
+    /// <summary>Reports the clicked preset, and only the preset. This control used to publish the row
+    /// index alongside it; nothing may reintroduce that. The rows here are a filtered, re-sorted view of
+    /// the preset list, so a row index is an index into a subset -- and the one caller that consumed it
+    /// used it as a user memory slot number, which meant a non-empty search box made Save User Tone
+    /// overwrite a different saved sound. See <c>UserToneSlots</c> for how that number is derived now.</summary>
     public void PresetDataGrid_CellPointerPressed(object? sender, DataGridCellPointerPressedEventArgs? args)
     {
         SelectedPreset = (Integra7Preset)args.Row.DataContext;
-        SelectedPresetIndex = args.Row.Index;
     }
 
     /// <summary>Keep the selected preset visible. Reacting to the property *change* (rather than to the

@@ -109,7 +109,10 @@ public partial class MainWindowViewModel : ViewModelBase
         // tab can be clicked and saved faster than initialization completes).
         await PartViewModels[_currentPartSelection].EnsureInitializedAsync();
 
-        List<Integra7Preset> presets = PartViewModels[1].Presets.ToList();
+        // AllPresets, not Presets: the latter is part 1's *filtered* view, so whatever is typed in that
+        // part's search box would both shrink the list of slots the dialog offers and shift the slot
+        // numbering counted over it. Every part shares this one list by reference, so any part serves.
+        var presets = PartViewModels[1].AllPresets;
         var preset = PartViewModels[_currentPartSelection].SelectedPreset;
         var toneType = preset.ToneTypeStr;
         var vm = new SaveUserToneViewModel(presets, toneType);
@@ -123,14 +126,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 await Integra7?.WriteToneToUserMemory(_integra7Communicator, toneType,
                     (byte)(_currentPartSelection - 1), name, tone.ZeroBasedMemoryId);
 
-                // also update name in preset list
-                var presetId = -1;
-                foreach (var p in presets)
-                    if (p.ToneTypeStr == toneType && p.InternalUserDefinedStr == "USR")
-                    {
-                        presetId++;
-                        if (presetId == tone.ZeroBasedMemoryId) p.Name = name;
-                    }
+                // Rename the slot the user picked. The dialog hands back that preset itself, so there is
+                // nothing to count -- and because the preset raises PropertyChanged and every part's grid
+                // binds this same instance, all of them redraw.
+                tone.Preset.Name = name;
             }
     }
 

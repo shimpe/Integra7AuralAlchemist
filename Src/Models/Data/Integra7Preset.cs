@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using CoreMidi;
 
 namespace Integra7AuralAlchemist.Models.Data;
@@ -80,7 +81,21 @@ internal enum EnumInternalUserDefined
     UserDefined
 }
 
-public record Integra7Preset
+/// <summary>
+/// One selectable patch. A class implementing <see cref="INotifyPropertyChanged"/> rather than a
+/// record, for two reasons that go together.
+///
+/// It has an identity (<see cref="Id"/>) and a mutable <see cref="Name"/>: storing a tone to a user
+/// slot renames that slot, and every part's preset grid binds the same instance -- the whole preset
+/// list is handed to all 17 part view models by reference -- so the rename has to be announced or the
+/// grids keep showing the old name while the instrument shows the new one.
+///
+/// A record cannot announce it cleanly: the synthesized equality compares every instance field, and an
+/// event's backing field is one, so two presets would stop being equal purely because one had a bound
+/// grid. Value equality bought nothing here anyway -- Ids are unique, so it agreed with reference
+/// equality at the one place presets are compared.
+/// </summary>
+public class Integra7Preset : INotifyPropertyChanged
 {
     public Integra7Preset(int Id, string InternalUserDefined, string ToneType, string ToneBank, int Number, string Name,
         int MSB, int LSB, int PC, string Category)
@@ -191,8 +206,18 @@ public record Integra7Preset
     public string Name
     {
         get => _name;
-        set => _name = value;
+        set
+        {
+            if (_name == value) return;
+            _name = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Name)));
+        }
     }
+
+    /// <summary>Raised when <see cref="Name"/> changes, which is what makes a user-slot rename show up
+    /// in the preset grids. They bind <c>Name</c> directly (see PresetSelector.axaml), so without this
+    /// the mutation lands on the object and nothing redraws.</summary>
+    public event PropertyChangedEventHandler? PropertyChanged;
 
     private int _msb { get; }
     private int _lsb { get; }
