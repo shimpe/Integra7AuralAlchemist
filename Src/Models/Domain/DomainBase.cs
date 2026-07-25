@@ -38,7 +38,11 @@ public class DomainBase
 
     public string Offset2AddressName { get; }
 
-    public async Task ReadFromIntegraAsync(IMidiLease? lease = null)
+    /// <summary>Returns false when the device did not answer -- callers that only refresh the screen
+    /// can ignore it (the previous values are kept, see below), but a caller that is about to persist
+    /// or act on these values (e.g. a Studio Set capture) must check it: a false here means the values
+    /// in memory are stale, not a fresh reading.</summary>
+    public async Task<bool> ReadFromIntegraAsync(IMidiLease? lease = null)
     {
         Log.Debug(
             $"Reading range of parameters (start address:{_domainParameters[0].Start}, offset address: {_domainParameters[0].Offset}, offset2 address: {_domainParameters[0].Offset2}) between {_domainParameters[0].ParSpec.Path} and {_domainParameters.Last().ParSpec.Path} from integra.");
@@ -53,7 +57,7 @@ public class DomainBase
             // values already on screen with blanks that look like real readings from the device.
             Log.Warning(
                 $"Keeping the previous values for {_domainParameters[0].ParSpec.Path}..{_domainParameters.Last().ParSpec.Path}: the device did not answer.");
-            return;
+            return false;
         }
 
         for (var i = 0; i < r.Range.Count; i++) _domainParameters[i].CopyParsedDataFrom(r.Range[i]);
@@ -61,6 +65,7 @@ public class DomainBase
         WaveNameResolution.Apply(_domainParameters, WaveformBanks.Default);
         // Filter the Wave Group ID (SRX board) options to the currently-loaded SRX boards.
         SrxGroupIdResolution.Apply(_domainParameters, LoadedSrxState.Default.Boards);
+        return true;
     }
 
     public async Task WriteToIntegraAsync(IMidiLease? lease = null)
