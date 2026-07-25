@@ -12,6 +12,24 @@ namespace Integra7AuralAlchemist.Models.Services;
 /// in StudioSetDomainNames.</summary>
 public static class StudioSetSnapshotService
 {
+    /// <summary>True for the per-part block -- the one that carries the tone bank and program number,
+    /// i.e. "Offset2/Studio Set Part 1".."16". Not the "Offset2/Studio Set Part EQ N" block, which
+    /// shares the prefix but loads nothing, and not "Offset2/Studio Set MIDI Channel N", which does
+    /// not share it. The EQ exclusion is the whole reason this is a method and not a StartsWith at the
+    /// call site.</summary>
+    private static bool SelectsATone(string offset2) =>
+        offset2.StartsWith("Offset2/Studio Set Part ", StringComparison.Ordinal) &&
+        !offset2.StartsWith("Offset2/Studio Set Part EQ ", StringComparison.Ordinal);
+
+    /// <summary>How long to let the device load the tone a part block just selected, before reading
+    /// the next block. Matches <c>PartViewModel.PresetSettleMilliseconds</c>, which is private there;
+    /// its comment records why it exists -- "Reading the instant the program change goes out returns
+    /// the outgoing tone". Precautionary here: restoring a part block sets that part's tone bank and
+    /// program number, so the device starts loading a tone just as the very next Part EQ read goes
+    /// out, and an unanswered read aborts the restore half-done. Drop this if hardware shows the
+    /// device answers regardless.</summary>
+    private const int PartSettleMilliseconds = 250;
+
     /// <summary>Check every block in <paramref name="snapshot"/> against
     /// <see cref="StudioSetDomainNames.All"/> before anything is written.
     ///
@@ -151,6 +169,11 @@ public static class StudioSetSnapshotService
                 // before dependents -- sets each discriminator before the parameters that depend on it.
                 foreach (var v in block.Values) d.ModifySingleParameterDisplayedValue(v.Path, v.Value);
                 await d.WriteToIntegraAsync(lease);
+
+                // A part block just set that part's tone bank and program number, so the device is
+                // now loading a tone -- and the very next thing this loop does is read that part's
+                // EQ block. See PartSettleMilliseconds.
+                if (SelectsATone(block.Offset2)) await Task.Delay(PartSettleMilliseconds);
             }
             catch (Exception e) when (e is not SnapshotFormatException)
             {

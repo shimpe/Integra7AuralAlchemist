@@ -17,13 +17,19 @@ public sealed record SnapshotDomain(string Start, string Offset, string Offset2,
 /// Known limitation of format version 1: values are stored as the strings the UI displayed, not the
 /// raw bytes the device holds. Restoring goes through
 /// <c>DisplayValueToRawValueConverter.UpdateFromDisplayedValue</c>, which looks the display string up
-/// in the current build's enum representation and silently falls back to raw 0 in its
-/// <c>key.Count == 0</c> branch when the string is not found. So a snapshot captured on one build and
-/// restored on another whose parameter database renamed or reordered an enum string for some
-/// parameter converts that one parameter to 0 instead of failing loudly. The real fix is storing the raw
-/// value alongside the display string and adding an inverse converter that can restore from either; that
-/// needs a converter that does not exist yet, so it is left for a later format version rather than
-/// attempted here.</summary>
+/// in the current build's enum representation and, in its <c>key.Count == 0</c> branch, silently falls
+/// back to raw 0 <i>and still assigns the unmatched string to <c>StringValue</c></i>. So a snapshot
+/// captured on one build and restored on another whose parameter database renamed or reordered an enum
+/// string does not merely zero that one parameter. If the parameter is a discriminator, the unmatched
+/// string is what the parser context then holds, no variant of any group that depends on it is valid,
+/// and the block's bulk write assembles fewer bytes than the block occupies -- which, as one DT1 at the
+/// block's base address, would land every later parameter at the wrong address. So the blast radius is
+/// the remainder of the block, not one parameter. <c>FullyQualifiedParameterRange.WriteToIntegraAsync</c>
+/// now compares the assembled length against the block's computed size and refuses to transmit when they
+/// disagree, so this fails loudly instead of corrupting -- but the restore still fails. The real fix is
+/// storing the raw value alongside the display string and adding an inverse converter that can restore
+/// from either; that needs a converter that does not exist yet, so it is left for a later format version
+/// rather than attempted here.</summary>
 public sealed record StudioSetSnapshot(int FormatVersion, string Name, List<SnapshotDomain> Domains)
 {
     public const int CurrentFormatVersion = 1;

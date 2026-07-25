@@ -333,4 +333,55 @@ public class StudioSetSnapshotServiceTests
         Assert.That(api.Requests, Is.EqualTo(0), "an invalid snapshot must be rejected before any read");
         Assert.That(api.Transmissions, Is.EqualTo(0), "an invalid snapshot must be rejected before any write");
     }
+
+    [Test]
+    public void Every_studio_set_block_resolves_to_its_own_domain()
+    {
+        // GetDomain falls back to an unrelated block rather than throwing, so a typo in
+        // StudioSetDomainNames would silently capture and restore the wrong addresses.
+        var domain = BuildDomain(new TestFailedReadKeepsValues.SilentApi());
+        foreach (var (start, offset, offset2) in StudioSetDomainNames.All)
+            Assert.That(domain.GetDomain(start, offset, offset2).Offset2AddressName, Is.EqualTo(offset2));
+    }
+
+    /// <summary>The bulk write goes out as one DT1 at the block's base address, so the assembled payload
+    /// has to tile the block exactly. It does not when a discriminator holds a value no variant matches:
+    /// no variant of the dependent group is context-valid, that group contributes zero bytes, and every
+    /// parameter after it lands one group too early -- silent corruption of addresses the code never
+    /// names. Reachable from a hand-edited file or a snapshot captured against a build with different
+    /// enum strings (see StudioSetSnapshot's format-version-1 note, and note that
+    /// UpdateFromDisplayedValue assigns the unmatched string to StringValue as-is, which is what poisons
+    /// the context). This feature is the only caller of the bulk write in the whole application.</summary>
+    [Test]
+    public void Refuses_to_bulk_write_a_block_whose_discriminator_matches_no_variant()
+    {
+        var api = new TestFailedReadKeepsValues.SilentApi();
+        var domain = BuildDomain(api);
+        var block = StudioSetDomainNames.All[1]; // Offset2/Studio Set Common Chorus
+        var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
+
+        d.ModifySingleParameterDisplayedValue("Studio Set Common Chorus/Chorus Type", "Not A Real Type");
+
+        var e = Assert.ThrowsAsync<InvalidOperationException>(async () => await d.WriteToIntegraAsync());
+        Assert.That(e!.Message, Does.Contain("Offset2/Studio Set Common Chorus"));
+        Assert.That(api.Transmissions, Is.EqualTo(0), "a misaligned payload must never reach the device");
+    }
+
+    [Test]
+    public void Bulk_writes_a_block_whose_discriminators_all_hold_legal_values()
+    {
+        var api = new TestFailedReadKeepsValues.SilentApi();
+        var domain = BuildDomain(api);
+        var block = StudioSetDomainNames.All[1]; // Offset2/Studio Set Common Chorus
+        var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
+
+        // "Off" is a real Chorus Type, so exactly one variant of each Chorus Parameter group is valid in
+        // context and the payload tiles the block. Setting it also matters for what this test proves: an
+        // unread domain's Chorus Type is "", which matches nothing, so without this line the guard would
+        // fire here too and the test could not tell a working guard from one that refuses everything.
+        d.ModifySingleParameterDisplayedValue("Studio Set Common Chorus/Chorus Type", "Off");
+
+        Assert.DoesNotThrowAsync(async () => await d.WriteToIntegraAsync());
+        Assert.That(api.Transmissions, Is.EqualTo(1));
+    }
 }

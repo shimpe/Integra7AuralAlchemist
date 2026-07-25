@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Integra7AuralAlchemist.Models.Services;
@@ -51,6 +52,19 @@ public class FullyQualifiedParameterRange
             var p = _range[i];
             if (p.ValidInContext(ctx)) data = ByteUtils.Flatten(data, p.GetSysexDataFragment());
         }
+
+        // The stream above is one DT1 at the block's base address, so it has to tile the block
+        // exactly. It will not if a discriminator holds a value no variant matches: that group
+        // contributes nothing and every parameter after it is written one group too early. That is
+        // not a short write, it is silent corruption of addresses this code never names -- so refuse
+        // rather than transmit. StudioSetSnapshotService is the only caller and turns this into a
+        // message naming the block.
+        var expectedSize = ParameterListSysexSizeCalculator.CalculateSysexSize(
+            parameters.GetParametersFromTo(_firstPar.Path, _lastPar.Path));
+        if (data.Length != expectedSize)
+            throw new InvalidOperationException(
+                $"Refusing to write {_offset2}: assembled {data.Length} bytes for a {expectedSize}-byte block. " +
+                "A discriminator holds a value no parameter variant matches, so the payload is misaligned.");
 
         await integra7Api.MakeDataTransmissionAsync(totalAddr, data, lease);
     }
