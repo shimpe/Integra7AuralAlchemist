@@ -205,17 +205,22 @@ public class StudioSetSnapshotServiceTests
     public void Keeps_a_snapshot_whose_parameters_all_exist()
     {
         var domain = BuildDomain(new TestFailedReadKeepsValues.SilentApi());
-        var block = StudioSetDomainNames.All[0];
+        var block = StudioSetDomainNames.All[1]; // Offset2/Studio Set Common Chorus
         var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
-        // Existence check only (true, true): built from the same live parameter list
-        // ValidateParametersAreKnown itself queries, so this cannot drift from what "known" means.
-        var realPaths = d.GetRelevantParameters(true, true).Select(p => p.ParSpec.Path).Take(3).ToList();
-        Assert.That(realPaths, Is.Not.Empty, "the fixture needs real parameters to validate against");
+        const string path = "Studio Set Common Chorus/Chorus Parameter 1/GM2 Pre-LPF";
+
+        // On an unread domain the Chorus Type discriminator's registered value is "", which matches
+        // no parval, so every parameter conditional on it -- including this one -- is invalid in
+        // context. That makes it absent from (true, false) and present only in (true, true); picking
+        // it here (rather than an always-valid parameter) pins that ValidateParametersAreKnown must
+        // query (true, true) -- a plausible copy-paste from CaptureAsync's (true, false) fix would
+        // silently make this method reject perfectly valid snapshots.
+        Assert.That(d.GetRelevantParameters(true, false).Select(p => p.ParSpec.Path), Does.Not.Contain(path));
+        Assert.That(d.GetRelevantParameters(true, true).Select(p => p.ParSpec.Path), Does.Contain(path));
 
         var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
         [
-            new SnapshotDomain(block.Start, block.Offset, block.Offset2,
-                realPaths.Select(p => new SnapshotValue(p, "0")).ToList()),
+            new SnapshotDomain(block.Start, block.Offset, block.Offset2, [new SnapshotValue(path, "0")]),
         ]);
 
         Assert.DoesNotThrow(() => StudioSetSnapshotService.ValidateParametersAreKnown(domain, snapshot));
@@ -240,8 +245,54 @@ public class StudioSetSnapshotServiceTests
         Assert.That(e!.Message, Does.Contain("Studio Set Common/Not A Real Parameter"));
     }
 
+    /// <summary>Reserved parameters have <c>repr:null</c> (no enum table), so
+    /// <c>DisplayValueToRawValueConverter.UpdateFromDisplayedValue</c> takes its numeric-mapping branch
+    /// for them rather than the enum-lookup branch every other test in this file exercises. Nothing
+    /// covered that path before this test. "Studio Set Common/Reserved30" is unconditional (no
+    /// discriminator), so it needs no device read to be valid in context -- it is simply omitted from
+    /// GetRelevantParameters()'s plain default, which excludes reserved parameters, and that is exactly
+    /// the omission fix 1 (CaptureAsync's switch to (true, false)) closed.</summary>
     [Test]
-    public async Task Sends_nothing_when_restoring_an_invalid_snapshot()
+    public void A_reserved_parameter_survives_capture_then_json_then_validate()
+    {
+        var domain = BuildDomain(new TestFailedReadKeepsValues.SilentApi());
+        var block = StudioSetDomainNames.All[0]; // Offset2/Studio Set Common
+        var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
+        const string path = "Studio Set Common/Reserved30";
+
+        // Pins the bug fix 1 closed: the plain default excludes reserved parameters outright, so the
+        // old capture (GetRelevantParameters()) silently dropped this one.
+        Assert.That(d.GetRelevantParameters().Select(p => p.ParSpec.Path), Does.Not.Contain(path),
+            "the plain default must still exclude reserved parameters -- this pins the bug the fix closed");
+
+        // CaptureAsync now uses (true, false): reserved included, invalid-in-context still excluded.
+        var reserved = d.GetRelevantParameters(true, false).Single(p => p.ParSpec.Path == path);
+        Assert.That(reserved.ParSpec.Reserved, Is.True);
+        Assert.That(reserved.ParSpec.Repr, Is.Null,
+            "reserved parameters take the numeric-mapping branch of UpdateFromDisplayedValue, not the enum branch");
+
+        // capture
+        var captured = new SnapshotValue(reserved.ParSpec.Path, "42");
+        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        [
+            new SnapshotDomain(block.Start, block.Offset, block.Offset2, [captured]),
+        ]);
+
+        // JSON
+        var restored = StudioSetSnapshot.FromJson(StudioSetSnapshot.ToJson(snapshot));
+
+        // validate
+        Assert.DoesNotThrow(() => StudioSetSnapshotService.ValidateParametersAreKnown(domain, restored));
+
+        // Applying the restored value exercises the numeric-mapping branch end to end: it must not
+        // throw, and the value must survive unchanged.
+        var value = restored.Domains[0].Values[0];
+        Assert.DoesNotThrow(() => d.ModifySingleParameterDisplayedValue(value.Path, value.Value));
+        Assert.That(d.LookupSingleParameterDisplayedValue(value.Path), Is.EqualTo("42"));
+    }
+
+    [Test]
+    public async Task Sends_nothing_when_restoring_a_snapshot_with_an_unknown_block()
     {
         var api = new TestFailedReadKeepsValues.SilentApi();
         var domain = BuildDomain(api);
@@ -249,6 +300,31 @@ public class StudioSetSnapshotServiceTests
         var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain("Temporary Studio Set", "Offset/Not Used", "Offset2/Not A Real Block", []),
+        ]);
+
+        Assert.ThrowsAsync<SnapshotFormatException>(
+            async () => await StudioSetSnapshotService.RestoreAsync(domain, snapshot, new NeverUsedLease()));
+
+        Assert.That(api.Requests, Is.EqualTo(0), "an invalid snapshot must be rejected before any read");
+        Assert.That(api.Transmissions, Is.EqualTo(0), "an invalid snapshot must be rejected before any write");
+    }
+
+    [Test]
+    public async Task Sends_nothing_when_restoring_a_snapshot_with_an_unknown_parameter_path()
+    {
+        // Distinct from the case above: an unknown block trips ValidateBlocksAreKnown and never
+        // reaches ValidateParametersAreKnown at all. A valid block with a bogus path is the only way
+        // to prove RestoreAsync sends nothing when it is ValidateParametersAreKnown that rejects it.
+        var api = new TestFailedReadKeepsValues.SilentApi();
+        var domain = BuildDomain(api);
+        var block = StudioSetDomainNames.All[0];
+
+        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        [
+            new SnapshotDomain(block.Start, block.Offset, block.Offset2,
+            [
+                new SnapshotValue("Studio Set Common/Not A Real Parameter", "0"),
+            ]),
         ]);
 
         Assert.ThrowsAsync<SnapshotFormatException>(

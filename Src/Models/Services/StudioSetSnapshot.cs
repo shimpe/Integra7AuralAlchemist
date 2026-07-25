@@ -17,9 +17,9 @@ public sealed record SnapshotDomain(string Start, string Offset, string Offset2,
 /// Known limitation of format version 1: values are stored as the strings the UI displayed, not the
 /// raw bytes the device holds. Restoring goes through
 /// <c>DisplayValueToRawValueConverter.UpdateFromDisplayedValue</c>, which looks the display string up
-/// in the current build's enum representation and silently falls back to raw 0 when it is not found
-/// (<c>Src/Models/Services/DisplayValueToRawValueConverter.cs:21-25</c>). So a snapshot captured on one
-/// build and restored on another whose parameter database renamed or reordered an enum string for some
+/// in the current build's enum representation and silently falls back to raw 0 in its
+/// <c>key.Count == 0</c> branch when the string is not found. So a snapshot captured on one build and
+/// restored on another whose parameter database renamed or reordered an enum string for some
 /// parameter converts that one parameter to 0 instead of failing loudly. The real fix is storing the raw
 /// value alongside the display string and adding an inverse converter that can restore from either; that
 /// needs a converter that does not exist yet, so it is left for a later format version rather than

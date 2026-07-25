@@ -84,7 +84,19 @@ public static class StudioSetSnapshotService
                     $"Could not capture the Studio Set: the device did not answer for block " +
                     $"(\"{start}\", \"{offset}\", \"{offset2}\").");
 
-            List<SnapshotValue> values = d.GetRelevantParameters()
+            // (true, false), not the () default: this must capture exactly the set WriteToIntegraAsync
+            // will transmit once the snapshot's own discriminators are applied, not the set the UI
+            // shows. The write flattens every currently context-valid parameter, reserved ones
+            // included -- GetRelevantParameters()'s default excludes reserved, so with the plain
+            // default a reserved variant of a parameter (e.g. a per-chorus-type "Reserved" slot the UI
+            // never shows) is silently left out of the snapshot. Restoring onto a device whose live
+            // discriminator differs then makes that variant context-valid with nothing in the snapshot
+            // to set it, and it goes out as whatever raw value happens to be in memory -- raw 0 for one
+            // this session never read. Measured: restoring a chorus-off snapshot onto a device with
+            // chorus on zeroed 56 of 80 chorus-parameter bytes -- the user's rate, depth, pre-delay and
+            // feedback. Do not "tidy" this back to the user-visible default; capturing the write set is
+            // the invariant that matters here, not what the UI happens to display.
+            List<SnapshotValue> values = d.GetRelevantParameters(true, false)
                 .Select(p => new SnapshotValue(p.ParSpec.Path, p.StringValue))
                 .ToList();
             domains.Add(new SnapshotDomain(start, offset, offset2, values));
@@ -119,9 +131,14 @@ public static class StudioSetSnapshotService
 
                 // Read the block before applying to it. WriteToIntegraAsync flattens every
                 // context-valid parameter in the block into one transmission, not just the ones this
-                // restore sets -- so any parameter the snapshot does not mention would otherwise go out
-                // as whatever raw value happens to be in memory: stale, or zero for a block this session
-                // never read. Reading first turns "unknown garbage" into "left unchanged".
+                // restore sets. For a parameter this snapshot's own discriminators will make
+                // context-valid, CaptureAsync's GetRelevantParameters(true, false) already guarantees
+                // the snapshot covers it -- that invariant, not this read, is what keeps it correct.
+                // What this read protects is the parameter a snapshot leaves out entirely and that
+                // stays unconditionally valid regardless of any discriminator (an older file, say,
+                // captured before this build started including reserved parameters): without a fresh
+                // read it would go out as the raw zero an unread parameter defaults to; with one, it
+                // goes out as its current value on the device, unchanged.
                 if (!await d.ReadFromIntegraAsync(lease))
                     throw new SnapshotFormatException(
                         $"Could not restore the Studio Set: the device did not answer for block " +
