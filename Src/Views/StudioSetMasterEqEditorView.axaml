@@ -2,16 +2,16 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
              xmlns:local="using:Integra7AuralAlchemist.Views"
-             x:DataType="vm:StudioSetPartEqEditorViewModel"
+             x:DataType="vm:StudioSetMasterEqEditorViewModel"
              x:CompileBindings="True"
-             x:Class="Integra7AuralAlchemist.Views.StudioSetPartEqEditorView">
+             x:Class="Integra7AuralAlchemist.Views.StudioSetMasterEqEditorView">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="6" Margin="8">
             <TextBlock Text="{Binding Title}" FontWeight="Bold"/>
             <local:ThreeBandEqPanelView DataContext="{Binding Eq}"/>
-            <Button HorizontalAlignment="Left" Content="Advanced part EQ parameters…"
-                    Command="{Binding AdvancedPartEqCommand}"/>
+            <Button HorizontalAlignment="Left" Content="Advanced master EQ parameters…"
+                    Command="{Binding AdvancedMasterEqCommand}"/>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

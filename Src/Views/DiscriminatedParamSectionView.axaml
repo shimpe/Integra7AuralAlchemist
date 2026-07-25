@@ -6,7 +6,9 @@
              x:Class="Integra7AuralAlchemist.Views.DiscriminatedParamSectionView">
     <StackPanel Spacing="10">
         <StackPanel Orientation="Horizontal" Spacing="16">
-            <StackPanel Spacing="2">
+            <!-- Hidden when there is only one family to choose from, so a short type list is picked
+                 straight from the Type combo instead of through a combo with a single entry. -->
+            <StackPanel Spacing="2" IsVisible="{Binding HasFamilies}">
                 <TextBlock Text="Family"/>
                 <ComboBox MinWidth="150" ItemsSource="{Binding Families}"
                           SelectedItem="{Binding SelectedFamily, Mode=TwoWay}"/>

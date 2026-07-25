@@ -1,0 +1,56 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             x:DataType="vm:StudioSetEffectEditorViewModel"
+             x:CompileBindings="True"
+             x:Class="Integra7AuralAlchemist.Views.StudioSetEffectEditorView">
+
+    <UserControl.Styles>
+        <!-- Reserve a uniform 2-line height for control labels so wrapped labels don't push their
+             knob down — keeps every control in a row vertically aligned. -->
+        <Style Selector="TextBlock.sliderLabel">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="MinHeight" Value="38"/>
+            <Setter Property="VerticalAlignment" Value="Bottom"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="6" Margin="8">
+
+            <!-- ===== Level / routing ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock Text="{Binding Title}" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Text="— switched off, nothing is sent through it" FontSize="11"
+                                   Foreground="{StaticResource SnMutedTextBrush}" VerticalAlignment="Center"
+                                   IsVisible="{Binding IsOff}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Level" Classes="sliderLabel"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127"
+                                                 Value="{Binding Level.Value, Mode=TwoWay}"
+                                                 AccentBrush="{StaticResource KnobFxBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="{Binding OutputLabel}" Classes="sliderLabel"/>
+                            <ComboBox ItemsSource="{Binding Output.Options}"
+                                      SelectedItem="{Binding Output.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Type + the parameters that type brings with it ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <ContentControl Content="{Binding Section}"/>
+            </Border>
+
+            <Button HorizontalAlignment="Left" Content="{Binding AdvancedLabel}"
+                    Command="{Binding AdvancedCommand}"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -171,7 +171,8 @@
                                                 IsVisible="{Binding IsCommonTab}">
                                         <TabControl TabStripPlacement="Top"
                                                     VerticalAlignment="Stretch"
-                                                    VerticalContentAlignment="Stretch">
+                                                    VerticalContentAlignment="Stretch"
+                                                    behaviors:TabControlBehaviors.SelectTabByTag="{Binding CommonTabKey}">
                                             <TabItem Header="Setup">
                                                 <local:ParameterCollection Parameters="{Binding SetupParameters}"
                                                                            SearchText="{Binding SearchTextSetup, Mode=TwoWay}" />
@@ -186,14 +187,10 @@
                                                     SearchText="{Binding SearchTextStudioSetCommon, Mode=TwoWay}" />
                                             </TabItem>
                                             <TabItem Header="Chorus">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding StudioSetCommonChorusParameters}"
-                                                    SearchText="{Binding SearchTextStudioSetCommonChorus, Mode=TwoWay}" />
+                                                <local:StudioSetEffectEditorView DataContext="{Binding StudioSetChorusEditor}" />
                                             </TabItem>
                                             <TabItem Header="Reverb">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding StudioSetCommonReverbParameters}"
-                                                    SearchText="{Binding SearchTextStudioSetCommonReverb, Mode=TwoWay}" />
+                                                <local:StudioSetEffectEditorView DataContext="{Binding StudioSetReverbEditor}" />
                                             </TabItem>
                                             <TabItem Header="Motional Surround">
                                                 <local:ParameterCollection
@@ -201,9 +198,30 @@
                                                     SearchText="{Binding SearchTextStudioSetCommonMotionalSurround, Mode=TwoWay}" />
                                             </TabItem>
                                             <TabItem Header="Master EQ">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding StudioSetCommonMasterEQParameters}"
-                                                    SearchText="{Binding SearchTextStudioSetCommonMasterEQ, Mode=TwoWay}" />
+                                                <local:StudioSetMasterEqEditorView DataContext="{Binding StudioSetMasterEqEditor}" />
+                                            </TabItem>
+                                            <TabItem Header="Advanced">
+                                                <TabControl TabStripPlacement="Top"
+                                                            VerticalAlignment="Stretch"
+                                                            VerticalContentAlignment="Stretch">
+                                                    <!-- The raw grids the friendly Chorus, Reverb and
+                                                         Master EQ tabs link to. -->
+                                                    <TabItem Header="Chorus" Tag="COMMON-CHORUS">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding StudioSetCommonChorusParameters}"
+                                                            SearchText="{Binding SearchTextStudioSetCommonChorus, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="Reverb" Tag="COMMON-REVERB">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding StudioSetCommonReverbParameters}"
+                                                            SearchText="{Binding SearchTextStudioSetCommonReverb, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="Master EQ" Tag="COMMON-MASTER-EQ">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding StudioSetCommonMasterEQParameters}"
+                                                            SearchText="{Binding SearchTextStudioSetCommonMasterEQ, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                </TabControl>
                                             </TabItem>
                                         </TabControl>
                                     </StackPanel>

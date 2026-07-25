@@ -86,7 +86,15 @@ public sealed class DiscriminatedParamSectionViewModel : ViewModelBase, IDisposa
     private IReadOnlyList<string> _families = [];
     /// <summary>Selectable families (loaded-aware via the supplier; always includes the current
     /// selection's family).</summary>
-    public IReadOnlyList<string> Families { get => _families; private set => this.RaiseAndSetIfChanged(ref _families, value); }
+    public IReadOnlyList<string> Families
+    {
+        get => _families;
+        private set { this.RaiseAndSetIfChanged(ref _families, value); this.RaisePropertyChanged(nameof(HasFamilies)); }
+    }
+
+    /// <summary>Whether the family combo is worth showing. A short type list (Chorus, Reverb) is passed
+    /// as a single family and picked straight from the type combo.</summary>
+    public bool HasFamilies => Families.Count > 1;
 
     private string _selectedFamily = "";
     public string SelectedFamily
