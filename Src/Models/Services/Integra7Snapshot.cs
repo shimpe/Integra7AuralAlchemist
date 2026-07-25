@@ -17,9 +17,9 @@ public sealed record SnapshotValue(string Path, string Value, long? Raw = null);
 /// the parameters that only exist because of it, and address order gives exactly that.</summary>
 public sealed record SnapshotDomain(string Start, string Offset, string Offset2, List<SnapshotValue> Values);
 
-/// <summary>A complete Studio Set. Pure data — no Avalonia, no MIDI. Named for the instrument rather
-/// than for the Studio Set because the same record is about to carry a single tone as well; the shape
-/// (a version, a name, an ordered list of address-identified blocks) is the same for both.
+/// <summary>A complete Studio Set, or a single tone. Pure data — no Avalonia, no MIDI. Named for the
+/// instrument rather than for either of them because the shape (a version, a name, an ordered list of
+/// address-identified blocks) is the same for both; <see cref="Kind"/> says which one a given file is.
 ///
 /// Format version 2 records, for every numeric and discrete parameter, the raw value the device stores
 /// alongside the string the UI displayed. The string is what makes these files readable and diffable,
@@ -48,7 +48,20 @@ public sealed record SnapshotDomain(string Start, string Offset, string Offset2,
 /// path with the old exposure, and no version 1 file was ever released -- the format changed while the
 /// feature was still being verified. Refusing with a message that names the version is better than
 /// silently restoring through the weaker path.</summary>
-public sealed record Integra7Snapshot(int FormatVersion, string Name, List<SnapshotDomain> Domains)
+/// <param name="Kind">What this file holds -- one of <see cref="SnapshotKinds"/>. Defaults to
+/// <see cref="SnapshotKinds.StudioSet"/>, and that default is load-bearing rather than a convenience:
+/// a file written before tones existed carries no <c>Kind</c> property at all, System.Text.Json fills
+/// the missing constructor parameter with this default, and a Studio Set is exactly what such a file
+/// is. Do not change it.</param>
+/// <param name="ToneType">Which engine a tone snapshot came from -- one of the five keys
+/// <c>ToneDomainNames.IsKnownToneType</c> accepts. Null for a Studio Set, where there is no single
+/// engine to name.</param>
+public sealed record Integra7Snapshot(
+    int FormatVersion,
+    string Name,
+    List<SnapshotDomain> Domains,
+    string Kind = SnapshotKinds.StudioSet,
+    string? ToneType = null)
 {
     public const int CurrentFormatVersion = 2;
 
@@ -66,7 +79,7 @@ public sealed record Integra7Snapshot(int FormatVersion, string Name, List<Snaps
         }
         catch (JsonException e)
         {
-            throw new SnapshotFormatException("This file is not a Studio Set snapshot.", e);
+            throw new SnapshotFormatException("This file is not an INTEGRA-7 snapshot.", e);
         }
 
         if (snapshot is null)
@@ -89,12 +102,44 @@ public sealed record Integra7Snapshot(int FormatVersion, string Name, List<Snaps
         // optional by design: a text parameter has no raw form, so a null there is not a gap -- it is
         // the documented "no raw value, restore from the string". Adding it here would reject every
         // file that names a Studio Set.
+        // Kind and ToneType are absent from it for a different reason, and must also stay absent.
+        // Kind's whole point is its default: a file written before tones existed has no Kind property,
+        // so `default` -- SnapshotKinds.StudioSet -- is what makes it still read as the Studio Set it
+        // is. Requiring the property here would reject every file already on disk. ToneType is null for
+        // a Studio Set by design. Both are instead checked below, against the Kind they belong to,
+        // where "missing" and "wrong for this kind" can be told apart and reported as such.
         if (snapshot.Name is null || snapshot.Domains is null or { Count: 0 } ||
             snapshot.Domains.Exists(d => d.Start is null || d.Offset is null || d.Offset2 is null
                                           || d.Values is null || d.Values.Exists(v => v.Path is null || v.Value is null)))
             throw new SnapshotFormatException("This snapshot file is missing its contents.");
+
+        // An unrecognised Kind means a file from a build that knows a kind this one does not. Restoring
+        // it as whatever this build assumes would apply its blocks somewhere they do not belong, so
+        // refuse and name what was found.
+        if (snapshot.Kind is not (SnapshotKinds.StudioSet or SnapshotKinds.Tone))
+            throw new SnapshotFormatException(
+                $"This snapshot says it holds \"{snapshot.Kind}\", which this build does not recognise.");
+
+        // A tone snapshot's engine decides which blocks it is made of and which part layout it can be
+        // restored into. Without it there is nothing to restore the file to -- and an engine this build
+        // has never heard of is no better than none, because the block list for it cannot be built.
+        if (snapshot.Kind == SnapshotKinds.Tone &&
+            (snapshot.ToneType is null || !ToneDomainNames.IsKnownToneType(snapshot.ToneType)))
+            throw new SnapshotFormatException(
+                $"This tone snapshot names no tone type this build recognises (\"{snapshot.ToneType}\").");
+
         return snapshot;
     }
+}
+
+/// <summary>What an <see cref="Integra7Snapshot"/> holds. Strings rather than an enum because they are
+/// written into the file verbatim: a string survives an enum gaining, losing or reordering members, and
+/// it is readable in the file, which is the point of the format. Lower case and hyphenated so it looks
+/// like the data it is rather than like a leaked .NET identifier.</summary>
+public static class SnapshotKinds
+{
+    public const string StudioSet = "studio-set";
+    public const string Tone = "tone";
 }
 
 /// <summary>A snapshot file that cannot be read. Carries a message meant for the user.</summary>
