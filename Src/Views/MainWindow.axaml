@@ -245,14 +245,10 @@
                                                     SearchText="{Binding SearchTextStudioSetMidi, Mode=TwoWay}" />
                                             </TabItem>
                                             <TabItem Header="Set Part">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding StudioSetPartParameters}"
-                                                    SearchText="{Binding SearchTextStudioSetPart, Mode=TwoWay}" />
+                                                <local:StudioSetPartEditorView DataContext="{Binding StudioSetPartEditor}" />
                                             </TabItem>
                                             <TabItem Header="Set EQ">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding StudioSetPartEQParameters}"
-                                                    SearchText="{Binding SearchTextStudioSetPartEQ, Mode=TwoWay}" />
+                                                <local:StudioSetPartEqEditorView DataContext="{Binding StudioSetPartEqEditor}" />
                                             </TabItem>
                                             <TabItem Header="Editor"
                                                      Tag="PCMS"
@@ -283,6 +279,21 @@
                                                 <TabControl TabStripPlacement="Top"
                                                             VerticalAlignment="Stretch"
                                                             VerticalContentAlignment="Stretch">
+                                                    <!-- The raw Studio Set Part / Part EQ grids the
+                                                         friendly "Set Part" and "Set EQ" tabs link to.
+                                                         Not tone-type specific, so always visible. -->
+                                                    <TabItem Header="Part"
+                                                             Tag="SET-PART">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding StudioSetPartParameters}"
+                                                            SearchText="{Binding SearchTextStudioSetPart, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="Part EQ"
+                                                             Tag="SET-PART-EQ">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding StudioSetPartEQParameters}"
+                                                            SearchText="{Binding SearchTextStudioSetPartEQ, Mode=TwoWay}" />
+                                                    </TabItem>
                                                     <TabItem Header="Common"
                                                              Tag="PCM-SYN-COMMON"
                                                              IsVisible="{Binding SelectedPresetIsPCMSynthTone}">
