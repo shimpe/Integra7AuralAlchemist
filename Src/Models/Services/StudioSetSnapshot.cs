@@ -39,6 +39,16 @@ public sealed record StudioSetSnapshot(int FormatVersion, string Name, List<Snap
         if (snapshot.FormatVersion != CurrentFormatVersion)
             throw new SnapshotFormatException(
                 $"This snapshot is format version {snapshot.FormatVersion}; this build reads version {CurrentFormatVersion}.");
+
+        // System.Text.Json silently passes `default` for any constructor parameter with no matching
+        // JSON property, so a truncated or hand-edited file can deserialize "successfully" into a
+        // snapshot with a null Name or null Domains (or a domain with null Values), even though none
+        // of those are declared nullable. Catch that here instead of leaving it for a caller to hit
+        // as a NullReferenceException later.
+        if (snapshot.Name is null || snapshot.Domains is null)
+            throw new SnapshotFormatException("This snapshot file is missing its contents.");
+        if (snapshot.Domains.Exists(d => d.Values is null))
+            throw new SnapshotFormatException("This snapshot file is missing its contents.");
         return snapshot;
     }
 }
