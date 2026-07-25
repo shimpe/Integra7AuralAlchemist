@@ -109,7 +109,10 @@ public partial class MainWindowViewModel : ViewModelBase
         // tab can be clicked and saved faster than initialization completes).
         await PartViewModels[_currentPartSelection].EnsureInitializedAsync();
 
-        List<Integra7Preset> presets = PartViewModels[1].Presets.ToList();
+        // AllPresets, not Presets: the latter is part 1's *filtered* view, so whatever is typed in that
+        // part's search box would both shrink the list of slots the dialog offers and shift the slot
+        // numbering counted over it. Every part shares this one list by reference, so any part serves.
+        var presets = PartViewModels[1].AllPresets;
         var preset = PartViewModels[_currentPartSelection].SelectedPreset;
         var toneType = preset.ToneTypeStr;
         var vm = new SaveUserToneViewModel(presets, toneType);
@@ -123,14 +126,10 @@ public partial class MainWindowViewModel : ViewModelBase
                 await Integra7?.WriteToneToUserMemory(_integra7Communicator, toneType,
                     (byte)(_currentPartSelection - 1), name, tone.ZeroBasedMemoryId);
 
-                // also update name in preset list
-                var presetId = -1;
-                foreach (var p in presets)
-                    if (p.ToneTypeStr == toneType && p.InternalUserDefinedStr == "USR")
-                    {
-                        presetId++;
-                        if (presetId == tone.ZeroBasedMemoryId) p.Name = name;
-                    }
+                // Rename the slot the user picked. The dialog hands back that preset itself, so there is
+                // nothing to count -- and because the preset raises PropertyChanged and every part's grid
+                // binds this same instance, all of them redraw.
+                tone.Preset.Name = name;
             }
     }
 
@@ -177,7 +176,7 @@ public partial class MainWindowViewModel : ViewModelBase
             await using (var lease = await api.BeginConversationAsync("capture Studio Set"))
             {
                 var snapshot = await StudioSetSnapshotService.CaptureAsync(communicator, name, lease);
-                json = StudioSetSnapshot.ToJson(snapshot);
+                json = Integra7Snapshot.ToJson(snapshot);
             }
 
             // Write atomically. These files are the user's only copy of a Studio Set, so a failure
@@ -237,7 +236,7 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             SignalStartSync();
             SyncInfo = "Writing Studio Set";
-            var snapshot = StudioSetSnapshot.FromJson(await File.ReadAllTextAsync(path));
+            var snapshot = Integra7Snapshot.FromJson(await File.ReadAllTextAsync(path));
             // One conversation for the whole restore, same reasoning as the capture. Note that a
             // restore failing partway through leaves the instrument holding a mix of the snapshot and
             // what was there before -- RestoreAsync's own XML doc explains why nothing here can tell
@@ -294,6 +293,234 @@ public partial class MainWindowViewModel : ViewModelBase
             // device.
             await ResyncAllPartsAsync();
         }
+    }
+
+    /// <summary>The part a tone command acts on, resolved once so the several awaits that follow cannot
+    /// see it change, plus the engine that part currently holds and the name it goes by.
+    ///
+    /// <paramref name="ZeroBasedPartNo"/> is what the snapshot service and <see cref="ResyncPartAsync"/>
+    /// both take; the tab index it came from counts the common tab as 0, exactly as <c>SaveUserTone</c>
+    /// and <c>PlayNoteAsync</c> convert it.
+    ///
+    /// <paramref name="ToneName"/> comes from the same preset as <paramref name="ToneType"/>, so a file
+    /// cannot end up named after one patch and holding another.</summary>
+    private sealed record SelectedTone(int ZeroBasedPartNo, string ToneType, string ToneName);
+
+    /// <summary>Resolve the selected part and the tone type it holds, or explain on the status line why
+    /// there is none and return null.
+    ///
+    /// The tone type is the load-bearing part. <c>RestoreToneAsync</c> refuses a snapshot whose engine
+    /// differs from the one the target part holds, and that guard is only as good as the engine it is
+    /// handed: hand it the snapshot's own type, or a guess, and PCM data can be written into a
+    /// SuperNATURAL part's addresses, which mean something else entirely there. So it comes from
+    /// <c>SelectedPreset.ToneTypeStr</c> -- the same place Save User Tone and the editor tabs read it
+    /// from -- and from nowhere else, and a part that has not resolved a preset yields null rather than
+    /// a fallback.</summary>
+    /// <param name="failurePrefix">How to open the "there is no tone here" messages, e.g. "save".</param>
+    private async Task<SelectedTone?> ResolveSelectedToneAsync(string failurePrefix)
+    {
+        // Read once: CurrentPartSelection is bound to the tab strip and can change under the awaits
+        // below, and every later step -- capture, restore, resync -- has to mean the same part.
+        var selection = _currentPartSelection;
+
+        // The buttons are disabled on the common tab, but a command is reachable regardless (the tab can
+        // change between the click and this line), and silently doing nothing is worse than saying why.
+        if (selection == 0 || PartViewModels is null || selection >= PartViewModels.Count)
+        {
+            SnapshotFailed = true;
+            SnapshotStatus = $"Cannot {failurePrefix} a tone: select a part tab first, the Common tab holds none.";
+            return null;
+        }
+
+        var part = PartViewModels[selection];
+
+        // A tone is read from the part's tone domains, so this cannot run while the part is still
+        // loading -- a tab can be clicked and acted on faster than its initialization completes. Same
+        // reasoning as SaveUserTone, which does this for the same reason.
+        await part.EnsureInitializedAsync();
+
+        Integra7Preset? preset = part.SelectedPreset;
+        var toneType = preset?.ToneTypeStr;
+        if (toneType is null)
+        {
+            SnapshotFailed = true;
+            SnapshotStatus = $"Cannot {failurePrefix} a tone: this part has not resolved which tone it holds.";
+            return null;
+        }
+
+        if (!ToneDomainNames.IsKnownToneType(toneType))
+        {
+            SnapshotFailed = true;
+            SnapshotStatus = $"Cannot {failurePrefix} a tone: this build does not know the tone type \"{toneType}\".";
+            return null;
+        }
+
+        // The preset name is what the user sees on the part, so it is the file name they expect. Empty
+        // only if the preset list ever carries a nameless row; "Tone" is a better suggestion than "".
+        var name = (preset?.Name ?? "").Trim();
+        return new SelectedTone(selection - 1, toneType, name.Length == 0 ? "Tone" : name);
+    }
+
+    /// <summary>Read the tone currently loaded into the selected part and write it to a file the user
+    /// picks. The Studio Set sibling of this is <see cref="SaveStudioSetAsync"/>, and everything about
+    /// the lease, the file dialog's "" sentinel and the atomic write is the same there.</summary>
+    [ReactiveCommand]
+    public async Task SaveToneAsync()
+    {
+        UserActionLog.Action("button: Save Tone");
+        // Locals, not the properties: everything below runs after several awaits, and a rescan in the
+        // meantime replaces both of them.
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null) return;
+
+        var selected = await ResolveSelectedToneAsync("save");
+        if (selected is null) return; // ResolveSelectedToneAsync has already said why
+
+        // The instrument's character set includes ':', '/' and '*', which a file name cannot hold; the
+        // snapshot keeps the real name, only the suggestion in the dialog is scrubbed.
+        var suggested = string.Join("_", selected.ToneName.Split(Path.GetInvalidFileNameChars()));
+        var path = await ShowSaveSnapshotDialog.Handle(suggested + ".json");
+        if (path is null) return; // cancelled -- nothing happened, so say nothing
+        if (path.Length == 0)
+        {
+            // A file was chosen, but it has no usable local path (a cloud or virtual location) -- see
+            // ShowSaveSnapshotDialog. Unlike a cancellation, the user needs to know this did nothing.
+            SnapshotFailed = true;
+            SnapshotStatus = "Could not save the tone: the selected file has no accessible local path.";
+            return;
+        }
+
+        try
+        {
+            SignalStartSync();
+            SyncInfo = $"Reading tone from part {selected.ZeroBasedPartNo + 1}";
+            string json;
+            // One conversation for the whole capture, so nothing else can write to the instrument
+            // partway through and produce a tone that never actually existed. Scoped to just the
+            // capture: the MIDI lease has no business being held across the disk write that follows.
+            await using (var lease = await api.BeginConversationAsync("capture tone"))
+            {
+                var snapshot = await StudioSetSnapshotService.CaptureToneAsync(communicator,
+                    selected.ZeroBasedPartNo, selected.ToneType, selected.ToneName, lease);
+                json = Integra7Snapshot.ToJson(snapshot);
+            }
+
+            // Write atomically, for the reason SaveStudioSetAsync gives: a failure partway through a
+            // direct write must not destroy whatever was already at this path.
+            var tempPath = path + ".tmp";
+            try
+            {
+                await File.WriteAllTextAsync(tempPath, json);
+                File.Move(tempPath, path, overwrite: true);
+            }
+            catch
+            {
+                if (File.Exists(tempPath)) File.Delete(tempPath);
+                throw;
+            }
+
+            SnapshotFailed = false;
+            SnapshotStatus = $"Saved the tone from part {selected.ZeroBasedPartNo + 1} to {Path.GetFileName(path)}.";
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("save tone", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = $"Could not save the tone: {e.Message}";
+        }
+        finally
+        {
+            SignalStopSync();
+        }
+    }
+
+    /// <summary>Read a tone snapshot the user picks and write it into the selected part, replacing the
+    /// tone loaded there.</summary>
+    [ReactiveCommand]
+    public async Task LoadToneAsync()
+    {
+        UserActionLog.Action("button: Load Tone");
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null) return;
+
+        var selected = await ResolveSelectedToneAsync("load");
+        if (selected is null) return; // ResolveSelectedToneAsync has already said why
+
+        var path = await ShowOpenSnapshotDialog.Handle(Unit.Default);
+        if (path is null) return; // cancelled
+        if (path.Length == 0)
+        {
+            // A file was chosen, but it has no usable local path -- see ShowOpenSnapshotDialog.
+            SnapshotFailed = true;
+            SnapshotStatus = "Could not load the tone: the selected file has no accessible local path.";
+            return;
+        }
+
+        var restored = false;
+        try
+        {
+            SignalStartSync();
+            SyncInfo = $"Writing tone to part {selected.ZeroBasedPartNo + 1}";
+            var snapshot = Integra7Snapshot.FromJson(await File.ReadAllTextAsync(path));
+
+            // RestoreToneAsync refuses this too, but it cannot know which button the user was reaching
+            // for, and that is the whole content of the message. FromJson has already narrowed Kind to
+            // the kinds this build knows, so the second branch is for a kind a later build adds.
+            if (snapshot.Kind != SnapshotKinds.Tone)
+            {
+                SnapshotFailed = true;
+                SnapshotStatus = snapshot.Kind == SnapshotKinds.StudioSet
+                    ? "This is a Studio Set snapshot, not a tone — use Load Studio Set… to write it back."
+                    : $"This snapshot holds \"{snapshot.Kind}\", not a tone.";
+                return;
+            }
+
+            // One conversation for the whole restore, same reasoning as the capture. A restore failing
+            // partway through leaves the part holding a mix of the snapshot and what was there before;
+            // loading the same file again is safe and finishes the job, because every block is applied
+            // independently, in the same order.
+            //
+            // selected.ToneType is what the part genuinely holds right now, which is what makes
+            // RestoreToneAsync's engine guard mean anything -- see ResolveSelectedToneAsync.
+            await using (var lease = await api.BeginConversationAsync("restore tone"))
+            {
+                await StudioSetSnapshotService.RestoreToneAsync(communicator, snapshot,
+                    selected.ZeroBasedPartNo, selected.ToneType, lease);
+            }
+
+            restored = true;
+            SnapshotFailed = false;
+            // "Sent", not "loaded": the device acknowledges no parameter write, so this confirms the
+            // data went out, not that the instrument applied it. The resync below re-reads the device,
+            // so the UI self-corrects if something did not stick.
+            SnapshotStatus = $"Sent the tone from {Path.GetFileName(path)} to part {selected.ZeroBasedPartNo + 1}.";
+        }
+        catch (SnapshotFormatException e)
+        {
+            // This one carries a message written for the user -- including the engine-mismatch one,
+            // which tells them what to select first -- so show it rather than a generic line.
+            UserActionLog.Failed("load tone", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = e.Message;
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("load tone", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = $"Could not load the tone: {e.Message}";
+        }
+        finally
+        {
+            SignalStopSync();
+        }
+
+        if (restored)
+            // Only this part changed, so only this part is re-read -- a Studio Set restore has to resync
+            // all 16, a tone restore does not. Outside the lease above, since the resync acquires its
+            // own, and not at all when the restore failed, because the screen still matches the device.
+            await ResyncPartAsync((byte)selected.ZeroBasedPartNo);
     }
 
     [ReactiveCommand]

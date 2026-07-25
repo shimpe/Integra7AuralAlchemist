@@ -173,6 +173,32 @@
                             </Button.IsEnabled>
                             Load Studio Set…
                         </Button>
+                        <Button Command="{Binding SaveToneAsync}"
+                                ToolTip.Tip="Read the tone currently loaded into the selected part — every one of its parameters — and write it to a file.">
+                            <Button.IsEnabled>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <MultiBinding.Bindings>
+                                        <Binding Path="Connected" />
+                                        <Binding Path="!IsSyncing" />
+                                        <Binding Path="CurrentPartIsNotCommonPart" />
+                                    </MultiBinding.Bindings>
+                                </MultiBinding>
+                            </Button.IsEnabled>
+                            Save Tone…
+                        </Button>
+                        <Button Command="{Binding LoadToneAsync}"
+                                ToolTip.Tip="Write a saved tone into the selected part. This overwrites the tone currently in that part, including any edits you have not saved, and the part must already hold a tone of the same kind — select a preset of that kind on it first.">
+                            <Button.IsEnabled>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <MultiBinding.Bindings>
+                                        <Binding Path="Connected" />
+                                        <Binding Path="!IsSyncing" />
+                                        <Binding Path="CurrentPartIsNotCommonPart" />
+                                    </MultiBinding.Bindings>
+                                </MultiBinding>
+                            </Button.IsEnabled>
+                            Load Tone…
+                        </Button>
                     </StackPanel>
                     <TabControl HorizontalContentAlignment="Left"
                                 TabStripPlacement="Left"

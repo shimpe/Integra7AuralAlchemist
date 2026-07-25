@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
@@ -8,10 +9,10 @@ using Integra7AuralAlchemist.Models.Services;
 
 namespace Tests;
 
-public class StudioSetSnapshotTests
+public class Integra7SnapshotTests
 {
-    private static StudioSetSnapshot Sample() => new(
-        StudioSetSnapshot.CurrentFormatVersion,
+    private static Integra7Snapshot Sample() => new(
+        Integra7Snapshot.CurrentFormatVersion,
         "World Pop Set",
         [
             new SnapshotDomain("Temporary Studio Set", "Offset/Not Used", "Offset2/Studio Set Common",
@@ -24,7 +25,7 @@ public class StudioSetSnapshotTests
     [Test]
     public void Round_trips_through_json()
     {
-        var restored = StudioSetSnapshot.FromJson(StudioSetSnapshot.ToJson(Sample()));
+        var restored = Integra7Snapshot.FromJson(Integra7Snapshot.ToJson(Sample()));
 
         Assert.That(restored.Name, Is.EqualTo("World Pop Set"));
         Assert.That(restored.Domains, Has.Count.EqualTo(1));
@@ -36,9 +37,9 @@ public class StudioSetSnapshotTests
     [Test]
     public void Rejects_a_future_format_version()
     {
-        var json = StudioSetSnapshot.ToJson(Sample() with { FormatVersion = 99 });
+        var json = Integra7Snapshot.ToJson(Sample() with { FormatVersion = 99 });
 
-        var e = Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshot.FromJson(json));
+        var e = Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson(json));
         Assert.That(e!.Message, Does.Contain("99"));
     }
 
@@ -47,9 +48,9 @@ public class StudioSetSnapshotTests
     {
         // 3 is the version an off-by-one or a "<=" would most easily let through, and the one a future
         // build will really write, carrying fields this build would silently ignore.
-        var json = StudioSetSnapshot.ToJson(Sample() with { FormatVersion = 3 });
+        var json = Integra7Snapshot.ToJson(Sample() with { FormatVersion = 3 });
 
-        var e = Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshot.FromJson(json));
+        var e = Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson(json));
         Assert.That(e!.Message, Does.Contain("3"));
     }
 
@@ -81,16 +82,107 @@ public class StudioSetSnapshotTests
         // conversion this whole format version exists to stop relying on. No version 1 file was ever
         // released, so refusing with a message naming the version beats silently restoring it the
         // weak way.
-        var e = Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshot.FromJson(VersionOneFile));
+        var e = Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson(VersionOneFile));
 
         Assert.That(e!.Message, Does.Contain("1"));
         Assert.That(e.Message, Does.Contain("2"));
     }
 
+    /// <summary>A file exactly as one written before the record was renamed from StudioSetSnapshot to
+    /// Integra7Snapshot: hand-written, not serialised here, so it cannot accidentally acquire whatever
+    /// this build's type happens to emit. System.Text.Json records no .NET type name anywhere in the
+    /// document -- only the property names -- so the rename is invisible on disk and every file already
+    /// written keeps loading. This test is what says so rather than the claim being taken on trust.</summary>
+    private const string FileWrittenBeforeTheRename = """
+        {
+          "FormatVersion": 2,
+          "Name": "World Pop Set",
+          "Domains": [
+            {
+              "Start": "Temporary Studio Set",
+              "Offset": "Offset/Not Used",
+              "Offset2": "Offset2/Studio Set Common",
+              "Values": [
+                { "Path": "Studio Set Common/Studio Set Name", "Value": "World Pop Set", "Raw": null },
+                { "Path": "Studio Set Common/Studio Set Tempo", "Value": "120", "Raw": 120 }
+              ]
+            }
+          ]
+        }
+        """;
+
+    [Test]
+    public void Still_loads_a_file_written_before_the_record_was_renamed()
+    {
+        var restored = Integra7Snapshot.FromJson(FileWrittenBeforeTheRename);
+
+        Assert.That(restored.Name, Is.EqualTo("World Pop Set"));
+        Assert.That(restored.Domains, Has.Count.EqualTo(1));
+        Assert.That(restored.Domains[0].Offset2, Is.EqualTo("Offset2/Studio Set Common"));
+        Assert.That(restored.Domains[0].Values[0].Raw, Is.Null, "a text parameter still has no raw form");
+        Assert.That(restored.Domains[0].Values[1].Raw, Is.EqualTo(120));
+    }
+
+    [Test]
+    public void Reads_a_file_with_no_kind_as_a_studio_set()
+    {
+        // The same hand-written file: it predates Kind existing, so it has no such property, and
+        // System.Text.Json fills the missing constructor parameter with the default. That default being
+        // the Studio Set is the only thing that keeps every file already on disk readable -- if it were
+        // anything else, or if Kind were required, all of them would now be refused or misread.
+        var restored = Integra7Snapshot.FromJson(FileWrittenBeforeTheRename);
+
+        Assert.That(restored.Kind, Is.EqualTo(SnapshotKinds.StudioSet));
+        Assert.That(restored.ToneType, Is.Null, "a Studio Set has no single engine to name");
+    }
+
+    [Test]
+    public void Rejects_a_tone_snapshot_that_names_no_tone_type()
+    {
+        // A file that says "tone" but names no engine cannot be restored to anything: the engine is what
+        // decides which blocks the tone is even made of.
+        var e = Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson($$"""
+            {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Kind":"tone","Domains":[
+                {"Start":"Temporary Tone Part 1","Offset":"Offset/Temporary SuperNATURAL Synth Tone",
+                 "Offset2":"Offset2/SuperNATURAL Synth Tone Common","Values":[{"Path":"p","Value":"v"}]}
+            ]}
+            """));
+
+        Assert.That(e!.Message, Does.Contain("tone type"));
+    }
+
+    [Test]
+    public void Rejects_a_tone_snapshot_whose_tone_type_this_build_does_not_know()
+    {
+        // Naming an engine is not enough -- it has to be one ToneDomainNames can build a block list for.
+        var e = Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson($$"""
+            {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Kind":"tone",
+             "ToneType":"SN-Z","Domains":[
+                {"Start":"Temporary Tone Part 1","Offset":"o","Offset2":"o2",
+                 "Values":[{"Path":"p","Value":"v"}]}
+            ]}
+            """));
+
+        Assert.That(e!.Message, Does.Contain("SN-Z"));
+    }
+
+    [Test]
+    public void Rejects_a_kind_this_build_does_not_know()
+    {
+        // A file from a build that snapshots something this one has never heard of. Guessing at it would
+        // apply its blocks somewhere they do not belong.
+        var e = Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson($$"""
+            {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Kind":"drum-map",
+             "Domains":[{"Start":"s","Offset":"o","Offset2":"o2","Values":[{"Path":"p","Value":"v"}]}]}
+            """));
+
+        Assert.That(e!.Message, Does.Contain("drum-map"));
+    }
+
     [Test]
     public void Round_trips_the_raw_value()
     {
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain("Temporary Studio Set", "Offset/Not Used", "Offset2/Studio Set Common Reverb",
             [
@@ -99,8 +191,8 @@ public class StudioSetSnapshotTests
             ]),
         ]);
 
-        var json = StudioSetSnapshot.ToJson(snapshot);
-        var restored = StudioSetSnapshot.FromJson(json);
+        var json = Integra7Snapshot.ToJson(snapshot);
+        var restored = Integra7Snapshot.FromJson(json);
 
         Assert.That(restored.FormatVersion, Is.EqualTo(2));
         Assert.That(restored.Domains[0].Values[0].Raw, Is.EqualTo(1));
@@ -112,7 +204,7 @@ public class StudioSetSnapshotTests
     [Test]
     public void Rejects_something_that_is_not_a_snapshot()
     {
-        Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshot.FromJson("not json at all"));
+        Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson("not json at all"));
     }
 
     [Test]
@@ -120,7 +212,7 @@ public class StudioSetSnapshotTests
     {
         // Restoring depends on this: a discriminator has to be applied before the parameters that
         // only exist because of its value.
-        var ordered = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var ordered = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain("s", "o", "o2",
             [
@@ -130,7 +222,7 @@ public class StudioSetSnapshotTests
             ]),
         ]);
 
-        var restored = StudioSetSnapshot.FromJson(StudioSetSnapshot.ToJson(ordered));
+        var restored = Integra7Snapshot.FromJson(Integra7Snapshot.ToJson(ordered));
 
         Assert.That(restored.Domains[0].Values.ConvertAll(v => v.Path), Is.EqualTo(
             ordered.Domains[0].Values.ConvertAll(v => v.Path)));
@@ -143,7 +235,7 @@ public class StudioSetSnapshotTests
         // whose version happens to be right would otherwise load "successfully" as a snapshot with a
         // null name and null domains, and fail much later.
         Assert.Throws<SnapshotFormatException>(
-            () => StudioSetSnapshot.FromJson($$"""{"FormatVersion":{{StudioSetSnapshot.CurrentFormatVersion}}}"""));
+            () => Integra7Snapshot.FromJson($$"""{"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}}}"""));
     }
 
     [Test]
@@ -152,8 +244,8 @@ public class StudioSetSnapshotTests
         // Restoring calls GetDomain(Start, Offset, Offset2) directly; a null there is a
         // NullReferenceException the moment restore runs, not a graceful failure.
         Assert.Throws<SnapshotFormatException>(
-            () => StudioSetSnapshot.FromJson($$"""
-                {"FormatVersion":{{StudioSetSnapshot.CurrentFormatVersion}},"Name":"x","Domains":[{"Values":[]}]}
+            () => Integra7Snapshot.FromJson($$"""
+                {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Domains":[{"Values":[]}]}
                 """));
     }
 
@@ -163,8 +255,8 @@ public class StudioSetSnapshotTests
         // Restoring calls ModifySingleParameterDisplayedValue(Path, Value) directly; a null Value
         // there is a NullReferenceException the moment restore runs.
         Assert.Throws<SnapshotFormatException>(
-            () => StudioSetSnapshot.FromJson($$"""
-                {"FormatVersion":{{StudioSetSnapshot.CurrentFormatVersion}},"Name":"x","Domains":[
+            () => Integra7Snapshot.FromJson($$"""
+                {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Domains":[
                     {"Start":"s","Offset":"o","Offset2":"o2","Values":[{"Path":"p"}]}
                 ]}
                 """));
@@ -176,8 +268,8 @@ public class StudioSetSnapshotTests
         // A captured Studio Set always has blocks. An empty list means a truncated capture, and
         // restoring it would silently do nothing.
         Assert.Throws<SnapshotFormatException>(
-            () => StudioSetSnapshot.FromJson(
-                $$"""{"FormatVersion":{{StudioSetSnapshot.CurrentFormatVersion}},"Name":"x","Domains":[]}"""));
+            () => Integra7Snapshot.FromJson(
+                $$"""{"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Domains":[]}"""));
     }
 }
 
@@ -206,11 +298,107 @@ public class StudioSetDomainNamesTests
     }
 }
 
+public class ToneDomainNamesTests
+{
+    private static readonly string[] AllToneTypes = ["PCMS", "PCMD", "SN-S", "SN-A", "SN-D"];
+
+    /// <summary>A block's Offset2 ends in "Partial &lt;n&gt;" only for an actual partial block. This is
+    /// deliberately anchored so it does not also match "PCM Synth Tone Partial Mix Table", a *common*
+    /// block whose name happens to contain the word "Partial" too.</summary>
+    private static readonly Regex PartialSuffix = new(@"Partial (\d+)$");
+
+    private static Integra7Domain BuildDomain(IIntegra7Api api) =>
+        new(api, new Integra7StartAddresses(), TestFailedReadKeepsValues.LoadParameters());
+
+    [Test]
+    public void Counts_the_right_number_of_blocks_per_engine()
+    {
+        // The partial counts come from Constants, not a literal, so a change to a NO_OF_PARTIALS_*
+        // value fails here rather than only showing up as a mismatched capture much later.
+        Assert.That(ToneDomainNames.For("PCMS", 0), Has.Count.EqualTo(4 + Constants.NO_OF_PARTIALS_PCM_SYNTH_TONE));
+        Assert.That(ToneDomainNames.For("PCMD", 0), Has.Count.EqualTo(4 + Constants.NO_OF_PARTIALS_PCM_DRUM));
+        Assert.That(ToneDomainNames.For("SN-S", 0), Has.Count.EqualTo(2 + Constants.NO_OF_PARTIALS_SN_SYNTH_TONE));
+        Assert.That(ToneDomainNames.For("SN-A", 0), Has.Count.EqualTo(2));
+        Assert.That(ToneDomainNames.For("SN-D", 0), Has.Count.EqualTo(3 + Constants.NO_OF_PARTIALS_SN_DRUM));
+    }
+
+    [TestCase(0)]
+    [TestCase(9)]
+    public void Every_block_names_the_requested_part_in_its_start(int zeroBasedPartNo)
+    {
+        var expectedStart = $"Temporary Tone Part {zeroBasedPartNo + 1}";
+
+        foreach (var toneType in AllToneTypes)
+            Assert.That(ToneDomainNames.For(toneType, zeroBasedPartNo).Select(b => b.Start),
+                Has.All.EqualTo(expectedStart), $"tone type {toneType}");
+    }
+
+    [TestCase("PCMS", 4)]
+    [TestCase("PCMD", 4)]
+    [TestCase("SN-S", 2)]
+    [TestCase("SN-A", 2)]
+    [TestCase("SN-D", 3)]
+    public void Orders_common_blocks_before_ascending_partials(string toneType, int commonBlockCount)
+    {
+        var names = ToneDomainNames.For(toneType, 0);
+
+        Assert.That(names.Take(commonBlockCount).Select(b => b.Offset2),
+            Has.None.Matches<string>(o => PartialSuffix.IsMatch(o)),
+            "the common blocks must all precede the partials");
+
+        var partialNumbers = names.Skip(commonBlockCount)
+            .Select(b => int.Parse(PartialSuffix.Match(b.Offset2).Groups[1].Value))
+            .ToList();
+        Assert.That(partialNumbers, Is.EqualTo(Enumerable.Range(1, partialNumbers.Count)),
+            "partials must ascend starting from 1");
+    }
+
+    [Test]
+    public void Every_tone_block_resolves_to_its_own_domain()
+    {
+        // GetDomain falls back to an unrelated block rather than throwing, so a typo in
+        // ToneDomainNames would silently capture and restore the wrong addresses.
+        var domain = BuildDomain(new TestFailedReadKeepsValues.SilentApi());
+
+        foreach (var toneType in AllToneTypes)
+        foreach (var (start, offset, offset2) in ToneDomainNames.For(toneType, 0))
+            Assert.That(domain.GetDomain(start, offset, offset2).Offset2AddressName, Is.EqualTo(offset2),
+                $"tone type {toneType}, block {offset2}");
+    }
+
+    [Test]
+    public void Throws_for_an_unrecognised_tone_type()
+    {
+        var e = Assert.Throws<ArgumentException>(() => ToneDomainNames.For("bogus", 0));
+        Assert.That(e!.Message, Does.Contain("bogus"));
+    }
+
+    [TestCase("PCMS")]
+    [TestCase("PCMD")]
+    [TestCase("SN-S")]
+    [TestCase("SN-A")]
+    [TestCase("SN-D")]
+    public void IsKnownToneType_agrees_with_For_for_a_known_type(string toneType)
+    {
+        Assert.That(ToneDomainNames.IsKnownToneType(toneType), Is.True);
+        Assert.DoesNotThrow(() => ToneDomainNames.For(toneType, 0));
+    }
+
+    [TestCase("bogus")]
+    [TestCase("")]
+    [TestCase("pcms")]
+    public void IsKnownToneType_agrees_with_For_for_an_unknown_type(string toneType)
+    {
+        Assert.That(ToneDomainNames.IsKnownToneType(toneType), Is.False);
+        Assert.Throws<ArgumentException>(() => ToneDomainNames.For(toneType, 0));
+    }
+}
+
 public class StudioSetSnapshotServiceTests
 {
-    private static StudioSetSnapshot SnapshotFromBlocks(
+    private static Integra7Snapshot SnapshotFromBlocks(
         IEnumerable<(string Start, string Offset, string Offset2)> blocks) => new(
-        StudioSetSnapshot.CurrentFormatVersion,
+        Integra7Snapshot.CurrentFormatVersion,
         "x",
         new List<SnapshotDomain>(
             blocks.Select(b => new SnapshotDomain(b.Start, b.Offset, b.Offset2, []))));
@@ -251,13 +439,13 @@ public class StudioSetSnapshotServiceTests
         Assert.That(e!.Message, Does.Contain("System"));
     }
 
-    private static Integra7Domain BuildDomain(IIntegra7Api api) =>
+    internal static Integra7Domain BuildDomain(IIntegra7Api api) =>
         new(api, new Integra7StartAddresses(), TestFailedReadKeepsValues.LoadParameters());
 
     /// <summary>A lease whose every member throws. Used to prove validation fails before any MIDI
     /// traffic: if RestoreAsync ever touched the lease, the test would fail with the wrong exception
     /// type instead of the SnapshotFormatException validation is expected to throw.</summary>
-    private sealed class NeverUsedLease : IMidiLease
+    internal sealed class NeverUsedLease : IMidiLease
     {
         private static NotSupportedException Bug() =>
             new("Validation must fail before any MIDI traffic, so nothing should ever touch the lease.");
@@ -273,7 +461,7 @@ public class StudioSetSnapshotServiceTests
     /// design, a half-read Studio Set must reach neither a file nor the instrument -- so a fake that
     /// answers is the only way to drive either of them without hardware. Zeros are a legitimate
     /// reading: raw 0 is a real value for every parameter in a Studio Set.</summary>
-    private sealed class BlankReplyApi : TestFailedReadKeepsValues.SilentApi
+    internal sealed class BlankReplyApi : TestFailedReadKeepsValues.SilentApi
     {
         /// <summary>The 11 header bytes FullyQualifiedParameter.ParseFromSysexReply skips, plus the
         /// checksum and F7 a real reply ends with -- the parser requires the reply to be strictly
@@ -289,7 +477,7 @@ public class StudioSetSnapshotServiceTests
 
     /// <summary>Nothing in these tests reaches real MIDI -- BlankReplyApi ignores the lease it is
     /// handed -- so the lease that throws on every member doubles as proof of that.</summary>
-    private static IMidiLease NoRealMidi() => new NeverUsedLease();
+    internal static IMidiLease NoRealMidi() => new NeverUsedLease();
 
     /// <summary>The scenario the whole raw-value format exists for. "Not A Reverb Type Any More" stands
     /// in for a display string this build's parameter database no longer contains -- an enum entry
@@ -308,7 +496,7 @@ public class StudioSetSnapshotServiceTests
         var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
         const string path = "Studio Set Common Reverb/Reverb Type";
 
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2,
                 [new SnapshotValue(path, "Not A Reverb Type Any More", 1)]),
@@ -333,7 +521,7 @@ public class StudioSetSnapshotServiceTests
         var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
         const string path = "Studio Set Common Reverb/Reverb Type";
 
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2, [new SnapshotValue(path, "Hall 1")]),
         ]);
@@ -356,7 +544,7 @@ public class StudioSetSnapshotServiceTests
         var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
         const string path = "Studio Set Common/Studio Set Name";
 
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2,
                 [new SnapshotValue(path, "World Pop Set", 42)]),
@@ -401,7 +589,7 @@ public class StudioSetSnapshotServiceTests
         Assert.That(d.GetRelevantParameters(true, false).Select(p => p.ParSpec.Path), Does.Not.Contain(path));
         Assert.That(d.GetRelevantParameters(true, true).Select(p => p.ParSpec.Path), Does.Contain(path));
 
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2, [new SnapshotValue(path, "0")]),
         ]);
@@ -415,7 +603,7 @@ public class StudioSetSnapshotServiceTests
         var domain = BuildDomain(new TestFailedReadKeepsValues.SilentApi());
         var block = StudioSetDomainNames.All[0];
 
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2,
             [
@@ -456,13 +644,13 @@ public class StudioSetSnapshotServiceTests
 
         // capture
         var captured = new SnapshotValue(reserved.ParSpec.Path, "42");
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2, [captured]),
         ]);
 
         // JSON
-        var restored = StudioSetSnapshot.FromJson(StudioSetSnapshot.ToJson(snapshot));
+        var restored = Integra7Snapshot.FromJson(Integra7Snapshot.ToJson(snapshot));
 
         // validate
         Assert.DoesNotThrow(() => StudioSetSnapshotService.ValidateParametersAreKnown(domain, restored));
@@ -480,7 +668,7 @@ public class StudioSetSnapshotServiceTests
         var api = new TestFailedReadKeepsValues.SilentApi();
         var domain = BuildDomain(api);
 
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain("Temporary Studio Set", "Offset/Not Used", "Offset2/Not A Real Block", []),
         ]);
@@ -502,7 +690,7 @@ public class StudioSetSnapshotServiceTests
         var domain = BuildDomain(api);
         var block = StudioSetDomainNames.All[0];
 
-        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        var snapshot = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2,
             [
@@ -532,7 +720,7 @@ public class StudioSetSnapshotServiceTests
     /// no variant of the dependent group is context-valid, that group contributes zero bytes, and every
     /// parameter after it lands one group too early -- silent corruption of addresses the code never
     /// names. Reachable from a hand-edited file or a snapshot captured against a build with different
-    /// enum strings (see StudioSetSnapshot's format-version-1 note, and note that
+    /// enum strings (see Integra7Snapshot's format-version-1 note, and note that
     /// UpdateFromDisplayedValue assigns the unmatched string to StringValue as-is, which is what poisons
     /// the context). This feature is the only caller of the bulk write in the whole application.</summary>
     [Test]
@@ -566,5 +754,182 @@ public class StudioSetSnapshotServiceTests
 
         Assert.DoesNotThrowAsync(async () => await d.WriteToIntegraAsync());
         Assert.That(api.Transmissions, Is.EqualTo(1));
+    }
+}
+
+public class ToneSnapshotServiceTests
+{
+    private const string ToneType = "SN-S";
+
+    /// <summary>Numeric, unconditional, no enum table, and 0..127 -- so its displayed value is the number
+    /// itself and any value other than 0 is distinguishable from what a blank read leaves behind.</summary>
+    private const string ToneLevel = "SuperNATURAL Synth Tone Common/Tone Level";
+
+    private static Integra7Domain BuildDomain(IIntegra7Api api) =>
+        StudioSetSnapshotServiceTests.BuildDomain(api);
+
+    private static IMidiLease NoRealMidi() => StudioSetSnapshotServiceTests.NoRealMidi();
+
+    /// <summary>A tone snapshot covering exactly the blocks of <paramref name="toneType"/> as captured
+    /// from <paramref name="zeroBasedPartNo"/>, with no values in them. Enough to drive every guard that
+    /// runs before a single parameter is looked at.</summary>
+    private static Integra7Snapshot ToneSnapshotOf(string toneType, int zeroBasedPartNo,
+        IEnumerable<(string Start, string Offset, string Offset2)>? blocks = null) => new(
+        Integra7Snapshot.CurrentFormatVersion, "x",
+        (blocks ?? ToneDomainNames.For(toneType, zeroBasedPartNo))
+            .Select(b => new SnapshotDomain(b.Start, b.Offset, b.Offset2, new List<SnapshotValue>()))
+            .ToList(),
+        SnapshotKinds.Tone, toneType);
+
+    /// <summary>The same snapshot with one parameter in its first block moved to a given value.</summary>
+    private static Integra7Snapshot WithValue(Integra7Snapshot snapshot, string path, string value, long raw)
+    {
+        var first = snapshot.Domains[0];
+        Assert.That(first.Values.Exists(v => v.Path == path), Is.True,
+            $"the captured block should contain {path}");
+        var patched = first with
+        {
+            Values = first.Values.ConvertAll(v => v.Path == path ? v with { Value = value, Raw = raw } : v),
+        };
+        return snapshot with { Domains = [patched, .. snapshot.Domains.Skip(1)] };
+    }
+
+    [Test]
+    public async Task Round_trips_a_tone_through_json_and_into_a_different_part()
+    {
+        const int capturedFrom = 2;
+        const int restoredInto = 4;
+        var api = new StudioSetSnapshotServiceTests.BlankReplyApi();
+        var domain = BuildDomain(api);
+
+        var captured = await StudioSetSnapshotService.CaptureToneAsync(
+            domain, capturedFrom, ToneType, "My Tone", NoRealMidi());
+
+        Assert.That(captured.Kind, Is.EqualTo(SnapshotKinds.Tone));
+        Assert.That(captured.ToneType, Is.EqualTo(ToneType), "a tone file that names no engine is unrestorable");
+        Assert.That(captured.Domains.Select(d => (d.Start, d.Offset, d.Offset2)),
+            Is.EqualTo(ToneDomainNames.For(ToneType, capturedFrom)),
+            "capture must walk exactly the engine's blocks, in order");
+        Assert.That(api.Transmissions, Is.EqualTo(0), "capturing reads; it never writes");
+
+        // BlankReplyApi answers every read with zeros, so every captured value is raw 0 -- and the part
+        // this is about to be restored into reads zeros too. Moving one value off zero is what makes the
+        // assertion below about this snapshot's data arriving rather than about two zeros matching.
+        var reloaded = Integra7Snapshot.FromJson(
+            Integra7Snapshot.ToJson(WithValue(captured, ToneLevel, "100", 100)));
+        Assert.That(reloaded.Kind, Is.EqualTo(SnapshotKinds.Tone), "the kind has to survive the file");
+        Assert.That(reloaded.ToneType, Is.EqualTo(ToneType), "so does the engine");
+
+        await StudioSetSnapshotService.RestoreToneAsync(domain, reloaded, restoredInto, ToneType, NoRealMidi());
+
+        var targets = ToneDomainNames.For(ToneType, restoredInto);
+        Assert.That(api.Transmissions, Is.EqualTo(targets.Count), "one bulk write per block of the tone");
+
+        var target = domain.GetDomain(targets[0].Start, targets[0].Offset, targets[0].Offset2);
+        Assert.That(target.LookupSingleParameterDisplayedValue(ToneLevel), Is.EqualTo("100"),
+            "the snapshot's value has to land in the part it was restored into");
+
+        // The whole point of re-targeting: the Start recorded in the file names part 3, and part 3 must
+        // come out of this untouched. Without the rebuild-the-triples step this would read "100" too --
+        // or rather, it would be the only part that did.
+        var source = ToneDomainNames.For(ToneType, capturedFrom)[0];
+        Assert.That(
+            domain.GetDomain(source.Start, source.Offset, source.Offset2)
+                .LookupSingleParameterDisplayedValue(ToneLevel),
+            Is.EqualTo("0"), "the part named in the file must be left alone");
+    }
+
+    [Test]
+    public void Refuses_to_restore_a_tone_into_a_part_holding_a_different_engine()
+    {
+        // These blocks are the temporary tone area, whose layout is the engine's: PCM Synth data written
+        // into a part whose temporary tone is SuperNATURAL lands at addresses that mean something else.
+        var api = new TestFailedReadKeepsValues.SilentApi();
+        var domain = BuildDomain(api);
+        var snapshot = ToneSnapshotOf("PCMS", 2);
+
+        var e = Assert.ThrowsAsync<SnapshotFormatException>(async () =>
+            await StudioSetSnapshotService.RestoreToneAsync(domain, snapshot, 4, "SN-S",
+                new StudioSetSnapshotServiceTests.NeverUsedLease()));
+
+        Assert.That(e!.Message, Does.Contain("PCMS"), "the message has to name the snapshot's engine");
+        Assert.That(e.Message, Does.Contain("SN-S"), "and the one the part actually holds");
+        Assert.That(api.Requests, Is.EqualTo(0), "the mismatch must be caught before any read");
+        Assert.That(api.Transmissions, Is.EqualTo(0), "and before any write");
+    }
+
+    [Test]
+    public void Refuses_a_tone_snapshot_that_is_missing_a_block()
+    {
+        // A tone restored without one of its blocks is part this patch and part whatever the part held
+        // before -- worse than refusing, because nothing afterwards says which half is which.
+        var api = new TestFailedReadKeepsValues.SilentApi();
+        var domain = BuildDomain(api);
+        var blocks = ToneDomainNames.For(ToneType, 2).ToList();
+        var dropped = blocks[^1];
+        blocks.RemoveAt(blocks.Count - 1);
+
+        var e = Assert.ThrowsAsync<SnapshotFormatException>(async () =>
+            await StudioSetSnapshotService.RestoreToneAsync(domain, ToneSnapshotOf(ToneType, 2, blocks), 4,
+                ToneType, new StudioSetSnapshotServiceTests.NeverUsedLease()));
+
+        Assert.That(e!.Message, Does.Contain(dropped.Offset2), "the message has to name the missing block");
+        Assert.That(api.Requests, Is.EqualTo(0), "an incomplete tone must be refused before any read");
+        Assert.That(api.Transmissions, Is.EqualTo(0), "and before any write");
+    }
+
+    [Test]
+    public void Refuses_a_tone_snapshot_carrying_a_block_that_is_not_part_of_the_engine()
+    {
+        // The other half of the same bijection. A block with no target would otherwise be silently
+        // dropped, and a file that carries one is not the tone it claims to be.
+        var api = new TestFailedReadKeepsValues.SilentApi();
+        var domain = BuildDomain(api);
+        var blocks = ToneDomainNames.For(ToneType, 2).ToList();
+        blocks.Add(("Temporary Tone Part 3", "Offset/Temporary SuperNATURAL Synth Tone",
+            "Offset2/Not A Real Block"));
+
+        var e = Assert.ThrowsAsync<SnapshotFormatException>(async () =>
+            await StudioSetSnapshotService.RestoreToneAsync(domain, ToneSnapshotOf(ToneType, 2, blocks), 4,
+                ToneType, new StudioSetSnapshotServiceTests.NeverUsedLease()));
+
+        Assert.That(e!.Message, Does.Contain("Offset2/Not A Real Block"));
+        Assert.That(api.Requests, Is.EqualTo(0), "an unmatched block must be refused before any read");
+        Assert.That(api.Transmissions, Is.EqualTo(0), "and before any write");
+    }
+
+    [Test]
+    public void Refuses_to_restore_a_studio_set_snapshot_as_a_tone()
+    {
+        // Reachable from the file picker: nothing about a .json file says which of the two it holds, and
+        // "block (...) is not part of a SN-S tone" would be a riddle compared to saying what it is.
+        var api = new TestFailedReadKeepsValues.SilentApi();
+        var domain = BuildDomain(api);
+        var studioSet = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "x",
+            [new SnapshotDomain("Temporary Studio Set", "Offset/Not Used", "Offset2/Studio Set Common", [])]);
+
+        var e = Assert.ThrowsAsync<SnapshotFormatException>(async () =>
+            await StudioSetSnapshotService.RestoreToneAsync(domain, studioSet, 4, ToneType,
+                new StudioSetSnapshotServiceTests.NeverUsedLease()));
+
+        Assert.That(e!.Message, Does.Contain(SnapshotKinds.StudioSet));
+        Assert.That(api.Transmissions, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void Refuses_to_restore_a_tone_snapshot_as_a_studio_set()
+    {
+        // The mirror of the above, and the reason RestoreAsync checks Kind at all: without it the message
+        // would blame the build ("contains a block this build does not recognise") for the user having
+        // picked the wrong file.
+        var api = new TestFailedReadKeepsValues.SilentApi();
+        var domain = BuildDomain(api);
+
+        var e = Assert.ThrowsAsync<SnapshotFormatException>(async () =>
+            await StudioSetSnapshotService.RestoreAsync(domain, ToneSnapshotOf(ToneType, 2),
+                new StudioSetSnapshotServiceTests.NeverUsedLease()));
+
+        Assert.That(e!.Message, Does.Contain(SnapshotKinds.Tone));
+        Assert.That(api.Transmissions, Is.EqualTo(0));
     }
 }
