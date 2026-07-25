@@ -73,4 +73,28 @@ public class StudioSetSnapshotTests
         Assert.Throws<SnapshotFormatException>(
             () => StudioSetSnapshot.FromJson($$"""{"FormatVersion":{{StudioSetSnapshot.CurrentFormatVersion}}}"""));
     }
+
+    [Test]
+    public void Rejects_a_domain_with_no_address()
+    {
+        // Restoring calls GetDomain(Start, Offset, Offset2) directly; a null there is a
+        // NullReferenceException the moment restore runs, not a graceful failure.
+        Assert.Throws<SnapshotFormatException>(
+            () => StudioSetSnapshot.FromJson($$"""
+                {"FormatVersion":{{StudioSetSnapshot.CurrentFormatVersion}},"Name":"x","Domains":[{"Values":[]}]}
+                """));
+    }
+
+    [Test]
+    public void Rejects_a_parameter_with_no_value()
+    {
+        // Restoring calls ModifySingleParameterDisplayedValue(Path, Value) directly; a null Value
+        // there is a NullReferenceException the moment restore runs.
+        Assert.Throws<SnapshotFormatException>(
+            () => StudioSetSnapshot.FromJson($$"""
+                {"FormatVersion":{{StudioSetSnapshot.CurrentFormatVersion}},"Name":"x","Domains":[
+                    {"Start":"s","Offset":"o","Offset2":"o2","Values":[{"Path":"p"}]}
+                ]}
+                """));
+    }
 }
