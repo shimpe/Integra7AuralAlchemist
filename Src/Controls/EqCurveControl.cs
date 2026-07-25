@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -39,6 +40,16 @@ public class EqCurveControl : Control
     public static readonly StyledProperty<int> MidGainProperty = I(nameof(MidGain));
     public static readonly StyledProperty<int> HighGainProperty = I(nameof(HighGain));
 
+    private static StyledProperty<IReadOnlyList<double>?> F(string name) =>
+        AvaloniaProperty.Register<EqCurveControl, IReadOnlyList<double>?>(name);
+
+    /// <summary>The frequencies each band may be set to, in Hz. A dragged handle snaps to the nearest
+    /// of them, so it can only ever sit where the hardware can actually put the band. Leave unset to
+    /// drag freely.</summary>
+    public static readonly StyledProperty<IReadOnlyList<double>?> LowFreqValuesProperty = F(nameof(LowFreqValues));
+    public static readonly StyledProperty<IReadOnlyList<double>?> MidFreqValuesProperty = F(nameof(MidFreqValues));
+    public static readonly StyledProperty<IReadOnlyList<double>?> HighFreqValuesProperty = F(nameof(HighFreqValues));
+
     /// <summary>Mid band Q. Shapes the bell but is not draggable — it is a five-value enum.</summary>
     public static readonly StyledProperty<double> MidQProperty =
         AvaloniaProperty.Register<EqCurveControl, double>(nameof(MidQ), 1.0);
@@ -63,6 +74,9 @@ public class EqCurveControl : Control
     public int LowGain { get => GetValue(LowGainProperty); set => SetValue(LowGainProperty, value); }
     public int MidGain { get => GetValue(MidGainProperty); set => SetValue(MidGainProperty, value); }
     public int HighGain { get => GetValue(HighGainProperty); set => SetValue(HighGainProperty, value); }
+    public IReadOnlyList<double>? LowFreqValues { get => GetValue(LowFreqValuesProperty); set => SetValue(LowFreqValuesProperty, value); }
+    public IReadOnlyList<double>? MidFreqValues { get => GetValue(MidFreqValuesProperty); set => SetValue(MidFreqValuesProperty, value); }
+    public IReadOnlyList<double>? HighFreqValues { get => GetValue(HighFreqValuesProperty); set => SetValue(HighFreqValuesProperty, value); }
     public double MidQ { get => GetValue(MidQProperty); set => SetValue(MidQProperty, value); }
     public bool IsOn { get => GetValue(IsOnProperty); set => SetValue(IsOnProperty, value); }
     public IBrush LineBrush { get => GetValue(LineBrushProperty); set => SetValue(LineBrushProperty, value); }
@@ -224,13 +238,15 @@ public class EqCurveControl : Control
         SetGain(band, (int)Math.Round(Math.Clamp(EqCurve.DbAtY01(pos.Y / plotH), -GainLimit, GainLimit)));
     }
 
+    // Snapped here rather than left to the bound view model: a handle that trailed the pointer between
+    // two selectable frequencies would be showing a band the hardware cannot be set to.
     private void SetHz(int band, double hz)
     {
         switch (band)
         {
-            case 0: LowHz = hz; break;
-            case 1: MidHz = hz; break;
-            case 2: HighHz = hz; break;
+            case 0: LowHz = EqCurve.SnapHz(hz, LowFreqValues); break;
+            case 1: MidHz = EqCurve.SnapHz(hz, MidFreqValues); break;
+            case 2: HighHz = EqCurve.SnapHz(hz, HighFreqValues); break;
         }
     }
 

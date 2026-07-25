@@ -65,6 +65,25 @@ public static class EqCurve
         return pts;
     }
 
+    /// <summary>The allowed frequency closest to <paramref name="hz"/>, or <paramref name="hz"/> itself
+    /// when nothing is allowed in particular. Distance is measured in log frequency, matching the
+    /// graph's axis, so the nearest allowed value is also the nearest one on screen.</summary>
+    public static double SnapHz(double hz, IReadOnlyList<double>? allowed)
+    {
+        if (allowed is null || allowed.Count == 0) return hz;
+        var target = Math.Log10(Math.Max(hz, 1e-6));
+        var best = hz;
+        var bestDistance = double.MaxValue;
+        foreach (var candidate in allowed)
+        {
+            var d = Math.Abs(Math.Log10(Math.Max(candidate, 1e-6)) - target);
+            if (d >= bestDistance) continue;
+            bestDistance = d;
+            best = candidate;
+        }
+        return best;
+    }
+
     /// <summary>Which band's handle sits nearest a normalized point — 0 low, 1 mid, 2 high, or -1 when
     /// none is within <paramref name="maxDistance"/>. Measured in the normalized X/Y space, so a handle
     /// is grabbed by proximity in both axes rather than by frequency alone.</summary>

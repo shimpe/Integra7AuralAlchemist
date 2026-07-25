@@ -60,6 +60,9 @@ public sealed partial class StudioSetPartEqEditorViewModel : ViewModelBase, IDis
         Bridge(MidFreq, nameof(MidFreqHz));
         Bridge(HighFreq, nameof(HighFreqHz));
         Bridge(MidQ, nameof(MidQValue));
+        BridgeOptions(LowFreq, nameof(LowFreqValues));
+        BridgeOptions(MidFreq, nameof(MidFreqValues));
+        BridgeOptions(HighFreq, nameof(HighFreqValues));
     }
 
     // --- Bridges for the curve control -------------------------------------------------------
@@ -91,6 +94,19 @@ public sealed partial class StudioSetPartEqEditorViewModel : ViewModelBase, IDis
     /// <summary>Mid Q as a number, for the curve's bell width. Set through its combo box only.</summary>
     public double MidQValue => Parse(MidQ.Value, 1.0);
 
+    /// <summary>The frequencies each band offers, as numbers — the same list its combo box shows. The
+    /// graph snaps a dragged handle to these, so it can only land on a band the hardware can be set to.</summary>
+    public IReadOnlyList<double> LowFreqValues => Values(LowFreq);
+    public IReadOnlyList<double> MidFreqValues => Values(MidFreq);
+    public IReadOnlyList<double> HighFreqValues => Values(HighFreq);
+
+    private static IReadOnlyList<double> Values(ParamString p)
+    {
+        var list = new List<double>(p.Options.Count);
+        foreach (var option in p.Options) list.Add(Parse(option, 0));
+        return list;
+    }
+
     private static double Hz(ParamString p, double fallback) => Parse(p.Value, fallback);
 
     /// <summary>Write the allowed option closest to <paramref name="hz"/>. Distance is measured in
@@ -115,6 +131,10 @@ public sealed partial class StudioSetPartEqEditorViewModel : ViewModelBase, IDis
 
     private void Bridge(ParamString p, string derivedProperty) =>
         _subscriptions.Add(p.WhenAnyValue(x => x.Value)
+            .Subscribe(_ => this.RaisePropertyChanged(derivedProperty)));
+
+    private void BridgeOptions(ParamString p, string derivedProperty) =>
+        _subscriptions.Add(p.WhenAnyValue(x => x.Options)
             .Subscribe(_ => this.RaisePropertyChanged(derivedProperty)));
 
     // Open the raw Studio Set Part EQ grid for the full parameter set.

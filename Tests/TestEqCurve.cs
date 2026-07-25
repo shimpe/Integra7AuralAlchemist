@@ -100,6 +100,35 @@ public class EqCurveTests
     }
 
     [Test]
+    public void Snap_picks_the_nearest_allowed_frequency()
+    {
+        double[] mid = [200, 250, 315, 400, 500, 630, 800, 1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000];
+        Assert.That(EqCurve.SnapHz(1000, mid), Is.EqualTo(1000));
+        Assert.That(EqCurve.SnapHz(1100, mid), Is.EqualTo(1000));
+        Assert.That(EqCurve.SnapHz(1200, mid), Is.EqualTo(1250));
+        // Beyond either end it lands on that end rather than running off the list.
+        Assert.That(EqCurve.SnapHz(20, mid), Is.EqualTo(200));
+        Assert.That(EqCurve.SnapHz(20000, mid), Is.EqualTo(8000));
+    }
+
+    [Test]
+    public void Snap_measures_distance_in_log_frequency()
+    {
+        double[] allowed = [200, 400];
+        // 280 Hz is closer to 400 by subtraction (120 vs 80) but closer to 200 on a log axis, which is
+        // the axis the graph draws — so the handle must land on 200.
+        Assert.That(EqCurve.SnapHz(280, allowed), Is.EqualTo(200));
+        Assert.That(EqCurve.SnapHz(285, allowed), Is.EqualTo(400));
+    }
+
+    [Test]
+    public void Snap_leaves_the_frequency_alone_when_nothing_is_allowed_in_particular()
+    {
+        Assert.That(EqCurve.SnapHz(1234, null), Is.EqualTo(1234));
+        Assert.That(EqCurve.SnapHz(1234, []), Is.EqualTo(1234));
+    }
+
+    [Test]
     public void Nearest_band_picks_the_handle_under_the_pointer()
     {
         var b = new EqBands(200, 6, 1000, -6, 1.0, 4000, 0);
