@@ -75,8 +75,12 @@
                     <TextBlock Text="Drum Comp-EQ" FontWeight="Bold"/>
                     <TextBlock Text="Which part the six compressor/EQ units act on, and where each one is sent."
                                Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
-                    <StackPanel Spacing="1" Width="76">
-                        <TextBlock Text="Part" Classes="sliderLabel" ToolTip.Tip="Drum Comp-EQ Part"/>
+                    <!-- HorizontalAlignment: a fixed Width inside a vertical StackPanel would otherwise
+                         leave the column floating instead of against the left edge. No sliderLabel
+                         class either — it reserves two label lines to align a row, and this knob has
+                         no row to align with. -->
+                    <StackPanel Spacing="1" Width="76" HorizontalAlignment="Left">
+                        <TextBlock Text="Part" ToolTip.Tip="Drum Comp-EQ Part"/>
                         <controls:RotaryKnob Minimum="1" Maximum="16" Value="{Binding DrumCompEqPart.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
                     </StackPanel>
                     <ItemsControl ItemsSource="{Binding DrumCompEqOutputs}">
