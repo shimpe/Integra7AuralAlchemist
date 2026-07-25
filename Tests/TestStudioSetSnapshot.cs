@@ -1,5 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
+using Integra7AuralAlchemist.Models.Data;
+using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
 
 namespace Tests;
@@ -173,6 +177,84 @@ public class StudioSetSnapshotServiceTests
             ("System", "Offset/Not Used", "Offset2/Studio Set Common"),
         ]);
 
-        Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshotService.ValidateBlocksAreKnown(snapshot));
+        // A real Offset2 is deliberately mixed in with the wrong Start: a message naming only "Offset2/
+        // Studio Set Common" (which is, in isolation, a real block) would pass even though the message
+        // named the wrong culprit. It must name "System", the field that is actually wrong.
+        var e = Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshotService.ValidateBlocksAreKnown(snapshot));
+        Assert.That(e!.Message, Does.Contain("System"));
+    }
+
+    private static Integra7Domain BuildDomain(IIntegra7Api api) =>
+        new(api, new Integra7StartAddresses(), TestFailedReadKeepsValues.LoadParameters());
+
+    /// <summary>A lease whose every member throws. Used to prove validation fails before any MIDI
+    /// traffic: if RestoreAsync ever touched the lease, the test would fail with the wrong exception
+    /// type instead of the SnapshotFormatException validation is expected to throw.</summary>
+    private sealed class NeverUsedLease : IMidiLease
+    {
+        private static NotSupportedException Bug() =>
+            new("Validation must fail before any MIDI traffic, so nothing should ever touch the lease.");
+
+        public Task SendAsync(byte[] data) => throw Bug();
+        public Task<byte[]> RequestAsync(byte[] request, IReplyMatcher expected) => throw Bug();
+        public Task<byte[]> ReadNextAsync(IReplyMatcher expected) => throw Bug();
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    [Test]
+    public void Keeps_a_snapshot_whose_parameters_all_exist()
+    {
+        var domain = BuildDomain(new TestFailedReadKeepsValues.SilentApi());
+        var block = StudioSetDomainNames.All[0];
+        var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
+        // Existence check only (true, true): built from the same live parameter list
+        // ValidateParametersAreKnown itself queries, so this cannot drift from what "known" means.
+        var realPaths = d.GetRelevantParameters(true, true).Select(p => p.ParSpec.Path).Take(3).ToList();
+        Assert.That(realPaths, Is.Not.Empty, "the fixture needs real parameters to validate against");
+
+        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        [
+            new SnapshotDomain(block.Start, block.Offset, block.Offset2,
+                realPaths.Select(p => new SnapshotValue(p, "0")).ToList()),
+        ]);
+
+        Assert.DoesNotThrow(() => StudioSetSnapshotService.ValidateParametersAreKnown(domain, snapshot));
+    }
+
+    [Test]
+    public void Rejects_a_snapshot_with_a_made_up_parameter_path()
+    {
+        var domain = BuildDomain(new TestFailedReadKeepsValues.SilentApi());
+        var block = StudioSetDomainNames.All[0];
+
+        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        [
+            new SnapshotDomain(block.Start, block.Offset, block.Offset2,
+            [
+                new SnapshotValue("Studio Set Common/Not A Real Parameter", "0"),
+            ]),
+        ]);
+
+        var e = Assert.Throws<SnapshotFormatException>(
+            () => StudioSetSnapshotService.ValidateParametersAreKnown(domain, snapshot));
+        Assert.That(e!.Message, Does.Contain("Studio Set Common/Not A Real Parameter"));
+    }
+
+    [Test]
+    public async Task Sends_nothing_when_restoring_an_invalid_snapshot()
+    {
+        var api = new TestFailedReadKeepsValues.SilentApi();
+        var domain = BuildDomain(api);
+
+        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
+        [
+            new SnapshotDomain("Temporary Studio Set", "Offset/Not Used", "Offset2/Not A Real Block", []),
+        ]);
+
+        Assert.ThrowsAsync<SnapshotFormatException>(
+            async () => await StudioSetSnapshotService.RestoreAsync(domain, snapshot, new NeverUsedLease()));
+
+        Assert.That(api.Requests, Is.EqualTo(0), "an invalid snapshot must be rejected before any read");
+        Assert.That(api.Transmissions, Is.EqualTo(0), "an invalid snapshot must be rejected before any write");
     }
 }

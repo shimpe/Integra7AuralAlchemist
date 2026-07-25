@@ -13,10 +13,14 @@ namespace Tests;
 [TestFixture]
 public class TestFailedReadKeepsValues
 {
-    /// <summary>An Integra7Api that never answers a data request, i.e. every read times out.</summary>
-    private sealed class SilentApi : IIntegra7Api
+    /// <summary>An Integra7Api that never answers a data request, i.e. every read times out. Also
+    /// reusable to prove something sends nothing at all: <see cref="Transmissions"/> counts writes the
+    /// same way <see cref="Requests"/> counts reads, and both are always available to any test in this
+    /// assembly.</summary>
+    internal sealed class SilentApi : IIntegra7Api
     {
         public int Requests { get; private set; }
+        public int Transmissions { get; private set; }
 
         public Task<byte[]> MakeDataRequestAsync(byte[] address, long size, IMidiLease? lease = null)
         {
@@ -28,8 +32,11 @@ public class TestFailedReadKeepsValues
         public bool ConnectionOk() => true;
         public byte DeviceId() => 0x10;
         public Task CheckIdentityAsync() => Task.CompletedTask;
-        public Task MakeDataTransmissionAsync(byte[] address, byte[] data, IMidiLease? lease = null) =>
-            Task.CompletedTask;
+        public Task MakeDataTransmissionAsync(byte[] address, byte[] data, IMidiLease? lease = null)
+        {
+            Transmissions++;
+            return Task.CompletedTask;
+        }
 
         public Task<IMidiLease> BeginConversationAsync(string what) =>
             throw new NotSupportedException("This fake never opens a conversation.");
@@ -69,7 +76,9 @@ public class TestFailedReadKeepsValues
         public Task<List<string>> GetSuperNATURALSynthToneUserNames448to511() => NoNames();
     }
 
-    private static Integra7Parameters LoadParameters()
+    /// <summary>Internal, not private: other fixtures load the same real parameter database to build a
+    /// domain without a device (see <see cref="SilentApi"/>).</summary>
+    internal static Integra7Parameters LoadParameters()
     {
         var path = Path.Combine(TestContext.CurrentContext.TestDirectory,
             "..", "..", "..", "..", "Src", "Assets", "parameters.bin");
