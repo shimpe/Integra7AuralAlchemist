@@ -11,6 +11,7 @@ using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
 using ReactiveUI;
 using ReactiveUI.SourceGenerators;
+using Serilog;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
@@ -1168,8 +1169,14 @@ public partial class PartViewModel : ViewModelBase
     {
         if (_selectedPreset is null && PartNo != 255)
         {
-            await _i7domain.StudioSetPart(PartNo).ReadFromIntegraAsync();
-            PreSelectConfiguredPreset(_i7domain.StudioSetPart(PartNo));
+            // Only preselect from a read that answered. A failed read keeps the previous values, so
+            // deriving a preset from them would state which patch this part holds on the strength of
+            // data the device never confirmed -- and SelectedPreset.ToneTypeStr is what SaveUserTone
+            // uses to decide which engine's tone to write into user memory.
+            if (await _i7domain.StudioSetPart(PartNo).ReadFromIntegraAsync())
+                PreSelectConfiguredPreset(_i7domain.StudioSetPart(PartNo));
+            else
+                Log.Warning("Part {Part}: not preselecting a preset, the device did not answer.", PartNo);
         }
     }
 
@@ -1340,10 +1347,15 @@ public partial class PartViewModel : ViewModelBase
 
         if (!IsCommonTab)
         {
-            await _i7domain.StudioSetPart(PartNo).ReadFromIntegraAsync();
+            var answered = await _i7domain.StudioSetPart(PartNo).ReadFromIntegraAsync();
             List<FullyQualifiedParameter> p_part = _i7domain.StudioSetPart(PartNo).GetRelevantParameters(true, true);
             _sourceCacheStudioSetPartParameters.AddOrUpdate(p_part);
-            PreSelectConfiguredPreset(_i7domain.StudioSetPart(PartNo));
+            // See EnsurePreselectIsNotNullAsync: a preset derived from a failed read is a claim about
+            // the device that the device never made.
+            if (answered)
+                PreSelectConfiguredPreset(_i7domain.StudioSetPart(PartNo));
+            else
+                Log.Warning("Part {Part}: not preselecting a preset, the device did not answer.", PartNo);
         }
         else
         {
@@ -1953,9 +1965,15 @@ public partial class PartViewModel : ViewModelBase
             ForceUiRefresh(midiPart.StartAddressName, midiPart.OffsetAddressName, midiPart.Offset2AddressName, "",
                 false /* don't cause inf loop */);
             var setPart = _i7domain?.StudioSetPart(part);
-            await setPart.ReadFromIntegraAsync();
+            // Whether this answered decides both preselects in this method: the one here and the one
+            // after the tone domains below. See EnsurePreselectIsNotNullAsync for why a preset must
+            // not be derived from values the device did not confirm.
+            var setPartAnswered = await setPart.ReadFromIntegraAsync();
             _sourceCacheStudioSetPartParameters.AddOrUpdate(setPart.GetRelevantParameters(true, true));
-            PreSelectConfiguredPreset(setPart);
+            if (setPartAnswered)
+                PreSelectConfiguredPreset(setPart);
+            else
+                Log.Warning("Part {Part}: not preselecting a preset, the device did not answer.", part);
             ForceUiRefresh(setPart.StartAddressName, setPart.OffsetAddressName, setPart.Offset2AddressName, "",
                 false /* don't cause inf loop */);
             if (_selectedPreset?.ToneTypeStr == "PCMS")
@@ -2051,7 +2069,10 @@ public partial class PartViewModel : ViewModelBase
                 foreach (var p in SNDrumKitPartialViewModels) await p.ResyncPartAsync(part);
             }
 
-            PreSelectConfiguredPreset(setPart);
+            // Again only if the Studio Set Part read above answered -- this repeats the preselect after
+            // the tone domains have been re-read, it does not re-derive it from fresher data.
+            if (setPartAnswered)
+                PreSelectConfiguredPreset(setPart);
 
             this.RaisePropertyChanged(nameof(SelectedPresetIsPCMSynthTone));
             this.RaisePropertyChanged(nameof(SelectedPresetIsPCMDrumKit));
