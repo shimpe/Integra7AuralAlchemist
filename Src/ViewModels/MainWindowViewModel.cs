@@ -48,6 +48,16 @@ public partial class MainWindowViewModel : ViewModelBase
     /// Unlike <see cref="SyncInfo"/> this drives a status line rather than the blocking overlay.</summary>
     [Reactive] private string _backgroundInfo = "";
 
+    /// <summary>Outcome of the last Studio Set snapshot save or load, shown on the status bar. This is
+    /// the only channel this app has for telling the user that something failed -- <c>UserActionLog</c>
+    /// only reaches the log file -- so a snapshot that cannot be read must land here, not just there.
+    /// Empty means there is nothing to report; a cancelled file dialog leaves it untouched.</summary>
+    [Reactive] private string _snapshotStatus = "";
+
+    /// <summary>Whether <see cref="SnapshotStatus"/> describes a failure. Selects which of the two
+    /// status-bar TextBlocks renders it, so a success is not shown in the "something is wrong" red.</summary>
+    [Reactive] private bool _snapshotFailed;
+
     /// <summary>Cancels an in-flight background user-preset load. A rescan builds a fresh preset list
     /// and a fresh set of parts, so a loader still running for the previous connection must stop before
     /// it pushes rows from the old list into the new parts.</summary>
@@ -118,6 +128,112 @@ public partial class MainWindowViewModel : ViewModelBase
                         if (presetId == tone.ZeroBasedMemoryId) p.Name = name;
                     }
             }
+    }
+
+    /// <summary>Read the Studio Set currently in the instrument and write it to a file the user picks.
+    /// </summary>
+    [ReactiveCommand]
+    public async Task SaveStudioSetAsync()
+    {
+        UserActionLog.Action("button: Save Studio Set");
+        // Locals, not the properties: everything below runs after several awaits, and a rescan in the
+        // meantime replaces both of them.
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null) return;
+
+        // The Studio Set names itself; that is a far better default file name than "snapshot".
+        var name = communicator.StudioSetCommon
+            .LookupSingleParameterDisplayedValue("Studio Set Common/Studio Set Name").Trim();
+        if (name.Length == 0) name = "Studio Set";
+
+        // The instrument's character set includes ':', '/' and '*', which a file name cannot hold; the
+        // snapshot keeps the real name, only the suggestion in the dialog is scrubbed.
+        var suggested = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
+        var path = await ShowSaveSnapshotDialog.Handle(suggested + ".json");
+        if (path is null) return; // cancelled -- nothing happened, so say nothing
+
+        try
+        {
+            SignalStartSync();
+            SyncInfo = "Reading Studio Set";
+            // One conversation for the whole capture, so nothing else can write to the instrument
+            // partway through and produce a Studio Set that never actually existed.
+            await using var lease = await api.BeginConversationAsync("capture Studio Set");
+            var snapshot = await StudioSetSnapshotService.CaptureAsync(communicator, name, lease);
+            await File.WriteAllTextAsync(path, StudioSetSnapshot.ToJson(snapshot));
+            SnapshotFailed = false;
+            SnapshotStatus = $"Saved the Studio Set to {Path.GetFileName(path)}.";
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("save Studio Set", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = $"Could not save the Studio Set: {e.Message}";
+        }
+        finally
+        {
+            SignalStopSync();
+        }
+    }
+
+    /// <summary>Read a snapshot file the user picks and write it back into the instrument, replacing
+    /// the Studio Set currently loaded there.</summary>
+    [ReactiveCommand]
+    public async Task LoadStudioSetAsync()
+    {
+        UserActionLog.Action("button: Load Studio Set");
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null) return;
+
+        var path = await ShowOpenSnapshotDialog.Handle(Unit.Default);
+        if (path is null) return; // cancelled
+
+        var restored = false;
+        try
+        {
+            SignalStartSync();
+            SyncInfo = "Writing Studio Set";
+            var snapshot = StudioSetSnapshot.FromJson(await File.ReadAllTextAsync(path));
+            // One conversation for the whole restore, same reasoning as the capture. Note that a
+            // restore failing partway through leaves the instrument holding a mix of the snapshot and
+            // what was there before -- RestoreAsync's own XML doc explains why nothing here can tell
+            // which blocks landed. Loading the same file again is safe and finishes the job, because
+            // restoring is idempotent: every block is applied independently, in the same order.
+            await using (var lease = await api.BeginConversationAsync("restore Studio Set"))
+            {
+                await StudioSetSnapshotService.RestoreAsync(communicator, snapshot, lease);
+            }
+
+            restored = true;
+            SnapshotFailed = false;
+            SnapshotStatus = $"Loaded the Studio Set from {Path.GetFileName(path)}.";
+        }
+        catch (SnapshotFormatException e)
+        {
+            // This one carries a message written for the user, so show it rather than a generic line.
+            UserActionLog.Failed("load Studio Set", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = e.Message;
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("load Studio Set", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = $"Could not load the Studio Set: {e.Message}";
+        }
+        finally
+        {
+            SignalStopSync();
+        }
+
+        // Every part now holds a different tone and every common block a different value, exactly as
+        // when a Studio Set is selected on the front panel (see StudioSetSelectors in
+        // UpdateUiFromIntegraAsync); updating nothing would leave the window describing the Studio Set
+        // that just went away. Outside the lease above, since the resync acquires its own -- and not at
+        // all when the restore failed, because the screen still matches whatever is on the device.
+        if (restored) await ResyncAllPartsAsync();
     }
 
     [ReactiveCommand]

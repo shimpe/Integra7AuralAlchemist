@@ -149,6 +149,30 @@
                             </Button.IsEnabled>
                             Save User Tone
                         </Button>
+                        <Button Command="{Binding SaveStudioSetAsync}"
+                                ToolTip.Tip="Read the Studio Set currently in the instrument — its common settings, effects and all 16 parts — and write it to a file.">
+                            <Button.IsEnabled>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <MultiBinding.Bindings>
+                                        <Binding Path="Connected" />
+                                        <Binding Path="!IsSyncing" />
+                                    </MultiBinding.Bindings>
+                                </MultiBinding>
+                            </Button.IsEnabled>
+                            Save Studio Set…
+                        </Button>
+                        <Button Command="{Binding LoadStudioSetAsync}"
+                                ToolTip.Tip="Write a saved Studio Set back into the instrument. This overwrites the Studio Set currently loaded there, including any edits you have not saved.">
+                            <Button.IsEnabled>
+                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                    <MultiBinding.Bindings>
+                                        <Binding Path="Connected" />
+                                        <Binding Path="!IsSyncing" />
+                                    </MultiBinding.Bindings>
+                                </MultiBinding>
+                            </Button.IsEnabled>
+                            Load Studio Set…
+                        </Button>
                     </StackPanel>
                     <TabControl HorizontalContentAlignment="Left"
                                 TabStripPlacement="Left"
@@ -547,6 +571,33 @@
                 <TextBlock Text="{Binding BackgroundInfo}" VerticalAlignment="Center"
                            Foreground="{StaticResource SnMutedTextBrush}"
                            IsVisible="{Binding BackgroundInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <!-- Outcome of the last Studio Set snapshot save/load. Two TextBlocks over the same
+                     string rather than one: a failure has to be visibly wrong, and a success shown in
+                     the same red would read as one. -->
+                <TextBlock Text="{Binding SnapshotStatus}" VerticalAlignment="Center"
+                           Foreground="{StaticResource SnMutedTextBrush}">
+                    <TextBlock.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <MultiBinding.Bindings>
+                                <Binding Path="SnapshotStatus"
+                                         Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                                <Binding Path="!SnapshotFailed" />
+                            </MultiBinding.Bindings>
+                        </MultiBinding>
+                    </TextBlock.IsVisible>
+                </TextBlock>
+                <TextBlock Text="{Binding SnapshotStatus}" VerticalAlignment="Center"
+                           Foreground="{StaticResource SnMuteBrush}">
+                    <TextBlock.IsVisible>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <MultiBinding.Bindings>
+                                <Binding Path="SnapshotStatus"
+                                         Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                                <Binding Path="SnapshotFailed" />
+                            </MultiBinding.Bindings>
+                        </MultiBinding>
+                    </TextBlock.IsVisible>
+                </TextBlock>
             </StackPanel>
         </Border>
     </Grid>
