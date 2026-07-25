@@ -26,7 +26,19 @@
                         <Border Background="{StaticResource SnAccentBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
                             <TextBlock Text="Studio Set" Foreground="{StaticResource SnBadgeForegroundBrush}" FontSize="11"/>
                         </Border>
-                        <TextBlock Text="{Binding StudioSetName.Value}" FontSize="16" FontWeight="Bold"/>
+                        <!-- UpdateSourceTrigger=LostFocus, not the default: the name is one parameter,
+                             so a per-keystroke binding would send "F", "Fu", "Ful"… to the instrument
+                             and leave whatever was typed last as the stored name if focus never moved.
+                             MaxLength matches the 16 characters the parameter holds.
+
+                             Renaming looks like it does nothing, and does not: the instrument takes the
+                             write into the temporary Studio Set as an edited parameter, and the new
+                             name only shows up once that Studio Set is stored to a user slot. Hence
+                             the tooltip — without it this reads as a broken control. -->
+                        <TextBox Text="{Binding StudioSetName.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                 MaxLength="16" Width="220" HorizontalAlignment="Left"
+                                 FontSize="16" FontWeight="Bold"
+                                 ToolTip.Tip="Studio Set Name — the rename is held in the temporary Studio Set and takes effect when you store it to a user slot"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <StackPanel Spacing="1" Width="76">
