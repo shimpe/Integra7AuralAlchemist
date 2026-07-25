@@ -21,6 +21,7 @@ public partial class SaveUserToneViewModel : ViewModelBase
     private readonly List<Integra7Preset> i7presets = [];
 
     private IDisposable? _cleanupPresets;
+    private IDisposable? _cleanupCanSave;
 
     private string _newName = "";
     [Reactive] private string _searchTextPreset = "";
@@ -67,6 +68,11 @@ public partial class SaveUserToneViewModel : ViewModelBase
             return _userToneToSave;
         });
 
+        // The generated SelectedPreset setter announces itself but knows nothing of CanSave, so the
+        // Save button would stay disabled until the name was edited again after picking a row.
+        _cleanupCanSave = this.WhenAnyValue(x => x.SelectedPreset)
+            .Subscribe(_ => this.RaisePropertyChanged(nameof(CanSave)));
+
         var parFilterPreset = this.WhenAnyValue(x => x.SearchTextPreset)
             .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
             .DistinctUntilChanged()
@@ -95,10 +101,16 @@ public partial class SaveUserToneViewModel : ViewModelBase
             _newName = value;
             this.RaisePropertyChanged();
             this.RaisePropertyChanged(nameof(NewNameNotEmpty));
+            this.RaisePropertyChanged(nameof(CanSave));
         }
     }
 
     public bool NewNameNotEmpty => NewName != "";
+
+    /// <summary>Whether Save can do anything. Without the selection half, clicking Save with no row
+    /// picked closes the dialog and writes nothing, with only a log line to say why -- the command
+    /// answers null, which the caller cannot tell apart from Cancel. Better to not offer it.</summary>
+    public bool CanSave => NewNameNotEmpty && SelectedPreset is not null;
 
     public ReactiveCommand<Unit, UserToneToSave?> CancelCommand { get; }
     /// <summary>Yields null -- which the caller reads as "cancelled" -- when there is no user slot to
