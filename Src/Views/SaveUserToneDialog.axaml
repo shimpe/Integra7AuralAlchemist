@@ -21,7 +21,6 @@
         <local:PresetSelector SearchText="{Binding SearchTextPreset, Mode=TwoWay}"
                               Presets="{Binding Presets}"
                               SelectedPreset="{Binding SelectedPreset, Mode=TwoWay}"
-                              SelectedPresetIndex="{Binding SelectedPresetIndex, Mode=TwoWay}"
                               Height="700"
                               VerticalAlignment="Top"
                               VerticalContentAlignment="Top"
