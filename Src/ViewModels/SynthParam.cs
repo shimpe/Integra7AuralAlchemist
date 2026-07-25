@@ -61,8 +61,19 @@ public sealed class ParamInt : ReactiveObject, IParam, IDisposable
         {
             value = Math.Clamp(value, _min, _max);
             if (_value == value) return;
+            var before = Snapshot();
             this.RaiseAndSetIfChanged(ref _value, value);
-            if (!_suppress) Enqueue();
+            if (!_suppress)
+            {
+                // Inside the !_suppress branch on purpose: that is what distinguishes an edit the user
+                // made from one ApplyFromModel is echoing back from the device. Undoing the latter
+                // would fight the instrument's front panel.
+                EditJournal.Default.Record(new EditStep(
+                    Start: _domain.StartAddressName, Offset: _domain.OffsetAddressName,
+                    Offset2: _domain.Offset2AddressName, Path: _p.ParSpec.Path,
+                    OldValue: before, NewValue: Snapshot()));
+                Enqueue();
+            }
         }
     }
 
@@ -148,19 +159,28 @@ public sealed class ParamString : ReactiveObject, IParam, IDisposable
         set
         {
             if (value is null || _value == value) return;
+            var before = Snapshot();
             this.RaiseAndSetIfChanged(ref _value, value);
-            if (!_suppress) _writer.Enqueue(_key, async () =>
+            if (!_suppress)
             {
-                // One conversation: the re-read below must see the state these writes produced, and
-                // another flow writing to the same domain in between would corrupt it without saying so.
-                await using var lease = await _domain.BeginConversationAsync($"edit {_p.ParSpec.Path}");
-                await _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value, lease);
-                if (_p.ParSpec.IsParent)
+                // Recorded inside the !_suppress branch only -- see ParamInt.Value for why.
+                EditJournal.Default.Record(new EditStep(
+                    Start: _domain.StartAddressName, Offset: _domain.OffsetAddressName,
+                    Offset2: _domain.Offset2AddressName, Path: _p.ParSpec.Path,
+                    OldValue: before, NewValue: Snapshot()));
+                _writer.Enqueue(_key, async () =>
                 {
-                    await WaveOutOfRangeReset.ApplyAsync(_domain, _p, WaveformBanks.Default, lease);
-                    await _domain.ReadFromIntegraAsync(lease); // resync dependents
-                }
-            });
+                    // One conversation: the re-read below must see the state these writes produced, and
+                    // another flow writing to the same domain in between would corrupt it without saying so.
+                    await using var lease = await _domain.BeginConversationAsync($"edit {_p.ParSpec.Path}");
+                    await _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value, lease);
+                    if (_p.ParSpec.IsParent)
+                    {
+                        await WaveOutOfRangeReset.ApplyAsync(_domain, _p, WaveformBanks.Default, lease);
+                        await _domain.ReadFromIntegraAsync(lease); // resync dependents
+                    }
+                });
+            }
         }
     }
 
@@ -221,15 +241,24 @@ public sealed class ParamBool : ReactiveObject, IParam, IDisposable
         set
         {
             if (_value == value) return;
+            var before = Snapshot();
             this.RaiseAndSetIfChanged(ref _value, value);
-            if (!_suppress) _writer.Enqueue(_key, async () =>
+            if (!_suppress)
             {
-                // One conversation: the re-read below must see the state this write produced, and
-                // another flow writing to the same domain in between would corrupt it without saying so.
-                await using var lease = await _domain.BeginConversationAsync($"edit {_p.ParSpec.Path}");
-                await _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value ? _on : _off, lease);
-                if (_p.ParSpec.IsParent) await _domain.ReadFromIntegraAsync(lease); // resync dependents
-            });
+                // Recorded inside the !_suppress branch only -- see ParamInt.Value for why.
+                EditJournal.Default.Record(new EditStep(
+                    Start: _domain.StartAddressName, Offset: _domain.OffsetAddressName,
+                    Offset2: _domain.Offset2AddressName, Path: _p.ParSpec.Path,
+                    OldValue: before, NewValue: Snapshot()));
+                _writer.Enqueue(_key, async () =>
+                {
+                    // One conversation: the re-read below must see the state this write produced, and
+                    // another flow writing to the same domain in between would corrupt it without saying so.
+                    await using var lease = await _domain.BeginConversationAsync($"edit {_p.ParSpec.Path}");
+                    await _domain.WriteToIntegraAsync(_p.ParSpec.Path, _value ? _on : _off, lease);
+                    if (_p.ParSpec.IsParent) await _domain.ReadFromIntegraAsync(lease); // resync dependents
+                });
+            }
         }
     }
 
