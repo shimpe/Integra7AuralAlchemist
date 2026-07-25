@@ -108,3 +108,28 @@ public class StudioSetSnapshotTests
                 $$"""{"FormatVersion":{{StudioSetSnapshot.CurrentFormatVersion}},"Name":"x","Domains":[]}"""));
     }
 }
+
+public class StudioSetDomainNamesTests
+{
+    [Test]
+    public void Lists_five_common_blocks_and_three_per_part()
+    {
+        var names = StudioSetDomainNames.All;
+
+        Assert.That(names, Has.Count.EqualTo(5 + 3 * 16));
+        Assert.That(names[0], Is.EqualTo(
+            ("Temporary Studio Set", "Offset/Not Used", "Offset2/Studio Set Common")));
+        Assert.That(names, Has.Member(
+            ("Temporary Studio Set", "Offset/Not Used", "Offset2/Studio Set Part 16")));
+        Assert.That(names, Has.Member(
+            ("Temporary Studio Set", "Offset/Not Used", "Offset2/Studio Set Part EQ 1")));
+        Assert.That(names, Has.Member(
+            ("Temporary Studio Set", "Offset/Not Used", "Offset2/Studio Set MIDI Channel 1")));
+    }
+
+    [Test]
+    public void Has_no_duplicates()
+    {
+        Assert.That(StudioSetDomainNames.All, Is.Unique);
+    }
+}
