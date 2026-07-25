@@ -192,11 +192,6 @@
                                             <TabItem Header="Reverb">
                                                 <local:StudioSetEffectEditorView DataContext="{Binding StudioSetReverbEditor}" />
                                             </TabItem>
-                                            <TabItem Header="Motional Surround">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding StudioSetCommonMotionalSurroundParameters}"
-                                                    SearchText="{Binding SearchTextStudioSetCommonMotionalSurround, Mode=TwoWay}" />
-                                            </TabItem>
                                             <TabItem Header="Master EQ">
                                                 <local:StudioSetMasterEqEditorView DataContext="{Binding StudioSetMasterEqEditor}" />
                                             </TabItem>
@@ -205,7 +200,9 @@
                                                             VerticalAlignment="Stretch"
                                                             VerticalContentAlignment="Stretch">
                                                     <!-- The raw grids the friendly Chorus, Reverb and
-                                                         Master EQ tabs link to. -->
+                                                         Master EQ tabs link to, plus the raw Motional
+                                                         Surround set — its friendly editor is the
+                                                         top-level Motional Surround tab. -->
                                                     <TabItem Header="Chorus" Tag="COMMON-CHORUS">
                                                         <local:ParameterCollection
                                                             Parameters="{Binding StudioSetCommonChorusParameters}"
@@ -220,6 +217,11 @@
                                                         <local:ParameterCollection
                                                             Parameters="{Binding StudioSetCommonMasterEQParameters}"
                                                             SearchText="{Binding SearchTextStudioSetCommonMasterEQ, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="Motional Surround" Tag="COMMON-MOTIONAL-SURROUND">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding StudioSetCommonMotionalSurroundParameters}"
+                                                            SearchText="{Binding SearchTextStudioSetCommonMotionalSurround, Mode=TwoWay}" />
                                                     </TabItem>
                                                 </TabControl>
                                             </TabItem>
