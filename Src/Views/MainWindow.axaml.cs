@@ -91,7 +91,10 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
             FileTypeChoices = [SnapshotFileType]
         });
 
-        interaction.SetOutput(file?.TryGetLocalPath());
+        // null only for an actual cancellation. A picked file with no local path (cloud/virtual
+        // storage) is reported as "" rather than collapsed into null, so the command does not mistake
+        // "picked but unusable" for "cancelled" -- see ShowSaveSnapshotDialog's doc comment.
+        interaction.SetOutput(file is null ? null : file.TryGetLocalPath() ?? "");
     }
 
     private async Task DoShowOpenSnapshotDialogAsync(IInteractionContext<Unit, string?> interaction)
@@ -103,6 +106,7 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
             FileTypeFilter = [SnapshotFileType]
         });
 
-        interaction.SetOutput(files.Count > 0 ? files[0].TryGetLocalPath() : null);
+        // Same null-vs-"" distinction as DoShowSaveSnapshotDialogAsync.
+        interaction.SetOutput(files.Count == 0 ? null : files[0].TryGetLocalPath() ?? "");
     }
 }

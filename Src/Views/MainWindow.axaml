@@ -587,7 +587,7 @@
                     </TextBlock.IsVisible>
                 </TextBlock>
                 <TextBlock Text="{Binding SnapshotStatus}" VerticalAlignment="Center"
-                           Foreground="{StaticResource SnMuteBrush}">
+                           Foreground="{StaticResource SnErrorTextBrush}">
                     <TextBlock.IsVisible>
                         <MultiBinding Converter="{x:Static BoolConverters.And}">
                             <MultiBinding.Bindings>

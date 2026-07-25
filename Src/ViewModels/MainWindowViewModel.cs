@@ -75,11 +75,15 @@ public partial class MainWindowViewModel : ViewModelBase
     public Interaction<SaveUserToneViewModel, UserToneToSave?> ShowSaveUserToneDialog { get; }
 
     /// <summary>Ask the view where to write a snapshot. The input is the suggested file name; the
-    /// output is the chosen path, or null if the user cancelled.</summary>
+    /// output is the chosen path, null if the user cancelled, or "" if a file was chosen but has no
+    /// usable local path (a cloud or virtual location) -- "" is not a value <c>TryGetLocalPath</c> can
+    /// ever produce for an actual pick, so it is a safe sentinel the command can tell apart from a
+    /// cancellation and report on the status line instead of silently doing nothing.</summary>
     public Interaction<string, string?> ShowSaveSnapshotDialog { get; }
 
-    /// <summary>Ask the view which snapshot to read. Output is the chosen path, or null if the user
-    /// cancelled.</summary>
+    /// <summary>Ask the view which snapshot to read. Output is the chosen path, null if the user
+    /// cancelled, or "" if a file was chosen but has no usable local path -- see
+    /// <see cref="ShowSaveSnapshotDialog"/> for why "" is a safe sentinel here.</summary>
     public Interaction<Unit, string?> ShowOpenSnapshotDialog { get; }
 
     [ReactiveCommand]
@@ -152,16 +156,46 @@ public partial class MainWindowViewModel : ViewModelBase
         var suggested = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
         var path = await ShowSaveSnapshotDialog.Handle(suggested + ".json");
         if (path is null) return; // cancelled -- nothing happened, so say nothing
+        if (path.Length == 0)
+        {
+            // A file was chosen, but it has no usable local path (a cloud or virtual location) -- see
+            // ShowSaveSnapshotDialog. Unlike a cancellation, the user needs to know this did nothing.
+            SnapshotFailed = true;
+            SnapshotStatus = "Could not save the Studio Set: the selected file has no accessible local path.";
+            return;
+        }
 
         try
         {
             SignalStartSync();
             SyncInfo = "Reading Studio Set";
+            string json;
             // One conversation for the whole capture, so nothing else can write to the instrument
-            // partway through and produce a Studio Set that never actually existed.
-            await using var lease = await api.BeginConversationAsync("capture Studio Set");
-            var snapshot = await StudioSetSnapshotService.CaptureAsync(communicator, name, lease);
-            await File.WriteAllTextAsync(path, StudioSetSnapshot.ToJson(snapshot));
+            // partway through and produce a Studio Set that never actually existed. Scoped to just the
+            // capture: the MIDI lease has no business being held across the disk write that follows, and
+            // holding it would block anything else on the wire for the duration of unrelated I/O.
+            await using (var lease = await api.BeginConversationAsync("capture Studio Set"))
+            {
+                var snapshot = await StudioSetSnapshotService.CaptureAsync(communicator, name, lease);
+                json = StudioSetSnapshot.ToJson(snapshot);
+            }
+
+            // Write atomically. These files are the user's only copy of a Studio Set, so a failure
+            // partway through a direct write must not destroy whatever was already at this path: write
+            // to a sibling temp file first, then rename over the target, which is atomic on the same
+            // volume. Clean up the temp file if the move itself fails.
+            var tempPath = path + ".tmp";
+            try
+            {
+                await File.WriteAllTextAsync(tempPath, json);
+                File.Move(tempPath, path, overwrite: true);
+            }
+            catch
+            {
+                if (File.Exists(tempPath)) File.Delete(tempPath);
+                throw;
+            }
+
             SnapshotFailed = false;
             SnapshotStatus = $"Saved the Studio Set to {Path.GetFileName(path)}.";
         }
@@ -189,6 +223,14 @@ public partial class MainWindowViewModel : ViewModelBase
 
         var path = await ShowOpenSnapshotDialog.Handle(Unit.Default);
         if (path is null) return; // cancelled
+        if (path.Length == 0)
+        {
+            // A file was chosen, but it has no usable local path (a cloud or virtual location) -- see
+            // ShowOpenSnapshotDialog. Unlike a cancellation, the user needs to know this did nothing.
+            SnapshotFailed = true;
+            SnapshotStatus = "Could not load the Studio Set: the selected file has no accessible local path.";
+            return;
+        }
 
         var restored = false;
         try
@@ -208,7 +250,11 @@ public partial class MainWindowViewModel : ViewModelBase
 
             restored = true;
             SnapshotFailed = false;
-            SnapshotStatus = $"Loaded the Studio Set from {Path.GetFileName(path)}.";
+            // "Sent", not "loaded": the device never acknowledges a parameter write (see
+            // StudioSetSnapshotService.RestoreAsync), so this confirms the data went out, not that the
+            // instrument applied it. The resync below re-reads the device, so the UI self-corrects if
+            // something did not stick -- but this message must not claim more than was verified.
+            SnapshotStatus = $"Sent the Studio Set from {Path.GetFileName(path)} to the instrument.";
         }
         catch (SnapshotFormatException e)
         {
@@ -228,12 +274,26 @@ public partial class MainWindowViewModel : ViewModelBase
             SignalStopSync();
         }
 
-        // Every part now holds a different tone and every common block a different value, exactly as
-        // when a Studio Set is selected on the front panel (see StudioSetSelectors in
-        // UpdateUiFromIntegraAsync); updating nothing would leave the window describing the Studio Set
-        // that just went away. Outside the lease above, since the resync acquires its own -- and not at
-        // all when the restore failed, because the screen still matches whatever is on the device.
-        if (restored) await ResyncAllPartsAsync();
+        if (restored)
+        {
+            // A restore changes all 16 parts, including ones the user has never opened -- and
+            // ResyncAllPartsAsync deliberately skips those. Left alone they keep the previous Studio
+            // Set's tone type, and opening one later reads the wrong engine's domains, which the device
+            // does not answer. RestoreAsync has already refreshed these parameters in memory, so this
+            // costs no round trip.
+            if (PartViewModels != null)
+                foreach (var pvm in PartViewModels)
+                    if (!pvm.IsCommonTab)
+                        pvm.PreSelectConfiguredPreset(communicator.StudioSetPart(pvm.PartNo));
+
+            // Every part now holds a different tone and every common block a different value, exactly
+            // as when a Studio Set is selected on the front panel (see StudioSetSelectors in
+            // UpdateUiFromIntegraAsync); updating nothing would leave the window describing the Studio
+            // Set that just went away. Outside the lease above, since the resync acquires its own -- and
+            // not at all when the restore failed, because the screen still matches whatever is on the
+            // device.
+            await ResyncAllPartsAsync();
+        }
     }
 
     [ReactiveCommand]

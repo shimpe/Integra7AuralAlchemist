@@ -12,7 +12,6 @@ namespace Integra7AuralAlchemist.Models.Services;
 /// </summary>
 public static class StudioSetDomainNames
 {
-    public const int PartCount = 16;
     private const string Start = "Temporary Studio Set";
     private const string Offset = "Offset/Not Used";
 
@@ -29,7 +28,9 @@ public static class StudioSetDomainNames
             (Start, Offset, "Offset2/Studio Set Master EQ"),
         ];
 
-        for (var part = 1; part <= PartCount; part++)
+        // Constants.NO_OF_PARTS (a byte) is what Integra7Domain itself builds these very part domains
+        // from -- referencing it here, rather than a second "16", keeps the two from drifting apart.
+        for (var part = 1; part <= Constants.NO_OF_PARTS; part++)
         {
             names.Add((Start, Offset, $"Offset2/Studio Set Part {part}"));
             names.Add((Start, Offset, $"Offset2/Studio Set Part EQ {part}"));
