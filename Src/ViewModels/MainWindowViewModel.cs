@@ -1092,6 +1092,11 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         var p = s.Par;
         UserActionLog.Action($"edit parameter '{p.ParSpec.Path}' -> '{s.DisplayValue}'");
+        // Before the assignment below: afterwards the value it replaced is gone. Record ignores this
+        // while an undo is being applied, so an undo writing through here cannot record itself.
+        EditJournal.Default.Record(new EditStep(
+            Start: p.Start, Offset: p.Offset, Offset2: p.Offset2, Path: p.ParSpec.Path,
+            OldValue: p.StringValue, NewValue: s.DisplayValue));
         p.StringValue = s.DisplayValue;
         if (Integra7 is null) return;
         // One conversation, for the same reason as the friendly editors' writes: the re-read must see
