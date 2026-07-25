@@ -1,6 +1,8 @@
+using System.Reactive;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Platform.Storage;
 using FluentAvalonia.UI.Windowing;
 using Integra7AuralAlchemist.ViewModels;
 using ReactiveUI;
@@ -9,6 +11,9 @@ namespace Integra7AuralAlchemist.Views;
 
 public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
 {
+    private static readonly FilePickerFileType SnapshotFileType =
+        new("Studio Set snapshot") { Patterns = ["*.json"] };
+
     private MainWindowViewModel _viewModel;
 
     public MainWindow()
@@ -59,7 +64,11 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
     public void RegisterDialogHandler()
     {
         this.WhenActivated(action =>
-            action(ViewModel!.ShowSaveUserToneDialog.RegisterHandler(DoShowDialogAsync)));
+        {
+            action(ViewModel!.ShowSaveUserToneDialog.RegisterHandler(DoShowDialogAsync));
+            action(ViewModel!.ShowSaveSnapshotDialog.RegisterHandler(DoShowSaveSnapshotDialogAsync));
+            action(ViewModel!.ShowOpenSnapshotDialog.RegisterHandler(DoShowOpenSnapshotDialogAsync));
+        });
     }
 
     private async Task DoShowDialogAsync(IInteractionContext<SaveUserToneViewModel,
@@ -70,5 +79,30 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
 
         var result = await dialog.ShowDialog<UserToneToSave?>(this);
         interaction.SetOutput(result);
+    }
+
+    private async Task DoShowSaveSnapshotDialogAsync(IInteractionContext<string, string?> interaction)
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save Studio Set Snapshot",
+            SuggestedFileName = interaction.Input,
+            DefaultExtension = "json",
+            FileTypeChoices = [SnapshotFileType]
+        });
+
+        interaction.SetOutput(file?.TryGetLocalPath());
+    }
+
+    private async Task DoShowOpenSnapshotDialogAsync(IInteractionContext<Unit, string?> interaction)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Open Studio Set Snapshot",
+            AllowMultiple = false,
+            FileTypeFilter = [SnapshotFileType]
+        });
+
+        interaction.SetOutput(files.Count > 0 ? files[0].TryGetLocalPath() : null);
     }
 }

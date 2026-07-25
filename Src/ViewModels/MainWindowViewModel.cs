@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Reactive;
 using System.Reactive.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -62,6 +63,14 @@ public partial class MainWindowViewModel : ViewModelBase
     [Reactive] private string _midiDevices = "No Midi Devices Detected";
     public bool CurrentPartIsNotCommonPart => CurrentPartSelection > 0;
     public Interaction<SaveUserToneViewModel, UserToneToSave?> ShowSaveUserToneDialog { get; }
+
+    /// <summary>Ask the view where to write a snapshot. The input is the suggested file name; the
+    /// output is the chosen path, or null if the user cancelled.</summary>
+    public Interaction<string, string?> ShowSaveSnapshotDialog { get; }
+
+    /// <summary>Ask the view which snapshot to read. Output is the chosen path, or null if the user
+    /// cancelled.</summary>
+    public Interaction<Unit, string?> ShowOpenSnapshotDialog { get; }
 
     [ReactiveCommand]
     public async Task SaveUserTone()
@@ -658,6 +667,8 @@ public partial class MainWindowViewModel : ViewModelBase
             .Subscribe(async m => await SetPresetAndResyncPartAsync(m.PartNo));
 
         ShowSaveUserToneDialog = new Interaction<SaveUserToneViewModel, UserToneToSave?>();
+        ShowSaveSnapshotDialog = new Interaction<string, string?>();
+        ShowOpenSnapshotDialog = new Interaction<Unit, string?>();
     }
 
     public async Task InitializeAsync()
