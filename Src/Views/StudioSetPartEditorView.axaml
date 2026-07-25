@@ -243,7 +243,7 @@
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:PartOffsetViewModel">
+                            <DataTemplate x:DataType="vm:LabelledNumber">
                                 <StackPanel Spacing="1" Width="76">
                                     <TextBlock Text="{Binding Label}"/>
                                     <controls:RotaryKnob Minimum="-64" Maximum="63"
@@ -296,7 +296,7 @@
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
-                            <DataTemplate x:DataType="vm:PartSwitchViewModel">
+                            <DataTemplate x:DataType="vm:LabelledSwitch">
                                 <StackPanel Spacing="1" Width="150">
                                     <TextBlock Text="{Binding Label}" Classes="sliderLabel"/>
                                     <ToggleSwitch OnContent="On" OffContent="Off"

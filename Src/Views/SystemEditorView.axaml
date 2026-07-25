@@ -1,0 +1,155 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             xmlns:dataTemplates="using:Integra7AuralAlchemist.DataTemplates"
+             x:DataType="vm:SystemEditorViewModel"
+             x:CompileBindings="True"
+             x:Class="Integra7AuralAlchemist.Views.SystemEditorView">
+
+    <UserControl.Styles>
+        <!-- Reserve a uniform 2-line height for control labels so wrapped labels don't push their
+             knob down — keeps every control in a row vertically aligned. -->
+        <Style Selector="TextBlock.sliderLabel">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="MinHeight" Value="38"/>
+            <Setter Property="VerticalAlignment" Value="Bottom"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="6" Margin="8">
+
+            <!-- ===== Master ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Master" FontWeight="Bold"/>
+                    <TextBlock Text="The instrument as a whole — these survive a Studio Set change."
+                               Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Level" Classes="sliderLabel" ToolTip.Tip="Master Level"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding MasterLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Tune" Classes="sliderLabel" ToolTip.Tip="Master Tune (cents)"/>
+                            <ContentControl Content="{Binding MasterTune}"
+                                            ContentTemplate="{x:Static dataTemplates:DataTemplateProvider.ParameterKnobTemplate}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Key shift" Classes="sliderLabel" ToolTip.Tip="Master Key Shift (semitones)"/>
+                            <controls:RotaryKnob Minimum="-24" Maximum="24" Value="{Binding MasterKeyShift.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobPitchBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Scale tune" Classes="sliderLabel" ToolTip.Tip="Scale Tune Switch — whether the parts' scale tuning is applied"/>
+                            <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding ScaleTuneSwitch.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Tempo & clock ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Tempo &amp; clock" FontWeight="Bold"/>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Tempo" Classes="sliderLabel" ToolTip.Tip="System Tempo"/>
+                            <controls:RotaryKnob Minimum="20" Maximum="250" Unit="bpm" Value="{Binding SystemTempo.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Tempo comes from" Classes="sliderLabel" ToolTip.Tip="Tempo Assign Source"/>
+                            <ComboBox ItemsSource="{Binding TempoAssignSource.Options}"
+                                      SelectedItem="{Binding TempoAssignSource.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Clock source" Classes="sliderLabel" ToolTip.Tip="System Clock Source"/>
+                            <ComboBox ItemsSource="{Binding ClockSource.Options}"
+                                      SelectedItem="{Binding ClockSource.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Control assignments ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Control assignments" FontWeight="Bold"/>
+                    <TextBlock Text="Four controllers the tones can react to. &quot;Control source&quot; decides whether these System assignments are used or the Studio Set's own."
+                               Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Control source" Classes="sliderLabel" ToolTip.Tip="Control Source"/>
+                            <ComboBox ItemsSource="{Binding ControlSource.Options}"
+                                      SelectedItem="{Binding ControlSource.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Studio Set control channel" Classes="sliderLabel" ToolTip.Tip="Studio Set Control Channel"/>
+                            <ComboBox ItemsSource="{Binding StudioSetControlChannel.Options}"
+                                      SelectedItem="{Binding StudioSetControlChannel.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding ControlSources}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="8"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LabelledChoice">
+                                <StackPanel Spacing="1" Width="180">
+                                    <TextBlock Text="{Binding Label}" Classes="sliderLabel"/>
+                                    <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch"
+                                              ItemsSource="{Binding Param.Options}"
+                                              SelectedItem="{Binding Param.Value, Mode=TwoWay}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== MIDI receive ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="MIDI receive" FontWeight="Bold"/>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <StackPanel Spacing="1" Width="150">
+                            <TextBlock Text="Program Change" Classes="sliderLabel"/>
+                            <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding ReceiveProgramChange.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="150">
+                            <TextBlock Text="Bank Select" Classes="sliderLabel"/>
+                            <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding ReceiveBankSelect.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Output ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Output" FontWeight="Bold"/>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="2-channel output" Classes="sliderLabel" ToolTip.Tip="2CH Output mode"/>
+                            <ComboBox ItemsSource="{Binding OutputMode.Options}"
+                                      SelectedItem="{Binding OutputMode.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="150">
+                            <TextBlock Text="5.1 centre speaker" Classes="sliderLabel"/>
+                            <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding CenterSpeaker.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="150">
+                            <TextBlock Text="5.1 sub-woofer" Classes="sliderLabel"/>
+                            <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding SubWooferSpeaker.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Button HorizontalAlignment="Left" Content="Advanced system parameters…"
+                    Command="{Binding AdvancedSystemCommand}"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

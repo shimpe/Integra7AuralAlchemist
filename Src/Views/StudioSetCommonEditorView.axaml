@@ -1,0 +1,192 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             x:DataType="vm:StudioSetCommonEditorViewModel"
+             x:CompileBindings="True"
+             x:Class="Integra7AuralAlchemist.Views.StudioSetCommonEditorView">
+
+    <UserControl.Styles>
+        <!-- Reserve a uniform 2-line height for control labels so wrapped labels don't push their
+             knob down — keeps every control in a row vertically aligned. -->
+        <Style Selector="TextBlock.sliderLabel">
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="MinHeight" Value="38"/>
+            <Setter Property="VerticalAlignment" Value="Bottom"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Spacing="6" Margin="8">
+
+            <!-- ===== Studio Set ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <StackPanel Spacing="1">
+                        <Border Background="{StaticResource SnAccentBrush}" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                            <TextBlock Text="Studio Set" Foreground="{StaticResource SnBadgeForegroundBrush}" FontSize="11"/>
+                        </Border>
+                        <TextBlock Text="{Binding StudioSetName.Value}" FontSize="16" FontWeight="Bold"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Tempo" Classes="sliderLabel" ToolTip.Tip="Studio Set Tempo"/>
+                            <controls:RotaryKnob Minimum="20" Maximum="250" Unit="bpm" Value="{Binding Tempo.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobLfoBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <TextBlock Text="Solo part" Classes="sliderLabel" ToolTip.Tip="Solo Part — silences every other part"/>
+                            <ComboBox ItemsSource="{Binding SoloPart.Options}"
+                                      SelectedItem="{Binding SoloPart.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Effects switched in ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Effects" FontWeight="Bold"/>
+                    <TextBlock Text="Master switches for the whole Studio Set. With one off, its own tab has no audible effect."
+                               Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <StackPanel Spacing="1" Width="120">
+                            <TextBlock Text="Chorus" Classes="sliderLabel"/>
+                            <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding ChorusSwitch.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="120">
+                            <TextBlock Text="Reverb" Classes="sliderLabel"/>
+                            <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding ReverbSwitch.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="120">
+                            <TextBlock Text="Master EQ" Classes="sliderLabel"/>
+                            <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding MasterEqSwitch.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="120">
+                            <TextBlock Text="Drum Comp-EQ" Classes="sliderLabel"/>
+                            <ToggleSwitch OnContent="On" OffContent="Off" IsChecked="{Binding DrumCompEqSwitch.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Drum Comp-EQ routing ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Drum Comp-EQ" FontWeight="Bold"/>
+                    <TextBlock Text="Which part the six compressor/EQ units act on, and where each one is sent."
+                               Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
+                    <StackPanel Spacing="1" Width="76">
+                        <TextBlock Text="Part" Classes="sliderLabel" ToolTip.Tip="Drum Comp-EQ Part"/>
+                        <controls:RotaryKnob Minimum="1" Maximum="16" Value="{Binding DrumCompEqPart.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobCommonBrush}"/>
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding DrumCompEqOutputs}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="8"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LabelledChoice">
+                                <StackPanel Spacing="1" Width="110">
+                                    <TextBlock Text="{Binding Label}" Classes="sliderLabel"/>
+                                    <ComboBox HorizontalAlignment="Stretch"
+                                              ItemsSource="{Binding Param.Options}"
+                                              SelectedItem="{Binding Param.Value, Mode=TwoWay}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== External part ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="External part" FontWeight="Bold"/>
+                    <TextBlock Text="The mix for whatever is played through the INTEGRA-7 from outside."
+                               Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Level" Classes="sliderLabel" ToolTip.Tip="Ext Part Level"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ExtLevel.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobAmpBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Chorus send" Classes="sliderLabel" ToolTip.Tip="Ext Part Chorus Send Level"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ExtChorusSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="76">
+                            <TextBlock Text="Reverb send" Classes="sliderLabel" ToolTip.Tip="Ext Part Reverb Send Level"/>
+                            <controls:RotaryKnob Minimum="0" Maximum="127" Value="{Binding ExtReverbSend.Value, Mode=TwoWay}" AccentBrush="{StaticResource KnobFxBrush}"/>
+                        </StackPanel>
+                        <StackPanel Spacing="1" Width="120">
+                            <TextBlock Text="Mute" Classes="sliderLabel" ToolTip.Tip="Ext Part Mute Switch"/>
+                            <ToggleSwitch OnContent="Muted" OffContent="Not muted" IsChecked="{Binding ExtMute.Value, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Tone controls ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Tone controls" FontWeight="Bold"/>
+                    <TextBlock Text="Four controllers this Studio Set's tones can react to. The System tab decides whether these are used or its own."
+                               Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
+                    <ItemsControl ItemsSource="{Binding ToneControlSources}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="8"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LabelledChoice">
+                                <StackPanel Spacing="1" Width="180">
+                                    <TextBlock Text="{Binding Label}" Classes="sliderLabel"/>
+                                    <ComboBox MaxDropDownHeight="300" HorizontalAlignment="Stretch"
+                                              ItemsSource="{Binding Param.Options}"
+                                              SelectedItem="{Binding Param.Value, Mode=TwoWay}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Voice reserve ===== -->
+            <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" Spacing="12">
+                        <TextBlock Text="Voice reserve" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding VoiceReserveSummary}" FontSize="11" VerticalAlignment="Center"
+                                   Foreground="{StaticResource SnMutedTextBrush}"/>
+                        <TextBlock Text="over budget — the instrument cannot honour all of it" FontSize="11"
+                                   VerticalAlignment="Center" Foreground="{StaticResource SnMuteBrush}"
+                                   IsVisible="{Binding VoiceReserveOverBudget}"/>
+                    </StackPanel>
+                    <TextBlock Text="Voices each part keeps for itself when polyphony runs short."
+                               Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
+                    <ItemsControl ItemsSource="{Binding VoiceReserves}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" ItemSpacing="6" LineSpacing="8"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:LabelledNumber">
+                                <StackPanel Spacing="1" Width="76">
+                                    <TextBlock Text="{Binding Label}"/>
+                                    <controls:RotaryKnob Minimum="0" Maximum="64"
+                                                         Value="{Binding Param.Value, Mode=TwoWay}"
+                                                         AccentBrush="{StaticResource KnobCommonBrush}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Button HorizontalAlignment="Left" Content="Advanced Studio Set parameters…"
+                    Command="{Binding AdvancedStudioSetCommand}"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
