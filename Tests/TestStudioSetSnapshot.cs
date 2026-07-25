@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Integra7AuralAlchemist.Models.Services;
 
 namespace Tests;
@@ -131,5 +132,47 @@ public class StudioSetDomainNamesTests
     public void Has_no_duplicates()
     {
         Assert.That(StudioSetDomainNames.All, Is.Unique);
+    }
+}
+
+public class StudioSetSnapshotServiceTests
+{
+    private static StudioSetSnapshot SnapshotFromBlocks(
+        IEnumerable<(string Start, string Offset, string Offset2)> blocks) => new(
+        StudioSetSnapshot.CurrentFormatVersion,
+        "x",
+        new List<SnapshotDomain>(
+            blocks.Select(b => new SnapshotDomain(b.Start, b.Offset, b.Offset2, []))));
+
+    [Test]
+    public void Keeps_a_snapshot_whose_blocks_are_all_known()
+    {
+        var snapshot = SnapshotFromBlocks(StudioSetDomainNames.All);
+
+        Assert.DoesNotThrow(() => StudioSetSnapshotService.ValidateBlocksAreKnown(snapshot));
+    }
+
+    [Test]
+    public void Rejects_a_snapshot_with_a_made_up_block()
+    {
+        var snapshot = SnapshotFromBlocks(
+        [
+            StudioSetDomainNames.All[0],
+            ("Temporary Studio Set", "Offset/Not Used", "Offset2/Not A Real Block"),
+        ]);
+
+        var e = Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshotService.ValidateBlocksAreKnown(snapshot));
+        Assert.That(e!.Message, Does.Contain("Offset2/Not A Real Block"));
+    }
+
+    [Test]
+    public void Rejects_a_block_whose_start_does_not_match_even_if_the_offset2_is_real()
+    {
+        var snapshot = SnapshotFromBlocks(
+        [
+            ("System", "Offset/Not Used", "Offset2/Studio Set Common"),
+        ]);
+
+        Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshotService.ValidateBlocksAreKnown(snapshot));
     }
 }
