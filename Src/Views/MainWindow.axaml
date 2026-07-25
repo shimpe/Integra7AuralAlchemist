@@ -18,6 +18,15 @@
              to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainWindowViewModel />
     </Design.DataContext>
+    <!-- Avalonia evaluates KeyBindings by walking up from the focused element BEFORE raising KeyDown on
+         it (KeyboardDevice.ProcessRawEvent), so these fire even while a TextBox has focus: Ctrl+Z in the
+         Studio Set name box or a grid's string editor undoes the last parameter edit, not the typing.
+         Both redo gestures are here because both are conventional and neither is bound elsewhere. -->
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Ctrl+Z" Command="{Binding UndoAsync}" />
+        <KeyBinding Gesture="Ctrl+Y" Command="{Binding RedoAsync}" />
+        <KeyBinding Gesture="Ctrl+Shift+Z" Command="{Binding RedoAsync}" />
+    </Window.KeyBindings>
     <Window.Styles>
         <Style Selector="TabItem">
             <Setter Property="FontSize"
@@ -136,6 +145,19 @@
                                 </MultiBinding>
                             </Button.IsEnabled>
                             Panic!
+                        </Button>
+                        <!-- IsEnabled follows the history, not Connected/IsSyncing: nothing can enter the
+                             journal while disconnected, so an empty history is the only reason to
+                             disable these. -->
+                        <Button Command="{Binding UndoAsync}"
+                                IsEnabled="{Binding CanUndo}"
+                                ToolTip.Tip="Take back the last parameter change and write the previous value back to the instrument (Ctrl+Z).">
+                            Undo
+                        </Button>
+                        <Button Command="{Binding RedoAsync}"
+                                IsEnabled="{Binding CanRedo}"
+                                ToolTip.Tip="Put back the parameter change the last undo took away (Ctrl+Y or Ctrl+Shift+Z).">
+                            Redo
                         </Button>
                         <Button Command="{Binding SaveUserTone}">
                             <Button.IsEnabled>
