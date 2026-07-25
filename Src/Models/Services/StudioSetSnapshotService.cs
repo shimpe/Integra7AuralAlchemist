@@ -114,8 +114,14 @@ public static class StudioSetSnapshotService
             // chorus on zeroed 56 of 80 chorus-parameter bytes -- the user's rate, depth, pre-delay and
             // feedback. Do not "tidy" this back to the user-visible default; capturing the write set is
             // the invariant that matters here, not what the UI happens to display.
+            //
+            // Both forms of every value: the raw one the device stores, which is what restoring
+            // applies, and the displayed one, which is what makes these files readable and diffable --
+            // the point of the format. A text parameter has no raw form (its value IS the string), so
+            // its Raw stays null and restoring falls back to the string, which for it is correct.
             List<SnapshotValue> values = d.GetRelevantParameters(true, false)
-                .Select(p => new SnapshotValue(p.ParSpec.Path, p.StringValue))
+                .Select(p => new SnapshotValue(p.ParSpec.Path, p.StringValue,
+                    p.IsNumeric || p.IsDiscrete ? p.RawNumericValue : null))
                 .ToList();
             domains.Add(new SnapshotDomain(start, offset, offset2, values));
         }
@@ -162,12 +168,31 @@ public static class StudioSetSnapshotService
                         $"Could not restore the Studio Set: the device did not answer for block " +
                         $"(\"{block.Start}\", \"{block.Offset}\", \"{block.Offset2}\").");
 
+                // Which of this block's parameters are text, i.e. have no raw form at all. Asked of the
+                // domain -- the same query ValidateParametersAreKnown uses -- rather than re-derived
+                // from the parameter spec here, so there is one place that decides what a parameter is.
+                // (true, true) because whether a parameter is text does not depend on the parser
+                // context, and a parameter this restore is about to make context-valid still has to be
+                // classified correctly.
+                var textParameters = new HashSet<string>(d.GetRelevantParameters(true, true)
+                    .Where(p => !p.IsNumeric && !p.IsDiscrete).Select(p => p.ParSpec.Path));
+
                 // Order matters here and must not be changed: some parameters only exist when a
-                // discriminator parameter (e.g. the chorus type) has a particular value.
-                // ModifySingleParameterDisplayedValue recomputes the parser context on every call, so
-                // applying values in the snapshot's order -- which is address order, discriminator
-                // before dependents -- sets each discriminator before the parameters that depend on it.
-                foreach (var v in block.Values) d.ModifySingleParameterDisplayedValue(v.Path, v.Value);
+                // discriminator parameter (e.g. the chorus type) has a particular value. Both Modify
+                // methods recompute the parser context on every call, so applying values in the
+                // snapshot's order -- which is address order, discriminator before dependents -- sets
+                // each discriminator before the parameters that depend on it.
+                foreach (var v in block.Values)
+                    // Raw wins whenever the file has one. It is the value the device actually stores,
+                    // and it survives this build renaming or reordering an enum string, which the
+                    // display string does not: UpdateFromDisplayedValue's key.Count == 0 branch turns
+                    // an unmatched string into raw 0 with no diagnostic at all in Release. A text
+                    // parameter's value IS its string and carries no raw, so it falls through to the
+                    // display path, which for it is correct rather than a fallback.
+                    if (v.Raw is { } raw && !textParameters.Contains(v.Path))
+                        d.ModifySingleParameterRawValue(v.Path, raw);
+                    else
+                        d.ModifySingleParameterDisplayedValue(v.Path, v.Value);
                 await d.WriteToIntegraAsync(lease);
 
                 // A part block just set that part's tone bank and program number, so the device is

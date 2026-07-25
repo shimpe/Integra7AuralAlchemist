@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using Integra7AuralAlchemist.Models.Data;
+using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
 using NUnit.Framework;
 
@@ -27,6 +29,26 @@ public class TestWaveNameResolution
     {
         var (_, display) = WaveNameResolution.Resolve(Sample(), "Internal", 0, 1);
         Assert.That(display, Is.EqualTo("StGrand pA L"));
+    }
+
+    /// <summary>Applies has to agree with Apply exactly: it exists so a caller can skip building the
+    /// banks when Apply would do nothing, and if it ever said "no" where Apply would have resolved a
+    /// name, wave names would silently stop updating after a read.</summary>
+    [Test]
+    public void Applies_MatchesWhetherApplyWouldDoAnything()
+    {
+        var parameters = TestFailedReadKeepsValues.LoadParameters();
+        var addresses = new Integra7StartAddresses();
+        var api = new TestFailedReadKeepsValues.SilentApi();
+        var domain = new Integra7Domain(api, addresses, parameters);
+
+        // A Studio Set block: no wave parameters, so Apply is a no-op and Applies must say so.
+        var studioSet = domain.GetDomain("Temporary Studio Set", "Offset/Not Used", "Offset2/Studio Set Common");
+        Assert.That(WaveNameResolution.Applies(studioSet.GetRelevantParameters(true, true)), Is.False);
+
+        // A PCM synth partial: the registry's own parameters live here.
+        var partial = domain.PCMSynthTonePartial(0, 0);
+        Assert.That(WaveNameResolution.Applies(partial.GetRelevantParameters(true, true)), Is.True);
     }
 
     [Test]

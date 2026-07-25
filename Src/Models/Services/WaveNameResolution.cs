@@ -13,6 +13,22 @@ public static class WaveNameResolution
         WaveformBanks banks, string groupType, int groupId, int number)
         => (banks.Bank(groupType, groupId), banks.Name(groupType, groupId, number));
 
+    /// <summary>True when <paramref name="ps"/> holds at least one registered wave-number parameter,
+    /// i.e. when <see cref="Apply"/> would do anything at all -- <see cref="Apply"/> skips every entry
+    /// whose paths are absent, so for everything else it is already a no-op.
+    ///
+    /// Worth asking before calling, because the banks argument is not free: <c>WaveformBanks.Default</c>
+    /// parses 13 CSV assets through Avalonia's asset loader the first time it is touched, and a domain
+    /// with no wave parameters -- every Studio Set block, every system block -- has no reason to pay
+    /// for that, nor, in a host with no Avalonia application running, any way to.</summary>
+    public static bool Applies(IReadOnlyList<FullyQualifiedParameter> ps)
+    {
+        for (var i = 0; i < ps.Count; i++)
+            if (WaveBankRegistry.Entries.ContainsKey(ps[i].ParSpec.Path))
+                return true;
+        return false;
+    }
+
     /// <summary>For each registered wave-number parameter in <paramref name="ps"/>, read its sibling
     /// Group Type/ID values and set its EffectiveRepr + StringValue from the selected bank.</summary>
     public static void Apply(IReadOnlyList<FullyQualifiedParameter> ps, WaveformBanks banks)
