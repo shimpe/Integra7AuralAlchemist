@@ -11,6 +11,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Integra7AuralAlchemist.Controls;
 using Integra7AuralAlchemist.Models.Data;
+using Integra7AuralAlchemist.Models.Services;
 using ReactiveUI;
 
 namespace Integra7AuralAlchemist.DataTemplates;
@@ -64,10 +65,39 @@ public static class DataTemplateProvider
     }
 
     private static Control BuildParameterValuePresenter(FullyQualifiedParameter p)
-        => BuildNonNumericPresenter(p) ?? BuildSliderNumericPresenter(p);
+        => BuildReadOnlyPresenter(p) ?? BuildNonNumericPresenter(p) ?? BuildSliderNumericPresenter(p);
 
     private static Control BuildParameterKnobPresenter(FullyQualifiedParameter p)
-        => BuildNonNumericPresenter(p) ?? BuildKnobNumericPresenter(p);
+        => BuildReadOnlyPresenter(p) ?? BuildNonNumericPresenter(p) ?? BuildKnobNumericPresenter(p);
+
+    /// <summary>A plain readout for the parameters listed in <see cref="ReadOnlyParameters"/> — shown,
+    /// tracked as the hardware changes them, but with no editor to write them back. Returns null for
+    /// every other parameter, so the caller renders it normally.</summary>
+    private static Control? BuildReadOnlyPresenter(FullyQualifiedParameter p)
+    {
+        if (!ReadOnlyParameters.IsReadOnly(p.ParSpec.Path)) return null;
+
+        var suppressPush = false; // nothing to push; BindToModel wants the pair regardless
+        TextBlock t = new()
+        {
+            Text = p.StringValue,
+            VerticalAlignment = VerticalAlignment.Center,
+            Opacity = 0.7
+        };
+        BindToModel(t, p, () => t.Text = p.StringValue, () => suppressPush, v => suppressPush = v);
+
+        if (p.ParSpec.Unit == "") return t;
+
+        StackPanel pan = new() { Orientation = Orientation.Horizontal, Spacing = 2 };
+        pan.Children.Add(t);
+        pan.Children.Add(new TextBlock
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            Opacity = 0.7,
+            Text = "[" + p.ParSpec.Unit + "]"
+        });
+        return pan;
+    }
 
     /// <summary>The text / combo / toggle editors, shared by both templates. Returns null when the
     /// parameter is numeric, so the caller renders the number its own way (slider or knob).</summary>

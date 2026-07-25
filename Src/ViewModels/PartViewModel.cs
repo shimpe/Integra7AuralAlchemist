@@ -206,6 +206,8 @@ public partial class PartViewModel : ViewModelBase
     [Reactive] private StudioSetEffectEditorViewModel? _studioSetChorusEditor;
     [Reactive] private StudioSetEffectEditorViewModel? _studioSetReverbEditor;
     [Reactive] private StudioSetMasterEqEditorViewModel? _studioSetMasterEqEditor;
+    [Reactive] private StudioSetCommonEditorViewModel? _studioSetCommonEditor;
+    [Reactive] private SystemEditorViewModel? _systemEditor;
     private IDisposable? _cleanupStudioSetChorus;
     private IDisposable? _cleanupStudioSetCommon;
     private IDisposable? _cleanupStudioSetMasterEQ;
@@ -1814,6 +1816,12 @@ public partial class PartViewModel : ViewModelBase
 
             _studioSetMasterEqEditor?.Dispose();
             StudioSetMasterEqEditor = new StudioSetMasterEqEditorViewModel(_i7domain, OpenRawCommonTab);
+
+            _studioSetCommonEditor?.Dispose();
+            StudioSetCommonEditor = new StudioSetCommonEditorViewModel(_i7domain, OpenRawCommonTab);
+
+            _systemEditor?.Dispose();
+            SystemEditor = new SystemEditorViewModel(_i7domain, OpenRawCommonTab);
         }
     }
 

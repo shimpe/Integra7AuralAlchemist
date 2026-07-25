@@ -87,7 +87,7 @@ public sealed partial class StudioSetPartEditorViewModel : ViewModelBase, IDispo
     // --- Scale tune ---
     public ParamString ScaleTuneType { get; }
     public ParamString ScaleTuneKey { get; }
-    public IReadOnlyList<PartOffsetViewModel> ScaleTunes { get; }
+    public IReadOnlyList<LabelledNumber> ScaleTunes { get; }
 
     // --- Motional Surround (the same values the Motional Surround tab moves) ---
     public ParamInt SurroundLeftRight { get; }
@@ -96,7 +96,7 @@ public sealed partial class StudioSetPartEditorViewModel : ViewModelBase, IDispo
     public ParamInt SurroundAmbienceSend { get; }
 
     // --- MIDI receive switches ---
-    public IReadOnlyList<PartSwitchViewModel> ReceiveSwitches { get; }
+    public IReadOnlyList<LabelledSwitch> ReceiveSwitches { get; }
 
     // --- Which patch the part holds. Read-only here: the preset list is what selects it. ---
     public ParamInt ToneBankMsb { get; }
@@ -158,9 +158,9 @@ public sealed partial class StudioSetPartEditorViewModel : ViewModelBase, IDispo
 
         ScaleTuneType = PS("Part Scale Tune Type");
         ScaleTuneKey = PS("Part Scale Tune Key");
-        var tunes = new List<PartOffsetViewModel>(NoteNames.Length);
+        var tunes = new List<LabelledNumber>(NoteNames.Length);
         foreach (var note in NoteNames)
-            tunes.Add(new PartOffsetViewModel(note, PI($"Part Scale Tune for {note}", -64, 63)));
+            tunes.Add(new LabelledNumber(note, PI($"Part Scale Tune for {note}", -64, 63)));
         ScaleTunes = tunes;
 
         SurroundLeftRight = PI("Motional Surround L-R", -64, 63);
@@ -168,9 +168,9 @@ public sealed partial class StudioSetPartEditorViewModel : ViewModelBase, IDispo
         SurroundWidth = PI("Motional Surround Width", 0, 32);
         SurroundAmbienceSend = PI("Motional Surround Ambience Send Level", 0, 127);
 
-        var switches = new List<PartSwitchViewModel>(ReceiveSwitchNames.Length);
+        var switches = new List<LabelledSwitch>(ReceiveSwitchNames.Length);
         foreach (var (label, param) in ReceiveSwitchNames)
-            switches.Add(new PartSwitchViewModel(label, PB(param)));
+            switches.Add(new LabelledSwitch(label, PB(param)));
         ReceiveSwitches = switches;
 
         ToneBankMsb = PI("Tone Bank Select MSB", 0, 127);
@@ -207,33 +207,4 @@ public sealed partial class StudioSetPartEditorViewModel : ViewModelBase, IDispo
         foreach (var w in _wrappers) w.Dispose();
         _writer.Dispose();
     }
-}
-
-// The two types below only carry a label and an already-reactive parameter wrapper, so they are plain
-// classes: deriving from ViewModelBase would make the ViewLocator try to find a View for them.
-
-/// <summary>One labelled On/Off switch, for the uniform MIDI receive list.</summary>
-public sealed class PartSwitchViewModel
-{
-    public PartSwitchViewModel(string label, ParamBool param)
-    {
-        Label = label;
-        Param = param;
-    }
-
-    public string Label { get; }
-    public ParamBool Param { get; }
-}
-
-/// <summary>One labelled bipolar offset knob, for the twelve scale-tune notes.</summary>
-public sealed class PartOffsetViewModel
-{
-    public PartOffsetViewModel(string label, ParamInt param)
-    {
-        Label = label;
-        Param = param;
-    }
-
-    public string Label { get; }
-    public ParamInt Param { get; }
 }

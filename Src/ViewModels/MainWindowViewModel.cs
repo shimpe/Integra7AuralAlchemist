@@ -700,6 +700,17 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         List<UpdateMessageSpec> parameters =
             SysexDataTransmissionParser.ConvertSysexToParameterUpdates(s.SysexMsg, _integra7Communicator);
+
+        // A Studio Set was selected on the device. Nothing below is enough: every part now holds a
+        // different tone and every common block a different value, so updating only the reported
+        // parameter would leave the whole window describing the Studio Set that just went away.
+        if (parameters.Any(spec => StudioSetSelectors.Contains(spec.Par.ParSpec.Path)))
+        {
+            UserActionLog.Action("device reported a Studio Set change; resyncing everything");
+            await ResyncAllPartsAsync();
+            return;
+        }
+
         var ParentControlModified = parameters.Any(spec => spec.Par.ParSpec.IsParent);
         var PresetChanged = parameters.Any(spec =>
             spec.Par.ParSpec.Path.Contains("Tone Bank Select") ||

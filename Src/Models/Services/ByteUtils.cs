@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
@@ -43,23 +44,26 @@ public class ByteUtils
         return -1;
     }
 
+    /// <summary>Split a chunk into complete sysex messages, each ending in its own F7. Bytes left over
+    /// after the last terminator are an incomplete message: they get a trailing null slot, which every
+    /// caller skips (and <see cref="SysexDataTransmissionParser"/> reports). A chunk that ends exactly
+    /// at an F7 leaves nothing over and so gets no null slot — it used to get one regardless, which had
+    /// the parser announce a truncated fragment for every well-formed message it was handed.</summary>
     public static byte[][] SplitAfterF7(byte[] reply)
     {
         var no_of_f7 = CountByte(reply, 0xf7);
-        byte[][] result = new byte[no_of_f7 + 1][];
+        List<byte[]> result = new(no_of_f7 + 1);
         for (var i = 0; i < no_of_f7; i++)
         {
             var idx = FindByte(reply, 0xf7);
-            if (idx != -1)
-            {
-                var msg = Slice(reply, 0, idx + 1);
-                result[i] = msg;
-                var remainder = Slice(reply, msg.Length, reply.Length - idx - 1);
-                reply = remainder;
-            }
+            if (idx == -1) break;
+            var msg = Slice(reply, 0, idx + 1);
+            result.Add(msg);
+            reply = Slice(reply, msg.Length, reply.Length - idx - 1);
         }
 
-        return result;
+        if (reply.Length > 0) result.Add(null!); // an unterminated tail (or a chunk with no F7 at all)
+        return result.ToArray();
     }
 
     public static byte LtlEnd_FirstByte7(long value)

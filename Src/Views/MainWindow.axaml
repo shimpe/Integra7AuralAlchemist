@@ -178,13 +178,10 @@
                                                                            SearchText="{Binding SearchTextSetup, Mode=TwoWay}" />
                                             </TabItem>
                                             <TabItem Header="System">
-                                                <local:ParameterCollection Parameters="{Binding SystemParameters}"
-                                                                           SearchText="{Binding SearchTextSetup, Mode=TwoWay}" />
+                                                <local:SystemEditorView DataContext="{Binding SystemEditor}" />
                                             </TabItem>
                                             <TabItem Header="Common">
-                                                <local:ParameterCollection
-                                                    Parameters="{Binding StudioSetCommonParameters}"
-                                                    SearchText="{Binding SearchTextStudioSetCommon, Mode=TwoWay}" />
+                                                <local:StudioSetCommonEditorView DataContext="{Binding StudioSetCommonEditor}" />
                                             </TabItem>
                                             <TabItem Header="Chorus">
                                                 <local:StudioSetEffectEditorView DataContext="{Binding StudioSetChorusEditor}" />
@@ -199,10 +196,19 @@
                                                 <TabControl TabStripPlacement="Top"
                                                             VerticalAlignment="Stretch"
                                                             VerticalContentAlignment="Stretch">
-                                                    <!-- The raw grids the friendly Chorus, Reverb and
-                                                         Master EQ tabs link to, plus the raw Motional
-                                                         Surround set — its friendly editor is the
-                                                         top-level Motional Surround tab. -->
+                                                    <!-- The raw grids the friendly Common tabs link to,
+                                                         plus the raw Motional Surround set — its
+                                                         friendly editor is the top-level Motional
+                                                         Surround tab. -->
+                                                    <TabItem Header="System" Tag="COMMON-SYSTEM">
+                                                        <local:ParameterCollection Parameters="{Binding SystemParameters}"
+                                                                                   SearchText="{Binding SearchTextSetup, Mode=TwoWay}" />
+                                                    </TabItem>
+                                                    <TabItem Header="Studio Set" Tag="COMMON-STUDIO-SET">
+                                                        <local:ParameterCollection
+                                                            Parameters="{Binding StudioSetCommonParameters}"
+                                                            SearchText="{Binding SearchTextStudioSetCommon, Mode=TwoWay}" />
+                                                    </TabItem>
                                                     <TabItem Header="Chorus" Tag="COMMON-CHORUS">
                                                         <local:ParameterCollection
                                                             Parameters="{Binding StudioSetCommonChorusParameters}"
