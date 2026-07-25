@@ -532,11 +532,9 @@ public class Integra7Api : IIntegra7Api
                 byte[][] multiplereplies = ByteUtils.SplitAfterF7(localReply);
                 foreach (var r in multiplereplies)
                 {
-                    // SplitAfterF7 never fills its last slot, so every split ends in a null --
-                    // for an ordinary single reply it returns [message, null]. Skipping it here
-                    // is not tidiness: IsNameListReply answers false for null, so without this
-                    // the null fell through to r.Length below and threw on the first reply of
-                    // every burst.
+                    // A split ends in a null when the chunk had bytes after its last terminator.
+                    // Skipping it here is not tidiness: IsNameListReply answers false for null, so
+                    // without this the null fell through to r.Length below and threw.
                     if (r is null) continue;
 
                     if (NameListEndMarker.IsNameListReply(r, expectedAddress))
