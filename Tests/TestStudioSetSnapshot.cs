@@ -45,20 +45,17 @@ public class StudioSetSnapshotTests
     [Test]
     public void Rejects_the_next_format_version_up()
     {
-        // Version 2 accepts version 1 as well, so the version check is a set membership now rather
-        // than an equality. 3 is the version that check could most easily let through by accident --
-        // a "<= current" or an off-by-one in the set -- and it is the one a future build will really
-        // write, carrying fields this build would silently ignore.
+        // 3 is the version an off-by-one or a "<=" would most easily let through, and the one a future
+        // build will really write, carrying fields this build would silently ignore.
         var json = StudioSetSnapshot.ToJson(Sample() with { FormatVersion = 3 });
 
         var e = Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshot.FromJson(json));
         Assert.That(e!.Message, Does.Contain("3"));
     }
 
-    /// <summary>The on-disk shape of a version 1 file, written out by hand rather than serialised from
-    /// a version 1 object -- there is no version 1 object any more, and a serialised one would carry
-    /// today's fields. Files in exactly this shape are on the user's disk (the feature was hardware
-    /// verified before raw values existed), so this is the compatibility contract, not a nicety.</summary>
+    /// <summary>The on-disk shape of a version 1 file: display strings only, no Raw anywhere. Written
+    /// by hand rather than serialised, because there is no version 1 object any more and a serialised
+    /// one would carry today's fields.</summary>
     private const string VersionOneFile = """
         {
           "FormatVersion": 1,
@@ -78,17 +75,16 @@ public class StudioSetSnapshotTests
         """;
 
     [Test]
-    public void Still_loads_a_version_1_file()
+    public void Rejects_a_version_1_file()
     {
-        var restored = StudioSetSnapshot.FromJson(VersionOneFile);
+        // Version 1 carried no raw values, so restoring one would go through the display-string
+        // conversion this whole format version exists to stop relying on. No version 1 file was ever
+        // released, so refusing with a message naming the version beats silently restoring it the
+        // weak way.
+        var e = Assert.Throws<SnapshotFormatException>(() => StudioSetSnapshot.FromJson(VersionOneFile));
 
-        Assert.That(restored.FormatVersion, Is.EqualTo(1));
-        Assert.That(restored.Name, Is.EqualTo("World Pop Set"));
-        Assert.That(restored.Domains[0].Values[1].Value, Is.EqualTo("120"));
-        // A missing Raw property must deserialize to null, not to 0: null means "this file has no raw
-        // value, restore from the string", and 0 would mean "restore this parameter to raw 0".
-        Assert.That(restored.Domains[0].Values[0].Raw, Is.Null);
-        Assert.That(restored.Domains[0].Values[1].Raw, Is.Null);
+        Assert.That(e!.Message, Does.Contain("1"));
+        Assert.That(e.Message, Does.Contain("2"));
     }
 
     [Test]
@@ -328,15 +324,16 @@ public class StudioSetSnapshotServiceTests
     [Test]
     public async Task Restores_a_value_with_no_raw_from_its_display_string()
     {
-        // A version 1 file carries no raw values at all, and must keep restoring exactly as it did
-        // before version 2 existed.
+        // Restore reads Raw when it is there and falls back to the string when it is not. Capture only
+        // omits Raw for text parameters, but the fallback has to be exercised on a parameter where the
+        // two paths differ -- a hand-edited file can omit it anywhere.
         var api = new BlankReplyApi();
         var domain = BuildDomain(api);
         var block = StudioSetDomainNames.All[2]; // Offset2/Studio Set Common Reverb
         var d = domain.GetDomain(block.Start, block.Offset, block.Offset2);
         const string path = "Studio Set Common Reverb/Reverb Type";
 
-        var snapshot = new StudioSetSnapshot(1, "x",
+        var snapshot = new StudioSetSnapshot(StudioSetSnapshot.CurrentFormatVersion, "x",
         [
             new SnapshotDomain(block.Start, block.Offset, block.Offset2, [new SnapshotValue(path, "Hall 1")]),
         ]);

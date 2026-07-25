@@ -186,9 +186,9 @@ public static class StudioSetSnapshotService
                     // Raw wins whenever the file has one. It is the value the device actually stores,
                     // and it survives this build renaming or reordering an enum string, which the
                     // display string does not: UpdateFromDisplayedValue's key.Count == 0 branch turns
-                    // an unmatched string into raw 0 with no diagnostic at all in Release. A version 1
-                    // file carries no raw values, and a text parameter's value IS its string, so both
-                    // fall through to the display path exactly as before.
+                    // an unmatched string into raw 0 with no diagnostic at all in Release. A text
+                    // parameter's value IS its string and carries no raw, so it falls through to the
+                    // display path, which for it is correct rather than a fallback.
                     if (v.Raw is { } raw && !textParameters.Contains(v.Path))
                         d.ModifySingleParameterRawValue(v.Path, raw);
                     else

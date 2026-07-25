@@ -4,13 +4,12 @@ using System.Text.Json;
 
 namespace Integra7AuralAlchemist.Models.Services;
 
-/// <summary>One parameter, the value it displayed when the snapshot was taken, and -- from format
-/// version 2 on -- the raw value the device actually stores for it.
+/// <summary>One parameter, the value it displayed when the snapshot was taken, and the raw value the
+/// device actually stores for it.
 ///
-/// <paramref name="Raw"/> is nullable and defaults to null, which carries real meaning rather than
-/// being a convenience: a version 1 file has no such JSON property at all and deserializes to null,
-/// and a text parameter has no raw form even in version 2. Null therefore reads as "this value has no
-/// raw form on file, restore it from the string", which is the correct handling of both.</summary>
+/// <paramref name="Raw"/> is nullable because a text parameter has no raw form -- its value IS the
+/// string. Null therefore reads as "this value has no raw form, restore it from the string", which
+/// for a name is exactly right rather than a fallback.</summary>
 public sealed record SnapshotValue(string Path, string Value, long? Raw = null);
 
 /// <summary>One parameter block, identified by the three address names that resolve it back to a
@@ -39,19 +38,17 @@ public sealed record SnapshotDomain(string Start, string Offset, string Offset2,
 /// length against the block's computed size and refuses to transmit when they disagree, so that fails
 /// loudly instead of corrupting -- but the restore still fails.
 ///
-/// Two cases remain, both recorded rather than fixed. A text parameter (a name) has no raw form at all --
-/// its value IS the string -- so it still carries no <c>Raw</c> and is still restored from the string,
-/// which for it is exactly right and not an exposure. And a version 1 file already on disk still has no
-/// raw values in it, so restoring one still runs the old path with the old exposure; that is fixed the
-/// moment the user re-captures, and version 1 must keep loading regardless, because those files
-/// exist.</summary>
+/// One case remains, recorded rather than fixed: a text parameter (a name) has no raw form at all --
+/// its value IS the string -- so it carries no <c>Raw</c> and is restored from the string, which for it
+/// is exactly right and not an exposure.
+///
+/// Version 1 is deliberately NOT read. It stored no raw values, so restoring one would run the old
+/// path with the old exposure, and no version 1 file was ever released -- the format changed while the
+/// feature was still being verified. Refusing with a message that names the version is better than
+/// silently restoring through the weaker path.</summary>
 public sealed record StudioSetSnapshot(int FormatVersion, string Name, List<SnapshotDomain> Domains)
 {
     public const int CurrentFormatVersion = 2;
-
-    /// <summary>Every version this build can read. Version 1 files exist on the user's disk and must
-    /// keep restoring exactly as they always did, so this is a set, not an equality check.</summary>
-    private static readonly int[] SupportedFormatVersions = [1, CurrentFormatVersion];
 
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
@@ -72,10 +69,9 @@ public sealed record StudioSetSnapshot(int FormatVersion, string Name, List<Snap
 
         if (snapshot is null)
             throw new SnapshotFormatException("This file is empty.");
-        if (Array.IndexOf(SupportedFormatVersions, snapshot.FormatVersion) < 0)
+        if (snapshot.FormatVersion != CurrentFormatVersion)
             throw new SnapshotFormatException(
-                $"This snapshot is format version {snapshot.FormatVersion}; this build reads " +
-                $"version {string.Join(" and ", SupportedFormatVersions)}.");
+                $"This snapshot is format version {snapshot.FormatVersion}; this build reads version {CurrentFormatVersion}.");
 
         // System.Text.Json silently passes `default` for any constructor parameter with no matching
         // JSON property, so a truncated or hand-edited file can deserialize "successfully" into a
@@ -88,10 +84,9 @@ public sealed record StudioSetSnapshot(int FormatVersion, string Name, List<Snap
         // wrong data reaching the instrument with nothing to say so. Reject it here instead.
         // NOTE: every new *required* field these records gain needs a null check added here too.
         // SnapshotValue.Raw is deliberately absent from this condition and must stay absent: it is
-        // optional by design. A version 1 file has no Raw property at all and a version 2 one omits it
-        // for text parameters, so null there is not a gap -- it is the documented "no raw value on
-        // file, restore from the string". Adding it here would reject every file this build has to
-        // read.
+        // optional by design: a text parameter has no raw form, so a null there is not a gap -- it is
+        // the documented "no raw value, restore from the string". Adding it here would reject every
+        // file that names a Studio Set.
         if (snapshot.Name is null || snapshot.Domains is null or { Count: 0 } ||
             snapshot.Domains.Exists(d => d.Start is null || d.Offset is null || d.Offset2 is null
                                           || d.Values is null || d.Values.Exists(v => v.Path is null || v.Value is null)))
