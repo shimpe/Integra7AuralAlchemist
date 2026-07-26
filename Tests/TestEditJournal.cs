@@ -808,4 +808,112 @@ public class EditJournalTests
         Assert.That(other.CommitCompareToggle(once!), Is.True);
         Assert.That(other.CommitCompareToggle(once!), Is.False, "committing the same toggle again is refused");
     }
+
+    [Test]
+    public void Compare_is_refused_when_nothing_has_been_edited()
+    {
+        var (journal, _) = NewJournal();
+
+        Assert.That(journal.CanCompare, Is.False);
+        Assert.That(journal.TryBeginCompareToggle(out _), Is.False,
+            "with an empty history there is no other sound to compare against");
+    }
+
+    [Test]
+    public void Compare_writes_every_step_backwards_newest_step_first()
+    {
+        var (journal, clock) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        clock.Now += EditJournal.CoalesceWindow * 2;
+        journal.Record(Change("Studio Set Part/Part Level", "110", "120"));
+
+        Assert.That(journal.TryBeginCompareToggle(out var toggle), Is.True);
+        Assert.That(toggle!.Entering, Is.True);
+        Assert.That(toggle.Steps.Select(s => Only(s).ValueToApply), Is.EqualTo(new[] { "110", "100" }),
+            "newest step first, so a parameter edited twice ends on the value it held before either edit");
+    }
+
+    [Test]
+    public void Coming_back_writes_every_step_forwards_oldest_step_first()
+    {
+        var (journal, clock) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        clock.Now += EditJournal.CoalesceWindow * 2;
+        journal.Record(Change("Studio Set Part/Part Level", "110", "120"));
+
+        Assert.That(journal.TryBeginCompareToggle(out var enter), Is.True);
+        journal.CommitCompareToggle(enter!);
+
+        Assert.That(journal.TryBeginCompareToggle(out var exit), Is.True);
+        Assert.That(exit!.Entering, Is.False);
+        Assert.That(exit.Steps.Select(s => Only(s).ValueToApply), Is.EqualTo(new[] { "110", "120" }),
+            "oldest step first, so the parameter ends on the value the newest edit gave it");
+    }
+
+    [Test]
+    public void Compare_takes_the_history_and_gives_it_back()
+    {
+        var (journal, _) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+
+        Assert.That(journal.TryBeginCompareToggle(out var enter), Is.True);
+        journal.CommitCompareToggle(enter!);
+        Assert.That(journal.IsComparing, Is.True);
+        Assert.That(journal.CanUndo, Is.False, "the history is in Compare's hands while the original plays");
+        Assert.That(journal.CanCompare, Is.True, "or there would be no way back to the edited sound");
+
+        Assert.That(journal.TryBeginCompareToggle(out var exit), Is.True);
+        journal.CommitCompareToggle(exit!);
+        Assert.That(journal.IsComparing, Is.False);
+        Assert.That(journal.CanUndo, Is.True, "a round trip leaves the history as it found it");
+        Assert.That(journal.TryUndo(out var undo), Is.True);
+        Assert.That(Only(undo!).ValueToApply, Is.EqualTo("100"));
+    }
+
+    [Test]
+    public void A_compare_that_was_not_committed_leaves_the_history_alone()
+    {
+        var (journal, _) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+
+        Assert.That(journal.TryBeginCompareToggle(out var first), Is.True);
+        // The writes did not all land, so the caller does not commit.
+
+        Assert.That(journal.IsComparing, Is.False);
+        Assert.That(journal.CanUndo, Is.True);
+        Assert.That(journal.TryBeginCompareToggle(out var again), Is.True);
+        Assert.That(again!.Entering, Is.True, "pressing Compare again retries the same direction");
+        Assert.That(again.Steps.Count, Is.EqualTo(first!.Steps.Count));
+    }
+
+    [Test]
+    public void Clearing_the_history_while_comparing_ends_the_comparison()
+    {
+        var (journal, _) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        Assert.That(journal.TryBeginCompareToggle(out var enter), Is.True);
+        journal.CommitCompareToggle(enter!);
+
+        journal.Clear();
+
+        Assert.That(journal.IsComparing, Is.False);
+        Assert.That(journal.CanCompare, Is.False,
+            "whatever cleared the history replaced the sound the buffer described");
+        Assert.That(journal.TryBeginCompareToggle(out _), Is.False);
+    }
+
+    [Test]
+    public void Committing_a_compare_toggle_announces_the_change()
+    {
+        var (journal, _) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        Assert.That(journal.TryBeginCompareToggle(out var enter), Is.True);
+
+        var announcements = 0;
+        journal.Changed += () => announcements++;
+        journal.CommitCompareToggle(enter!);
+
+        Assert.That(announcements, Is.EqualTo(1),
+            "the button's enabled state and label are mirrored from this event; without it they go stale");
+    }
 }
