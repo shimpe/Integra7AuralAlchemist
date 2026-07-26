@@ -109,6 +109,17 @@ public class MotionalSurroundPartViewModel : ViewModelBase, IDisposable
         set => this.RaiseAndSetIfChanged(ref _isSelected, value);
     }
 
+    /// <summary>Record a change to one of this part's numeric parameters in the undo journal. Always before
+    /// the write it belongs to -- see <see cref="DomainEditRecorder"/> for why the order matters.</summary>
+    private void RecordChange(FullyQualifiedParameter p, int value)
+        => DomainEditRecorder.Record(_domain, p.ParSpec.Path, value.ToString(CultureInfo.InvariantCulture));
+
+    // The two position setters record the axis that fired and not the pair, even though
+    // EnqueuePositionWrite writes L-R and F-B together (they share a throttle key so a diagonal drag
+    // flushes both). Each setter is reached on its own and only the one that fired has changed; recording
+    // the pair from each would put a change whose old and new values are equal into the step, which undo
+    // would then write back to the instrument for nothing -- on every single-axis edit, of which the arrow
+    // keys and the two position sliders are nothing but.
     public int Lr
     {
         get => _lr;
@@ -119,7 +130,7 @@ public class MotionalSurroundPartViewModel : ViewModelBase, IDisposable
             this.RaiseAndSetIfChanged(ref _lr, value);
             this.RaisePropertyChanged(nameof(CanvasX));
             this.RaisePropertyChanged(nameof(PositionLabel));
-            if (!_suppress) _parent.EnqueuePositionWrite(this);
+            if (!_suppress) { RecordChange(_lrParam, _lr); _parent.EnqueuePositionWrite(this); }
         }
     }
 
@@ -133,7 +144,7 @@ public class MotionalSurroundPartViewModel : ViewModelBase, IDisposable
             this.RaiseAndSetIfChanged(ref _fb, value);
             this.RaisePropertyChanged(nameof(CanvasY));
             this.RaisePropertyChanged(nameof(PositionLabel));
-            if (!_suppress) _parent.EnqueuePositionWrite(this);
+            if (!_suppress) { RecordChange(_fbParam, _fb); _parent.EnqueuePositionWrite(this); }
         }
     }
 
@@ -199,15 +210,50 @@ public class MotionalSurroundPartViewModel : ViewModelBase, IDisposable
         this.RaisePropertyChanged(nameof(CanvasY));
     }
 
-    /// <summary>Set position from the model side (no write enqueued). Used by presets before a direct write.</summary>
-    public void SetPositionSuppressed(int lr, int fb)
+    /// <summary>Move to a position on a preset's behalf: record it, then write it straight out rather than
+    /// through the parent's debounced door.
+    ///
+    /// The preset path cannot use the setters, because they enqueue a debounced write and a preset writes
+    /// seventeen parts at once -- hence <see cref="SetPositionSuppressed"/>, which is why nothing here
+    /// recorded before. Recording it explicitly is what makes a preset undoable; the caller holds one
+    /// journal gesture around the whole command, so every part it moves lands in a single step.
+    ///
+    /// Only an axis that actually moved is recorded. A preset asks every part for a position whether or not
+    /// it is already there (<c>CenterAll</c> over an already-centred part, a Width already at 16), and a
+    /// change whose old and new values are equal is not an edit -- it would only have undo write a value
+    /// back for nothing. Safe to decide by comparison here, unlike in the setters, because a preset touches
+    /// each parameter exactly once: there is no earlier change to this parameter in the step whose
+    /// <c>NewValue</c> this one would have had to correct.</summary>
+    public async System.Threading.Tasks.Task ApplyPositionAsync(int lr, int fb)
+    {
+        var (wasLr, wasFb) = (_lr, _fb);
+        SetPositionSuppressed(lr, fb);      // clamps, so the recorded value is the one about to be written
+        if (_lr != wasLr) RecordChange(_lrParam, _lr);
+        if (_fb != wasFb) RecordChange(_fbParam, _fb);
+        await WritePositionAsync();
+    }
+
+    /// <summary>Width and Ambience Send Level on a preset's behalf. Same reasoning throughout as
+    /// <see cref="ApplyPositionAsync"/>.</summary>
+    public async System.Threading.Tasks.Task ApplyWidthAmbienceAsync(int width, int ambience)
+    {
+        var (wasWidth, wasAmb) = (_width, _amb);
+        SetWidthAmbienceSuppressed(width, ambience);
+        if (_width != wasWidth) RecordChange(_widthParam, _width);
+        if (_amb != wasAmb) RecordChange(_ambParam, _amb);
+        await WriteWidthAmbienceAsync();
+    }
+
+    /// <summary>Set position from the model side: no write, and no record either. Only for the two
+    /// Apply methods above, which do both around it.</summary>
+    private void SetPositionSuppressed(int lr, int fb)
     {
         _suppress = true;
         try { Lr = lr; Fb = fb; }
         finally { _suppress = false; }
     }
 
-    public void SetWidthAmbienceSuppressed(int width, int ambience)
+    private void SetWidthAmbienceSuppressed(int width, int ambience)
     {
         _suppress = true;
         try { Width = width; Ambience = ambience; }
@@ -220,7 +266,7 @@ public class MotionalSurroundPartViewModel : ViewModelBase, IDisposable
         await _domain.WriteToIntegraAsync(_fbParam.ParSpec.Path, _fb.ToString(CultureInfo.InvariantCulture));
     }
 
-    public async System.Threading.Tasks.Task WriteWidthAmbienceAsync()
+    private async System.Threading.Tasks.Task WriteWidthAmbienceAsync()
     {
         await _domain.WriteToIntegraAsync(_widthParam.ParSpec.Path, _width.ToString(CultureInfo.InvariantCulture));
         await _domain.WriteToIntegraAsync(_ambParam.ParSpec.Path, _amb.ToString(CultureInfo.InvariantCulture));

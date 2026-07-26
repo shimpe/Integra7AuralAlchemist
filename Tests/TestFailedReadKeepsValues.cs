@@ -34,7 +34,11 @@ public class TestFailedReadKeepsValues
         public bool ConnectionOk() => true;
         public byte DeviceId() => 0x10;
         public Task CheckIdentityAsync() => Task.CompletedTask;
-        public Task MakeDataTransmissionAsync(byte[] address, byte[] data, IMidiLease? lease = null)
+
+        /// <summary>Virtual for the same reason as <see cref="MakeDataRequestAsync"/>: a fixture that needs
+        /// writes to take real time -- to put two records further apart than the undo journal's coalesce
+        /// window, say -- can override this one member and inherit the rest.</summary>
+        public virtual Task MakeDataTransmissionAsync(byte[] address, byte[] data, IMidiLease? lease = null)
         {
             Transmissions++;
             return Task.CompletedTask;

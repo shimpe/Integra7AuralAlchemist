@@ -1,3 +1,4 @@
+using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
@@ -5,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using Integra7AuralAlchemist.Controls;
 using Integra7AuralAlchemist.Models.Services;
 using Integra7AuralAlchemist.ViewModels;
 
@@ -23,6 +25,66 @@ public partial class MotionalSurroundView : UserControl
     private Border? _dragging;
     private MotionalSurroundPartViewModel? _dragVm;
 
+    // A puck drag is one undo step however long the user takes over it, and so is a drag on any of this
+    // view's nine Sliders (Depth, the four Ambience values, and the selected part's L-R, F-B, Width and
+    // Ambience). A step is a gesture, and only the pointer handlers know where one begins and ends -- the
+    // clock cannot, because a slow, careful drag is seconds between changes. The same reason the eight
+    // controls in Src/Controls hold one; see EditGesture.
+    private readonly PointerGesture _puckGesture = new();
+    private readonly PointerGesture _sliderGesture = new();
+
+    /// <summary>An <see cref="EditGesture"/> held for the length of a pointer drag, closed by whichever of
+    /// the release and the loss of capture comes first.
+    ///
+    /// The capture-lost half is why this is a class rather than two handlers. Avalonia declares
+    /// <c>PointerCaptureLostEvent</c> as a <b>Direct</b> routed event (asserted in
+    /// <c>EditRecordingTests.The_pointer_events_the_slider_gestures_hang_off_route_as_this_view_needs</c>),
+    /// so it is only ever delivered to the element that held the capture -- a handler on an ancestor,
+    /// which is what this file had for the pucks, can never run. The element to hang it on is known at
+    /// press time, though: <c>MouseDevice.MouseDown</c> captures the hit-tested element before it raises
+    /// <c>PointerPressed</c>, and neither <c>Slider</c> nor <c>Thumb</c> moves that capture afterwards
+    /// (neither calls <c>Pointer.Capture</c> at all), so the captured element reports the end of the drag
+    /// however the drag ends. For a puck this view does the capturing itself and passes the Border.
+    ///
+    /// Without that, a drag interrupted rather than released -- the window losing activation while the
+    /// button is down -- would leave the scope open and fold every later edit into that one step until
+    /// <see cref="EditJournal.StaleGestureWindow"/> gave up on it, which is containment and not a fix.</summary>
+    private sealed class PointerGesture
+    {
+        private readonly EditGesture _gesture = new();
+        private Interactive? _captureTarget;
+        private Action? _onEnd;
+
+        /// <param name="onEnd">Run when the drag ends, however it ends. The pucks keep drag state of their
+        /// own that has to be cleared on an interrupted drag as well as a released one -- left set, it
+        /// makes the next pointer move over the room map drag the puck with no button held.</param>
+        public void Begin(Interactive captureTarget, Action? onEnd = null)
+        {
+            End();
+            _captureTarget = captureTarget;
+            _onEnd = onEnd;
+            captureTarget.AddHandler(PointerCaptureLostEvent, OnCaptureLost, RoutingStrategies.Direct);
+            _gesture.Begin();
+        }
+
+        /// <summary>Idempotent, which is what lets the release, the capture loss and the next press all
+        /// call it without any of them closing a gesture that is not theirs.</summary>
+        public void End()
+        {
+            if (_captureTarget is { } t)
+            {
+                _captureTarget = null;
+                t.RemoveHandler(PointerCaptureLostEvent, OnCaptureLost);
+            }
+            _gesture.End();
+            var onEnd = _onEnd;
+            _onEnd = null;
+            onEnd?.Invoke();
+        }
+
+        private void OnCaptureLost(object? sender, PointerCaptureLostEventArgs e) => End();
+    }
+
     public MotionalSurroundView()
     {
         InitializeComponent();
@@ -31,6 +93,15 @@ public partial class MotionalSurroundView : UserControl
         // reconnect) gets the current room-map size instead of keeping its 1x1 default, which
         // would otherwise stack every puck in the top-left corner until the next layout pass.
         DataContextChanged += (_, _) => UpdateStage();
+
+        // Slider gestures, opened and closed once here rather than nine times in the markup. Both halves
+        // reach us despite the capture living on a template part inside the Slider: a captured pointer's
+        // press and release are raised on the capture target and routed through its visual ancestors, of
+        // which this view is one. Tunnel so that a Slider marking them handled cannot hide them, and
+        // handledEventsToo on the release because a close must never be missed.
+        AddHandler(PointerPressedEvent, OnAnyPointerPressed, RoutingStrategies.Tunnel);
+        AddHandler(PointerReleasedEvent, OnAnyPointerReleased, RoutingStrategies.Tunnel,
+            handledEventsToo: true);
     }
 
     private MotionalSurroundViewModel? Vm => DataContext as MotionalSurroundViewModel;
@@ -44,7 +115,9 @@ public partial class MotionalSurroundView : UserControl
         _puckHost.AddHandler(PointerPressedEvent, OnPuckPointerPressed, RoutingStrategies.Tunnel);
         _puckHost.AddHandler(PointerMovedEvent, OnPuckPointerMoved, RoutingStrategies.Tunnel);
         _puckHost.AddHandler(PointerReleasedEvent, OnPuckPointerReleased, RoutingStrategies.Tunnel);
-        _puckHost.AddHandler(PointerCaptureLostEvent, OnPuckPointerCaptureLost, RoutingStrategies.Bubble);
+        // No capture-lost handler here: it used to be registered on this host and could never have fired,
+        // because PointerCaptureLost is a Direct event and the capture lives on the puck. It is registered
+        // on the puck itself, at press time -- see PointerGesture and OnPuckPointerPressed.
         _puckHost.AddHandler(KeyDownEvent, OnPuckKeyDown, RoutingStrategies.Bubble);
         _puckHost.PropertyChanged += (_, ev) =>
         {
@@ -109,18 +182,64 @@ public partial class MotionalSurroundView : UserControl
         return null;
     }
 
+    /// <summary>True if <paramref name="src"/> is a <see cref="Slider"/> or sits inside one. Walks the
+    /// visual tree, which crosses the template boundary, so the thumb and the track a press actually lands
+    /// on both resolve to their Slider. Stops at this view rather than running on to the window.</summary>
+    private bool IsInsideSlider(object? src)
+    {
+        var cur = src as Visual;
+        while (cur != null && !ReferenceEquals(cur, this))
+        {
+            if (cur is Slider) return true;
+            cur = cur.GetVisualParent();
+        }
+        return false;
+    }
+
+    private void OnAnyPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        // Only a press heading for a Slider opens the slider gesture; a puck press is served by
+        // OnPuckPointerPressed and opens its own. Everything else in the tab -- buttons, the ToggleSwitch,
+        // the combo, the NumericUpDowns' spinners -- has no drag to delimit and keeps the journal's time
+        // window, like every other non-pointer edit in the application.
+        if (!IsInsideSlider(e.Source)) return;
+        // Avalonia has already captured the element this press hit, in MouseDevice.MouseDown, before
+        // raising the event -- so this is the element that will report the end of the drag. A press with no
+        // capture (nothing does that today, but nothing promises not to) is left to the journal's time
+        // window rather than given a gesture that might never be closed.
+        if (e.Pointer.Captured is Interactive captured) _sliderGesture.Begin(captured);
+    }
+
+    private void OnAnyPointerReleased(object? sender, PointerReleasedEventArgs e) => _sliderGesture.End();
+
     private void OnPuckPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (FindPuck(e.Source) is { DataContext: MotionalSurroundPartViewModel p } b)
         {
             if (!e.GetCurrentPoint(b).Properties.IsLeftButtonPressed) return;
-            _dragging = b;
-            _dragVm = p;
             if (Vm != null) Vm.SelectedPart = p;
             e.Pointer.Capture(b);
             b.Focus();
+            // Opened once the drag is certain (a right-click returned above) and after the capture has
+            // moved to the puck: the element the press landed on loses its own capture at that moment, and
+            // a handler attached to the puck any earlier could be woken by that rather than by the end of
+            // this drag.
+            _puckGesture.Begin(b, EndPuckDrag);
+            // After Begin, not before: Begin closes any gesture still held from an earlier press, which
+            // runs that gesture's EndPuckDrag -- and that would clear the drag this one is starting.
+            _dragging = b;
+            _dragVm = p;
             e.Handled = true;
         }
+    }
+
+    /// <summary>Forget the drag in progress. Reached from the release and, through the gesture, from a
+    /// capture loss -- an interrupted drag has to clear this too, or the next pointer move over the room
+    /// map would go on dragging the puck with no button held.</summary>
+    private void EndPuckDrag()
+    {
+        _dragging = null;
+        _dragVm = null;
     }
 
     private void OnPuckPointerMoved(object? sender, PointerEventArgs e)
@@ -140,14 +259,9 @@ public partial class MotionalSurroundView : UserControl
     {
         if (_dragging is null) return;
         e.Pointer.Capture(null);
-        _dragging = null;
-        _dragVm = null;
-    }
-
-    private void OnPuckPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
-    {
-        _dragging = null;
-        _dragVm = null;
+        // Closes the gesture and, through it, clears the drag state. Idempotent, so it does not matter
+        // that releasing the capture just above has already reached the same code through capture-lost.
+        _puckGesture.End();
     }
 
     private void OnPuckKeyDown(object? sender, KeyEventArgs e)
