@@ -148,19 +148,6 @@
                             </Button.IsEnabled>
                             Panic!
                         </Button>
-                        <!-- IsEnabled follows the history, not Connected/IsSyncing: nothing can enter the
-                             journal while disconnected, so an empty history is the only reason to
-                             disable these. -->
-                        <Button Command="{Binding UndoAsync}"
-                                IsEnabled="{Binding CanUndo}"
-                                ToolTip.Tip="Take back the last parameter change and write the previous value back to the instrument.">
-                            Undo
-                        </Button>
-                        <Button Command="{Binding RedoAsync}"
-                                IsEnabled="{Binding CanRedo}"
-                                ToolTip.Tip="Put back the parameter change the last undo took away.">
-                            Redo
-                        </Button>
                         <Button Command="{Binding SaveUserTone}">
                             <Button.IsEnabled>
                                 <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -615,6 +602,22 @@
                 BorderThickness="0,1,0,0"
                 Padding="10,4">
             <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <!-- Undo lives here, in window chrome, and not in the Parameters tab's toolbar where it
+                     started: there is one journal for the whole application, but Parameters, SRX Loader
+                     and Motional Surround are sibling tabs, so a button inside one of them is missing
+                     from the other two — and with no keyboard shortcut (see Window.KeyBindings above)
+                     that left undo unreachable from the Motional Surround editor entirely.
+
+                     IsEnabled follows the history, not Connected/IsSyncing: nothing can enter the
+                     journal while disconnected, so an empty history is the only reason to disable them. -->
+                <Button Command="{Binding UndoAsync}" IsEnabled="{Binding CanUndo}" Padding="8,2"
+                        ToolTip.Tip="Take back the last parameter change and write the previous value back to the instrument.">
+                    Undo
+                </Button>
+                <Button Command="{Binding RedoAsync}" IsEnabled="{Binding CanRedo}" Padding="8,2"
+                        ToolTip.Tip="Put back the parameter change the last undo took away.">
+                    Redo
+                </Button>
                 <TextBlock Text="{Binding MidiDevices}" VerticalAlignment="Center" />
                 <!-- Progress of the user tone names, which load after the window is usable.
                      Collapses to nothing once they are in. -->
