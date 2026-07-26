@@ -10,8 +10,16 @@ using Integra7AuralAlchemist.Models.Services;
 namespace Integra7AuralAlchemist.Controls;
 
 /// <summary>Four WMT velocity lanes (WMT1..4, top→bottom). X is velocity 0..127. Each active lane shows
-/// its range [lo..hi] with fade ramps; drag an edge to resize, the body to move, or click a lane to
-/// select it (TwoWay <see cref="SelectedIndex"/>). Geometry is delegated to <see cref="WmtVelocityMapping"/>.</summary>
+/// its range [lo..hi] with its crossfade bands; drag an edge to resize, the body to move, or click a lane to
+/// select it (TwoWay <see cref="SelectedIndex"/>). Geometry is delegated to <see cref="WmtVelocityMapping"/>.
+///
+/// <para>The crossfades used to be drawn here as a trapezoid: a box whose top edge was the range and whose
+/// bottom edge ran out to the far end of each fade, so the sloping sides stood for the ramps. It was not wrong
+/// about the numbers, but it was a fourth visual language for a parameter the application already drew two other
+/// ways, and the diagonals also made the range itself hard to read — the box under the pointer was not the box
+/// the two range values describe. It is a plain range rectangle with two <see cref="ZoneShading"/> bands beside
+/// it now, exactly as the Layers tab and the key×velocity zone chart draw theirs, so the same fill, the same
+/// gradient floor and the same dashed "starts to be heard" edge mean the same thing on all three.</para></summary>
 public class WmtVelocityMapControl : Control
 {
     private const double HandleMargin = 6;
@@ -145,28 +153,34 @@ public class WmtVelocityMapControl : Control
             {
                 if (z.on)
                 {
-                    var loX = WmtVelocityMapping.VelToX(Math.Min(z.lo, z.hi), w);
-                    var hiX = WmtVelocityMapping.VelToX(Math.Max(z.lo, z.hi), w);
-                    var fadeLoX = WmtVelocityMapping.VelToX(Math.Max(0, Math.Min(z.lo, z.hi) - z.fadeLo), w);
-                    var fadeHiX = WmtVelocityMapping.VelToX(Math.Min(127, Math.Max(z.lo, z.hi) + z.fadeHi), w);
-                    var top = lane.Y;
-                    var bot = lane.Y + lane.H;
+                    var body = WmtVelocityMapping.BandRect(z.lo, z.hi, i, w, h);
+                    var rect = new Rect(body.X, body.Y, body.W, body.H);
 
-                    var geo = new StreamGeometry();
-                    using (var c = geo.Open())
-                    {
-                        c.BeginFigure(new Point(fadeLoX, bot), true);
-                        c.LineTo(new Point(loX, top));
-                        c.LineTo(new Point(hiX, top));
-                        c.LineTo(new Point(fadeHiX, bot));
-                        c.EndFigure(true);
-                    }
-                    using (context.PushOpacity(0.30)) context.DrawGeometry(z.brush, null, geo);
-                    context.DrawGeometry(null, new Pen(z.brush, 2), geo);
+                    // The two crossfade bands, drawn before the body so they sit under it and under its outline.
+                    // Each lies *outside* the range — the lower band to the left of Range Lower, the upper band
+                    // to the right of Range Upper, because velocity runs left to right on this chart — and each
+                    // arrives already clipped to the chart by the geometry, so twenty steps of fade below a
+                    // range starting at velocity 6 is a six-step band and nothing here clamps or re-checks it.
+                    //
+                    // This is what stops two WMT layers that crossfade into one another looking like a hard
+                    // velocity switch. Same bands, from the same code, as the Layers tab and the PMT zone chart:
+                    // ZoneShading owns the alphas, the floor and the dash pattern precisely so that three charts
+                    // cannot teach the user three different things about one parameter.
+                    var laneColor = ZoneShading.ColorOf(z.brush);
+                    ZoneShading.DrawFade(context,
+                        WmtVelocityMapping.FadeLowerRect(z.lo, z.hi, i, z.fadeLo, w, h),
+                        laneColor, ZoneShading.FadeSide.Left);
+                    ZoneShading.DrawFade(context,
+                        WmtVelocityMapping.FadeUpperRect(z.lo, z.hi, i, z.fadeHi, w, h),
+                        laneColor, ZoneShading.FadeSide.Right);
+
+                    using (context.PushOpacity(ZoneShading.FillOpacity))
+                        context.FillRectangle(z.brush, rect);
+                    context.DrawRectangle(null, new Pen(z.brush, 2), rect);
 
                     var label = $"WMT{i + 1}  vel {Math.Min(z.lo, z.hi)}-{Math.Max(z.lo, z.hi)}";
                     var ft = new FormattedText(label, culture, FlowDirection.LeftToRight, Typeface.Default, 11, LabelBrush);
-                    context.DrawText(ft, new Point(loX + 4, top + 2));
+                    context.DrawText(ft, new Point(body.X + 4, body.Y + 2));
                 }
                 else
                 {

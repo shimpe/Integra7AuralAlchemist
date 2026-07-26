@@ -5,9 +5,10 @@ using Integra7AuralAlchemist.Models.Services;
 
 namespace Integra7AuralAlchemist.Controls;
 
-/// <summary>How a key×velocity zone and its crossfades are painted. One implementation, shared by every chart
-/// in the application that draws a range with fades on it — <see cref="LayerMapControl"/>'s sixteen parts and
-/// <see cref="PmtZoneEditorControl"/>'s four partials today, the drum WMT map next.
+/// <summary>How a zone and its crossfades are painted. One implementation, shared by every chart in the
+/// application that draws a range with fades on it — <see cref="LayerMapControl"/>'s sixteen parts,
+/// <see cref="PmtZoneEditorControl"/>'s four partials, and <see cref="WmtVelocityMapControl"/>'s four drum WMT
+/// layers, which is all three of them.
 ///
 /// <para>It exists because the alternative is worse than not having the feature at all: the same crossfade drawn
 /// two ways in one application teaches the user two different things about the same parameter, and the two copies
@@ -22,8 +23,11 @@ namespace Integra7AuralAlchemist.Controls;
 public static class ZoneShading
 {
     /// <summary>Which side of the body a band lies on, and therefore which way it fades and where its outer edge
-    /// is. Named for where the band is drawn rather than for the parameter it comes from: <see cref="Below"/> is
-    /// the *lower* velocity fade, because loud is up and a range's soft end is the bottom of its box.
+    /// is. Named for where the band is drawn rather than for the parameter it comes from, and the two do not line
+    /// up: <see cref="Below"/> is the *lower* velocity fade on the key×velocity charts, because loud is up there
+    /// and a range's soft end is the bottom of its box — while the same lower velocity fade is
+    /// <see cref="Left"/> on the drum WMT map, whose velocity axis runs left to right. Which is exactly why these
+    /// are named for the geometry: a member called <c>VelocityLower</c> would have had to mean two directions.
     ///
     /// <para>An enum rather than the pair of relative gradient corners this took when it lived in
     /// <c>LayerMapControl</c>. Four call sites became twenty when the PMT chart joined, and
@@ -31,10 +35,12 @@ public static class ZoneShading
     /// corners are still there, in one place, below.</para></summary>
     public enum FadeSide
     {
-        /// <summary>Left of the body: the lower key fade, over the keys below the range.</summary>
+        /// <summary>Left of the body: the lower key fade on a key×velocity chart, or the lower velocity fade on
+        /// the drum WMT map — either way, over the values below the range.</summary>
         Left,
 
-        /// <summary>Right of the body: the upper key fade, over the keys above the range.</summary>
+        /// <summary>Right of the body: the upper key fade on a key×velocity chart, or the upper velocity fade on
+        /// the drum WMT map — either way, over the values above the range.</summary>
         Right,
 
         /// <summary>Under the body: the lower velocity fade, over the velocities below the range.</summary>
