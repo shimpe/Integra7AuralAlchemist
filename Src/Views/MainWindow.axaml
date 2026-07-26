@@ -339,7 +339,13 @@
                                                     Parameters="{Binding StudioSetMidiParameters}"
                                                     SearchText="{Binding SearchTextStudioSetMidi, Mode=TwoWay}" />
                                             </TabItem>
-                                            <TabItem Header="Set Part">
+                                            <!-- Tagged so the Layers tab's "Edit fades…" button can land here:
+                                                 the four keyboard and velocity fade-width knobs the layer map
+                                                 draws but does not drag are on this editor. The suffix follows
+                                                 the COMMON-*-FRIENDLY convention the mixer's Chorus and Reverb
+                                                 buttons navigate by, and keeps this distinct from the plain
+                                                 SET-PART tag on the raw grid under "Advanced". -->
+                                            <TabItem Header="Set Part" Tag="SET-PART-FRIENDLY">
                                                 <local:StudioSetPartEditorView DataContext="{Binding StudioSetPartEditor}" />
                                             </TabItem>
                                             <TabItem Header="Set EQ">
@@ -587,9 +593,12 @@
                     </TabControl>
                 </Grid>
             </TabItem>
-            <!-- Order: Parameters, Mixer, Motional Surround, SRX Loader — how often each is reached for,
-                 most first. Parameters stays index 0 because OpenPartTab and OpenCommonTab navigate to it by
-                 index; nothing else in the application depends on the position of any of the others. -->
+            <!-- Order: Parameters, Mixer, Layers, Motional Surround, SRX Loader — how often each is reached
+                 for, most first. Parameters stays index 0 because OpenPartTab, OpenCommonTab and
+                 OpenPartSetPartTab navigate to it by index; nothing else in the application depends on the
+                 position of any of the others. Layers sits beside Mixer because the two answer neighbouring
+                 questions about the same sixteen parts: how loud each one is, and where on the keyboard it
+                 answers. -->
             <TabItem Header="Mixer">
                 <Panel>
                     <Panel IsVisible="{Binding MixerVm, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
@@ -598,6 +607,16 @@
                     <TextBlock Text="Connect to your Integra-7 to use the mixer."
                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                IsVisible="{Binding MixerVm, Converter={x:Static conv:ObjectConverters.IsNull}}" />
+                </Panel>
+            </TabItem>
+            <TabItem Header="Layers">
+                <Panel>
+                    <Panel IsVisible="{Binding LayerMapVm, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
+                        <local:LayerMapView DataContext="{Binding LayerMapVm}" />
+                    </Panel>
+                    <TextBlock Text="Connect to your Integra-7 to see the layer map."
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               IsVisible="{Binding LayerMapVm, Converter={x:Static conv:ObjectConverters.IsNull}}" />
                 </Panel>
             </TabItem>
             <TabItem Header="Motional Surround">
