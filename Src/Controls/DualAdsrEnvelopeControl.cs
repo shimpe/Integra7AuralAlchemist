@@ -76,6 +76,9 @@ public class DualAdsrEnvelopeControl : Control
     // 0=Attack,1=Decay,2=Release. _dragEnv/_dragHandle while dragging; _focusedHandle for keyboard.
     private int _dragEnv = -1, _dragHandle = -1, _focusedHandle = 0;
 
+    // The whole handle drag is one undo step, not one per value the pointer happened to pass through.
+    private readonly EditGesture _gesture = new();
+
     static DualAdsrEnvelopeControl()
     {
         AffectsRender<DualAdsrEnvelopeControl>(
@@ -168,7 +171,10 @@ public class DualAdsrEnvelopeControl : Control
         var pos = e.GetPosition(this);
         var hit = SnsEnvelopeMapping.NearestHandle(pos.X, pos.Y, AmpPoints(Bounds.Width, Bounds.Height),
             FilterPoints(Bounds.Width, Bounds.Height), ActiveEnvelope, HandleRadius * 2);
+        // Nothing above this line changes a value, so the gesture starts here -- a press that misses
+        // every handle returns instead, and would never see a release to close a scope with.
         if (hit.Env < 0) return;
+        _gesture.Begin();
         if (hit.Env != ActiveEnvelope) ActiveEnvelope = hit.Env; // grabbing the other env activates it
         _dragEnv = hit.Env;
         _dragHandle = hit.Handle;
@@ -217,7 +223,17 @@ public class DualAdsrEnvelopeControl : Control
         if (_dragEnv < 0) return;
         e.Pointer.Capture(null);
         _dragEnv = -1; _dragHandle = -1;
+        _gesture.End();
         e.Handled = true;
+    }
+
+    /// <summary>Capture goes away without a release when the window is deactivated mid-drag: end the drag
+    /// (which used to stay live) and close the undo step with it.</summary>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        _dragEnv = -1; _dragHandle = -1;
+        _gesture.End();
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

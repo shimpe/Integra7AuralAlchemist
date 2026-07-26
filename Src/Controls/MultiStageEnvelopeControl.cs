@@ -75,6 +75,9 @@ public class MultiStageEnvelopeControl : Control
     // Index (0..4) of the point being dragged (−1 = none) and the focused handle for outlining.
     private int _drag = -1, _focused = 0;
 
+    // The whole point drag is one undo step -- both the level and the time it moves, however slowly.
+    private readonly EditGesture _gesture = new();
+
     static MultiStageEnvelopeControl()
     {
         AffectsRender<MultiStageEnvelopeControl>(
@@ -164,7 +167,10 @@ public class MultiStageEnvelopeControl : Control
         Focus();
         var pos = e.GetPosition(this);
         var hit = PcmEnvelopeMapping.NearestHandle(pos.X, pos.Y, Points(Bounds.Width, Bounds.Height), HandleRadius * 2);
+        // A press that misses every handle returns here and never sees a release, so the gesture starts
+        // only once the drag is certain.
         if (hit < 0) return;
+        _gesture.Begin();
         _drag = hit;
         _focused = hit;
         e.Pointer.Capture(this);
@@ -222,6 +228,16 @@ public class MultiStageEnvelopeControl : Control
         if (_drag < 0) return;
         e.Pointer.Capture(null);
         _drag = -1;
+        _gesture.End();
         e.Handled = true;
+    }
+
+    /// <summary>Capture goes away without a release when the window is deactivated mid-drag: end the drag
+    /// (which used to stay live) and close the undo step with it.</summary>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        _drag = -1;
+        _gesture.End();
     }
 }

@@ -54,6 +54,9 @@ public class FilterCurveControl : Control
 
     private bool _dragging;
 
+    // The whole drag is one undo step -- both the cutoff and the resonance it moves, however slowly.
+    private readonly EditGesture _gesture = new();
+
     static FilterCurveControl()
     {
         AffectsRender<FilterCurveControl>(ModeProperty, SteepProperty, CutoffProperty, ResonanceProperty,
@@ -123,6 +126,9 @@ public class FilterCurveControl : Control
         if (Preview) return; // previews are non-interactive
         Focus();
         _dragging = true;
+        // Before Apply, so the press's own change is inside the gesture: unlike the handle-based
+        // controls, a press anywhere here starts a drag, so no early return can leave this open.
+        _gesture.Begin();
         e.Pointer.Capture(this);
         e.Handled = true;
         Apply(e.GetPosition(this));
@@ -141,8 +147,18 @@ public class FilterCurveControl : Control
         base.OnPointerReleased(e);
         if (!_dragging) return;
         _dragging = false;
+        _gesture.End();
         e.Pointer.Capture(null);
         e.Handled = true;
+    }
+
+    /// <summary>Capture goes away without a release when the window is deactivated mid-drag: end the drag
+    /// (which used to stay live) and close the undo step with it.</summary>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        _dragging = false;
+        _gesture.End();
     }
 
     private void Apply(Point pos)

@@ -1,4 +1,6 @@
+using Avalonia.Data;
 using Avalonia.Threading;
+using Integra7AuralAlchemist.Controls;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
@@ -162,6 +164,53 @@ public class EditRecordingTests
 
         Assert.That(param.Value, Is.EqualTo(77));
         Assert.That(EditJournal.Default.CanUndo, Is.False);
+    }
+
+    /// <summary>A slow drag, end to end: a real control's styled property, a real two-way binding, a real
+    /// <see cref="ParamInt"/>, and the journal the application actually records into.
+    ///
+    /// Two things are being pinned. One, the gesture the control holds open really does keep a whole drag
+    /// in one step -- the two assignments below are more than <see cref="EditJournal.CoalesceWindow"/>
+    /// apart in <em>real</em> time (the singleton journal has no injectable clock, so that is the only way
+    /// to say it here), which is precisely the careful, one-step-per-second drag that used to produce an
+    /// undo step per step. Two, the binding carries the assignment to the wrapper <em>synchronously</em>:
+    /// the whole design assumes the record lands while the control's scope is open, and a binding that
+    /// posted its source update instead would land it after the release and split the drag in two. The
+    /// assertion on <c>param.Value</c> immediately after the first assignment is what pins that, and it
+    /// fails loudly rather than silently if Avalonia ever defers it.</summary>
+    [Test]
+    public void A_slow_drag_over_a_real_control_and_a_real_wrapper_is_one_step()
+    {
+        var p = NewParameter();
+        p.StringValue = "100";
+        using var writer = new ThrottledParameterWriter(Constants.THROTTLE, new TestScheduler());
+        using var param = new ParamInt(NewDomain(), p, writer, 0, 127);
+
+        // Level3 stands in for the eight controls' value properties: same styled-property-with-a-two-way
+        // binding shape, and this one needs no windowing platform to construct.
+        var control = new MultiStageEnvelopeControl();
+        using var binding = control.Bind(MultiStageEnvelopeControl.Level3Property,
+            new Binding(nameof(ParamInt.Value)) { Mode = BindingMode.TwoWay, Source = param });
+        Assert.That(control.Level3, Is.EqualTo(100), "the binding starts from the wrapper's value");
+        Assert.That(EditJournal.Default.CanUndo, Is.False, "binding to it is not an edit");
+
+        var gesture = new EditGesture();
+        gesture.Begin();                        // what OnPointerPressed does once a drag is certain
+        control.Level3 = 101;
+        Assert.That(param.Value, Is.EqualTo(101),
+            "the assignment must reach the wrapper before the pointer handler returns -- if this fails, " +
+            "the binding has become deferred and a scope opened and closed by the pointer handlers can " +
+            "no longer contain the records");
+
+        System.Threading.Thread.Sleep(EditJournal.CoalesceWindow + TimeSpan.FromMilliseconds(50));
+        control.Level3 = 102;
+        gesture.End();                          // what OnPointerReleased does
+
+        Assert.That(EditJournal.Default.TryUndo(out var undo), Is.True);
+        Assert.That(undo!.Writes.Single().ValueToApply, Is.EqualTo("100"),
+            "back to the value from before the drag");
+        Assert.That(EditJournal.Default.CanUndo, Is.False,
+            "one drag, one step, even though the two changes are further apart than the coalesce window");
     }
 
     /// <summary>Setting the value it already holds is not an edit, so the early return before the raise
