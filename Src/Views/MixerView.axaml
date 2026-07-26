@@ -61,18 +61,28 @@
                         <TextBlock Text="{Binding PanLabel}" HorizontalAlignment="Center" FontSize="11" />
                     </StackPanel>
 
+                    <!-- The two sends. Each knob's caption is a button to the editor for the unit it feeds:
+                         the knob says how much of this part goes to the shared chorus or reverb, the button
+                         says what that unit does. Both buttons lead to the same two editors from every strip,
+                         because there is one chorus and one reverb per Studio Set — that is the architecture,
+                         not a duplication. Making the caption itself the button costs no vertical space and
+                         puts the destination under the knob it belongs to. -->
                     <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center"
                                 IsVisible="{Binding HasSends}">
                         <StackPanel Spacing="1">
-                            <TextBlock Text="Cho" FontSize="10" HorizontalAlignment="Center"
-                                       Foreground="{StaticResource SnMutedTextBrush}" />
+                            <Button Content="Cho" FontSize="10" Padding="4,0" MinWidth="0"
+                                    HorizontalAlignment="Center"
+                                    Foreground="{StaticResource SnMutedTextBrush}"
+                                    Command="{Binding OpenChorus}" />
                             <controls:RotaryKnob Minimum="0" Maximum="127"
                                                  Value="{Binding ChorusSend.Value, Mode=TwoWay}"
                                                  AccentBrush="{StaticResource KnobFxBrush}" />
                         </StackPanel>
                         <StackPanel Spacing="1">
-                            <TextBlock Text="Rev" FontSize="10" HorizontalAlignment="Center"
-                                       Foreground="{StaticResource SnMutedTextBrush}" />
+                            <Button Content="Rev" FontSize="10" Padding="4,0" MinWidth="0"
+                                    HorizontalAlignment="Center"
+                                    Foreground="{StaticResource SnMutedTextBrush}"
+                                    Command="{Binding OpenReverb}" />
                             <controls:RotaryKnob Minimum="0" Maximum="127"
                                                  Value="{Binding ReverbSend.Value, Mode=TwoWay}"
                                                  AccentBrush="{StaticResource KnobFxBrush}" />

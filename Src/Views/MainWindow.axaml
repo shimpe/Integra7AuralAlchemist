@@ -246,10 +246,16 @@
                                             <TabItem Header="Common">
                                                 <local:StudioSetCommonEditorView DataContext="{Binding StudioSetCommonEditor}" />
                                             </TabItem>
-                                            <TabItem Header="Chorus">
+                                            <!-- Tagged so the Mixer tab's strips can navigate here: a strip's
+                                                 send knobs say how much of a part is fed to the one shared
+                                                 chorus and the one shared reverb, and these are the editors
+                                                 for what those units do. The "-FRIENDLY" suffix keeps them
+                                                 apart from COMMON-CHORUS / COMMON-REVERB, which are the raw
+                                                 grids for the same domains under Advanced. -->
+                                            <TabItem Header="Chorus" Tag="COMMON-CHORUS-FRIENDLY">
                                                 <local:StudioSetEffectEditorView DataContext="{Binding StudioSetChorusEditor}" />
                                             </TabItem>
-                                            <TabItem Header="Reverb">
+                                            <TabItem Header="Reverb" Tag="COMMON-REVERB-FRIENDLY">
                                                 <local:StudioSetEffectEditorView DataContext="{Binding StudioSetReverbEditor}" />
                                             </TabItem>
                                             <TabItem Header="Master EQ">

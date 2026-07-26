@@ -1045,7 +1045,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 // Same precondition, and the mixer additionally needs the parts themselves for their tone
                 // names. Built after PartViewModels is published so it watches the list the tabs show.
                 MixerVm?.Dispose();
-                MixerVm = new MixerViewModel(_integra7Communicator, PartViewModels, OpenPartTab);
+                MixerVm = new MixerViewModel(_integra7Communicator, PartViewModels, OpenPartTab,
+                    OpenCommonTab);
 
                 // Fetching the user tone names costs ~10s of sysex round trips, and nothing above
                 // depends on it — the factory presets from the CSV are already in place. Let it run
@@ -1377,6 +1378,25 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         CurrentPartSelection = zeroBasedPartNo + 1;
         TopTabIndex = 0;
+    }
+
+    /// <summary>Show one of the Common tab's friendly editors, named by the <c>Tag</c> on its TabItem. Used by
+    /// the mixer strips' Chorus and Reverb buttons: a strip's send knobs feed one shared chorus and one shared
+    /// reverb, and this is how the user gets from "how much of this part" to "and what does it do".
+    ///
+    /// Three moves, because the target is two levels in: the Parameters tab, then the Common part tab, then
+    /// the sub-tab itself. The last goes through <c>CommonTabKey</c>, which
+    /// <c>TabControlBehaviors.SelectTabByTag</c> watches -- cleared first, because setting the same tag twice
+    /// running would otherwise not raise and a second press of the same button would do nothing. That
+    /// clear-then-set is the same dance the friendly editors' own "Advanced …" buttons do.</summary>
+    private void OpenCommonTab(string tag)
+    {
+        if (PartViewModels is null || PartViewModels.Count == 0) return;
+
+        TopTabIndex = 0;
+        CurrentPartSelection = 0; // the Common tab
+        PartViewModels[0].CommonTabKey = "";
+        PartViewModels[0].CommonTabKey = tag;
     }
 
     /// <summary>Initializes the part behind a tab index, reporting progress on the status bar. Runs

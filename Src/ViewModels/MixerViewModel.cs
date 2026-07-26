@@ -34,7 +34,11 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     /// <param name="parts">The part view models, for their tone names. Index 0 is the Common tab, so part
     /// <c>i</c> is <c>parts[i + 1]</c> -- the same off-by-one every caller of PartViewModels lives with.</param>
     /// <param name="openPart">Take the user to a part's own tab. Zero-based part number.</param>
-    public MixerViewModel(Integra7Domain domain, IReadOnlyList<PartViewModel> parts, Action<int> openPart)
+    /// <param name="openCommonTab">Show one of the Common tab's friendly editors, by the Tag on its TabItem.
+    /// The strips' send knobs feed one shared chorus and one shared reverb, so their buttons all lead to the
+    /// same two editors — one bus per effect.</param>
+    public MixerViewModel(Integra7Domain domain, IReadOnlyList<PartViewModel> parts, Action<int> openPart,
+        Action<string> openCommonTab)
     {
         _parts = parts;
 
@@ -42,9 +46,9 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
         // ToggleSolo writes the one shared Solo Part parameter this class owns. Handing solo down the same
         // way keeps the view's binding a plain method on the strip -- see MixerStripViewModel's _toggleSolo.
         for (var i = 0; i < Constants.NO_OF_PARTS; i++)
-            PartStrips.Add(Track(MixerStripViewModel.ForPart(domain, i, openPart, ToggleSolo)));
+            PartStrips.Add(Track(MixerStripViewModel.ForPart(domain, i, openPart, ToggleSolo, openCommonTab)));
 
-        ExternalStrip = Track(MixerStripViewModel.ForExternal(domain));
+        ExternalStrip = Track(MixerStripViewModel.ForExternal(domain, openCommonTab));
         MasterStrip = Track(MixerStripViewModel.ForMaster(domain));
 
         var common = domain.StudioSetCommon;

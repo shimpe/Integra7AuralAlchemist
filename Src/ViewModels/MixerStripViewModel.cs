@@ -44,6 +44,13 @@ public sealed partial class MixerStripViewModel : ViewModelBase, IDisposable
     /// reaches as a plain method binding.</summary>
     private readonly Action<int>? _toggleSolo;
 
+    /// <summary>Show one of the Common tab's friendly editors, named by the <c>Tag</c> its TabItem carries in
+    /// <c>MainWindow.axaml</c>. A strip's two send knobs say how much of this part is fed to the shared
+    /// chorus and reverb; what those units then do is one setting each for the whole Studio Set, so the
+    /// buttons under the knobs go to the same two editors from every strip. That is not a redundancy to
+    /// tidy away -- it is one bus per effect, and the knob and the button are the two halves of it.</summary>
+    private readonly Action<string>? _openCommonTab;
+
     public MixerStripKind Kind { get; }
 
     /// <summary>Zero-based part number, or -1 for the external and master strips.</summary>
@@ -79,25 +86,26 @@ public sealed partial class MixerStripViewModel : ViewModelBase, IDisposable
     public string PanLabel => Pan is null ? "" : MixerFormatting.PanLabel(Pan.Value);
 
     private MixerStripViewModel(MixerStripKind kind, int partNo, string label, Action<int>? openPart,
-        Action<int>? toggleSolo)
+        Action<int>? toggleSolo, Action<string>? openCommonTab)
     {
         Kind = kind;
         PartNo = partNo;
         Label = label;
         _openPart = openPart;
         _toggleSolo = toggleSolo;
+        _openCommonTab = openCommonTab;
     }
 
     /// <summary>A part strip, over that part's own Studio Set Part block.</summary>
     public static MixerStripViewModel ForPart(Integra7Domain domain, int zeroBasedPartNo,
-        Action<int>? openPart, Action<int>? toggleSolo)
+        Action<int>? openPart, Action<int>? toggleSolo, Action<string>? openCommonTab)
     {
         const string p = "Studio Set Part/";
         var d = domain.StudioSetPart(zeroBasedPartNo);
         var byPath = ToDict(d);
         var vm = new MixerStripViewModel(MixerStripKind.Part, zeroBasedPartNo,
             (zeroBasedPartNo + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), openPart,
-            toggleSolo);
+            toggleSolo, openCommonTab);
 
         vm.Level = vm.Track(new ParamInt(d, byPath[p + "Part Level"], vm._writer, 0, 127));
         vm.Pan = vm.Track(new ParamInt(d, byPath[p + "Part Pan"], vm._writer, -64, 63));
@@ -113,12 +121,13 @@ public sealed partial class MixerStripViewModel : ViewModelBase, IDisposable
 
     /// <summary>The external input's strip, over Studio Set Common. No pan and no output assignment: the
     /// parameters do not exist.</summary>
-    public static MixerStripViewModel ForExternal(Integra7Domain domain)
+    public static MixerStripViewModel ForExternal(Integra7Domain domain, Action<string>? openCommonTab)
     {
         const string p = "Studio Set Common/";
         var d = domain.StudioSetCommon;
         var byPath = ToDict(d);
-        var vm = new MixerStripViewModel(MixerStripKind.External, -1, "Ext", null, null);
+        // It does get the effect buttons: the input is fed to the same shared chorus and reverb as the parts.
+        var vm = new MixerStripViewModel(MixerStripKind.External, -1, "Ext", null, null, openCommonTab);
 
         vm.Level = vm.Track(new ParamInt(d, byPath[p + "Ext Part Level"], vm._writer, 0, 127));
         vm.ChorusSend =
@@ -136,7 +145,7 @@ public sealed partial class MixerStripViewModel : ViewModelBase, IDisposable
     public static MixerStripViewModel ForMaster(Integra7Domain domain)
     {
         var d = domain.System;
-        var vm = new MixerStripViewModel(MixerStripKind.Master, -1, "Master", null, null);
+        var vm = new MixerStripViewModel(MixerStripKind.Master, -1, "Master", null, null, null);
 
         // By parameter Name, not by path -- the System domain's paths are prefixed "System Common/" rather
         // than "System/", and SystemEditorViewModel resolves this domain by Name for exactly that reason.
@@ -156,6 +165,14 @@ public sealed partial class MixerStripViewModel : ViewModelBase, IDisposable
     /// mixer itself. Parameterless, so the view binds it as a command with no CommandParameter and the
     /// XAML compiler type-checks it.</summary>
     public void ToggleSolo() => _toggleSolo?.Invoke(PartNo);
+
+    /// <summary>Show the friendly Chorus editor — what the chorus this strip is sending to actually does.
+    /// The tag is the one on that TabItem in <c>MainWindow.axaml</c>; passing tags as strings is how the
+    /// friendly editors' "Advanced …" buttons already navigate.</summary>
+    public void OpenChorus() => _openCommonTab?.Invoke("COMMON-CHORUS-FRIENDLY");
+
+    /// <summary>Show the friendly Reverb editor. See <see cref="OpenChorus"/>.</summary>
+    public void OpenReverb() => _openCommonTab?.Invoke("COMMON-REVERB-FRIENDLY");
 
     /// <summary>Keep <see cref="PanLabel"/> in step with the value. A derived string over a wrapper that
     /// raises its own PropertyChanged still has to be told to re-read.</summary>
