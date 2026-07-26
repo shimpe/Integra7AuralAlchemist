@@ -88,7 +88,11 @@ public sealed record SnapshotHead(string Name, string Kind, string? ToneType, st
 
     private static SnapshotHead? ReadHead(ReadOnlySpan<byte> utf8)
     {
-        var reader = new Utf8JsonReader(utf8);
+        // A leading byte-order mark comes off first. Utf8JsonReader does not skip one, and an editor that
+        // re-saved a snapshot may well have added one -- see ByteOrderMark, which is also what
+        // Integra7Snapshot.FromJson calls, so that a marked file cannot be listed here and then refused
+        // there.
+        var reader = new Utf8JsonReader(ByteOrderMark.SkipIn(utf8));
 
         // An empty or whitespace-only file lands here: with no more data, and this being the final block,
         // Read simply answers false rather than throwing.

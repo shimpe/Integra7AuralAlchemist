@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Text.Json;
 
 namespace Integra7AuralAlchemist.Models.Services;
@@ -125,7 +126,10 @@ public sealed record Integra7Snapshot(
         Integra7Snapshot? snapshot;
         try
         {
-            snapshot = JsonSerializer.Deserialize<Integra7Snapshot>(json, Options);
+            // A leading byte-order mark comes off first, for the reason ByteOrderMark gives -- and through
+            // the same helper SnapshotHead.TryRead uses, so that the two cannot come to disagree about
+            // whether a file is a snapshot.
+            snapshot = JsonSerializer.Deserialize<Integra7Snapshot>(ByteOrderMark.SkipIn(json), Options);
         }
         catch (JsonException e)
         {
@@ -218,6 +222,51 @@ public static class SnapshotKinds
 {
     public const string StudioSet = "studio-set";
     public const string Tone = "tone";
+}
+
+/// <summary>Taking a leading UTF-8 byte-order mark off a snapshot file, so that a JSON reader never sees one.
+///
+/// <b>Why this is needed at all.</b> A byte-order mark is meaningless in UTF-8 -- there is no byte order to
+/// mark -- but it is legal, and a great deal of software on Windows writes one anyway. <c>Utf8JsonReader</c>
+/// is documented not to skip it, and JSON's own grammar does not count it as whitespace, so a reader handed
+/// those three bytes fails on the first token and reports a file that is not JSON.
+///
+/// <b>Why that matters here more than it would elsewhere.</b> This format exists to be read, diffed and
+/// hand-edited; that is the entire justification for nesting the parameter data by address and for carrying a
+/// display string beside every raw value. So these files will be opened in editors, and an editor that adds a
+/// mark on the way out turned a snapshot into a file this application refused -- silently, in the library
+/// listing, where a file that is not a snapshot is deliberately skipped so that another application's config
+/// in the same folder cannot produce an error the user can do nothing about. A user's own snapshot vanishing
+/// from that list, with nothing anywhere saying why, is the worst failure this format can have; the file was
+/// never damaged, and it was not open to being found either.
+///
+/// <b>Both entry points go through here</b> -- <see cref="Integra7Snapshot.FromJson"/> over a string and
+/// <see cref="SnapshotHead.TryRead"/> over a file's bytes -- and that is the point of the type rather than
+/// tidiness. If only one of them skipped the mark, the library would list files it cannot open or hide files
+/// it can, and a contradiction between the list and the file is worse than either answer given consistently.
+/// One helper makes agreeing structural instead of a promise in a comment.
+///
+/// <b>Only a leading mark, and only one.</b> U+FEFF anywhere else in a file is not a byte-order mark: inside
+/// a string it is a character JSON allows and the value's own text, so removing it would be this code quietly
+/// editing a name someone typed; between two tokens it is a character JSON does not allow, so the file is
+/// broken in a way no guess here can repair. Two marks in a row is the second case -- the file is broken, it
+/// stays broken, and both readers say so together.</summary>
+internal static class ByteOrderMark
+{
+    /// <summary>The mark as a character, which is what a string entry point sees when whoever decoded the
+    /// file did not strip the preamble. <c>File.ReadAllText</c> does strip it, which is why the application's
+    /// own Load Studio Set never met this; <c>Encoding.UTF8.GetString</c> over the same bytes does not, and a
+    /// format is not entitled to assume which one a future caller picks.</summary>
+    private const char Character = '\uFEFF';
+
+    /// <summary>And as bytes. Taken from the encoding rather than written out as EF BB BF so that it cannot be
+    /// mistyped, and so that it reads as what it is: the preamble UTF-8 puts at the front of a file.</summary>
+    private static ReadOnlySpan<byte> Preamble => Encoding.UTF8.Preamble;
+
+    public static string SkipIn(string json) => json.Length > 0 && json[0] == Character ? json[1..] : json;
+
+    public static ReadOnlySpan<byte> SkipIn(ReadOnlySpan<byte> utf8) =>
+        utf8.StartsWith(Preamble) ? utf8[Preamble.Length..] : utf8;
 }
 
 /// <summary>A snapshot file that cannot be read. Carries a message meant for the user.</summary>
