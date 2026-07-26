@@ -180,8 +180,15 @@
                                 </Button.IsEnabled>
                                 Load Studio Set…
                             </Button>
+                            <!-- "Add to library", not "Save Tone…", which was a syllable away from "Export
+                                 Tone…" beside it and told the user nothing about the difference. This
+                                 label names the destination, which is the only thing that differs between
+                                 the two: both read the same blocks out of the same part.
+                                 Note it also stops colliding with "Save User Tone" to its left, which
+                                 writes into the instrument's own memory rather than to a file — two
+                                 different meanings of "save" that were sitting side by side. -->
                             <Button Command="{Binding SaveToneAsync}"
-                                    ToolTip.Tip="Read the tone currently loaded into the selected part — every one of its parameters — and save it into the library.">
+                                    ToolTip.Tip="Read the tone currently loaded into the selected part — every one of its parameters — and add it to the library, with a name, category, tags and a rating.">
                                 <Button.IsEnabled>
                                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                                         <MultiBinding.Bindings>
@@ -191,7 +198,7 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Save Tone…
+                                Add to library
                             </Button>
                             <Button Command="{Binding ExportToneAsync}"
                                     ToolTip.Tip="Read the tone currently loaded into the selected part and write it to a file anywhere you like, outside the library.">
