@@ -26,46 +26,84 @@ public readonly record struct LayerZone(
 /// horizontally by key and vertically by velocity, so which parts answer a given key is read down a column
 /// and how loudly each answers is read within its own row.
 ///
-/// The control on top of this should contain no arithmetic: it turns pointer events into calls here and
-/// drawing calls out of the results. That is not tidiness — it is the only layer of this feature a test can
-/// reach, since there is no headless-Avalonia harness in this repository.</summary>
+/// **Heights here are the lane area, not the control.** The chart reserves <see cref="AxisHeight"/> along the
+/// bottom for note names, and every function below except <see cref="LaneAreaHeight"/> and
+/// <see cref="MinHeight"/> takes the height of the lanes alone. A caller works out
+/// <c>LaneAreaHeight(Bounds.Height)</c> once and passes that everywhere; passing <c>Bounds.Height</c> instead
+/// draws and hit-tests everything a fraction of a lane low, consistently enough to look like imprecision
+/// rather than a mistake. That is the one thing a caller of this class can get wrong, which is why the
+/// parameter is called <c>laneAreaH</c> and not <c>h</c>.
+///
+/// The control on top of this should contain no arithmetic and no measurement of its own: it turns pointer
+/// events into calls here and drawing calls out of the results. That is not tidiness — it is the only layer of
+/// this feature a test can reach, since there is no headless-Avalonia harness in this repository.</summary>
 public static class LayerMapGeometry
 {
     /// <summary>Lanes, one per part.</summary>
     public const int Lanes = Constants.NO_OF_PARTS;
 
-    /// <summary>The least a lane can be and still work: about a line of text tall, which also leaves roughly
-    /// twelve pixels of body between two four-pixel velocity grab margins. Below this the top and bottom
-    /// handles of a full-lane zone meet in the middle and the zone stops being draggable.</summary>
+    /// <summary>The least a lane can be and still work. See <see cref="HitMargin"/>, which this is tied to:
+    /// twenty pixels is about a line of text tall and leaves twelve pixels of grabbable body between two
+    /// four-pixel velocity handles.</summary>
     public const double MinLaneHeight = 20;
 
-    /// <summary>What the view must give the chart. Here rather than typed into XAML so it cannot drift from
-    /// the lane height the rest of this class assumes.</summary>
-    public static double MinHeight => Lanes * MinLaneHeight;
+    /// <summary>How near an edge counts as grabbing it, passed to <see cref="HitTest"/>.
+    ///
+    /// Four, deliberately not the six <c>PmtZoneEditorControl</c> uses. That control draws four zones over the
+    /// chart's whole height, so its zones are hundreds of pixels tall and six pixels is a sliver of one. Here a
+    /// zone is a single lane tall, and since a part's default velocity range is the full 0..127 the usual zone
+    /// fills its lane exactly: at six, a twenty-pixel lane would be twelve pixels of velocity handle around
+    /// eight pixels of body, so most presses inside a zone would start a resize instead of selecting or
+    /// auditioning it.
+    ///
+    /// Four is the largest margin that keeps a full-lane zone's body (<c>MinLaneHeight - 2 * HitMargin</c>,
+    /// twelve) larger than its two handles together (<c>2 * HitMargin</c>, eight). A test pins that inequality,
+    /// so raising this forces a matching rise in <see cref="MinLaneHeight"/> rather than quietly producing a
+    /// lane that is mostly handle.</summary>
+    public const double HitMargin = 4;
+
+    /// <summary>The strip along the bottom of the chart that holds the note names, below the lanes.
+    ///
+    /// It lives here rather than in the control because both the drawing and the pointer handling have to
+    /// subtract the identical value — if they disagree by even a pixel, every drag lands a fraction of a lane
+    /// off the zone it is drawn on.</summary>
+    public const double AxisHeight = 16;
+
+    /// <summary>The total height a control needs: sixteen legible lanes **and** the note-name strip. A control
+    /// exactly this tall gets full-height lanes, so this is the number to hand to <c>MinHeight</c> as-is — do
+    /// not add the strip again.</summary>
+    public static double MinHeight => Lanes * MinLaneHeight + AxisHeight;
+
+    /// <summary>The height the lanes tile, given the control's total height: everything above the note-name
+    /// strip. **The only function here that takes a total height.** Floored at zero, so a control briefly
+    /// measured smaller than its strip produces an empty chart rather than negative geometry.</summary>
+    public static double LaneAreaHeight(double totalHeight) => Math.Max(0, totalHeight - AxisHeight);
 
     /// <summary>The whole of one part's row.</summary>
-    public static PmtZoneMapping.Rect LaneRect(int part, double w, double h)
+    public static PmtZoneMapping.Rect LaneRect(int part, double w, double laneAreaH)
     {
-        var laneH = h / Lanes;
+        var laneH = laneAreaH / Lanes;
         return new PmtZoneMapping.Rect(0, part * laneH, w, laneH);
     }
 
     /// <summary>Which part's lane contains <paramref name="y"/>, or null when the point is off the chart.
     /// Null rather than clamped: a pointer that leaves the chart must stop the drag it was doing, not carry on
-    /// editing the nearest part.</summary>
-    public static int? LaneAt(double y, double h)
+    /// editing the nearest part. A y in the note-name strip is off the chart by this reckoning, which is what
+    /// stops a press on the axis from editing part 16.</summary>
+    public static int? LaneAt(double y, double laneAreaH)
     {
-        if (h <= 0 || y < 0 || y >= h) return null;
-        var lane = (int)(y / (h / Lanes));
+        if (laneAreaH <= 0 || y < 0 || y >= laneAreaH) return null;
+        var lane = (int)(y / (laneAreaH / Lanes));
         return lane < 0 || lane >= Lanes ? null : lane;
     }
 
     /// <summary>The rectangle a zone occupies: its key range horizontally, its velocity range vertically
-    /// within its own lane, loud at the top.</summary>
+    /// within its own lane, loud at the top. This overload takes the range loose, for a caller mid-drag that
+    /// has a candidate range and not yet a zone.</summary>
     public static PmtZoneMapping.Rect ZoneRect(int part, int keyLo, int keyHi, int velLo, int velHi,
-        double w, double h)
+        double w, double laneAreaH)
     {
-        var lane = LaneRect(part, w, h);
+        var lane = LaneRect(part, w, laneAreaH);
         var x = PmtZoneMapping.KeyToX(Math.Min(keyLo, keyHi), w);
         var x2 = PmtZoneMapping.KeyToX(Math.Max(keyLo, keyHi), w);
         // VelToY over the lane's own height, then offset into the lane.
@@ -74,10 +112,9 @@ public static class LayerMapGeometry
         return new PmtZoneMapping.Rect(x, yTop, x2 - x, yBot - yTop);
     }
 
-    /// <summary>The rectangle <paramref name="z"/> occupies. The overload taking loose numbers stays for
-    /// callers mid-drag, which have a candidate range and not yet a zone.</summary>
-    public static PmtZoneMapping.Rect ZoneRect(LayerZone z, double w, double h)
-        => ZoneRect(z.PartNo, z.KeyLo, z.KeyHi, z.VelLo, z.VelHi, w, h);
+    /// <summary>The rectangle <paramref name="z"/> occupies. Prefer this wherever a whole zone is in hand.</summary>
+    public static PmtZoneMapping.Rect ZoneRect(LayerZone z, double w, double laneAreaH)
+        => ZoneRect(z.PartNo, z.KeyLo, z.KeyHi, z.VelLo, z.VelHi, w, laneAreaH);
 
     /// <summary>The velocity <paramref name="y"/> names within <paramref name="part"/>'s lane. The same Y in
     /// a different lane is a different velocity, which is what makes a lane a lane.
@@ -86,33 +123,36 @@ public static class LayerMapGeometry
     /// velocity drag wants, provided the caller passes the part the drag was *captured* on and not the part
     /// <see cref="LaneAt"/> reports for the pointer's current Y: dragging past the top of the lane then pins
     /// the edge at 127 instead of quietly re-reading the value in the neighbouring part's lane.</summary>
-    public static int VelocityAt(int part, double y, double h)
+    public static int VelocityAt(int part, double y, double laneAreaH)
     {
-        var lane = LaneRect(part, 0, h);
+        var lane = LaneRect(part, 0, laneAreaH);
         return PmtZoneMapping.YToVel(y - lane.Y, lane.H);
     }
 
-    /// <summary>The key <paramref name="x"/> names. A straight pass-through, here so a caller never has to
-    /// mix the two mapping classes.</summary>
+    /// <summary>The key <paramref name="x"/> names, and its mirror. Both here so a caller never has to mix the
+    /// two mapping classes — the axis a control draws and the axis it hit-tests must be the same one.</summary>
     public static int KeyAt(double x, double w) => PmtZoneMapping.XToKey(x, w);
 
-    /// <summary>What is under the pointer: which part's lane, and which part of that part's zone.
+    /// <inheritdoc cref="KeyAt"/>
+    public static double KeyX(int key, double w) => PmtZoneMapping.KeyToX(key, w);
+
+    /// <summary>What is under the pointer: which part's lane, and which part of that part's zone. Pass
+    /// <see cref="HitMargin"/> unless there is a reason not to.
     ///
     /// The part comes from the lane, not from the zone, so a point inside a lane but outside that part's zone
     /// still names the part with <c>Handle.None</c>. That is deliberate and load-bearing: clicking an empty
     /// spot in a lane auditions *that part* at that key and velocity and hears nothing, which is how the map
     /// answers "does this part respond here?".</summary>
     public static (int? Part, PmtZoneMapping.Handle Handle) HitTest(double x, double y,
-        IReadOnlyList<LayerZone> zones, double w, double h, double margin)
+        IReadOnlyList<LayerZone> zones, double w, double laneAreaH, double margin)
     {
-        var lane = LaneAt(y, h);
+        var lane = LaneAt(y, laneAreaH);
         if (lane is not { } part) return (null, PmtZoneMapping.Handle.None);
 
         foreach (var z in zones)
         {
             if (z.PartNo != part) continue;
-            var r = ZoneRect(part, z.KeyLo, z.KeyHi, z.VelLo, z.VelHi, w, h);
-            return (part, PmtZoneMapping.HitRect(x, y, r, margin));
+            return (part, PmtZoneMapping.HitRect(x, y, ZoneRect(z, w, laneAreaH), margin));
         }
 
         return (part, PmtZoneMapping.Handle.None);
@@ -201,30 +241,30 @@ public static class LayerMapGeometry
 
     /// <summary>The band below the key range over which the part fades in: from <c>KeyLo - KeyFadeLo</c> up to
     /// <c>KeyLo</c>, clipped at key 0, over the zone's own velocity extent.</summary>
-    public static PmtZoneMapping.Rect KeyFadeLowerRect(LayerZone z, double w, double h)
+    public static PmtZoneMapping.Rect KeyFadeLowerRect(LayerZone z, double w, double laneAreaH)
     {
-        var body = ZoneRect(z, w, h);
+        var body = ZoneRect(z, w, laneAreaH);
         var from = PmtZoneMapping.Clamp(Math.Min(z.KeyLo, z.KeyHi) - z.KeyFadeLo);
-        var x = PmtZoneMapping.KeyToX(from, w);
+        var x = KeyX(from, w);
         return new PmtZoneMapping.Rect(x, body.Y, body.X - x, body.H);
     }
 
     /// <summary>The band above the key range over which the part fades out: from <c>KeyHi</c> up to
     /// <c>KeyHi + KeyFadeHi</c>, clipped at key 127.</summary>
-    public static PmtZoneMapping.Rect KeyFadeUpperRect(LayerZone z, double w, double h)
+    public static PmtZoneMapping.Rect KeyFadeUpperRect(LayerZone z, double w, double laneAreaH)
     {
-        var body = ZoneRect(z, w, h);
+        var body = ZoneRect(z, w, laneAreaH);
         var to = PmtZoneMapping.Clamp(Math.Max(z.KeyLo, z.KeyHi) + z.KeyFadeHi);
         var x = body.X + body.W;
-        return new PmtZoneMapping.Rect(x, body.Y, PmtZoneMapping.KeyToX(to, w) - x, body.H);
+        return new PmtZoneMapping.Rect(x, body.Y, KeyX(to, w) - x, body.H);
     }
 
     /// <summary>The band below the velocity range over which the part fades in — which is *below* the zone in
     /// the lane, because loud is up. Clipped at velocity 0, i.e. at the bottom of the lane.</summary>
-    public static PmtZoneMapping.Rect VelFadeLowerRect(LayerZone z, double w, double h)
+    public static PmtZoneMapping.Rect VelFadeLowerRect(LayerZone z, double w, double laneAreaH)
     {
-        var body = ZoneRect(z, w, h);
-        var lane = LaneRect(z.PartNo, w, h);
+        var body = ZoneRect(z, w, laneAreaH);
+        var lane = LaneRect(z.PartNo, w, laneAreaH);
         var from = PmtZoneMapping.Clamp(Math.Min(z.VelLo, z.VelHi) - z.VelFadeLo);
         var y = body.Y + body.H;
         return new PmtZoneMapping.Rect(body.X, y, body.W,
@@ -233,10 +273,10 @@ public static class LayerMapGeometry
 
     /// <summary>The band above the velocity range over which the part fades out, above the zone in the lane.
     /// Clipped at velocity 127, i.e. at the top of the lane.</summary>
-    public static PmtZoneMapping.Rect VelFadeUpperRect(LayerZone z, double w, double h)
+    public static PmtZoneMapping.Rect VelFadeUpperRect(LayerZone z, double w, double laneAreaH)
     {
-        var body = ZoneRect(z, w, h);
-        var lane = LaneRect(z.PartNo, w, h);
+        var body = ZoneRect(z, w, laneAreaH);
+        var lane = LaneRect(z.PartNo, w, laneAreaH);
         var to = PmtZoneMapping.Clamp(Math.Max(z.VelLo, z.VelHi) + z.VelFadeHi);
         var y = lane.Y + PmtZoneMapping.VelToY(to, lane.H);
         return new PmtZoneMapping.Rect(body.X, y, body.W, body.Y - y);

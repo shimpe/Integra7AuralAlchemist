@@ -269,14 +269,94 @@ public class LayerMapGeometryTests
     }
 
     [Test]
-    public void Sixteen_lanes_need_a_stated_minimum_height()
+    public void A_body_drag_past_both_bounds_at_once_still_preserves_both_spans()
     {
-        // The view sizes the chart from these, so they live beside the arithmetic that assumes them rather
-        // than being retyped in XAML.
-        Assert.That(LayerMapGeometry.MinLaneHeight, Is.EqualTo(20).Within(0.001));
+        // Both axes clamped in the same call, from an origin that is degenerate on neither -- the case a drag
+        // into the bottom-right corner of the chart actually produces.
+        var origin = new LayerZone(0, 60, 72, 40, 100, 0, 0, 0, 0, "1", "");
+        var corner = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Body, 200, 200, 66, 70);
+
+        Assert.That(corner.KeyLo, Is.EqualTo(115));
+        Assert.That(corner.KeyHi, Is.EqualTo(127));
+        Assert.That(corner.VelLo, Is.EqualTo(67));
+        Assert.That(corner.VelHi, Is.EqualTo(127));
+    }
+
+    [Test]
+    public void Hit_testing_and_LaneAt_agree_on_an_exact_lane_boundary()
+    {
+        // Sixteen full-range zones, so every lane boundary is a real edge to the parts on both sides of it.
+        var zones = new LayerZone[LayerMapGeometry.Lanes];
+        for (var i = 0; i < zones.Length; i++)
+            zones[i] = new LayerZone(i, 0, 127, 0, 127, 0, 0, 0, 0, $"{i + 1}", "");
+
+        var laneH = H / LayerMapGeometry.Lanes;
+        foreach (var lane in new[] { 1, 8, 15 })
+        {
+            var y = lane * laneH; // the pixel row two lanes share
+            Assert.That(LayerMapGeometry.LaneAt(y, H), Is.EqualTo(lane), "a boundary belongs to the lower lane");
+
+            // Through HitTest, which is the API a click goes through: it must not disagree with LaneAt about
+            // which part owns the row, or a click on a boundary would select one part and drag another.
+            var hit = LayerMapGeometry.HitTest(LayerMapGeometry.KeyX(64, W), y, zones, W, H,
+                LayerMapGeometry.HitMargin);
+            Assert.That(hit.Part, Is.EqualTo(lane));
+            Assert.That(hit.Handle, Is.EqualTo(PmtZoneMapping.Handle.Top),
+                "the loud edge of the lower part, not the soft edge of the part above");
+        }
+
+        // The very bottom of the lane area is off the chart, not part 16's lane.
+        Assert.That(LayerMapGeometry.LaneAt(H, H), Is.Null);
+        Assert.That(LayerMapGeometry.HitTest(10, H, zones, W, H, LayerMapGeometry.HitMargin).Part, Is.Null);
+    }
+
+    [Test]
+    public void The_two_ZoneRect_overloads_describe_the_same_rectangle()
+    {
+        // True by construction today; this is what stops a later edit to one of them from drifting.
+        var z = new LayerZone(9, 36, 84, 20, 110, 0, 0, 0, 0, "10", "");
+        Assert.That(LayerMapGeometry.ZoneRect(z, W, H),
+            Is.EqualTo(LayerMapGeometry.ZoneRect(z.PartNo, z.KeyLo, z.KeyHi, z.VelLo, z.VelHi, W, H)));
+    }
+
+    [Test]
+    public void The_key_axis_maps_both_ways_without_a_caller_reaching_past_this_class()
+    {
+        Assert.That(LayerMapGeometry.KeyX(0, W), Is.EqualTo(0).Within(0.001));
+        Assert.That(LayerMapGeometry.KeyX(127, W), Is.EqualTo(W).Within(0.001));
+        Assert.That(LayerMapGeometry.KeyX(60, W), Is.EqualTo(PmtZoneMapping.KeyToX(60, W)).Within(0.001));
+        Assert.That(LayerMapGeometry.KeyAt(LayerMapGeometry.KeyX(60, W), W), Is.EqualTo(60), "and round-trips");
+    }
+
+    [Test]
+    public void The_note_name_strip_comes_off_the_height_before_the_lanes_are_measured()
+    {
+        Assert.That(LayerMapGeometry.AxisHeight, Is.EqualTo(16).Within(0.001));
+        Assert.That(LayerMapGeometry.LaneAreaHeight(336), Is.EqualTo(320).Within(0.001));
+        Assert.That(LayerMapGeometry.LaneAreaHeight(10), Is.EqualTo(0).Within(0.001), "floored, never negative");
+
+        // MinHeight is a *total*, strip included, so a control that honours it gets sixteen full-height lanes
+        // and a strip -- not sixteen lanes a pixel short each.
         Assert.That(LayerMapGeometry.MinHeight,
-            Is.EqualTo(LayerMapGeometry.Lanes * LayerMapGeometry.MinLaneHeight).Within(0.001));
-        Assert.That(LayerMapGeometry.MinHeight, Is.EqualTo(H).Within(0.001),
-            "which is the height this fixture's arithmetic is written around");
+            Is.EqualTo(LayerMapGeometry.Lanes * LayerMapGeometry.MinLaneHeight + LayerMapGeometry.AxisHeight)
+                .Within(0.001));
+        Assert.That(LayerMapGeometry.LaneAreaHeight(LayerMapGeometry.MinHeight), Is.EqualTo(H).Within(0.001),
+            "and the lane area it leaves is the height this fixture's arithmetic is written around");
+    }
+
+    [Test]
+    public void A_lane_is_tall_enough_that_a_zone_can_be_grabbed_as_well_as_resized()
+    {
+        Assert.That(LayerMapGeometry.MinLaneHeight, Is.EqualTo(20).Within(0.001));
+        Assert.That(LayerMapGeometry.HitMargin, Is.EqualTo(4).Within(0.001));
+
+        // The invariant the two constants exist in: on a zone that fills its lane -- which is the default for
+        // every part -- the top and bottom velocity handles each eat HitMargin, and what is left is the only
+        // place a press can select, audition or move the zone instead of resizing it. If that body is smaller
+        // than the handles, most presses inside a zone resize it and the chart feels broken.
+        var body = LayerMapGeometry.MinLaneHeight - 2 * LayerMapGeometry.HitMargin;
+        var handles = 2 * LayerMapGeometry.HitMargin;
+        Assert.That(body, Is.GreaterThan(handles),
+            "raising HitMargin means raising MinLaneHeight to match, not shipping a lane that is all handle");
     }
 }
