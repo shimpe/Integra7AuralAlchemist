@@ -230,7 +230,7 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
     // --- Card summary ---
     public string WaveSummary => WaveNumberL.Value;
     public string LevelLabel => PartialLevel.Value.ToString();
-    public string PanLabel => PartialPan.Value == 0 ? "C" : PartialPan.Value < 0 ? $"L{-PartialPan.Value}" : $"R{PartialPan.Value}";
+    public string PanLabel => MixerFormatting.PanLabel(PartialPan.Value);
     public string FilterSummary => $"{PcmTvfRules.Abbrev(TvfFilterType.Value)} {TvfCutoff.Value}";
 
     // FilterCurveControl reads a mode string + steep flag; derive them from the TVF filter type.

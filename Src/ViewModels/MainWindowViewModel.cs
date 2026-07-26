@@ -29,6 +29,15 @@ public partial class MainWindowViewModel : ViewModelBase
     private Integra7Domain? _integra7Communicator;
     [Reactive] private MotionalSurroundViewModel? _motionalSurroundVm;
 
+    /// <summary>The mixer page. Built and replaced exactly like the Motional Surround editor, and for the
+    /// same reason: both bind to the live parameters of every part, so both are only valid once all sixteen
+    /// Studio Set Part blocks have been read.</summary>
+    [Reactive] private MixerViewModel? _mixerVm;
+
+    /// <summary>Which top-level tab is showing. Bound two-way, so the mixer's click-through can take the
+    /// user to the Parameters tab — selecting a part is no use while the Mixer tab is still in front.</summary>
+    [Reactive] private int _topTabIndex;
+
     [Reactive] private bool _isSyncing = true;
     private string _syncInfo = "";
 
@@ -911,6 +920,10 @@ public partial class MainWindowViewModel : ViewModelBase
         UserActionLog.Action("button: Rescan MIDI devices");
         MotionalSurroundVm?.Dispose();
         MotionalSurroundVm = null;
+        // The mixer holds handlers on the current PartViewModels and their presets, so it has to let go
+        // before a rescan replaces them.
+        MixerVm?.Dispose();
+        MixerVm = null;
         Integra7 = new Integra7Api(
             new MidiPort(new MidiOut(INTEGRA_CONNECTION_STRING), new MidiIn(INTEGRA_CONNECTION_STRING)));
         await Integra7.CheckIdentityAsync();
@@ -1029,6 +1042,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 MotionalSurroundVm?.Dispose();
                 MotionalSurroundVm = new MotionalSurroundViewModel(_integra7Communicator);
 
+                // Same precondition, and the mixer additionally needs the parts themselves for their tone
+                // names. Built after PartViewModels is published so it watches the list the tabs show.
+                MixerVm?.Dispose();
+                MixerVm = new MixerViewModel(_integra7Communicator, PartViewModels, OpenPartTab,
+                    OpenCommonTab);
+
                 // Fetching the user tone names costs ~10s of sysex round trips, and nothing above
                 // depends on it — the factory presets from the CSV are already in place. Let it run
                 // after the window is usable and drip the user presets into the lists as they arrive.
@@ -1040,6 +1059,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 MidiDevices = "Could not find " + INTEGRA_CONNECTION_STRING;
                 MotionalSurroundVm?.Dispose();
                 MotionalSurroundVm = null;
+                MixerVm?.Dispose();
+                MixerVm = null;
             }
 
             RescanButtonEnabled = !_connected;
@@ -1349,6 +1370,35 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Show a part's own tab: select it, and bring the Parameters tab to the front, since the
+    /// mixer is a sibling of that tab rather than inside it. The part tab strip's selection is
+    /// <see cref="CurrentPartSelection"/>, which counts the Common tab as 0, and the Parameters tab is the
+    /// first TabItem of the top-level TabControl.</summary>
+    private void OpenPartTab(int zeroBasedPartNo)
+    {
+        CurrentPartSelection = zeroBasedPartNo + 1;
+        TopTabIndex = 0;
+    }
+
+    /// <summary>Show one of the Common tab's friendly editors, named by the <c>Tag</c> on its TabItem. Used by
+    /// the mixer strips' Chorus and Reverb buttons: a strip's send knobs feed one shared chorus and one shared
+    /// reverb, and this is how the user gets from "how much of this part" to "and what does it do".
+    ///
+    /// Three moves, because the target is two levels in: the Parameters tab, then the Common part tab, then
+    /// the sub-tab itself. The last goes through <c>CommonTabKey</c>, which
+    /// <c>TabControlBehaviors.SelectTabByTag</c> watches -- cleared first, because setting the same tag twice
+    /// running would otherwise not raise and a second press of the same button would do nothing. That
+    /// clear-then-set is the same dance the friendly editors' own "Advanced …" buttons do.</summary>
+    private void OpenCommonTab(string tag)
+    {
+        if (PartViewModels is null || PartViewModels.Count == 0) return;
+
+        TopTabIndex = 0;
+        CurrentPartSelection = 0; // the Common tab
+        PartViewModels[0].CommonTabKey = "";
+        PartViewModels[0].CommonTabKey = tag;
+    }
+
     /// <summary>Initializes the part behind a tab index, reporting progress on the status bar. Runs
     /// unawaited from the selection setter, so it swallows its own failures.</summary>
     private async Task EnsureSelectedPartInitializedAsync(int tabIndex)
@@ -1548,9 +1598,20 @@ public partial class MainWindowViewModel : ViewModelBase
             if (PartViewModels != null)
                 foreach (var pvm in PartViewModels)
                 {
-                    // A part that was never opened has nothing to refresh: it reads the current state
-                    // when it is first opened, so resyncing it now would only spend round trips.
-                    if (!pvm.IsCommonTab && !pvm.WantsRefresh) continue;
+                    // A part that was never opened still has its mix state on screen: the Mixer tab shows
+                    // every part's level, pan, mute, sends and tone name whether its tab has been opened or
+                    // not. So its Studio Set Part block is re-read and its preset resolved again -- one read
+                    // per part, no tone loads (see ResyncMixStateAsync) -- and the expensive rest of a
+                    // resync, the tone domains and the partial view models, is still skipped because none of
+                    // it exists yet. Before the mixer, skipping such a part entirely was right; after it,
+                    // that left the previous Studio Set's tone names beside the new one's sounds.
+                    if (!pvm.IsCommonTab && !pvm.WantsRefresh)
+                    {
+                        SyncInfo = $"Resync part {pvm.PartNo} mix state";
+                        await pvm.ResyncMixStateAsync();
+                        continue;
+                    }
+
                     SyncInfo = $"Resync part {pvm.PartNo}";
                     await pvm.EnsurePreselectIsNotNullAsync();
                     await pvm.ResyncPartAsync((byte)pvm.PartNo);

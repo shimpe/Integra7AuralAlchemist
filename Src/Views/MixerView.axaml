@@ -1,0 +1,172 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             xmlns:behaviors="using:Integra7AuralAlchemist.Behaviors"
+             mc:Ignorable="d" d:DesignWidth="1600" d:DesignHeight="700"
+             x:Class="Integra7AuralAlchemist.Views.MixerView"
+             x:DataType="vm:MixerViewModel">
+
+    <UserControl.Resources>
+        <!-- One template, three uses: the sixteen part strips through the ItemsControl below, and the
+             external input and the master level through a ContentControl each. A ContentControl with no
+             ContentTemplate falls through to the ViewLocator in App.axaml, which looks for a
+             "MixerStripView" that does not exist and renders a not-found string, so the two single strips
+             are given this template explicitly rather than relying on an implicit lookup.
+
+             The kinds differ only in which controls exist, so the differences are Has* / IsPart
+             visibility flags on the one template — see MixerStripViewModel's class remarks.
+
+             No ToolTip anywhere in here. A tooltip is a real popup and it swallows clicks on the control
+             it describes; that cost two rounds of misclicks on the Compare button, and a mixer is nothing
+             but controls the user clicks repeatedly. See the status-bar comment in MainWindow.axaml. -->
+        <DataTemplate x:Key="MixerStripTemplate" x:DataType="vm:MixerStripViewModel">
+            <Border Background="{StaticResource SnPanelBackgroundBrush}"
+                    BorderBrush="{StaticResource SnStatusBarBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="6"
+                    Width="100">
+                <StackPanel Orientation="Vertical" Spacing="4">
+                    <TextBlock Text="{Binding Label}" FontWeight="Bold" HorizontalAlignment="Center" />
+
+                    <!-- Two lines, wrapped and clipped: a tone name is up to twelve characters and this
+                         column is 88px of content. No tooltip for the full name, per above — the Open
+                         button reaches the part's own tab, which shows it in full. -->
+                    <TextBlock Text="{Binding ToneName}" TextWrapping="Wrap" MaxLines="2"
+                               FontSize="11" Height="28" TextAlignment="Center"
+                               Foreground="{StaticResource SnMutedTextBrush}" />
+
+                    <!-- The fader. SliderGesture is what makes one drag one undo step however slowly it is
+                         made; without it the journal has only its clock to go on and a careful move lands
+                         one step per coalesce window. Snapped to ticks so the thumb sits where the integer
+                         parameter actually is rather than fighting the value pushed back at it. -->
+                    <Slider Orientation="Vertical" Height="150"
+                            HorizontalAlignment="Center"
+                            Minimum="0" Maximum="127"
+                            IsSnapToTickEnabled="True" TickFrequency="1"
+                            behaviors:SliderGesture.Enabled="True"
+                            Value="{Binding Level.Value, Mode=TwoWay}" />
+                    <TextBlock Text="{Binding Level.Value}" HorizontalAlignment="Center" FontSize="11" />
+
+                    <StackPanel Spacing="1" IsVisible="{Binding HasPan}">
+                        <controls:RotaryKnob Minimum="-64" Maximum="63"
+                                             Value="{Binding Pan.Value, Mode=TwoWay}"
+                                             AccentBrush="{StaticResource KnobPanBrush}"
+                                             HorizontalAlignment="Center" />
+                        <!-- L64..C..R63, the way the instrument's own display reads it. The knob's own box
+                             shows the raw -64..63 the parameter carries. -->
+                        <TextBlock Text="{Binding PanLabel}" HorizontalAlignment="Center" FontSize="11" />
+                    </StackPanel>
+
+                    <!-- The two sends. Each knob's caption is a button to the editor for the unit it feeds:
+                         the knob says how much of this part goes to the shared chorus or reverb, the button
+                         says what that unit does. Both buttons lead to the same two editors from every strip,
+                         because there is one chorus and one reverb per Studio Set — that is the architecture,
+                         not a duplication. Making the caption itself the button costs no vertical space and
+                         puts the destination under the knob it belongs to. -->
+                    <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center"
+                                IsVisible="{Binding HasSends}">
+                        <StackPanel Spacing="1">
+                            <Button Content="Cho" FontSize="10" Padding="4,0" MinWidth="0"
+                                    HorizontalAlignment="Center"
+                                    Foreground="{StaticResource SnMutedTextBrush}"
+                                    Command="{Binding OpenChorus}" />
+                            <controls:RotaryKnob Minimum="0" Maximum="127"
+                                                 Value="{Binding ChorusSend.Value, Mode=TwoWay}"
+                                                 AccentBrush="{StaticResource KnobFxBrush}" />
+                        </StackPanel>
+                        <StackPanel Spacing="1">
+                            <Button Content="Rev" FontSize="10" Padding="4,0" MinWidth="0"
+                                    HorizontalAlignment="Center"
+                                    Foreground="{StaticResource SnMutedTextBrush}"
+                                    Command="{Binding OpenReverb}" />
+                            <controls:RotaryKnob Minimum="0" Maximum="127"
+                                                 Value="{Binding ReverbSend.Value, Mode=TwoWay}"
+                                                 AccentBrush="{StaticResource KnobFxBrush}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- MinWidth="0" so the theme's own minimum cannot push this wider than the strip and
+                         draw outside the fixed-width Border. -->
+                    <ComboBox ItemsSource="{Binding OutputAssign.Options}"
+                              SelectedItem="{Binding OutputAssign.Value, Mode=TwoWay}"
+                              IsVisible="{Binding HasOutput}"
+                              FontSize="11" MinWidth="0" HorizontalAlignment="Stretch" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center">
+                        <ToggleButton Classes="mute" Content="M" FontSize="11"
+                                      MinWidth="30" Width="30" Padding="0"
+                                      IsVisible="{Binding HasMute}"
+                                      IsChecked="{Binding Mute.Value, Mode=TwoWay}" />
+                        <!-- Solo is one Studio Set Common parameter shared by every strip, so this asks
+                             the mixer to toggle it rather than owning a switch of its own: IsChecked is
+                             one-way out of IsSoloed, which the mixer sets on all sixteen strips whenever
+                             the parameter moves, and the press goes to the strip's parameterless
+                             ToggleSolo. That method binding is compiled and type-checked; the ancestor
+                             binding it replaces would have resolved at runtime only, and there is no
+                             ItemsControl above the two single strips for it to have found. -->
+                        <ToggleButton Classes="solo" Content="S" FontSize="11"
+                                      MinWidth="30" Width="30" Padding="0"
+                                      IsVisible="{Binding IsPart}"
+                                      IsChecked="{Binding IsSoloed, Mode=OneWay}"
+                                      Command="{Binding ToggleSolo}" />
+                    </StackPanel>
+
+                    <Button Content="Open" FontSize="11" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center" Padding="0,2"
+                            IsVisible="{Binding IsPart}"
+                            Command="{Binding OpenPart}" />
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <UserControl.Styles>
+        <!-- The same S/M colouring the tone editors use, so a lit button means the same thing everywhere. -->
+        <Style Selector="ToggleButton.solo:checked">
+            <Setter Property="Background" Value="{StaticResource SnSoloBrush}" />
+        </Style>
+        <Style Selector="ToggleButton.mute:checked">
+            <Setter Property="Background" Value="{StaticResource SnMuteBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <!-- Eighteen strips is about 1900px, so the scroller is not optional. Avalonia's scrollbar floats over
+         the content rather than reserving space for itself, so the bottom padding is what keeps it off the
+         last row of controls. -->
+    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                  Padding="8,8,8,20">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+
+            <!-- Master first, hard left, and outside the scrolling company of the parts in every sense that
+                 matters: it is a System parameter, not a Studio Set one, so it is global, it survives a
+                 Studio Set change, and a Studio Set snapshot does not capture it. Left of everything is also
+                 where it stays visible longest as the parts scroll past. The rule after it is what stops it
+                 reading as channel zero of the Studio Set; the strip's own caption says which it is. -->
+            <ContentControl Content="{Binding MasterStrip}"
+                            ContentTemplate="{StaticResource MixerStripTemplate}" />
+            <Rectangle Width="1" VerticalAlignment="Stretch" Margin="6,0"
+                       Fill="{StaticResource SnStatusBarBorderBrush}" />
+
+            <!-- The sixteen part strips. -->
+            <ItemsControl ItemsSource="{Binding PartStrips}"
+                          ItemTemplate="{StaticResource MixerStripTemplate}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" Spacing="6" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+
+            <!-- The external audio input: a strip's worth of Studio Set Common parameters for whatever is
+                 plugged into the back. It sits with the parts rather than with Master because it is one of
+                 them in every way that counts — a Studio Set parameter, fed to the same chorus and reverb
+                 buses. No pan and no output assignment, because those parameters do not exist. -->
+            <ContentControl Content="{Binding ExternalStrip}"
+                            ContentTemplate="{StaticResource MixerStripTemplate}" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

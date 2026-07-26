@@ -91,7 +91,9 @@
             </StackPanel>
         </Border>
 
-        <TabControl Grid.Column="0" Grid.Row="1">
+        <!-- SelectedIndex is bound so the Mixer's Open button can bring the Parameters tab to the front:
+             selecting a part inside it is no use while the Mixer tab is still showing. -->
+        <TabControl Grid.Column="0" Grid.Row="1" SelectedIndex="{Binding TopTabIndex, Mode=TwoWay}">
             <TabItem Header="Parameters">
                 <Grid ColumnDefinitions="*"
                       RowDefinitions="Auto,*">
@@ -244,10 +246,16 @@
                                             <TabItem Header="Common">
                                                 <local:StudioSetCommonEditorView DataContext="{Binding StudioSetCommonEditor}" />
                                             </TabItem>
-                                            <TabItem Header="Chorus">
+                                            <!-- Tagged so the Mixer tab's strips can navigate here: a strip's
+                                                 send knobs say how much of a part is fed to the one shared
+                                                 chorus and the one shared reverb, and these are the editors
+                                                 for what those units do. The "-FRIENDLY" suffix keeps them
+                                                 apart from COMMON-CHORUS / COMMON-REVERB, which are the raw
+                                                 grids for the same domains under Advanced. -->
+                                            <TabItem Header="Chorus" Tag="COMMON-CHORUS-FRIENDLY">
                                                 <local:StudioSetEffectEditorView DataContext="{Binding StudioSetChorusEditor}" />
                                             </TabItem>
-                                            <TabItem Header="Reverb">
+                                            <TabItem Header="Reverb" Tag="COMMON-REVERB-FRIENDLY">
                                                 <local:StudioSetEffectEditorView DataContext="{Binding StudioSetReverbEditor}" />
                                             </TabItem>
                                             <TabItem Header="Master EQ">
@@ -579,8 +587,18 @@
                     </TabControl>
                 </Grid>
             </TabItem>
-            <TabItem Header="SRX Loader">
-                <local:SrxSelector />
+            <!-- Order: Parameters, Mixer, Motional Surround, SRX Loader — how often each is reached for,
+                 most first. Parameters stays index 0 because OpenPartTab and OpenCommonTab navigate to it by
+                 index; nothing else in the application depends on the position of any of the others. -->
+            <TabItem Header="Mixer">
+                <Panel>
+                    <Panel IsVisible="{Binding MixerVm, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
+                        <local:MixerView DataContext="{Binding MixerVm}" />
+                    </Panel>
+                    <TextBlock Text="Connect to your Integra-7 to use the mixer."
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               IsVisible="{Binding MixerVm, Converter={x:Static conv:ObjectConverters.IsNull}}" />
+                </Panel>
             </TabItem>
             <TabItem Header="Motional Surround">
                 <Panel>
@@ -591,6 +609,9 @@
                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                IsVisible="{Binding MotionalSurroundVm, Converter={x:Static conv:ObjectConverters.IsNull}}" />
                 </Panel>
+            </TabItem>
+            <TabItem Header="SRX Loader">
+                <local:SrxSelector />
             </TabItem>
         </TabControl>
 
