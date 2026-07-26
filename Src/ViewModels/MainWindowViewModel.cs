@@ -1598,9 +1598,20 @@ public partial class MainWindowViewModel : ViewModelBase
             if (PartViewModels != null)
                 foreach (var pvm in PartViewModels)
                 {
-                    // A part that was never opened has nothing to refresh: it reads the current state
-                    // when it is first opened, so resyncing it now would only spend round trips.
-                    if (!pvm.IsCommonTab && !pvm.WantsRefresh) continue;
+                    // A part that was never opened still has its mix state on screen: the Mixer tab shows
+                    // every part's level, pan, mute, sends and tone name whether its tab has been opened or
+                    // not. So its Studio Set Part block is re-read and its preset resolved again -- one read
+                    // per part, no tone loads (see ResyncMixStateAsync) -- and the expensive rest of a
+                    // resync, the tone domains and the partial view models, is still skipped because none of
+                    // it exists yet. Before the mixer, skipping such a part entirely was right; after it,
+                    // that left the previous Studio Set's tone names beside the new one's sounds.
+                    if (!pvm.IsCommonTab && !pvm.WantsRefresh)
+                    {
+                        SyncInfo = $"Resync part {pvm.PartNo} mix state";
+                        await pvm.ResyncMixStateAsync();
+                        continue;
+                    }
+
                     SyncInfo = $"Resync part {pvm.PartNo}";
                     await pvm.EnsurePreselectIsNotNullAsync();
                     await pvm.ResyncPartAsync((byte)pvm.PartNo);

@@ -141,6 +141,16 @@
                   Padding="8,8,8,20">
         <StackPanel Orientation="Horizontal" Spacing="6">
 
+            <!-- Master first, hard left, and outside the scrolling company of the parts in every sense that
+                 matters: it is a System parameter, not a Studio Set one, so it is global, it survives a
+                 Studio Set change, and a Studio Set snapshot does not capture it. Left of everything is also
+                 where it stays visible longest as the parts scroll past. The rule after it is what stops it
+                 reading as channel zero of the Studio Set; the strip's own caption says which it is. -->
+            <ContentControl Content="{Binding MasterStrip}"
+                            ContentTemplate="{StaticResource MixerStripTemplate}" />
+            <Rectangle Width="1" VerticalAlignment="Stretch" Margin="6,0"
+                       Fill="{StaticResource SnStatusBarBorderBrush}" />
+
             <!-- The sixteen part strips. -->
             <ItemsControl ItemsSource="{Binding PartStrips}"
                           ItemTemplate="{StaticResource MixerStripTemplate}">
@@ -152,18 +162,10 @@
             </ItemsControl>
 
             <!-- The external audio input: a strip's worth of Studio Set Common parameters for whatever is
-                 plugged into the back. No pan and no output assignment, because the parameters do not
-                 exist. -->
+                 plugged into the back. It sits with the parts rather than with Master because it is one of
+                 them in every way that counts — a Studio Set parameter, fed to the same chorus and reverb
+                 buses. No pan and no output assignment, because those parameters do not exist. -->
             <ContentControl Content="{Binding ExternalStrip}"
-                            ContentTemplate="{StaticResource MixerStripTemplate}" />
-
-            <!-- Master is a System parameter, not a Studio Set one: it is global, it survives a Studio Set
-                 change, and a Studio Set snapshot does not capture it. The rule is drawn so it does not
-                 read as the eighteenth channel of the Studio Set on screen; the strip's own caption says
-                 which it is. -->
-            <Rectangle Width="1" VerticalAlignment="Stretch" Margin="6,0"
-                       Fill="{StaticResource SnStatusBarBorderBrush}" />
-            <ContentControl Content="{Binding MasterStrip}"
                             ContentTemplate="{StaticResource MixerStripTemplate}" />
         </StackPanel>
     </ScrollViewer>

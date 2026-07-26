@@ -1380,21 +1380,36 @@ public partial class PartViewModel : ViewModelBase
             return;
 
         if (!IsCommonTab)
-        {
-            var answered = await _i7domain.StudioSetPart(PartNo).ReadFromIntegraAsync();
-            List<FullyQualifiedParameter> p_part = _i7domain.StudioSetPart(PartNo).GetRelevantParameters(true, true);
-            _sourceCacheStudioSetPartParameters.AddOrUpdate(p_part);
-            // See EnsurePreselectIsNotNullAsync: a preset derived from a failed read is a claim about
-            // the device that the device never made.
-            if (answered)
-                PreSelectConfiguredPreset(_i7domain.StudioSetPart(PartNo));
-            else
-                Log.Warning("Part {Part}: not preselecting a preset, the device did not answer.", PartNo);
-        }
+            await ResyncMixStateAsync();
         else
-        {
             await InitializeCommonTabAsync();
-        }
+    }
+
+    /// <summary>Read this part's Studio Set Part block and resolve the preset it names — the two things a
+    /// part shows even when its own tab has never been opened.
+    ///
+    /// Startup calls this for every part, through <see cref="InitializeParameterSourceCachesAsync"/>. So does
+    /// a Studio Set change, which is why it is a method of its own: the Mixer tab shows all sixteen parts'
+    /// level, pan, mute, sends and tone name whether their tabs have been opened or not, and before the mixer
+    /// existed an unopened part genuinely had nothing on screen to refresh. Now it does, and leaving it stale
+    /// showed the previous Studio Set's tone names next to the new one's sounds.
+    ///
+    /// One read per part, and no more: a preset the device reports on a part that has never been opened does
+    /// not start a tone load (<c>PartLoadState.RequestPreset</c> answers <c>Reload=false</c> unless the part
+    /// has reached Loaded or has one owed), so this costs exactly what it costs at startup.</summary>
+    public async Task ResyncMixStateAsync()
+    {
+        if (_i7domain is null || IsCommonTab) return;
+
+        var answered = await _i7domain.StudioSetPart(PartNo).ReadFromIntegraAsync();
+        List<FullyQualifiedParameter> p_part = _i7domain.StudioSetPart(PartNo).GetRelevantParameters(true, true);
+        _sourceCacheStudioSetPartParameters.AddOrUpdate(p_part);
+        // See EnsurePreselectIsNotNullAsync: a preset derived from a failed read is a claim about
+        // the device that the device never made.
+        if (answered)
+            PreSelectConfiguredPreset(_i7domain.StudioSetPart(PartNo));
+        else
+            Log.Warning("Part {Part}: not preselecting a preset, the device did not answer.", PartNo);
     }
 
     /// <summary>Everything this part needs that its own tab has to be open to show: its MIDI and EQ
