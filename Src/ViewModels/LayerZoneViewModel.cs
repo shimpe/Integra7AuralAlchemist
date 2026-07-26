@@ -148,8 +148,8 @@ public sealed class LayerZoneViewModel : ViewModelBase, IDisposable
         VelFadeLo.Value, VelFadeHi.Value,
         Label, ToneName);
 
-    /// <summary>Write the values in <paramref name="target"/> that differ from the ones held now, and only
-    /// those.
+    /// <summary>Write the values in <paramref name="target"/> that a drag on <paramref name="handle"/> is entitled
+    /// to write <i>and</i> that actually differ from the ones held now. Nothing else.
     ///
     /// <para><c>LayerMapControl</c> raises the whole zone on every pointer move that resolves to new
     /// values — deliberately, so every rule about what a drag means lives in one tested function — which makes
@@ -157,16 +157,29 @@ public sealed class LayerZoneViewModel : ViewModelBase, IDisposable
     /// trip and an undo entry, so a key drag that also rewrote the velocity range would spend traffic on values
     /// that did not move and leave the user pressing Undo twice for one gesture.
     /// <see cref="LayerZoneChanges.Between"/> names the difference, in a class a test can reach; its own comment
-    /// explains why leaving the job to <see cref="ParamInt"/>'s no-op guard is not the same thing.</para></summary>
-    public void Apply(LayerZone target)
+    /// explains why leaving the job to <see cref="ParamInt"/>'s no-op guard is not the same thing.</para>
+    ///
+    /// <para><b>Both halves, and the intersection of them.</b> The mask says what this drag is <i>allowed</i> to
+    /// write and the diff says what actually <i>needs</i> writing, and neither substitutes for the other. Without
+    /// the mask, the seven fields the control carries at their press-time values become writes that revert
+    /// whatever the instrument reported mid-drag — a front-panel edit, or a Studio Set change resyncing all
+    /// sixteen parts; <see cref="LayerZoneChanges.FieldsFor"/> spells that scenario out. Without the diff, every
+    /// move of a body drag would write all four range values whether they moved or not, which is the round trips
+    /// and the undo no-ops back again.</para></summary>
+    public void Apply(LayerZone target, PmtZoneMapping.Handle handle)
     {
-        var changed = LayerZoneChanges.Between(Snapshot(), target);
+        var changed = LayerZoneChanges.Between(Snapshot(), target) & LayerZoneChanges.FieldsFor(handle);
         if (changed == LayerZoneField.None) return;
 
         // Written in the order the fields are declared, which has no significance: these are eight independent
         // parameters at eight addresses, each throttled under its own key, and none of them constrains another
         // on this side. ResolveDrag has already guaranteed lo <= hi, so there is no intermediate state here that
         // a device could object to.
+        //
+        // The four fade lines below are unreachable today, because no handle owns a fade field -- the map draws
+        // fades and does not drag them. They stay because FieldsFor promises that adding fade dragging is a
+        // change to FieldsFor "and nowhere else", and deleting them would quietly make that false: the new mask
+        // would pass the flag and this method would drop the edit without a word.
         if (changed.HasFlag(LayerZoneField.KeyLo)) KeyLo.Value = target.KeyLo;
         if (changed.HasFlag(LayerZoneField.KeyHi)) KeyHi.Value = target.KeyHi;
         if (changed.HasFlag(LayerZoneField.VelLo)) VelLo.Value = target.VelLo;

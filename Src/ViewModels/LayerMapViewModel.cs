@@ -18,9 +18,10 @@ namespace Integra7AuralAlchemist.ViewModels;
 /// Set Part tab and a drag on this chart all reach every other view of the same value by themselves, and this
 /// page needs no spinner and no load state.</para>
 ///
-/// <para>It knows nothing about <c>LayerMapControl</c>. The control's three events carry either a
-/// <see cref="LayerZone"/> — which lives in <c>Models/Services</c> beside the geometry, not in the control — or
-/// plain integers, so the view's code-behind unpacks each event and calls the matching method here. That keeps
+/// <para>It knows nothing about <c>LayerMapControl</c>. Everything the control's three events carry lives in
+/// <c>Models/Services</c> beside the geometry rather than in the control — a <see cref="LayerZone"/>, a
+/// <see cref="PmtZoneMapping.Handle"/>, plain integers — so the view's code-behind unpacks each event and calls
+/// the matching method here. That keeps
 /// the one direction of dependency this codebase has (views know view models; view models know neither views nor
 /// controls) and means nothing in this file would have to change if the chart were replaced.</para></summary>
 public sealed class LayerMapViewModel : ViewModelBase, IDisposable
@@ -148,22 +149,28 @@ public sealed class LayerMapViewModel : ViewModelBase, IDisposable
 
     /// <summary>Write a dragged zone's values to the instrument.
     ///
-    /// <para>Takes the <see cref="LayerZone"/> out of the chart's <c>ZoneEdited</c> event rather than the event
-    /// arguments themselves, so this class stays clear of the control's namespace: the view's code-behind writes
-    /// <c>vm.ApplyEdit(e.Zone)</c>. The zone carries its own part number, because the drag was captured on one
-    /// part and stays on it however far the pointer wanders — re-deriving the part from the pointer's current
-    /// lane is exactly the bug the control's comments warn about, so the part travels with the values.</para>
+    /// <para>Takes the <see cref="LayerZone"/> and the handle out of the chart's <c>ZoneEdited</c> event rather
+    /// than the event arguments themselves, so this class stays clear of the control's namespace: the view's
+    /// code-behind writes <c>vm.ApplyEdit(e.Zone, e.Handle)</c>. The zone carries its own part number, because
+    /// the drag was captured on one part and stays on it however far the pointer wanders — re-deriving the part
+    /// from the pointer's current lane is exactly the bug the control's comments warn about, so the part travels
+    /// with the values.</para>
     ///
-    /// <para>Only the values that actually changed are written; see <see cref="LayerZoneViewModel.Apply"/> and
-    /// <see cref="LayerZoneChanges"/> for why that matters and why it is not left to the wrapper's own no-op
-    /// guard.</para></summary>
-    public void ApplyEdit(LayerZone zone)
+    /// <para>Only the values that actually changed are written, and only those the handle owns; see
+    /// <see cref="LayerZoneViewModel.Apply"/> and <see cref="LayerZoneChanges"/> for why both halves are needed
+    /// and why neither is left to the wrapper's own no-op guard.</para>
+    ///
+    /// <para><paramref name="handle"/> comes straight off the event, and passing it on is not optional: the zone
+    /// carries the drag's <i>press-time</i> values in the seven fields it is not moving, so without the handle to
+    /// confine the write, a value the instrument changed mid-drag would be reverted to what it was when the
+    /// pointer went down. <see cref="LayerZoneChanges.FieldsFor"/> spells the scenario out.</para></summary>
+    public void ApplyEdit(LayerZone zone, PmtZoneMapping.Handle handle)
     {
         // A snapshot for a part outside 0..15 cannot be written anywhere sensible. It should not arrive -- the
         // control only ever raises zones it was given -- but the alternative to checking is an index out of
         // range in the middle of a drag.
         if (zone.PartNo < 0 || zone.PartNo >= _zones.Count) return;
-        _zones[zone.PartNo].Apply(zone);
+        _zones[zone.PartNo].Apply(zone, handle);
     }
 
     /// <summary>Show a part's own tab: what a double-click on its lane means.</summary>

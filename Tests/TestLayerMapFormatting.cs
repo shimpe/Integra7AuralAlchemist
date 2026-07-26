@@ -124,7 +124,68 @@ public class LayerZoneChangesTests
         var edited = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Left,
             keyNow: 48, velNow: 20, keyAtPress: 60, velAtPress: 64);
 
-        Assert.That(LayerZoneChanges.Between(origin, edited), Is.EqualTo(LayerZoneField.KeyLo));
+        // The same expression LayerZoneViewModel.Apply evaluates: what differs, confined to what the handle owns.
+        Assert.That(LayerZoneChanges.Between(origin, edited) & LayerZoneChanges.FieldsFor(PmtZoneMapping.Handle.Left),
+            Is.EqualTo(LayerZoneField.KeyLo));
+    }
+
+    [Test]
+    public void Each_handle_owns_exactly_the_values_its_drag_can_move()
+    {
+        Assert.That(LayerZoneChanges.FieldsFor(PmtZoneMapping.Handle.Left), Is.EqualTo(LayerZoneField.KeyLo));
+        Assert.That(LayerZoneChanges.FieldsFor(PmtZoneMapping.Handle.Right), Is.EqualTo(LayerZoneField.KeyHi));
+        // Loud is up, so the lane's top edge is the *upper* velocity and its bottom edge the lower one -- the
+        // same pairing ResolveDrag uses for those two handles. Swapped, a drag on the top edge would write the
+        // bottom one's parameter, which is a bug no amount of correct geometry would show.
+        Assert.That(LayerZoneChanges.FieldsFor(PmtZoneMapping.Handle.Top), Is.EqualTo(LayerZoneField.VelHi));
+        Assert.That(LayerZoneChanges.FieldsFor(PmtZoneMapping.Handle.Bottom), Is.EqualTo(LayerZoneField.VelLo));
+        Assert.That(LayerZoneChanges.FieldsFor(PmtZoneMapping.Handle.Body),
+            Is.EqualTo(LayerZoneField.KeyLo | LayerZoneField.KeyHi | LayerZoneField.VelLo | LayerZoneField.VelHi),
+            "a body drag moves the zone bodily, so it owns all four range values and only those");
+        // A press on the empty part of a lane is a question the chart answers by sounding a note. It is never an
+        // edit, so it may write nothing at all.
+        Assert.That(LayerZoneChanges.FieldsFor(PmtZoneMapping.Handle.None), Is.EqualTo(LayerZoneField.None));
+    }
+
+    [Test]
+    public void No_handle_owns_a_fade_field()
+    {
+        // The invariant, not an omission: the map draws fades and does not drag them -- the four knobs are on the
+        // part's own Set Part tab -- so no drag on this chart may ever write one. Asserted over every handle
+        // there is, so adding a handle without deciding this cannot pass.
+        const LayerZoneField fades = LayerZoneField.KeyFadeLo | LayerZoneField.KeyFadeHi |
+                                     LayerZoneField.VelFadeLo | LayerZoneField.VelFadeHi;
+
+        foreach (var handle in Enum.GetValues<PmtZoneMapping.Handle>())
+            Assert.That(LayerZoneChanges.FieldsFor(handle) & fades, Is.EqualTo(LayerZoneField.None),
+                $"{handle} must not be able to write a fade width");
+    }
+
+    [Test]
+    public void A_change_arriving_mid_drag_cannot_be_reverted_by_the_next_pointer_move()
+    {
+        // The bug the mask exists for, in full. The user is holding a drag on this part's left edge; the zone the
+        // drag started from has Velocity Fade Width Lower at 10.
+        var origin = Zone(velFadeLo: 10);
+
+        // Mid-drag, something else changes that part: a front-panel edit, or a Studio Set change, which resyncs
+        // all sixteen parts. The live value is now 20 -- and the drag knows nothing about it, because it resolves
+        // from the press-time zone on purpose, so that a slow gesture cannot accumulate drift.
+        var live = Zone(velFadeLo: 20);
+
+        var edited = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Left,
+            keyNow: 48, velNow: 20, keyAtPress: 60, velAtPress: 64);
+        Assert.That(edited.VelFadeLo, Is.EqualTo(10), "the raise still carries the press-time fade width");
+
+        // Diffed against live, that stale 10 reads as a change -- and writing it would silently push the fade
+        // width back to what it was before the instrument reported 20, for a field the user never touched. This
+        // assertion is the defect, stated so that it stays visible.
+        Assert.That(LayerZoneChanges.Between(live, edited).HasFlag(LayerZoneField.VelFadeLo), Is.True,
+            "the diff alone would write back a value the drag never moved");
+
+        // Confined by the handle, the write is the one field the gesture is actually about.
+        Assert.That(LayerZoneChanges.Between(live, edited) & LayerZoneChanges.FieldsFor(PmtZoneMapping.Handle.Left),
+            Is.EqualTo(LayerZoneField.KeyLo));
     }
 
     [Test]
@@ -140,7 +201,9 @@ public class LayerZoneChangesTests
 
         Assert.That(edited.KeyLo, Is.EqualTo(61), "shifted by the one key the pointer crossed");
         Assert.That(edited.KeyHi, Is.EqualTo(73));
-        Assert.That(LayerZoneChanges.Between(origin, edited),
+        // A body drag's mask is four fields wide, so this saving is the diff's and not the mask's -- which is why
+        // Apply needs both halves and not just the mask.
+        Assert.That(LayerZoneChanges.Between(origin, edited) & LayerZoneChanges.FieldsFor(PmtZoneMapping.Handle.Body),
             Is.EqualTo(LayerZoneField.KeyLo | LayerZoneField.KeyHi));
     }
 }

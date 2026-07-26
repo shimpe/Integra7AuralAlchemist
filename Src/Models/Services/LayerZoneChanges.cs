@@ -34,7 +34,12 @@ public enum LayerZoneField
 /// it is handed equals the value it holds, so a redundant write is cheap today. It is still wrong to make one:
 /// that early return is another class's implementation detail, it is the wrong place to express an intention
 /// about drags, and it says nothing in a test. Naming the changed fields here says what the map means, and
-/// leaves the wrappers to be wrappers.</para></summary>
+/// leaves the wrappers to be wrappers.</para>
+///
+/// <para><b>And a difference is not on its own permission to write.</b> <see cref="Between"/> answers what
+/// differs; <see cref="FieldsFor"/> answers what a given drag is entitled to touch, and a caller writing on
+/// behalf of a drag needs both — see <see cref="FieldsFor"/> for the reverting bug that the diff alone
+/// allows.</para></summary>
 public static class LayerZoneChanges
 {
     /// <summary>The fields whose value in <paramref name="to"/> differs from
@@ -62,4 +67,45 @@ public static class LayerZoneChanges
         if (from.VelFadeHi != to.VelFadeHi) changed |= LayerZoneField.VelFadeHi;
         return changed;
     }
+
+    /// <summary>The fields a drag on <paramref name="handle"/> is allowed to write — everything else is off
+    /// limits to it, whatever the values happen to say.
+    ///
+    /// <para><b>Why a mask and not just a diff.</b> The control resolves every move as <c>origin with { …the
+    /// dragged field… }</c>, where <c>origin</c> is the zone as it was when the pointer went down — deliberately,
+    /// so a slow drag cannot accumulate rounding drift and so returning the pointer to where it started restores
+    /// exactly the values that were there. That makes the seven fields the drag is not moving <i>press-time</i>
+    /// values, and press-time values go stale the moment anything else changes the part: a front-panel edit, or a
+    /// Studio Set change, which resyncs all sixteen parts at once.</para>
+    ///
+    /// <para>Diffed against the live values, a stale field reads as a change and gets written. Concretely: hold a
+    /// drag on part 3's left edge, and a Studio Set change sets that part's <c>Velocity Fade Width Lower</c> to
+    /// 20. The next pointer move raises a zone still carrying the press-time 10; the diff says <c>VelFadeLo</c>
+    /// changed, and the map writes 10 — silently reverting what the instrument had just reported, for a field the
+    /// user never touched. Masking by the handle kills that whole class of bug rather than the one instance: a key
+    /// drag can then never write a velocity value or a fade value, however stale its origin is.</para>
+    ///
+    /// <para><b>No handle owns a fade field.</b> That is the invariant, not an omission. The map draws fades and
+    /// does not drag them — the four knobs are on the part's own Set Part tab, which the readout's <b>Edit
+    /// fades…</b> button leads to — so no drag on this chart may ever write one, and this is where that is
+    /// enforced. Adding fade dragging later means giving some handle a fade field here, and nowhere else.</para>
+    ///
+    /// <para><see cref="PmtZoneMapping.Handle.None"/> owns nothing: a press on the empty part of a lane is a
+    /// question the chart answers by sounding a note, never an edit. <c>Top</c> owns <c>VelHi</c> and
+    /// <c>Bottom</c> owns <c>VelLo</c> because loud is up — the same orientation
+    /// <c>LayerMapGeometry.ResolveDrag</c> resolves those two handles with, and the reason the pairing is worth a
+    /// test of its own.</para></summary>
+    public static LayerZoneField FieldsFor(PmtZoneMapping.Handle handle) => handle switch
+    {
+        PmtZoneMapping.Handle.Left => LayerZoneField.KeyLo,
+        PmtZoneMapping.Handle.Right => LayerZoneField.KeyHi,
+        PmtZoneMapping.Handle.Top => LayerZoneField.VelHi,
+        PmtZoneMapping.Handle.Bottom => LayerZoneField.VelLo,
+        // A body drag moves the zone bodily, so it owns all four range values -- and only those four. The spans
+        // are preserved rather than the edges written independently, but that is ResolveDrag's business; here it
+        // is simply four fields wide.
+        PmtZoneMapping.Handle.Body => LayerZoneField.KeyLo | LayerZoneField.KeyHi |
+                                      LayerZoneField.VelLo | LayerZoneField.VelHi,
+        _ => LayerZoneField.None,
+    };
 }

@@ -427,6 +427,15 @@ public class LayerMapControl : Control
         // Motional Surround pucks check for the same reason.
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
 
+        // A drag already in progress owns the pointer until it is released, and a further press must not restart
+        // it. The check above does not cover this: IsLeftButtonPressed stays true for as long as the left button is
+        // held, so pressing a second button mid-drag — a chord, or a stray touch — arrives here as a press that
+        // looks entirely legitimate. Falling through would run _gesture.Begin again, which closes the open undo
+        // step and opens a fresh one, so one continuous drag would land in the journal as two steps needing two
+        // presses of Undo; and it would re-anchor _dragOrigin to the half-dragged values, so the rest of the
+        // gesture would measure its movement from there and the zone would jump.
+        if (_dragPart >= 0) return;
+
         var zones = Zones;
         double w = Bounds.Width, chartH = ChartHeight;
         if (zones is null || w <= 0 || chartH <= 0) return;
@@ -522,7 +531,12 @@ public class LayerMapControl : Control
         e.Handled = true;
         if (edited == _dragLast) return; // still the same key and velocity step: nothing new to say
         _dragLast = edited;
-        ZoneEdited?.Invoke(this, new LayerZoneEditedEventArgs(edited));
+
+        // The handle travels with the values. Seven of the zone's eight numbers are the ones the drag started
+        // from, not the ones the instrument holds now, so a handler that wrote every field that differs from live
+        // would revert whatever a front-panel edit or a Studio Set change had altered mid-drag. The handle is what
+        // tells it which single field this gesture is entitled to write; see LayerZoneChanges.FieldsFor.
+        ZoneEdited?.Invoke(this, new LayerZoneEditedEventArgs(edited, _dragHandle));
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
@@ -593,16 +607,35 @@ public class LayerMapControl : Control
     private static Rect ToRect(PmtZoneMapping.Rect r) => new(r.X, r.Y, r.W, r.H);
 }
 
-/// <summary>What a drag resolved to: the zone the handler should write, whole. Carrying the whole zone and not a
-/// delta or a changed edge is what keeps the arithmetic in <see cref="LayerMapGeometry.ResolveDrag"/> — the
-/// handler compares these values with the ones it holds and writes the differences, which is a task with no rules
-/// in it and so nothing to get wrong twice.</summary>
-public sealed class LayerZoneEditedEventArgs(LayerZone zone) : EventArgs
+/// <summary>What a drag resolved to: the zone as it should now be, whole, together with the handle that says which
+/// of its values the drag is actually about. Carrying the whole zone and not a delta or a changed edge is what
+/// keeps the arithmetic in <see cref="LayerMapGeometry.ResolveDrag"/>, where a test can see it.
+///
+/// <para><b>The whole zone is not a licence to write the whole zone.</b> The seven values the drag is not moving
+/// are the ones it started from, so a handler that wrote every value differing from the instrument's current state
+/// would revert anything that changed under the drag — which is why <see cref="Handle"/> is here and why it must
+/// be used. This comment used to say that comparing the values and writing the differences was "a task with no
+/// rules in it and so nothing to get wrong twice"; it had exactly one rule in it, and that was the bug.</para>
+/// </summary>
+public sealed class LayerZoneEditedEventArgs(LayerZone zone, PmtZoneMapping.Handle handle) : EventArgs
 {
     /// <summary>The values as they should now be, <see cref="LayerZone.PartNo"/> included — the drag was captured
     /// on one part and stays on it however far the pointer wanders, so the part travels with the values rather
     /// than being re-derived at the other end.</summary>
     public LayerZone Zone { get; } = zone;
+
+    /// <summary>Which part of the zone is being dragged, and therefore <b>which of the eight values this event is
+    /// about</b>. A handler must not write a field this handle does not own.
+    ///
+    /// <para>The reason is that <see cref="Zone"/> is <c>origin with { …the dragged field… }</c> — the drag
+    /// resolves from the zone as it was at press, so that a slow gesture cannot accumulate drift. The other seven
+    /// numbers are therefore press-time values, and they go stale as soon as anything else changes the part: the
+    /// instrument's front panel, or a Studio Set change, which resyncs all sixteen parts at once. A handler that
+    /// wrote every field differing from the live value would then push a press-time number back over what the
+    /// device had just reported, for a field the user never touched.
+    /// <see cref="LayerZoneChanges.FieldsFor"/> is the mask that prevents it, and is where that scenario is
+    /// written out in full.</para></summary>
+    public PmtZoneMapping.Handle Handle { get; } = handle;
 
     /// <summary>Zero-based, and the same number as <c>Zone.PartNo</c>. Here so a handler that only needs to know
     /// whose values these are does not have to reach through the snapshot for it.</summary>
