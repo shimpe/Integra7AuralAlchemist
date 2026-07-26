@@ -215,7 +215,14 @@ public partial class MainWindowViewModel : ViewModelBase
                     // nothing is lost from the instrument -- but about what this comparison means: the
                     // edits older than the history's capacity are still in the sound being called the
                     // original.
-                    ? "Playing the sound from before the edits. Press Compare again to hear them." +
+                    //
+                    // "changes you make meanwhile are not kept" used to live in the button's tooltip,
+                    // which had to be removed: a tooltip is a popup, and sitting under the pointer it
+                    // swallowed clicks on the very button it described (see MainWindow.axaml). It belongs
+                    // here anyway -- this line is on screen at the moment the warning applies, which is
+                    // more than a tooltip nobody hovers can say.
+                    ? "Playing the sound from before the edits. Press Compare again to hear them; " +
+                      "changes you make meanwhile are not kept." +
                       (EditJournal.Default.HistoryTruncated
                           ? $" Edits older than the last {EditJournal.Capacity} are still included in it."
                           : "")

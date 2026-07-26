@@ -626,16 +626,27 @@
                      under the press, which the journal refuses rather than corrupts, but the user is left
                      with an abandoned Compare they did not connect to the undo. The overlay does not help:
                      it is a Border in grid row 1 and this status bar is row 2, so it cannot cover these. -->
-                <!-- ToolTip.Placement="Top" on all three, and not the default. The default is Pointer,
-                     which puts the tip at the cursor; near the bottom of the screen Avalonia flips it
-                     upwards to keep it on screen, and it can then sit over the very pixel the pointer is
-                     on, so the next click goes to the tip's popup instead of the button. Anchoring above
-                     the control keeps it away from the pointer whatever the window's position. This is the
-                     second half of the multiple-clicks report — it only bites once the tip has had time
-                     to appear, which is why a slow, deliberate second click was the one that got lost. -->
-                <Button Command="{Binding UndoAsync}" Padding="8,2"
-                        ToolTip.Placement="Top"
-                        ToolTip.Tip="Take back the last parameter change and write the previous value back to the instrument.">
+                <!-- No ToolTip on any of these three, deliberately, and this is the fix for the reported
+                     "I have to click Undo/Redo/Compare more than once".
+
+                     A tooltip is a real popup window. When it sits under the pointer, the click goes to it
+                     and is simply lost — the button never sees it, and looks perfectly enabled throughout,
+                     which is what made this hard to place. It only bites once the tip has had time to
+                     appear, so it was the unhurried, deliberate click that vanished.
+
+                     ToolTip.Placement="Top" was tried first and did not fix it: observed still covering the
+                     button with the window maximized. Rather than keep guessing at placements and offsets
+                     that might merely make it rarer, there is no tip here at all. Nothing else in this
+                     window is close enough to the pointer's resting place to have the same problem, so this
+                     is not a rule against tooltips — it is a rule against tooltips on the controls a user
+                     clicks repeatedly.
+
+                     What the tips said is not lost. Undo and Redo say what they do. Compare's label names
+                     the state it is in, and CompareAsync's status line explains what a press did and what
+                     the next one will do — including that changes made while comparing are not kept, which
+                     was the one fact only the tooltip carried. A status line is read; a tooltip has to be
+                     hunted for. -->
+                <Button Command="{Binding UndoAsync}" Padding="8,2">
                     <Button.IsEnabled>
                         <MultiBinding Converter="{x:Static BoolConverters.And}">
                             <MultiBinding.Bindings>
@@ -646,9 +657,7 @@
                     </Button.IsEnabled>
                     Undo
                 </Button>
-                <Button Command="{Binding RedoAsync}" Padding="8,2"
-                        ToolTip.Placement="Top"
-                        ToolTip.Tip="Put back the parameter change the last undo took away.">
+                <Button Command="{Binding RedoAsync}" Padding="8,2">
                     <Button.IsEnabled>
                         <MultiBinding Converter="{x:Static BoolConverters.And}">
                             <MultiBinding.Bindings>
@@ -673,9 +682,7 @@
                      button you had clicked. -->
                 <Button Command="{Binding CompareAsync}" Padding="8,2"
                         MinWidth="170"
-                        Content="{Binding CompareLabel}"
-                        ToolTip.Placement="Top"
-                        ToolTip.Tip="Hear the sound as it was before the edits in the history; press again to hear the edits. Changes made while comparing are not kept.">
+                        Content="{Binding CompareLabel}">
                     <Button.IsEnabled>
                         <MultiBinding Converter="{x:Static BoolConverters.And}">
                             <MultiBinding.Bindings>
