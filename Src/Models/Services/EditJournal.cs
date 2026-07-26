@@ -402,8 +402,15 @@ public sealed class EditJournal
     /// The steps come from the toggle rather than from the live lists: they are the steps whose writes just
     /// went out, and coming back has to write exactly those forward again. The two cannot disagree today --
     /// recording is suppressed for the whole of the writes and the caller holds the sync overlay up over
-    /// the press -- and taking them from the toggle means they still cannot if that changes.</summary>
-    public void CommitCompareToggle(CompareToggle toggle)
+    /// the press -- and taking them from the toggle means they still cannot if that changes.
+    ///
+    /// False when the toggle was refused, which is not the same as nothing happening: its writes have
+    /// already gone out, so the instrument is somewhere between the two sounds while the journal still says
+    /// it is on the side it started from. The caller has to say so rather than report the press as done --
+    /// pressing Compare again recomputes from the history that is really there and converges, because every
+    /// write is an absolute value. Returning void here would leave that indistinguishable from success.
+    /// </summary>
+    public bool CommitCompareToggle(CompareToggle toggle)
     {
         lock (_gate)
         {
@@ -414,11 +421,14 @@ public sealed class EditJournal
             // below would silently miss and leave one step in both lists). Refuse the whole press. Nothing
             // is consumed, the caller reports that it did not finish, and pressing Compare again
             // recomputes from the history that is really there.
-            if (toggle.Generation != _generation) return;
+            if (toggle.Generation != _generation) return false;
 
             if (toggle.Entering)
             {
-                if (_isComparing) return;
+                // Already comparing, so this toggle has been committed once already. Unreachable through
+                // the generation check above, which a second commit of the same toggle also fails; here for
+                // the same reason that check is worth having.
+                if (_isComparing) return false;
                 // Reversed back to oldest-first, the order _undo held them in and the order coming back
                 // writes them in.
                 var steps = Enumerable.Reverse(toggle.Steps.Select(s => s.Step)).ToList();
@@ -428,7 +438,7 @@ public sealed class EditJournal
             }
             else
             {
-                if (!_isComparing) return;
+                if (!_isComparing) return false;
                 // In their original order, so the history after a Compare round trip is the history from
                 // before it -- same steps, same order, undo still able to walk back through them.
                 _undo.AddRange(toggle.Steps.Select(s => s.Step));
@@ -442,7 +452,9 @@ public sealed class EditJournal
             _lastRecordedAt = default;
             _gestureGroupOpen = false;
         }
+
         Changed?.Invoke();
+        return true;
     }
 
     /// <summary>Run <paramref name="apply"/> with recording switched off. Restores the previous

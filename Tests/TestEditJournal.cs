@@ -785,4 +785,27 @@ public class EditJournalTests
             "the press is abandoned rather than committed against a history it no longer describes");
         Assert.That(journal.CanUndo, Is.True, "and nothing was consumed, so pressing Compare again retries");
     }
+
+    [Test]
+    public void Committing_says_whether_it_was_accepted()
+    {
+        var (journal, _) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        Assert.That(journal.TryBeginCompareToggle(out var accepted), Is.True);
+        Assert.That(journal.CommitCompareToggle(accepted!), Is.True);
+
+        Assert.That(journal.TryBeginCompareToggle(out var stale), Is.True);
+        journal.Clear();
+        // The writes for this toggle have already gone out, so the caller has to be able to tell this
+        // apart from a press that finished -- the instrument is between the two sounds either way.
+        Assert.That(journal.CommitCompareToggle(stale!), Is.False,
+            "a refused commit reads the same as a successful one unless it says so");
+
+        // And a toggle cannot be spent twice, whichever direction it was going.
+        var (other, _) = NewJournal();
+        other.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        Assert.That(other.TryBeginCompareToggle(out var once), Is.True);
+        Assert.That(other.CommitCompareToggle(once!), Is.True);
+        Assert.That(other.CommitCompareToggle(once!), Is.False, "committing the same toggle again is refused");
+    }
 }
