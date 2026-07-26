@@ -40,6 +40,11 @@
                  SnMuteBrush today, but a distinct resource: SnMuteBrush is the mute button's colour and
                  the two meanings must be free to diverge later. -->
             <SolidColorBrush x:Key="SnErrorTextBrush" Color="#C25A4F"/>
+            <!-- Panic, in the status bar. The one button that has to be findable without reading, so it
+                 is the one place a saturated red earns its keep. Darker than the literal "Red" it carried
+                 in the toolbar, which was the only hardcoded colour left in this window and glared against
+                 every muted tone around it. -->
+            <SolidColorBrush x:Key="PanicButtonBrush" Color="#B3261E"/>
             <!-- Hairline separating the status bar from the content above it. -->
             <SolidColorBrush x:Key="SnStatusBarBorderBrush" Color="#33FFFFFF"/>
             <!-- Rotary-knob grouping palette. The accent strip colors a knob by the function it
