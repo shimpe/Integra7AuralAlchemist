@@ -54,6 +54,10 @@ public class LayerMapControl : Control
     /// instead of having to be two colours that stay in step with both.</summary>
     private const string BlackKeyKey = "LayerMapBlackKeyBrush";
 
+    /// <summary>Lifts the column behind every white key. The other half of the keyboard pattern, and on this
+    /// ground the half that does most of the work: see <see cref="DrawKeyColumns"/>.</summary>
+    private const string WhiteKeyKey = "LayerMapWhiteKeyBrush";
+
     /// <summary>The finest lines on the chart: the hairline under each lane.</summary>
     private const string GridKey = "SnEnvelopeGridBrush";
 
@@ -238,7 +242,7 @@ public class LayerMapControl : Control
 
         // Before the lanes, so the lane stripe reads as a stripe over the keyboard rather than the keyboard
         // interrupting it, and well before the zones, which are what the eye is meant to end up on.
-        DrawBlackKeyColumns(context, palette, w, chartH);
+        DrawKeyColumns(context, palette, w, chartH);
         DrawLanes(context, palette, w, chartH);
         DrawKeyAxis(context, palette, w, chartH, culture);
 
@@ -256,30 +260,33 @@ public class LayerMapControl : Control
         DrawSelection(context, palette, w, chartH);
     }
 
-    /// <summary>A darker column behind every black key, so the chart reads as a keyboard laid on its side and a
-    /// key can be found by its pattern rather than by counting from a C.
+    /// <summary>A tinted column behind every key, so the chart reads as a keyboard laid on its side and a key
+    /// can be found by its two-and-three pattern rather than by counting from a C.
     ///
-    /// <para>A column is centred on its key's gridline and one key wide, because the line <em>is</em> the key
-    /// here — <c>KeyX</c> maps a key to a position, not to a cell — so an edge dragged to F# sits in the middle
-    /// of F#'s band rather than against its edge.</para>
+    /// <para>A column is a whole <see cref="LayerMapGeometry.KeyCell"/>, so the tint and the gridlines coincide
+    /// by construction rather than by two pieces of arithmetic agreeing. Centred on the key's *position*
+    /// instead — which is what this did first — every column sat half a key off the lines drawn between the
+    /// keys, and the whole axis read as shifted.</para>
+    ///
+    /// <para>Both directions, not only the black keys. The chart's ground is nearly black, so darkening has
+    /// almost no headroom left in it: a semi-transparent black over <c>#1B1F22</c> moves it a handful of levels
+    /// and disappears. The white keys are lifted as well as the black ones pressed down, and the pattern comes
+    /// from the distance between the two rather than from either alone.</para>
     ///
     /// <para>Unlike the per-note gridlines this never drops out on a narrow chart. A hairline at two pixels a
     /// key becomes an even wash that hides what is drawn over it; a fill at two pixels a key is still the
     /// two-and-three grouping, which is the whole of what it is for.</para></summary>
-    private static void DrawBlackKeyColumns(DrawingContext context, in Palette palette, double w, double chartH)
+    private static void DrawKeyColumns(DrawingContext context, in Palette palette, double w, double chartH)
     {
-        var keyWidth = w / (PmtZoneMapping.Max - PmtZoneMapping.Min);
-
         for (var key = PmtZoneMapping.Min; key <= PmtZoneMapping.Max; key++)
         {
+            var cell = LayerMapGeometry.KeyCell(key, w);
+            if (cell.W <= 0) continue;
+
             // Asked of MidiNote, like the C test in the axis, so one definition of the keyboard serves the
             // tint, the gridlines and the note names and none of the three can disagree with the others.
-            if (!MidiNote.IsBlack(key)) continue;
-
-            var centre = LayerMapGeometry.KeyX(key, w);
-            var x = Math.Max(0, centre - keyWidth / 2);
-            var right = Math.Min(w, centre + keyWidth / 2);
-            context.FillRectangle(palette.BlackKey, new Rect(x, 0, right - x, chartH));
+            context.FillRectangle(MidiNote.IsBlack(key) ? palette.BlackKey : palette.WhiteKey,
+                new Rect(cell.X, 0, cell.W, chartH));
         }
     }
 
@@ -332,7 +339,10 @@ public class LayerMapControl : Control
                 // The C lines are drawn again below, heavier, so skipping them here keeps a C from being a
                 // faint line with a strong one on top of it -- which at one pixel reads as neither.
                 if (MidiNote.IsC(key)) continue;
-                var kx = LayerMapGeometry.KeyX(key, w);
+
+                // The line goes *between* this key and the one below it, not through its middle: it is the
+                // edge of a cell, which is the edge a zone is drawn to and the edge a drag snaps to.
+                var kx = LayerMapGeometry.KeyBoundaryX(key, w);
                 context.DrawLine(semitonePen, new Point(kx, 0), new Point(kx, chartH));
             }
 
@@ -342,10 +352,12 @@ public class LayerMapControl : Control
             // too and the axis cannot disagree with the note names printed under it.
             if (!MidiNote.IsC(key)) continue;
 
-            // Through the geometry's own key axis, not PmtZoneMapping's, even though one forwards to the other:
-            // the axis this chart draws its gridlines on has to be the axis its presses are hit-tested against,
-            // and the way to guarantee that is for both to go through the one class.
-            var x = LayerMapGeometry.KeyX(key, w);
+            // C's *left* boundary, not C's position — the line marks where C begins, which is what a piano roll
+            // draws and what makes the name printed just to its right read as labelling that key rather than
+            // floating between two. Through the geometry rather than PmtZoneMapping even though one forwards to
+            // the other: the axis this chart draws its gridlines on has to be the axis its presses are
+            // hit-tested against, and the way to guarantee that is for both to go through the one class.
+            var x = LayerMapGeometry.KeyBoundaryX(key, w);
 
             // Every C *is* an octave boundary, so "heavier at the octaves" can only mean heavier than the other
             // lines the chart draws — the lane hairlines — which is what the axis brush over the grid brush
@@ -645,16 +657,16 @@ public class LayerMapControl : Control
 
     /// <summary>Every brush the chart draws with, resolved once per render.</summary>
     private readonly record struct Palette(
-        IBrush Background, IBrush LaneAlt, IBrush BlackKey, IBrush Grid, IBrush Octave, IBrush MutedText,
-        IBrush Zone, Color ZoneColor, IBrush Label, IBrush Selection);
+        IBrush Background, IBrush LaneAlt, IBrush BlackKey, IBrush WhiteKey, IBrush Grid, IBrush Octave,
+        IBrush MutedText, IBrush Zone, Color ZoneColor, IBrush Label, IBrush Selection);
 
     private Palette ResolvePalette()
     {
         var zone = FindBrush(ZoneKey);
         return new Palette(
-            FindBrush(BackgroundKey), FindBrush(LaneAltKey), FindBrush(BlackKeyKey), FindBrush(GridKey),
-            FindBrush(OctaveKey), FindBrush(MutedTextKey), zone, ColorOf(zone), FindBrush(LabelKey),
-            FindBrush(SelectionKey));
+            FindBrush(BackgroundKey), FindBrush(LaneAltKey), FindBrush(BlackKeyKey), FindBrush(WhiteKeyKey),
+            FindBrush(GridKey), FindBrush(OctaveKey), FindBrush(MutedTextKey), zone, ColorOf(zone),
+            FindBrush(LabelKey), FindBrush(SelectionKey));
     }
 
     /// <summary>A brush from the resources, by key — resolved through the control itself, so it finds

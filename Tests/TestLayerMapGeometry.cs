@@ -40,8 +40,10 @@ public class LayerMapGeometryTests
         var r = LayerMapGeometry.ZoneRect(2, 48, 72, 64, 127, W, H);
         var lane = LayerMapGeometry.LaneRect(2, W, H);
 
-        Assert.That(r.X, Is.EqualTo(PmtZoneMapping.KeyToX(48, W)).Within(0.001));
-        Assert.That(r.X + r.W, Is.EqualTo(PmtZoneMapping.KeyToX(72, W)).Within(0.001));
+        // Cell edges, not key centres: the zone starts at the left boundary of key 48's cell and ends at the
+        // right boundary of key 72's, so its edges land on the gridlines the chart draws.
+        Assert.That(r.X, Is.EqualTo(LayerMapGeometry.KeyBoundaryX(48, W)).Within(0.001));
+        Assert.That(r.X + r.W, Is.EqualTo(LayerMapGeometry.KeyBoundaryX(73, W)).Within(0.001));
         Assert.That(r.Y, Is.GreaterThanOrEqualTo(lane.Y), "never above its lane");
         Assert.That(r.Y + r.H, Is.LessThanOrEqualTo(lane.Y + lane.H + 0.001), "never below it");
         Assert.That(r.Y, Is.EqualTo(lane.Y).Within(0.001), "velocity 127 reaches the top of the lane");
@@ -85,7 +87,11 @@ public class LayerMapGeometryTests
         var lane = LayerMapGeometry.LaneRect(1, W, H);
         var margin = 4.0;
 
-        var left = LayerMapGeometry.HitTest(PmtZoneMapping.KeyToX(60, W), lane.Y + lane.H / 2, zones, W, H, margin);
+        // The left handle is where the edge is *drawn*: the boundary of key 60's cell, not the key's centre.
+        // The centre of key 60 is now half a cell inside the zone, and pressing there is a Body press --
+        // which is right, because that pixel is unambiguously within the range rather than on its edge.
+        var left = LayerMapGeometry.HitTest(LayerMapGeometry.KeyBoundaryX(60, W), lane.Y + lane.H / 2, zones,
+            W, H, margin);
         Assert.That(left.Part, Is.EqualTo(1));
         Assert.That(left.Handle, Is.EqualTo(PmtZoneMapping.Handle.Left));
 
@@ -110,30 +116,107 @@ public class LayerMapGeometryTests
         var z = new LayerZone(2, 60, 72, 0, 127, 12, 6, 0, 0, "3", "");
         var body = LayerMapGeometry.ZoneRect(2, 60, 72, 0, 127, W, H);
 
+        var cell = W / 127.0; // one key's worth of pixels
+
         var lower = LayerMapGeometry.KeyFadeLowerRect(z, W, H);
-        Assert.That(lower.X, Is.EqualTo(PmtZoneMapping.KeyToX(48, W)).Within(0.001),
-            "the fade-in starts twelve semitones below the range");
-        Assert.That(lower.X + lower.W, Is.EqualTo(body.X).Within(0.001), "and ends where the range begins");
+        Assert.That(lower.X, Is.EqualTo(LayerMapGeometry.KeyBoundaryX(48, W)).Within(0.001),
+            "the fade-in starts at the boundary twelve semitones below the range");
+        Assert.That(lower.X + lower.W, Is.EqualTo(body.X).Within(0.001),
+            "and ends exactly where the range begins -- no seam between the taper and the fill");
+        Assert.That(lower.W, Is.EqualTo(12 * cell).Within(0.001), "twelve whole cells: keys 48 to 59");
         Assert.That(lower.Y, Is.EqualTo(body.Y).Within(0.001), "over the zone's own velocity extent");
         Assert.That(lower.H, Is.EqualTo(body.H).Within(0.001));
 
         var upper = LayerMapGeometry.KeyFadeUpperRect(z, W, H);
         Assert.That(upper.X, Is.EqualTo(body.X + body.W).Within(0.001), "the fade-out starts where the range ends");
-        Assert.That(upper.X + upper.W, Is.EqualTo(PmtZoneMapping.KeyToX(78, W)).Within(0.001));
+        Assert.That(upper.W, Is.EqualTo(6 * cell).Within(0.001), "six whole cells: keys 73 to 78");
 
-        // Clipped at the bottom of the chart: a 12-semitone fade on a zone starting at key 3 has only three
-        // semitones of room, so it is a three-semitone band and not a band starting at key -9. Stated as a
-        // span rather than as KeyToX(3) so an implementation that mistook the clip for a position fails.
+        // Clipped at the bottom of the chart: a 12-semitone fade on a zone starting at key 3 has room for keys
+        // 0, 1 and 2 only. Two and a half cells and not three, because key 0's cell is a half cell -- the
+        // mapping puts key 0's centre exactly on the chart's left edge, so half of its cell is off the chart.
         var low = new LayerZone(0, 3, 20, 0, 127, 12, 0, 0, 0, "1", "");
         var clippedLo = LayerMapGeometry.KeyFadeLowerRect(low, W, H);
         Assert.That(clippedLo.X, Is.EqualTo(0).Within(0.001), "never left of the chart");
-        Assert.That(clippedLo.W, Is.EqualTo(3.0 / 127.0 * W).Within(0.001));
+        Assert.That(clippedLo.W, Is.EqualTo(2.5 * cell).Within(0.001));
+        Assert.That(clippedLo.X + clippedLo.W,
+            Is.EqualTo(LayerMapGeometry.ZoneRect(low, W, H).X).Within(0.001), "still meets the body");
 
-        // And at the top.
+        // And at the top, where key 127's cell is the half one.
         var high = new LayerZone(0, 100, 120, 0, 127, 0, 12, 0, 0, "1", "");
         var clippedHi = LayerMapGeometry.KeyFadeUpperRect(high, W, H);
         Assert.That(clippedHi.X + clippedHi.W, Is.EqualTo(W).Within(0.001), "never right of the chart");
-        Assert.That(clippedHi.W, Is.EqualTo(7.0 / 127.0 * W).Within(0.001));
+        Assert.That(clippedHi.W, Is.EqualTo(6.5 * cell).Within(0.001));
+
+        // A zone with no fade gets no band, rather than a hairline at the edge of its own fill.
+        var hard = new LayerZone(0, 60, 72, 0, 127, 0, 0, 0, 0, "1", "");
+        Assert.That(LayerMapGeometry.KeyFadeLowerRect(hard, W, H).W, Is.EqualTo(0).Within(0.001));
+        Assert.That(LayerMapGeometry.KeyFadeUpperRect(hard, W, H).W, Is.EqualTo(0).Within(0.001));
+    }
+
+    [Test]
+    public void A_key_owns_a_cell_and_XToKey_agrees_with_its_edges()
+    {
+        var cell = W / 127.0;
+
+        // An ordinary key: a whole cell, centred on the key's position.
+        var c4 = LayerMapGeometry.KeyCell(60, W);
+        Assert.That(c4.W, Is.EqualTo(cell).Within(0.001));
+        Assert.That(c4.X + c4.W / 2, Is.EqualTo(LayerMapGeometry.KeyX(60, W)).Within(0.001));
+
+        // The cell is exactly the set of pixels that name that key -- which is what makes "cell" the right
+        // word, and what makes drawing cells and hit-testing with XToKey agree by construction.
+        foreach (var key in new[] { 0, 1, 60, 126, 127 })
+        {
+            var k = LayerMapGeometry.KeyCell(key, W);
+            Assert.That(LayerMapGeometry.KeyAt(k.X + 0.001, W), Is.EqualTo(key), $"left edge of key {key}");
+            Assert.That(LayerMapGeometry.KeyAt(k.X + k.W - 0.001, W), Is.EqualTo(key), $"right edge of key {key}");
+        }
+
+        // The two end keys get half cells, because the mapping puts their centres on the chart's edges. That
+        // is accepted rather than shifting the whole axis, which would mean changing PmtZoneMapping -- shared
+        // with the PMT zone editor, and right as it stands.
+        Assert.That(LayerMapGeometry.KeyCell(0, W).X, Is.EqualTo(0).Within(0.001));
+        Assert.That(LayerMapGeometry.KeyCell(0, W).W, Is.EqualTo(cell / 2).Within(0.001));
+        var last = LayerMapGeometry.KeyCell(127, W);
+        Assert.That(last.X + last.W, Is.EqualTo(W).Within(0.001));
+        Assert.That(last.W, Is.EqualTo(cell / 2).Within(0.001));
+    }
+
+    [Test]
+    public void A_gridline_falls_between_two_keys_and_the_boundaries_tile()
+    {
+        Assert.That(LayerMapGeometry.KeyBoundaryX(0, W), Is.EqualTo(0).Within(0.001),
+            "key 0's boundary is the chart's left edge");
+
+        // Each key's left boundary is the previous key's right edge, with no gap and no overlap -- so a line
+        // drawn per key and a cell filled per key describe the same chart.
+        for (var key = 1; key <= 127; key++)
+        {
+            var below = LayerMapGeometry.KeyCell(key - 1, W);
+            Assert.That(LayerMapGeometry.KeyBoundaryX(key, W), Is.EqualTo(below.X + below.W).Within(0.001),
+                $"boundary between keys {key - 1} and {key}");
+        }
+
+        // A boundary is half a cell left of the key's own position: that half cell is the shift the chart was
+        // showing before cells existed, drawn one way and hit-tested the other.
+        Assert.That(LayerMapGeometry.KeyX(60, W) - LayerMapGeometry.KeyBoundaryX(60, W),
+            Is.EqualTo(W / 127.0 / 2).Within(0.001));
+    }
+
+    [Test]
+    public void A_one_key_zone_is_one_cell_wide_and_not_invisible()
+    {
+        // The defect cells fix: spanning key centres, a range of a single key spanned from a point to itself
+        // and drew as nothing at all.
+        var one = LayerMapGeometry.ZoneRect(0, 60, 60, 0, 127, W, H);
+        Assert.That(one.W, Is.EqualTo(W / 127.0).Within(0.001));
+        Assert.That(one.X, Is.EqualTo(LayerMapGeometry.KeyBoundaryX(60, W)).Within(0.001));
+        Assert.That(one.X + one.W, Is.EqualTo(LayerMapGeometry.KeyBoundaryX(61, W)).Within(0.001));
+
+        // And a range still spans every cell it covers, ends included.
+        var all = LayerMapGeometry.ZoneRect(0, 0, 127, 0, 127, W, H);
+        Assert.That(all.X, Is.EqualTo(0).Within(0.001));
+        Assert.That(all.W, Is.EqualTo(W).Within(0.001));
     }
 
     [Test]

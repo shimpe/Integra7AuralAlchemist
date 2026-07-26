@@ -106,17 +106,22 @@ public static class LayerMapGeometry
 
     /// <summary>The rectangle a zone occupies: its key range horizontally, its velocity range vertically
     /// within its own lane, loud at the top. This overload takes the range loose, for a caller mid-drag that
-    /// has a candidate range and not yet a zone.</summary>
+    /// has a candidate range and not yet a zone.
+    ///
+    /// <para>Horizontally the zone spans whole <see cref="KeyCell"/>s — from the left edge of the lowest key's
+    /// cell to the right edge of the highest's — so its edges land on the gridlines the chart draws, and a
+    /// one-key range (<c>lo == hi</c>) is one cell wide rather than nothing at all. Vertically it is a
+    /// position, not a cell; see the note beside <c>KeyCell</c> for why the two axes differ.</para></summary>
     public static PmtZoneMapping.Rect ZoneRect(int part, int keyLo, int keyHi, int velLo, int velHi,
         double w, double laneAreaH)
     {
         var lane = LaneRect(part, w, laneAreaH);
-        var x = PmtZoneMapping.KeyToX(Math.Min(keyLo, keyHi), w);
-        var x2 = PmtZoneMapping.KeyToX(Math.Max(keyLo, keyHi), w);
+        var loCell = KeyCell(Math.Min(keyLo, keyHi), w);
+        var hiCell = KeyCell(Math.Max(keyLo, keyHi), w);
         // VelToY over the lane's own height, then offset into the lane.
         var yTop = lane.Y + PmtZoneMapping.VelToY(Math.Max(velLo, velHi), lane.H);
         var yBot = lane.Y + PmtZoneMapping.VelToY(Math.Min(velLo, velHi), lane.H);
-        return new PmtZoneMapping.Rect(x, yTop, x2 - x, yBot - yTop);
+        return new PmtZoneMapping.Rect(loCell.X, yTop, hiCell.X + hiCell.W - loCell.X, yBot - yTop);
     }
 
     /// <summary>The rectangle <paramref name="z"/> occupies. Prefer this wherever a whole zone is in hand.</summary>
@@ -142,6 +147,44 @@ public static class LayerMapGeometry
 
     /// <inheritdoc cref="KeyAt"/>
     public static double KeyX(int key, double w) => PmtZoneMapping.KeyToX(key, w);
+
+    /// <summary>The band of pixels that belongs to one key: <c>[KeyX(k) - half, KeyX(k) + half]</c>, clipped to
+    /// the chart.
+    ///
+    /// <para><b>A key is a cell, not a position, and the cell is the unit this chart draws in.</b> That is not a
+    /// new decision — <see cref="KeyAt"/> rounds, so a key has always owned half a step either side of its
+    /// centre. What was new was drawing against the *centre* while hit-testing against the *cell*, which put
+    /// every gridline half a column away from the edge it appeared to mark and gave a one-key zone
+    /// (<c>lo == hi</c>) zero width. Drawing cells makes lines, tint, zones and hit-testing agree by
+    /// construction rather than by two functions happening to round the same way.</para>
+    ///
+    /// <para>Keys 0 and 127 get half-width cells, because the mapping puts their centres exactly on the chart's
+    /// edges. That is the honest consequence and it is better than the alternative, which would be shifting the
+    /// whole axis by half a key inside <see cref="PmtZoneMapping"/> — a class the PMT zone editor shares and
+    /// which is right as it stands.</para></summary>
+    public static (double X, double W) KeyCell(int key, double w)
+    {
+        var half = w / (PmtZoneMapping.Max - PmtZoneMapping.Min) / 2.0;
+        var centre = KeyX(key, w);
+        var left = Math.Max(0, centre - half);
+        var right = Math.Min(w, centre + half);
+        return (left, Math.Max(0, right - left));
+    }
+
+    /// <summary>Where a gridline for <paramref name="key"/> goes: the left edge of its cell, which is the
+    /// boundary <i>between</i> it and the key below. Key 127's right-hand boundary is the chart's right edge,
+    /// <paramref name="w"/> itself.
+    ///
+    /// <para>A line between keys rather than through one is what a piano roll draws, and it is what makes the
+    /// note name printed just to its right read as labelling that key rather than as floating between two.
+    /// </para></summary>
+    public static double KeyBoundaryX(int key, double w) => KeyCell(key, w).X;
+
+    // Why only the key axis has cells: a key is a discrete thing the chart draws a line for and the user names
+    // ("the split is at C4"), so it needs a width. Velocity is a continuum -- nothing draws a line per velocity
+    // step, nothing labels one, and a lane is twenty pixels tall for a hundred and twenty-eight of them, so a
+    // "cell" there would be a sixth of a pixel and would exist only to be symmetrical. VelocityAt, ZoneRect's
+    // vertical half and the two velocity fade bands are all deliberately position-based, not cell-based.
 
     /// <summary>What is under the pointer: which part's lane, and which part of that part's zone. Pass
     /// <see cref="HitMargin"/> unless there is a reason not to.
@@ -246,24 +289,30 @@ public static class LayerMapGeometry
     // wider than the room available becomes a narrower band, never a band starting off the chart or spilling
     // into the neighbouring part's lane.
 
-    /// <summary>The band below the key range over which the part fades in: from <c>KeyLo - KeyFadeLo</c> up to
-    /// <c>KeyLo</c>, clipped at key 0, over the zone's own velocity extent.</summary>
+    /// <summary>The band below the key range over which the part fades in: the cells of keys
+    /// <c>KeyLo - KeyFadeLo</c> up to <c>KeyLo - 1</c>, clipped at key 0, over the zone's own velocity extent.
+    ///
+    /// <para>Cell edges, like the body — its right edge <i>is</i> <c>body.X</c>, so the gradient meets the fill
+    /// with no seam and no overlap however the arithmetic rounds. Against key positions the two would have met
+    /// half a cell out, which on a taper reads as the fade starting in the wrong place rather than as a
+    /// misalignment.</para></summary>
     public static PmtZoneMapping.Rect KeyFadeLowerRect(LayerZone z, double w, double laneAreaH)
     {
         var body = ZoneRect(z, w, laneAreaH);
         var from = PmtZoneMapping.Clamp(Math.Min(z.KeyLo, z.KeyHi) - z.KeyFadeLo);
-        var x = KeyX(from, w);
+        var x = KeyBoundaryX(from, w);
         return new PmtZoneMapping.Rect(x, body.Y, body.X - x, body.H);
     }
 
-    /// <summary>The band above the key range over which the part fades out: from <c>KeyHi</c> up to
-    /// <c>KeyHi + KeyFadeHi</c>, clipped at key 127.</summary>
+    /// <summary>The band above the key range over which the part fades out: the cells of keys <c>KeyHi + 1</c>
+    /// up to <c>KeyHi + KeyFadeHi</c>, clipped at key 127. Cell edges, for the reason on the lower band.</summary>
     public static PmtZoneMapping.Rect KeyFadeUpperRect(LayerZone z, double w, double laneAreaH)
     {
         var body = ZoneRect(z, w, laneAreaH);
         var to = PmtZoneMapping.Clamp(Math.Max(z.KeyLo, z.KeyHi) + z.KeyFadeHi);
+        var cell = KeyCell(to, w);
         var x = body.X + body.W;
-        return new PmtZoneMapping.Rect(x, body.Y, KeyX(to, w) - x, body.H);
+        return new PmtZoneMapping.Rect(x, body.Y, cell.X + cell.W - x, body.H);
     }
 
     /// <summary>The band below the velocity range over which the part fades in — which is *below* the zone in
