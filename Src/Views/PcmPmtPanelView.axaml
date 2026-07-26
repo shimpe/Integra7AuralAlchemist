@@ -45,11 +45,22 @@
         <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
             <StackPanel Spacing="6">
                 <TextBlock Text="Zones — key (left→right) × velocity (loud at top). Drag to move, drag an edge to resize." Opacity="0.7" FontSize="11"/>
+                <!-- The fade widths are bound one way: the bands outside each box are drawn from them, but the
+                     chart has no handle for a fade — the knobs under "Precise values" are how they are set.
+                     KeyFade* comes from "PMT n Keyboard Fade Width Lower/Upper"; VelFade* comes from "PMT n
+                     Velocity Width Lower/Upper", which is this parameter table's shorter name for the velocity
+                     fade width — it sits at the offset (0x0c/0x0d in the PMT block) that the Studio Set Part and
+                     drum WMT tables both fill with a parameter spelled "Velocity Fade Width", immediately after
+                     the matching "Velocity Range Lower/Upper". -->
                 <controls:PmtZoneEditorControl Height="280" Width="760" HorizontalAlignment="Left"
                     Partial1On="{Binding Zone1.On.Value}" Key1Lo="{Binding Zone1.KeyLo.Value, Mode=TwoWay}" Key1Hi="{Binding Zone1.KeyHi.Value, Mode=TwoWay}" Vel1Lo="{Binding Zone1.VelLo.Value, Mode=TwoWay}" Vel1Hi="{Binding Zone1.VelHi.Value, Mode=TwoWay}"
                     Partial2On="{Binding Zone2.On.Value}" Key2Lo="{Binding Zone2.KeyLo.Value, Mode=TwoWay}" Key2Hi="{Binding Zone2.KeyHi.Value, Mode=TwoWay}" Vel2Lo="{Binding Zone2.VelLo.Value, Mode=TwoWay}" Vel2Hi="{Binding Zone2.VelHi.Value, Mode=TwoWay}"
                     Partial3On="{Binding Zone3.On.Value}" Key3Lo="{Binding Zone3.KeyLo.Value, Mode=TwoWay}" Key3Hi="{Binding Zone3.KeyHi.Value, Mode=TwoWay}" Vel3Lo="{Binding Zone3.VelLo.Value, Mode=TwoWay}" Vel3Hi="{Binding Zone3.VelHi.Value, Mode=TwoWay}"
                     Partial4On="{Binding Zone4.On.Value}" Key4Lo="{Binding Zone4.KeyLo.Value, Mode=TwoWay}" Key4Hi="{Binding Zone4.KeyHi.Value, Mode=TwoWay}" Vel4Lo="{Binding Zone4.VelLo.Value, Mode=TwoWay}" Vel4Hi="{Binding Zone4.VelHi.Value, Mode=TwoWay}"
+                    KeyFade1Lo="{Binding Zone1.KeyFadeLo.Value}" KeyFade1Hi="{Binding Zone1.KeyFadeHi.Value}" VelFade1Lo="{Binding Zone1.VelWidthLo.Value}" VelFade1Hi="{Binding Zone1.VelWidthHi.Value}"
+                    KeyFade2Lo="{Binding Zone2.KeyFadeLo.Value}" KeyFade2Hi="{Binding Zone2.KeyFadeHi.Value}" VelFade2Lo="{Binding Zone2.VelWidthLo.Value}" VelFade2Hi="{Binding Zone2.VelWidthHi.Value}"
+                    KeyFade3Lo="{Binding Zone3.KeyFadeLo.Value}" KeyFade3Hi="{Binding Zone3.KeyFadeHi.Value}" VelFade3Lo="{Binding Zone3.VelWidthLo.Value}" VelFade3Hi="{Binding Zone3.VelWidthHi.Value}"
+                    KeyFade4Lo="{Binding Zone4.KeyFadeLo.Value}" KeyFade4Hi="{Binding Zone4.KeyFadeHi.Value}" VelFade4Lo="{Binding Zone4.VelWidthLo.Value}" VelFade4Hi="{Binding Zone4.VelWidthHi.Value}"
                     Zone1Brush="{StaticResource PmtZone1Brush}" Zone2Brush="{StaticResource PmtZone2Brush}"
                     Zone3Brush="{StaticResource PmtZone3Brush}" Zone4Brush="{StaticResource PmtZone4Brush}"
                     BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
