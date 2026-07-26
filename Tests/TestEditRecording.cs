@@ -1,4 +1,7 @@
+using Avalonia.Controls;
 using Avalonia.Data;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Integra7AuralAlchemist.Controls;
 using Integra7AuralAlchemist.Models.Data;
@@ -462,5 +465,45 @@ public class EditRecordingTests
         Assert.That(pending.Step.Changes.Select(c => c.OldValue), Is.EqualTo(new[] { "0", "0" }));
         Assert.That(pending.Step.Changes.Select(c => c.NewValue), Is.EqualTo(new[] { "11", "-21" }));
         Assert.That(EditJournal.Default.CanUndo, Is.False, "one drag, one step");
+    }
+
+    /// <summary>How <c>MotionalSurroundView</c> is allowed to delimit a drag from its root, asserted rather
+    /// than assumed because it is Avalonia's business and not ours. The press and the release tunnel, so a
+    /// handler on the root sees them before the Slider's template parts do, whichever of those holds the
+    /// pointer capture. Capture-lost does <em>not</em>: it is Direct, so it is only ever delivered to the
+    /// element that held the capture, and a handler on an ancestor -- which is what this view had for its
+    /// pucks -- can never run. That is why the view attaches the capture-lost handler to the captured
+    /// element at press time instead; if this ever starts bubbling, that indirection becomes unnecessary.</summary>
+    [Test]
+    public void The_pointer_events_the_slider_gestures_hang_off_route_as_this_view_needs()
+    {
+        Assert.That(InputElement.PointerPressedEvent.RoutingStrategies & RoutingStrategies.Tunnel,
+            Is.EqualTo(RoutingStrategies.Tunnel), "the press has to reach a handler on the view root");
+        Assert.That(InputElement.PointerReleasedEvent.RoutingStrategies & RoutingStrategies.Tunnel,
+            Is.EqualTo(RoutingStrategies.Tunnel), "and so does the release, which closes the gesture");
+        Assert.That(InputElement.PointerCaptureLostEvent.RoutingStrategies,
+            Is.EqualTo(RoutingStrategies.Direct),
+            "Direct: a capture-lost handler is only any use on the element that held the capture");
+    }
+
+    /// <summary>And that a Direct handler on the element really is served while a bubbling one on its parent
+    /// is not -- the whole reason the view moved its capture-lost registration off the puck host and onto
+    /// the puck. Raised directly rather than through an input device: this is about routing, and no windowing
+    /// platform is needed to settle it.</summary>
+    [Test]
+    public void A_capture_lost_handler_reaches_the_element_that_lost_it_and_not_its_parent()
+    {
+        var child = new Border();
+        var parent = new Border { Child = child };
+        var reached = new List<string>();
+        child.AddHandler(InputElement.PointerCaptureLostEvent, (_, _) => reached.Add("child"),
+            RoutingStrategies.Direct);
+        parent.AddHandler(InputElement.PointerCaptureLostEvent, (_, _) => reached.Add("parent"),
+            RoutingStrategies.Bubble | RoutingStrategies.Tunnel, handledEventsToo: true);
+
+        child.RaiseEvent(new PointerCaptureLostEventArgs(child, null!));
+
+        Assert.That(reached, Is.EqualTo(new[] { "child" }),
+            "a handler on an ancestor is never called for a Direct event, however it is registered");
     }
 }
