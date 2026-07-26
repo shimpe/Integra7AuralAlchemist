@@ -595,12 +595,21 @@
         </TabControl>
 
         <!-- Status bar. Window-level rather than inside the Parameters tab, so the connection state
-             stays visible on the SRX Loader and Motional Surround tabs too. -->
+             stays visible on the SRX Loader and Motional Surround tabs too.
+
+             The bottom padding is deliberately larger than the top's. This Border is the window's last
+             grid row, so its lower edge is the window's own, and a window with ExtendsContentIntoTitleBar
+             keeps a resize region a few pixels inside that edge which takes the pointer before whatever
+             control is under it. With 4px all round, the lower band of these buttons fell inside that
+             region: a click there did nothing whatever, and the button looked perfectly enabled, because
+             it was — the click never reached it. 10px lifts them clear. Reported as "I often have to
+             click Undo/Redo/Compare more than once", with no other button affected, which is what
+             pointed here: these three are the only ones at the window's bottom edge. -->
         <Border Grid.Row="2"
                 Background="{StaticResource SnPanelBackgroundBrush}"
                 BorderBrush="{StaticResource SnStatusBarBorderBrush}"
                 BorderThickness="0,1,0,0"
-                Padding="10,4">
+                Padding="10,4,10,10">
             <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
                 <!-- Undo lives here, in window chrome, and not in the Parameters tab's toolbar where it
                      started: there is one journal for the whole application, but Parameters, SRX Loader
@@ -608,15 +617,80 @@
                      from the other two — and with no keyboard shortcut (see Window.KeyBindings above)
                      that left undo unreachable from the Motional Surround editor entirely.
 
-                     IsEnabled follows the history, not Connected/IsSyncing: nothing can enter the
-                     journal while disconnected, so an empty history is the only reason to disable them. -->
-                <Button Command="{Binding UndoAsync}" IsEnabled="{Binding CanUndo}" Padding="8,2"
-                        ToolTip.Tip="Take back the last parameter change and write the previous value back to the instrument.">
+                     IsEnabled follows the history, and also !IsSyncing. The history is the obvious half:
+                     nothing can enter the journal while disconnected, so an empty history is the only
+                     other reason to disable them. !IsSyncing is there for Compare, which is the one
+                     operation that leaves the history looking untouched while it writes: it computes its
+                     writes, streams them — hundreds, for a long session — and only then moves the journal,
+                     so CanUndo is genuinely true throughout. An undo in that window moves the history
+                     under the press, which the journal refuses rather than corrupts, but the user is left
+                     with an abandoned Compare they did not connect to the undo. The overlay does not help:
+                     it is a Border in grid row 1 and this status bar is row 2, so it cannot cover these. -->
+                <!-- No ToolTip on any of these three, deliberately, and this is the fix for the reported
+                     "I have to click Undo/Redo/Compare more than once".
+
+                     A tooltip is a real popup window. When it sits under the pointer, the click goes to it
+                     and is simply lost — the button never sees it, and looks perfectly enabled throughout,
+                     which is what made this hard to place. It only bites once the tip has had time to
+                     appear, so it was the unhurried, deliberate click that vanished.
+
+                     ToolTip.Placement="Top" was tried first and did not fix it: observed still covering the
+                     button with the window maximized. Rather than keep guessing at placements and offsets
+                     that might merely make it rarer, there is no tip here at all. Nothing else in this
+                     window is close enough to the pointer's resting place to have the same problem, so this
+                     is not a rule against tooltips — it is a rule against tooltips on the controls a user
+                     clicks repeatedly.
+
+                     What the tips said is not lost. Undo and Redo say what they do. Compare's label names
+                     the state it is in, and CompareAsync's status line explains what a press did and what
+                     the next one will do — including that changes made while comparing are not kept, which
+                     was the one fact only the tooltip carried. A status line is read; a tooltip has to be
+                     hunted for. -->
+                <Button Command="{Binding UndoAsync}" Padding="8,2">
+                    <Button.IsEnabled>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <MultiBinding.Bindings>
+                                <Binding Path="CanUndo" />
+                                <Binding Path="!IsSyncing" />
+                            </MultiBinding.Bindings>
+                        </MultiBinding>
+                    </Button.IsEnabled>
                     Undo
                 </Button>
-                <Button Command="{Binding RedoAsync}" IsEnabled="{Binding CanRedo}" Padding="8,2"
-                        ToolTip.Tip="Put back the parameter change the last undo took away.">
+                <Button Command="{Binding RedoAsync}" Padding="8,2">
+                    <Button.IsEnabled>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <MultiBinding.Bindings>
+                                <Binding Path="CanRedo" />
+                                <Binding Path="!IsSyncing" />
+                            </MultiBinding.Bindings>
+                        </MultiBinding>
+                    </Button.IsEnabled>
                     Redo
+                </Button>
+                <!-- Compare. Beside Undo and Redo because it is the same history, read all the way to the
+                     bottom in one press: there is nothing else to keep it in step with, and it is needed
+                     from every tab for the reason the comment above gives. The label carries the state —
+                     it is the only indication of which of the two sounds is playing — so no colour and no
+                     style: every brush in this file comes from a resource, and an inline one here would be
+                     wrong even for emphasis.
+
+                     MinWidth is wide enough for the longer of the two labels, so pressing the button does
+                     not resize it. Without that, "Hearing the original" shrank back to "Compare" under the
+                     pointer and the next click landed where the button no longer was — the third strand of
+                     the multiple-clicks report, and the one that explains why it depended on where in the
+                     button you had clicked. -->
+                <Button Command="{Binding CompareAsync}" Padding="8,2"
+                        MinWidth="170"
+                        Content="{Binding CompareLabel}">
+                    <Button.IsEnabled>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <MultiBinding.Bindings>
+                                <Binding Path="CanCompare" />
+                                <Binding Path="!IsSyncing" />
+                            </MultiBinding.Bindings>
+                        </MultiBinding>
+                    </Button.IsEnabled>
                 </Button>
                 <TextBlock Text="{Binding MidiDevices}" VerticalAlignment="Center" />
                 <!-- Progress of the user tone names, which load after the window is usable.

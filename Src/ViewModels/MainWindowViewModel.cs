@@ -48,7 +48,8 @@ public partial class MainWindowViewModel : ViewModelBase
     /// Unlike <see cref="SyncInfo"/> this drives a status line rather than the blocking overlay.</summary>
     [Reactive] private string _backgroundInfo = "";
 
-    /// <summary>Outcome of the last Studio Set snapshot save or load, shown on the status bar. This is
+    /// <summary>Outcome of the last snapshot save or load, or of the last Compare, shown on the status bar.
+    /// This is
     /// the only channel this app has for telling the user that something failed -- <c>UserActionLog</c>
     /// only reaches the log file -- so a snapshot that cannot be read must land here, not just there.
     /// Empty means there is nothing to report; a cancelled file dialog leaves it untouched.</summary>
@@ -95,34 +96,191 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [Reactive] private bool _canRedo;
 
+    /// <summary>Whether the Compare button has anything to do -- mirrored from the journal like
+    /// <see cref="CanUndo"/>, and for the same threading reason. True while comparing as well as while
+    /// there is something to compare, since the button is also the way back.</summary>
+    [Reactive] private bool _canCompare;
+
+    /// <summary>What the Compare button says. It doubles as the only indication of which of the two sounds
+    /// the instrument is playing, so it names the state rather than the action while comparing.</summary>
+    [Reactive] private string _compareLabel = "Compare";
+
     /// <summary>Take back the last edit the user made, from either editor.</summary>
     [ReactiveCommand]
     public async Task UndoAsync()
     {
-        if (!EditJournal.Default.TryUndo(out var pending)) return;
+        if (!EditJournal.Default.TryUndo(out var pending))
+        {
+            // The button is bound to CanUndo, so reaching here means the click arrived with nothing to take
+            // back. Worth a line rather than a silent return: when a user reports that a button "did
+            // nothing", the log is the only thing that can tell a click which never arrived -- eaten by the
+            // window's resize edge or a tooltip popup, both of which have happened here -- from one that
+            // arrived and found no work. Without it, the two look identical from the outside.
+            UserActionLog.Action("button: Undo (nothing to take back)");
+            return;
+        }
+
         UserActionLog.Action($"undo {pending.Description}");
         // TryUndo has already moved the step to the redo side, so a write that never happened would
         // leave the history describing an instrument state that was never reached. Moving it back is
         // what TryRedo does, so the failure path is the opposite move rather than a special case.
-        if (!await ApplyEditAsync(pending)) EditJournal.Default.TryRedo(out _);
+        if (!await ApplyEditsAsync([pending], "undo/redo")) EditJournal.Default.TryRedo(out _);
     }
 
     /// <summary>Put back the edit the last undo took away.</summary>
     [ReactiveCommand]
     public async Task RedoAsync()
     {
-        if (!EditJournal.Default.TryRedo(out var pending)) return;
+        if (!EditJournal.Default.TryRedo(out var pending))
+        {
+            // See UndoAsync: a click that found nothing to do has to be distinguishable in the log from a
+            // click that never arrived.
+            UserActionLog.Action("button: Redo (nothing to put back)");
+            return;
+        }
+
         UserActionLog.Action($"redo {pending.Description}");
         // Mirror of UndoAsync: put the step back where it came from when the write did not happen.
-        if (!await ApplyEditAsync(pending)) EditJournal.Default.TryUndo(out _);
+        if (!await ApplyEditsAsync([pending], "undo/redo")) EditJournal.Default.TryUndo(out _);
     }
 
-    /// <summary>Write one journal step back to the instrument: every change the gesture made, in the order
-    /// the journal asked for -- which is the dependency order and the same either way, so undo and redo
-    /// differ only in which of each change's two values gets written. Returns false when the step was not
-    /// applied in full, so the caller can put it back rather than leave the history describing a state the
-    /// instrument never reached.</summary>
-    private async Task<bool> ApplyEditAsync(PendingEdit pending)
+    /// <summary>Play the sound as it was before the edits in the history, or -- pressed again -- put the
+    /// edits back. Both directions are the journal's own steps written through the ordinary write path, so
+    /// the editors follow the instrument either way: a write goes through
+    /// <c>DomainBase.WriteToIntegraAsync(path, value, lease)</c>, which modifies the parameter in memory,
+    /// and the wrappers pick that up through <c>SynthParam</c>'s model subscription. What the user hears
+    /// and what the screen shows do not come apart.
+    ///
+    /// A long session's history is hundreds of writes, and the journal's two-phase toggle spans all of them
+    /// -- so something else can move the history in between, and what protects the press is the toggle's
+    /// generation stamp, not the overlay. The overlay is up throughout, but it covers the tab area only (it
+    /// is a Border in the window's second grid row, the status bar is the third), so the buttons beside this
+    /// one stay clickable; the status bar's Undo and Redo are additionally disabled while syncing, which is
+    /// what keeps the ordinary case out of the way rather than merely detected.</summary>
+    [ReactiveCommand]
+    public async Task CompareAsync()
+    {
+        if (!EditJournal.Default.TryBeginCompareToggle(out var toggle))
+        {
+            // See UndoAsync: logged rather than returned silently, so that "the button did nothing" can be
+            // told apart from "the click never got here".
+            UserActionLog.Action("button: Compare (nothing to compare with)");
+            return;
+        }
+
+        UserActionLog.Action(toggle.Entering ? "button: Compare (hear the original)"
+            : "button: Compare (hear the edits)");
+
+        try
+        {
+            SignalStartSync();
+            SyncInfo = toggle.Entering
+                ? "Writing the values from before the edits"
+                : "Writing the edits back";
+
+            if (!await ApplyEditsAsync(toggle.Steps, "compare"))
+            {
+                // Nothing was committed, so the journal still says the instrument is on the side it was.
+                // Some of the writes may have landed; pressing Compare again repeats the same direction,
+                // and every write is an absolute value, so the retry finishes the job.
+                SnapshotFailed = true;
+                SnapshotStatus = "Compare did not finish writing to the instrument. Press it again to retry.";
+            }
+            else if (!EditJournal.Default.CommitCompareToggle(toggle))
+            {
+                // The history changed shape while the writes were going out, so the toggle described a
+                // history that is no longer there and the journal refused it. Those writes did land, so the
+                // instrument is between the two sounds.
+                //
+                // Which of the two causes it was decides what the user can do about it, so the message has
+                // to ask rather than guess. An edit recorded during the press leaves the history there and
+                // a fresh press recomputes from it and converges -- that is worth saying. A Clear (a preset
+                // change, or a Studio Set change arriving from the front panel) takes the history away
+                // entirely, and then a second press does nothing at all: CanCompare is false and the guard
+                // at the top of this method returns before writing anything. Telling them to press it again
+                // would be advice that silently fails.
+                SnapshotFailed = true;
+                SnapshotStatus = EditJournal.Default.CanCompare
+                    ? "Compare was interrupted by another edit, so the press was abandoned. Press it again " +
+                      "to settle on one of the two sounds."
+                    : "Compare was interrupted: the sound it was comparing has been replaced, so there is " +
+                      "nothing left to compare. The instrument holds part of what Compare had written.";
+            }
+            else
+            {
+                SnapshotFailed = false;
+                SnapshotStatus = toggle.Entering
+                    // "Playing" rather than "restored": the device acknowledges no parameter write, so
+                    // this says the values went out. The truncation note is not a warning about damage --
+                    // nothing is lost from the instrument -- but about what this comparison means: the
+                    // edits older than the history's capacity are still in the sound being called the
+                    // original.
+                    //
+                    // "changes you make meanwhile are not kept" used to live in the button's tooltip,
+                    // which had to be removed: a tooltip is a popup, and sitting under the pointer it
+                    // swallowed clicks on the very button it described (see MainWindow.axaml). It belongs
+                    // here anyway -- this line is on screen at the moment the warning applies, which is
+                    // more than a tooltip nobody hovers can say.
+                    ? "Playing the sound from before the edits. Press Compare again to hear them; " +
+                      "changes you make meanwhile are not kept." +
+                      (EditJournal.Default.HistoryTruncated
+                          ? $" Edits older than the last {EditJournal.Capacity} are still included in it."
+                          : "")
+                    : "Playing the edited sound.";
+            }
+        }
+        finally
+        {
+            SignalStopSync();
+        }
+    }
+
+    /// <summary>Refuse an action that would capture or store the instrument's current sound while Compare
+    /// is playing the one from before the edits, and say why. Returns true when the caller must stop.
+    ///
+    /// Reads the journal rather than the mirrored property: the property is a UI convenience posted from
+    /// another thread, and this is a correctness guard -- saving here writes the pre-edit sound into a file
+    /// or, worse, over a user slot, and neither is undoable.</summary>
+    private bool RefuseWhileComparing(string what)
+    {
+        if (!EditJournal.Default.IsComparing) return false;
+        SnapshotFailed = true;
+        SnapshotStatus = $"Cannot {what} while comparing: the instrument is playing the sound from before " +
+                         "your edits. Press Compare again first.";
+        return true;
+    }
+
+    /// <summary>What a set of steps is about to write, short enough for a log line and a lease label.
+    ///
+    /// One step names its parameters and the values they are getting -- <c>PendingEdit.Description</c>,
+    /// the same text the action log carries for a successful undo. This is the only record of a write that
+    /// threw part-way (see the catch in <see cref="ApplyEditsAsync"/> and the one in
+    /// <see cref="ResyncDependentsAsync"/>), so it must not say less than the success path does: which
+    /// parameters were touched, without the values, leaves out exactly what a partial write needs
+    /// diagnosing with.
+    ///
+    /// A whole history would name hundreds, so it is counted instead.</summary>
+    private static string Describe(IReadOnlyList<PendingEdit> steps) =>
+        steps.Count == 1
+            ? steps[0].Description
+            : $"{steps.Sum(s => s.Step.Changes.Count)} changes in {steps.Count} steps";
+
+    /// <summary>Write journal steps back to the instrument: every change of every step, in the order the
+    /// journal asked for -- which is the dependency order within a step (discriminators first, see
+    /// <c>PendingEdit.Writes</c>) and the caller's order between steps. Undo and redo pass a single step;
+    /// Compare passes the whole history at once.
+    ///
+    /// The order between steps is the caller's because only the caller knows which way it is going:
+    /// entering a comparison walks the history newest-first so a parameter edited twice lands on the oldest
+    /// value it held, coming back walks it oldest-first so the same parameter lands on the newest. Both are
+    /// also inherently dependency-safe across steps -- a discriminator and a knob that only exists under
+    /// one of its values were edited in some order, and chronological order in either direction sets the
+    /// discriminator before the write that needs it.
+    ///
+    /// Returns false when the writes were not performed in full, so the caller can leave the journal
+    /// describing the side the instrument is really on rather than the one it was moving to.</summary>
+    /// <param name="label">What to call this on the lease and in the log, e.g. "undo/redo".</param>
+    private async Task<bool> ApplyEditsAsync(IReadOnlyList<PendingEdit> steps, string label)
     {
         // Locals, not the properties: everything below runs after awaits, and a rescan in the meantime
         // replaces both of them. Same reasoning as SaveStudioSetAsync.
@@ -130,13 +288,13 @@ public partial class MainWindowViewModel : ViewModelBase
         var communicator = _integra7Communicator;
         if (api is null || communicator is null) return false;
 
-        var what = string.Join(", ", pending.Step.Changes.Select(c => c.Path));
+        var what = Describe(steps);
         try
         {
-            // One lease for the whole step, not one per change: a gesture's changes belong together (an
+            // One lease for the whole set, not one per change: a gesture's changes belong together (an
             // envelope handle's level and its time), and another flow writing into the same block
             // half-way through would leave the handle somewhere neither the user nor the history
-            // describes.
+            // describes. A comparison has the same need across every step it swaps.
             //
             // The lease is acquired outside ApplyAsync deliberately. Recording is suppressed for the
             // whole of ApplyAsync (otherwise these writes would record themselves and the history would
@@ -144,10 +302,11 @@ public partial class MainWindowViewModel : ViewModelBase
             // has to cover the writes and nothing more. Waiting for the wire to come free is the long
             // part of this and is not a write, so it happens first, outside. The writes themselves are
             // awaited wholly inside, which is what stops them escaping the suppression.
-            await using var lease = await api.BeginConversationAsync($"undo/redo {what}");
+            await using var lease = await api.BeginConversationAsync($"{label} {what}");
             var appliedInFull = false;
             await EditJournal.Default.ApplyAsync(async () =>
             {
+                foreach (var pending in steps)
                 foreach (var (change, value) in pending.Writes)
                 {
                     // TryGetDomain, not GetDomain: the latter answers an address it does not recognise
@@ -159,19 +318,18 @@ public partial class MainWindowViewModel : ViewModelBase
                     if (!communicator.TryGetDomain(change.Start, change.Offset, change.Offset2,
                             out var domain))
                     {
-                        // Abandon the rest of the step rather than skip this change and carry on. Two
-                        // reasons. A later change in the step may be a dependent whose display value
-                        // only converts correctly while the discriminator this one names is where the
-                        // step says it is (see PendingEdit.Writes), so carrying on can write a value
-                        // nobody asked for. And returning false puts the whole step back on the stack it
-                        // came from, which is the only way out of a half-applied gesture: every write
-                        // here is an absolute display value, not a delta, so pressing undo again
-                        // re-applies the changes that did land and retries this one. Skipping and
-                        // reporting would leave the step consumed, the instrument half-way, and nothing
-                        // left in the history able to finish the job.
+                        // Abandon the rest rather than skip this change and carry on. Two reasons. A
+                        // later change may be a dependent whose display value only converts correctly
+                        // while the discriminator this one names is where the journal says it is (see
+                        // PendingEdit.Writes), so carrying on can write a value nobody asked for. And
+                        // returning false leaves the whole set unconsumed on the side it came from, which
+                        // is the only way out of a half-applied swap: every write here is an absolute
+                        // display value, not a delta, so pressing the button again re-applies the changes
+                        // that did land and retries this one. Skipping and reporting would leave the
+                        // instrument half-way with nothing left able to finish the job.
                         UserActionLog.Failed($"apply '{change.Path}'",
                             $"no such block (\"{change.Start}\", \"{change.Offset}\", \"{change.Offset2}\"); " +
-                            "the rest of the step was abandoned and the step put back");
+                            "the rest was abandoned and nothing was consumed");
                         return;
                     }
 
@@ -181,12 +339,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 appliedInFull = true;
             });
 
-            if (appliedInFull) await ResyncDependentsAsync(pending, communicator, lease, what);
+            if (appliedInFull) await ResyncDependentsAsync(steps, communicator, lease, what);
             return appliedInFull;
         }
         catch (Exception e)
         {
-            // A write that threw part-way leaves appliedInFull false, so the step goes back -- see the
+            // A write that threw part-way leaves appliedInFull false, so nothing is consumed -- see the
             // reasoning at the guard above.
             UserActionLog.Failed($"apply '{what}'", e.ToString());
             return false;
@@ -200,9 +358,10 @@ public partial class MainWindowViewModel : ViewModelBase
     /// the shape -- and undo needs them for the same reason: moving a discriminator back leaves everything
     /// it governs displaying the value it had under the other one.
     ///
-    /// The I/O runs once per block, not once per change: the reset recomputes from the block's current
-    /// values, so a second discriminator in the same block (a wave group's Type and ID both moving in one
-    /// gesture) would only repeat identical work. The refresh is per change, because it is keyed by the
+    /// The I/O runs once per block, not once per change and not once per step: the reset recomputes from
+    /// the block's current values, so a second discriminator in the same block (a wave group's Type and ID
+    /// both moving in one gesture) would only repeat identical work -- and so would the same discriminator
+    /// moving in twenty steps of one comparison. The refresh is per change, because it is keyed by the
     /// parameter's own path and performs no I/O.
     ///
     /// Deliberately outside <c>EditJournal.ApplyAsync</c> while still inside the lease. Neither call can
@@ -216,12 +375,13 @@ public partial class MainWindowViewModel : ViewModelBase
     /// Best-effort by design: a failure here is logged and swallowed. The step's writes have already
     /// happened, so reporting failure would put the step back and claim they had not; what is left wrong
     /// is displayed values, which the next read of the block corrects anyway.</summary>
-    private async Task ResyncDependentsAsync(PendingEdit pending, Integra7Domain communicator,
+    private async Task ResyncDependentsAsync(IReadOnlyList<PendingEdit> steps, Integra7Domain communicator,
         IMidiLease lease, string what)
     {
         try
         {
             var blocksDone = new HashSet<(string, string, string)>();
+            foreach (var pending in steps)
             foreach (var (change, _) in pending.Writes)
             {
                 if (!change.IsDiscriminator) continue;
@@ -253,6 +413,8 @@ public partial class MainWindowViewModel : ViewModelBase
         UserActionLog.Action("button: Save User Tone");
         if (_currentPartSelection == 0)
             return;
+
+        if (RefuseWhileComparing("save a user tone")) return;
 
         if (PartViewModels is null || PartViewModels.Count < 2)
         {
@@ -305,6 +467,8 @@ public partial class MainWindowViewModel : ViewModelBase
         var api = Integra7;
         var communicator = _integra7Communicator;
         if (api is null || communicator is null) return;
+
+        if (RefuseWhileComparing("save the Studio Set")) return;
 
         // The Studio Set names itself; that is a far better default file name than "snapshot".
         var name = communicator.StudioSetCommon
@@ -539,6 +703,8 @@ public partial class MainWindowViewModel : ViewModelBase
         var communicator = _integra7Communicator;
         if (api is null || communicator is null) return;
 
+        if (RefuseWhileComparing("save the tone")) return;
+
         var selected = await ResolveSelectedToneAsync("save");
         if (selected is null) return; // ResolveSelectedToneAsync has already said why
 
@@ -609,6 +775,13 @@ public partial class MainWindowViewModel : ViewModelBase
         var api = Integra7;
         var communicator = _integra7Communicator;
         if (api is null || communicator is null) return;
+
+        // Refused while comparing, unlike Load Studio Set. The plan's reasoning for letting a load through
+        // -- it defines the sound outright, so there is nothing to get wrong -- holds only for a load that
+        // replaces everything the comparison covered. This one replaces a single part, then clears the
+        // journal, and the journal's buffer is the only copy of the edited values for the other fifteen.
+        // See PartViewModel.ApplyPreset, which refuses a preset pick for the same reason.
+        if (RefuseWhileComparing("load a tone")) return;
 
         var selected = await ResolveSelectedToneAsync("load");
         if (selected is null) return; // ResolveSelectedToneAsync has already said why
@@ -1250,6 +1423,8 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             CanUndo = EditJournal.Default.CanUndo;
             CanRedo = EditJournal.Default.CanRedo;
+            CanCompare = EditJournal.Default.CanCompare;
+            CompareLabel = EditJournal.Default.IsComparing ? "Hearing the original" : "Compare";
         });
 
         ShowSaveUserToneDialog = new Interaction<SaveUserToneViewModel, UserToneToSave?>();
