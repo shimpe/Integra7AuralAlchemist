@@ -823,30 +823,36 @@ public class EditJournalTests
     public void Compare_writes_every_step_backwards_newest_step_first()
     {
         var (journal, clock) = NewJournal();
-        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        // Values that rise and then fall. With two monotonic steps a reversal and a sort by value are the
+        // same permutation, so such a test would pass for an implementation that ordered by value.
+        journal.Record(Change("Studio Set Part/Part Level", "100", "500"));
         clock.Now += EditJournal.CoalesceWindow * 2;
-        journal.Record(Change("Studio Set Part/Part Level", "110", "120"));
+        journal.Record(Change("Studio Set Part/Part Level", "500", "50"));
+        clock.Now += EditJournal.CoalesceWindow * 2;
+        journal.Record(Change("Studio Set Part/Part Level", "50", "300"));
 
         Assert.That(journal.TryBeginCompareToggle(out var toggle), Is.True);
         Assert.That(toggle!.Entering, Is.True);
-        Assert.That(toggle.Steps.Select(s => Only(s).ValueToApply), Is.EqualTo(new[] { "110", "100" }),
-            "newest step first, so a parameter edited twice ends on the value it held before either edit");
+        Assert.That(toggle.Steps.Select(s => Only(s).ValueToApply), Is.EqualTo(new[] { "50", "500", "100" }),
+            "newest step first, so the parameter ends on the value it held before any of the three edits");
     }
 
     [Test]
     public void Coming_back_writes_every_step_forwards_oldest_step_first()
     {
         var (journal, clock) = NewJournal();
-        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        journal.Record(Change("Studio Set Part/Part Level", "100", "500"));
         clock.Now += EditJournal.CoalesceWindow * 2;
-        journal.Record(Change("Studio Set Part/Part Level", "110", "120"));
+        journal.Record(Change("Studio Set Part/Part Level", "500", "50"));
+        clock.Now += EditJournal.CoalesceWindow * 2;
+        journal.Record(Change("Studio Set Part/Part Level", "50", "300"));
 
         Assert.That(journal.TryBeginCompareToggle(out var enter), Is.True);
-        journal.CommitCompareToggle(enter!);
+        Assert.That(journal.CommitCompareToggle(enter!), Is.True);
 
         Assert.That(journal.TryBeginCompareToggle(out var exit), Is.True);
         Assert.That(exit!.Entering, Is.False);
-        Assert.That(exit.Steps.Select(s => Only(s).ValueToApply), Is.EqualTo(new[] { "110", "120" }),
+        Assert.That(exit.Steps.Select(s => Only(s).ValueToApply), Is.EqualTo(new[] { "500", "50", "300" }),
             "oldest step first, so the parameter ends on the value the newest edit gave it");
     }
 
@@ -883,7 +889,9 @@ public class EditJournalTests
         Assert.That(journal.CanUndo, Is.True);
         Assert.That(journal.TryBeginCompareToggle(out var again), Is.True);
         Assert.That(again!.Entering, Is.True, "pressing Compare again retries the same direction");
-        Assert.That(again.Steps.Count, Is.EqualTo(first!.Steps.Count));
+        Assert.That(again.Steps.Select(s => (Only(s).Change.Path, Only(s).ValueToApply)),
+            Is.EqualTo(first!.Steps.Select(s => (Only(s).Change.Path, Only(s).ValueToApply))),
+            "and writes the same values: a same-sized recomputation of the wrong thing passes a count");
     }
 
     [Test]
@@ -915,5 +923,52 @@ public class EditJournalTests
 
         Assert.That(announcements, Is.EqualTo(1),
             "the button's enabled state and label are mirrored from this event; without it they go stale");
+    }
+
+    [Test]
+    public void Compare_writes_a_discriminator_before_what_depends_on_it()
+    {
+        var (journal, clock) = NewJournal();
+        // An older, unrelated gesture, so the toggle really has two steps to order between.
+        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        clock.Now += EditJournal.CoalesceWindow * 2;
+        // One gesture that moved a knob only one chorus type has and then picked the type -- recorded
+        // dependent-first, which is the order that makes "discriminators first" do any work.
+        journal.Record(Change("Studio Set Common Chorus/Chorus Parameter 1", "0", "64"));
+        journal.Record(Change("Studio Set Common Chorus/Chorus Type", "CHORUS", "GM2 CHORUS", true));
+
+        Assert.That(journal.TryBeginCompareToggle(out var toggle), Is.True);
+        Assert.That(toggle!.Steps.Count, Is.EqualTo(2));
+        Assert.That(toggle.Steps[0].Writes.Select(w => w.Change.Path), Is.EqualTo(new[]
+        {
+            "Studio Set Common Chorus/Chorus Type",
+            "Studio Set Common Chorus/Chorus Parameter 1"
+        }), "the newest step goes first, and the discriminator goes first inside it");
+        Assert.That(Only(toggle.Steps[1]).Change.Path, Is.EqualTo("Studio Set Part/Part Level"));
+    }
+
+    [Test]
+    public void A_comparison_puts_both_halves_of_an_envelope_drag_back()
+    {
+        var (journal, _) = NewJournal();
+        // One drag is one step carrying two parameters: a level from the pointer's Y, a time from its X.
+        journal.Record(Change("PCM Synth Tone Partial/TVA Level 2", "80", "20"));
+        journal.Record(Change("PCM Synth Tone Partial/TVA Time 2", "40", "90"));
+
+        Assert.That(journal.TryBeginCompareToggle(out var enter), Is.True);
+        Assert.That(enter!.Steps.Count, Is.EqualTo(1));
+        Assert.That(enter.Steps[0].Writes.Select(w => (w.Change.Path, w.ValueToApply)), Is.EqualTo(new[]
+        {
+            ("PCM Synth Tone Partial/TVA Level 2", "80"),
+            ("PCM Synth Tone Partial/TVA Time 2", "40")
+        }), "both halves go back, each to the value from before the drag");
+        Assert.That(journal.CommitCompareToggle(enter), Is.True);
+
+        Assert.That(journal.TryBeginCompareToggle(out var exit), Is.True);
+        Assert.That(exit!.Steps[0].Writes.Select(w => (w.Change.Path, w.ValueToApply)), Is.EqualTo(new[]
+        {
+            ("PCM Synth Tone Partial/TVA Level 2", "20"),
+            ("PCM Synth Tone Partial/TVA Time 2", "90")
+        }), "and both come forward again");
     }
 }
