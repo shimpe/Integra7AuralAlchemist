@@ -140,12 +140,17 @@
                                 </Button.IsEnabled>
                                 Save User Tone
                             </Button>
-                            <!-- Save writes into the library — searchable, filterable, one folder to back up — and
-                                 Export writes a snapshot file wherever the user likes. Both read the same 53 blocks
-                                 out of the instrument; they differ only in where the file lands and in whether a
-                                 name, category, tags and a rating are asked for first. -->
+                            <!-- "Add … to library" against "Export …": both read the same blocks out of the
+                                 instrument and differ only in where the file lands, so the labels name the
+                                 destination and nothing else. They say which *thing* is added, too, because
+                                 the alternative was two buttons in one row both reading "Add to library"
+                                 with only their position to say what they meant. Longer labels on a row
+                                 this wide is the cheaper cost.
+                                 "Save" appears nowhere here on purpose: "Save User Tone", further left,
+                                 writes into the instrument's own memory, and that is the only meaning of
+                                 the word left in this toolbar. -->
                             <Button Command="{Binding SaveStudioSetAsync}"
-                                    ToolTip.Tip="Read the Studio Set currently in the instrument — its common settings, effects and all 16 parts — and save it into the library.">
+                                    ToolTip.Tip="Read the Studio Set currently in the instrument — its common settings, effects and all 16 parts — and add it to the library, with a name, tags and a rating.">
                                 <Button.IsEnabled>
                                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                                         <MultiBinding.Bindings>
@@ -154,7 +159,7 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Save Studio Set…
+                                Add Studio Set to library
                             </Button>
                             <Button Command="{Binding ExportStudioSetAsync}"
                                     ToolTip.Tip="Read the Studio Set currently in the instrument and write it to a file anywhere you like, outside the library.">
@@ -180,13 +185,9 @@
                                 </Button.IsEnabled>
                                 Load Studio Set…
                             </Button>
-                            <!-- "Add to library", not "Save Tone…", which was a syllable away from "Export
-                                 Tone…" beside it and told the user nothing about the difference. This
-                                 label names the destination, which is the only thing that differs between
-                                 the two: both read the same blocks out of the same part.
-                                 Note it also stops colliding with "Save User Tone" to its left, which
-                                 writes into the instrument's own memory rather than to a file — two
-                                 different meanings of "save" that were sitting side by side. -->
+                            <!-- See the Studio Set pair above for why these read "Add … to library" rather
+                                 than "Save …". Lower-case "tone" against capitalised "Studio Set" is this
+                                 application's own usage, not an inconsistency. -->
                             <Button Command="{Binding SaveToneAsync}"
                                     ToolTip.Tip="Read the tone currently loaded into the selected part — every one of its parameters — and add it to the library, with a name, category, tags and a rating.">
                                 <Button.IsEnabled>
@@ -198,7 +199,7 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Add to library
+                                Add tone to library
                             </Button>
                             <Button Command="{Binding ExportToneAsync}"
                                     ToolTip.Tip="Read the tone currently loaded into the selected part and write it to a file anywhere you like, outside the library.">
