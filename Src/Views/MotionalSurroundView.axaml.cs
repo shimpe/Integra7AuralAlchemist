@@ -33,57 +33,9 @@ public partial class MotionalSurroundView : UserControl
     private readonly PointerGesture _puckGesture = new();
     private readonly PointerGesture _sliderGesture = new();
 
-    /// <summary>An <see cref="EditGesture"/> held for the length of a pointer drag, closed by whichever of
-    /// the release and the loss of capture comes first.
-    ///
-    /// The capture-lost half is why this is a class rather than two handlers. Avalonia declares
-    /// <c>PointerCaptureLostEvent</c> as a <b>Direct</b> routed event (asserted in
-    /// <c>EditRecordingTests.The_pointer_events_the_slider_gestures_hang_off_route_as_this_view_needs</c>),
-    /// so it is only ever delivered to the element that held the capture -- a handler on an ancestor,
-    /// which is what this file had for the pucks, can never run. The element to hang it on is known at
-    /// press time, though: <c>MouseDevice.MouseDown</c> captures the hit-tested element before it raises
-    /// <c>PointerPressed</c>, and neither <c>Slider</c> nor <c>Thumb</c> moves that capture afterwards
-    /// (neither calls <c>Pointer.Capture</c> at all), so the captured element reports the end of the drag
-    /// however the drag ends. For a puck this view does the capturing itself and passes the Border.
-    ///
-    /// Without that, a drag interrupted rather than released -- the window losing activation while the
-    /// button is down -- would leave the scope open and fold every later edit into that one step until
-    /// <see cref="EditJournal.StaleGestureWindow"/> gave up on it, which is containment and not a fix.</summary>
-    private sealed class PointerGesture
-    {
-        private readonly EditGesture _gesture = new();
-        private Interactive? _captureTarget;
-        private Action? _onEnd;
-
-        /// <param name="onEnd">Run when the drag ends, however it ends. The pucks keep drag state of their
-        /// own that has to be cleared on an interrupted drag as well as a released one -- left set, it
-        /// makes the next pointer move over the room map drag the puck with no button held.</param>
-        public void Begin(Interactive captureTarget, Action? onEnd = null)
-        {
-            End();
-            _captureTarget = captureTarget;
-            _onEnd = onEnd;
-            captureTarget.AddHandler(PointerCaptureLostEvent, OnCaptureLost, RoutingStrategies.Direct);
-            _gesture.Begin();
-        }
-
-        /// <summary>Idempotent, which is what lets the release, the capture loss and the next press all
-        /// call it without any of them closing a gesture that is not theirs.</summary>
-        public void End()
-        {
-            if (_captureTarget is { } t)
-            {
-                _captureTarget = null;
-                t.RemoveHandler(PointerCaptureLostEvent, OnCaptureLost);
-            }
-            _gesture.End();
-            var onEnd = _onEnd;
-            _onEnd = null;
-            onEnd?.Invoke();
-        }
-
-        private void OnCaptureLost(object? sender, PointerCaptureLostEventArgs e) => End();
-    }
+    // PointerGesture used to live here as a private class. It moved to Src/Controls once SliderGesture
+    // needed the same thing and, written independently, hung its capture-lost handler on the Slider --
+    // where a Direct event never arrives. Its doc comment carries the reasoning.
 
     public MotionalSurroundView()
     {
