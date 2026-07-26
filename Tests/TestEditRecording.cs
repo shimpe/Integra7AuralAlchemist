@@ -22,6 +22,9 @@ public class EditRecordingTests
     private const string Offset2 = "Offset2/Studio Set Part 1";
     private const string Path = "Studio Set Part/Part Level";
 
+    private const string ChorusOffset2 = "Offset2/Studio Set Common Chorus";
+    private const string ChorusTypePath = "Studio Set Common Chorus/Chorus Type";
+
     private static Integra7Parameters? _parameters;
 
     private static DomainBase NewDomain()
@@ -35,6 +38,19 @@ public class EditRecordingTests
     {
         _parameters ??= TestFailedReadKeepsValues.LoadParameters();
         return new FullyQualifiedParameter(Start, Offset, Offset2, _parameters.Lookup(Path));
+    }
+
+    private static DomainBase NewChorusDomain()
+    {
+        _parameters ??= TestFailedReadKeepsValues.LoadParameters();
+        return new DomainBase(new TestFailedReadKeepsValues.SilentApi(), new Integra7StartAddresses(),
+            _parameters, Start, Offset, ChorusOffset2, "Studio Set Common Chorus/");
+    }
+
+    private static FullyQualifiedParameter NewChorusTypeParameter()
+    {
+        _parameters ??= TestFailedReadKeepsValues.LoadParameters();
+        return new FullyQualifiedParameter(Start, Offset, ChorusOffset2, _parameters.Lookup(ChorusTypePath));
     }
 
     /// <summary>The journal the application records into is a process-wide singleton, so a test that did
@@ -70,6 +86,44 @@ public class EditRecordingTests
             "read off the real spec: nothing in the Studio Set Part block governs another parameter");
         Assert.That(pending.Writes.Single().ValueToApply, Is.EqualTo("100"),
             "undoing it writes the value from before the edit");
+        Assert.That(EditJournal.Default.CanUndo, Is.False, "exactly one step, not several");
+    }
+
+    /// <summary>The Studio Set Part block used everywhere else in this fixture has no discriminator in
+    /// it, so every other test here would still pass with a record site that hard-coded <c>IsDiscriminator:
+    /// false</c> -- silently restoring the wrong write order (see <see cref="PendingEdit.Writes"/>).
+    /// "Studio Set Common Chorus/Chorus Type" really does govern the Chorus Parameter slots (the database
+    /// analyzer sets <c>IsParent</c> on it from the other side's <c>par:</c> references, so the flag is
+    /// asserted here off the live parameter rather than assumed from the definitions file), so this proves
+    /// the flag genuinely propagates as true through a real record site instead of only proving it can be
+    /// false.</summary>
+    [Test]
+    public void A_discriminator_edit_is_recorded_with_IsDiscriminator_true()
+    {
+        var p = NewChorusTypeParameter();
+        Assert.That(p.ParSpec.IsParent, Is.True,
+            "this only proves anything if Chorus Type really is a discriminator; otherwise it would " +
+            "pass vacuously even for a record site that always passed false");
+
+        p.StringValue = "Chorus";
+        using var writer = new ThrottledParameterWriter(Constants.THROTTLE, new TestScheduler());
+        using var param = new ParamString(NewChorusDomain(), p, writer);
+        Assert.That(param.Value, Is.EqualTo("Chorus"), "the wrapper starts from the parameter's own value");
+
+        param.Value = "GM2 Chorus";
+
+        Assert.That(EditJournal.Default.CanUndo, Is.True, "a user edit must be recorded");
+        Assert.That(EditJournal.Default.TryUndo(out var pending), Is.True);
+        Assert.That(pending!.Step.Changes.Count, Is.EqualTo(1), "one setter call, one change");
+        var change = pending.Step.Changes[0];
+        Assert.That(change.Start, Is.EqualTo(Start));
+        Assert.That(change.Offset, Is.EqualTo(Offset));
+        Assert.That(change.Offset2, Is.EqualTo(ChorusOffset2));
+        Assert.That(change.Path, Is.EqualTo(ChorusTypePath));
+        Assert.That(change.OldValue, Is.EqualTo("Chorus"));
+        Assert.That(change.NewValue, Is.EqualTo("GM2 Chorus"));
+        Assert.That(change.IsDiscriminator, Is.True,
+            "read off the real spec: Chorus Type governs the Chorus Parameter slots");
         Assert.That(EditJournal.Default.CanUndo, Is.False, "exactly one step, not several");
     }
 
