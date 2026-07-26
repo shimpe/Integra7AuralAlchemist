@@ -104,7 +104,7 @@ public partial class MainWindowViewModel : ViewModelBase
         // TryUndo has already moved the step to the redo side, so a write that never happened would
         // leave the history describing an instrument state that was never reached. Moving it back is
         // what TryRedo does, so the failure path is the opposite move rather than a special case.
-        if (!await ApplyEditAsync(pending)) EditJournal.Default.TryRedo(out _);
+        if (!await ApplyEditsAsync([pending], "undo/redo")) EditJournal.Default.TryRedo(out _);
     }
 
     /// <summary>Put back the edit the last undo took away.</summary>
@@ -114,15 +114,32 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!EditJournal.Default.TryRedo(out var pending)) return;
         UserActionLog.Action($"redo {pending.Description}");
         // Mirror of UndoAsync: put the step back where it came from when the write did not happen.
-        if (!await ApplyEditAsync(pending)) EditJournal.Default.TryUndo(out _);
+        if (!await ApplyEditsAsync([pending], "undo/redo")) EditJournal.Default.TryUndo(out _);
     }
 
-    /// <summary>Write one journal step back to the instrument: every change the gesture made, in the order
-    /// the journal asked for -- which is the dependency order and the same either way, so undo and redo
-    /// differ only in which of each change's two values gets written. Returns false when the step was not
-    /// applied in full, so the caller can put it back rather than leave the history describing a state the
-    /// instrument never reached.</summary>
-    private async Task<bool> ApplyEditAsync(PendingEdit pending)
+    /// <summary>What a set of steps is about to write, short enough for a log line and a lease label. One
+    /// step names its parameters; a whole history would name hundreds, so it is counted instead.</summary>
+    private static string Describe(IReadOnlyList<PendingEdit> steps) =>
+        steps.Count == 1
+            ? string.Join(", ", steps[0].Step.Changes.Select(c => c.Path))
+            : $"{steps.Sum(s => s.Step.Changes.Count)} changes in {steps.Count} steps";
+
+    /// <summary>Write journal steps back to the instrument: every change of every step, in the order the
+    /// journal asked for -- which is the dependency order within a step (discriminators first, see
+    /// <c>PendingEdit.Writes</c>) and the caller's order between steps. Undo and redo pass a single step;
+    /// Compare passes the whole history at once.
+    ///
+    /// The order between steps is the caller's because only the caller knows which way it is going:
+    /// entering a comparison walks the history newest-first so a parameter edited twice lands on the oldest
+    /// value it held, coming back walks it oldest-first so the same parameter lands on the newest. Both are
+    /// also inherently dependency-safe across steps -- a discriminator and a knob that only exists under
+    /// one of its values were edited in some order, and chronological order in either direction sets the
+    /// discriminator before the write that needs it.
+    ///
+    /// Returns false when the writes were not performed in full, so the caller can leave the journal
+    /// describing the side the instrument is really on rather than the one it was moving to.</summary>
+    /// <param name="label">What to call this on the lease and in the log, e.g. "undo/redo".</param>
+    private async Task<bool> ApplyEditsAsync(IReadOnlyList<PendingEdit> steps, string label)
     {
         // Locals, not the properties: everything below runs after awaits, and a rescan in the meantime
         // replaces both of them. Same reasoning as SaveStudioSetAsync.
@@ -130,13 +147,13 @@ public partial class MainWindowViewModel : ViewModelBase
         var communicator = _integra7Communicator;
         if (api is null || communicator is null) return false;
 
-        var what = string.Join(", ", pending.Step.Changes.Select(c => c.Path));
+        var what = Describe(steps);
         try
         {
-            // One lease for the whole step, not one per change: a gesture's changes belong together (an
+            // One lease for the whole set, not one per change: a gesture's changes belong together (an
             // envelope handle's level and its time), and another flow writing into the same block
             // half-way through would leave the handle somewhere neither the user nor the history
-            // describes.
+            // describes. A comparison has the same need across every step it swaps.
             //
             // The lease is acquired outside ApplyAsync deliberately. Recording is suppressed for the
             // whole of ApplyAsync (otherwise these writes would record themselves and the history would
@@ -144,10 +161,11 @@ public partial class MainWindowViewModel : ViewModelBase
             // has to cover the writes and nothing more. Waiting for the wire to come free is the long
             // part of this and is not a write, so it happens first, outside. The writes themselves are
             // awaited wholly inside, which is what stops them escaping the suppression.
-            await using var lease = await api.BeginConversationAsync($"undo/redo {what}");
+            await using var lease = await api.BeginConversationAsync($"{label} {what}");
             var appliedInFull = false;
             await EditJournal.Default.ApplyAsync(async () =>
             {
+                foreach (var pending in steps)
                 foreach (var (change, value) in pending.Writes)
                 {
                     // TryGetDomain, not GetDomain: the latter answers an address it does not recognise
@@ -159,19 +177,18 @@ public partial class MainWindowViewModel : ViewModelBase
                     if (!communicator.TryGetDomain(change.Start, change.Offset, change.Offset2,
                             out var domain))
                     {
-                        // Abandon the rest of the step rather than skip this change and carry on. Two
-                        // reasons. A later change in the step may be a dependent whose display value
-                        // only converts correctly while the discriminator this one names is where the
-                        // step says it is (see PendingEdit.Writes), so carrying on can write a value
-                        // nobody asked for. And returning false puts the whole step back on the stack it
-                        // came from, which is the only way out of a half-applied gesture: every write
-                        // here is an absolute display value, not a delta, so pressing undo again
-                        // re-applies the changes that did land and retries this one. Skipping and
-                        // reporting would leave the step consumed, the instrument half-way, and nothing
-                        // left in the history able to finish the job.
+                        // Abandon the rest rather than skip this change and carry on. Two reasons. A
+                        // later change may be a dependent whose display value only converts correctly
+                        // while the discriminator this one names is where the journal says it is (see
+                        // PendingEdit.Writes), so carrying on can write a value nobody asked for. And
+                        // returning false leaves the whole set unconsumed on the side it came from, which
+                        // is the only way out of a half-applied swap: every write here is an absolute
+                        // display value, not a delta, so pressing the button again re-applies the changes
+                        // that did land and retries this one. Skipping and reporting would leave the
+                        // instrument half-way with nothing left able to finish the job.
                         UserActionLog.Failed($"apply '{change.Path}'",
                             $"no such block (\"{change.Start}\", \"{change.Offset}\", \"{change.Offset2}\"); " +
-                            "the rest of the step was abandoned and the step put back");
+                            "the rest was abandoned and nothing was consumed");
                         return;
                     }
 
@@ -181,12 +198,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 appliedInFull = true;
             });
 
-            if (appliedInFull) await ResyncDependentsAsync(pending, communicator, lease, what);
+            if (appliedInFull) await ResyncDependentsAsync(steps, communicator, lease, what);
             return appliedInFull;
         }
         catch (Exception e)
         {
-            // A write that threw part-way leaves appliedInFull false, so the step goes back -- see the
+            // A write that threw part-way leaves appliedInFull false, so nothing is consumed -- see the
             // reasoning at the guard above.
             UserActionLog.Failed($"apply '{what}'", e.ToString());
             return false;
@@ -200,9 +217,10 @@ public partial class MainWindowViewModel : ViewModelBase
     /// the shape -- and undo needs them for the same reason: moving a discriminator back leaves everything
     /// it governs displaying the value it had under the other one.
     ///
-    /// The I/O runs once per block, not once per change: the reset recomputes from the block's current
-    /// values, so a second discriminator in the same block (a wave group's Type and ID both moving in one
-    /// gesture) would only repeat identical work. The refresh is per change, because it is keyed by the
+    /// The I/O runs once per block, not once per change and not once per step: the reset recomputes from
+    /// the block's current values, so a second discriminator in the same block (a wave group's Type and ID
+    /// both moving in one gesture) would only repeat identical work -- and so would the same discriminator
+    /// moving in twenty steps of one comparison. The refresh is per change, because it is keyed by the
     /// parameter's own path and performs no I/O.
     ///
     /// Deliberately outside <c>EditJournal.ApplyAsync</c> while still inside the lease. Neither call can
@@ -216,12 +234,13 @@ public partial class MainWindowViewModel : ViewModelBase
     /// Best-effort by design: a failure here is logged and swallowed. The step's writes have already
     /// happened, so reporting failure would put the step back and claim they had not; what is left wrong
     /// is displayed values, which the next read of the block corrects anyway.</summary>
-    private async Task ResyncDependentsAsync(PendingEdit pending, Integra7Domain communicator,
+    private async Task ResyncDependentsAsync(IReadOnlyList<PendingEdit> steps, Integra7Domain communicator,
         IMidiLease lease, string what)
     {
         try
         {
             var blocksDone = new HashSet<(string, string, string)>();
+            foreach (var pending in steps)
             foreach (var (change, _) in pending.Writes)
             {
                 if (!change.IsDiscriminator) continue;
