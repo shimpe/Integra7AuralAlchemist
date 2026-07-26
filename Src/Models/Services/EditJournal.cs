@@ -1,25 +1,66 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using Integra7AuralAlchemist.Models.Data;
 
 namespace Integra7AuralAlchemist.Models.Services;
 
-/// <summary>One reversible edit: which parameter, and what it displayed before and after. Values are
-/// display strings because that is the form every write path already speaks -- see
-/// <c>IParam.Snapshot()</c> and <c>DomainBase.WriteToIntegraAsync(path, displayValue, lease)</c>.</summary>
-public sealed record EditStep(
+/// <summary>One parameter's before and after, and the address that resolves it. Values are display
+/// strings because that is the form every write path already speaks -- see <c>IParam.Snapshot()</c> and
+/// <c>DomainBase.WriteToIntegraAsync(path, displayValue, lease)</c>.</summary>
+public sealed record ParameterChange(
     string Start, string Offset, string Offset2, string Path, string OldValue, string NewValue);
 
-/// <summary>An <see cref="EditStep"/> together with the value the caller should now write.</summary>
-public sealed record PendingEdit(EditStep Step, string ValueToApply)
+/// <summary>One undo step: everything a single gesture changed. A knob drag is one change; dragging an
+/// envelope handle is two (a level from the pointer's Y, a time from its X -- see
+/// <c>MultiStageEnvelopeControl.OnPointerMoved</c>), and undoing it has to put both back or the handle
+/// does not return to where it was. Changes are in the order the gesture first touched each
+/// parameter.</summary>
+public sealed record EditStep(IReadOnlyList<ParameterChange> Changes);
+
+/// <summary>Which way a step is being applied. Undo writes each change's <c>OldValue</c>, redo its
+/// <c>NewValue</c>.</summary>
+public enum EditDirection
 {
-    public string Path => Step.Path;
+    Undo,
+    Redo
+}
+
+/// <summary>An <see cref="EditStep"/> together with the writes the caller should now perform, in the
+/// order to perform them.</summary>
+public sealed record PendingEdit(EditStep Step, EditDirection Direction)
+{
+    /// <summary>Each change and the value it gets, ready to write in this order: undo walks the step's
+    /// changes backwards, redo forwards -- the usual rule for inverting a composition.
+    ///
+    /// Every change is an absolute display value written to a fixed address, so for changes that do not
+    /// interpret one another the order makes no difference at all, and that is every gesture the editors
+    /// actually produce (a level and a time on one envelope handle govern nothing). It becomes
+    /// observable in exactly one case: a discriminator and one of its dependents landing in the same
+    /// group. A dependent's display value only means what it meant while its discriminator held the
+    /// value it held then -- <c>DomainBase.WriteToIntegraAsync</c> resolves the write through a
+    /// <c>ParserContext</c> built from the discriminator's <em>current</em> value, and skips the
+    /// parameter outright when it is not valid in that context -- so there the discriminator has to be
+    /// written before its dependent, whichever direction is being applied. Reversing gets that right
+    /// when the gesture touched the dependent first, and wrong when it touched the discriminator first;
+    /// nothing here says which of two changes governs the other, because <c>IsParent</c> lives on the
+    /// parameter spec and the journal only stores addresses and strings. No control writes a
+    /// discriminator and its dependent inside one 250 ms window today; if one is ever written, this
+    /// needs the dependency order rather than either fixed one.</summary>
+    public IReadOnlyList<(ParameterChange Change, string ValueToApply)> Writes { get; } =
+        Direction == EditDirection.Undo
+            ? [.. Step.Changes.Reverse().Select(c => (c, c.OldValue))]
+            : [.. Step.Changes.Select(c => (c, c.NewValue))];
+
+    /// <summary>What this step is about to write, for the action log.</summary>
+    public string Description =>
+        string.Join(", ", Writes.Select(w => $"'{w.Change.Path}' -> '{w.ValueToApply}'"));
 }
 
 /// <summary>
-/// The undo history. Records every edit the user makes, from either write path, and hands back the
-/// value to write to take one back.
+/// The undo history. Records every parameter change the user makes, from either write path, groups the
+/// changes of one gesture into a single step, and hands back the writes needed to take that step back.
 ///
 /// Pure -- no Avalonia, no MIDI -- so the whole of it is unit-tested. Applying a step is the caller's
 /// job, because that needs a device and a lease.
@@ -34,13 +75,18 @@ public sealed record PendingEdit(EditStep Step, string ValueToApply)
 /// </summary>
 public sealed class EditJournal
 {
-    /// <summary>Consecutive edits to the same parameter within this window are one step. A knob drag
-    /// is hundreds of setter calls; without this, undo would walk back through every intermediate
-    /// value one at a time. Matches the write debounce, so a coalesced group is also one write.</summary>
+    /// <summary>Changes that arrive within this window of one another are one step, <em>whatever they
+    /// target</em>. A step is a gesture, not a parameter: a knob drag is hundreds of setter calls on one
+    /// parameter, and a drag on any of the 2-D editors (envelopes, the EQ and filter curves, the PMT
+    /// zone map) is hundreds of calls alternating between two parameters, because one pointer move sets
+    /// a level from the pointer's Y and a time from its X. Coalescing on the target as well as the clock
+    /// would merge neither of the latter -- every record would see the other parameter on top -- so one
+    /// drag would fill the history and push everything before it out. Matches the write debounce, so a
+    /// coalesced group is also one write per parameter.</summary>
     public static readonly TimeSpan CoalesceWindow = TimeSpan.FromMilliseconds(Constants.THROTTLE);
 
-    /// <summary>How many steps to keep. A long session must not grow without bound; losing the
-    /// oldest edits is the right thing to lose.</summary>
+    /// <summary>How many steps -- gestures, not parameter changes -- to keep. A long session must not
+    /// grow without bound; losing the oldest edits is the right thing to lose.</summary>
     public const int Capacity = 200;
 
     // Guards _undo, _redo, _lastRecordedAt and _isApplying. Record runs on the UI thread and on the
@@ -70,18 +116,18 @@ public sealed class EditJournal
     /// from whichever thread made the change -- see the class remarks.</summary>
     public event Action? Changed;
 
-    public void Record(EditStep step)
+    public void Record(ParameterChange change)
     {
         lock (_gate)
         {
             if (_isApplying) return;
 
             var at = _now();
-            if (_undo.Count > 0 && IsSameTarget(_undo[^1], step) && at - _lastRecordedAt <= CoalesceWindow)
-                // Same parameter, still the same gesture: keep the value it had before the gesture began.
-                _undo[^1] = _undo[^1] with { NewValue = step.NewValue };
+            if (_undo.Count > 0 && at - _lastRecordedAt <= CoalesceWindow)
+                // Still the same gesture, whichever parameter this change names.
+                _undo[^1] = Merge(_undo[^1], change);
             else
-                _undo.Add(step);
+                _undo.Add(new EditStep([change]));
 
             _lastRecordedAt = at;
             if (_undo.Count > Capacity) _undo.RemoveAt(0);
@@ -110,7 +156,7 @@ public sealed class EditJournal
             // see the regression this guards in TestEditJournal.
             _lastRecordedAt = default;
         }
-        pending = new PendingEdit(step, step.OldValue);
+        pending = new PendingEdit(step, EditDirection.Undo);
         Changed?.Invoke();
         return true;
     }
@@ -133,7 +179,7 @@ public sealed class EditJournal
             // it is continuing the gesture that originally produced the step redo just reinstated.
             _lastRecordedAt = default;
         }
-        pending = new PendingEdit(step, step.NewValue);
+        pending = new PendingEdit(step, EditDirection.Redo);
         Changed?.Invoke();
         return true;
     }
@@ -166,7 +212,20 @@ public sealed class EditJournal
         Changed?.Invoke();
     }
 
-    private static bool IsSameTarget(EditStep a, EditStep b) =>
+    /// <summary>Fold one more change into the open step. A parameter the gesture has already touched
+    /// keeps the <c>OldValue</c> from the first time it did -- that is the value from before the gesture
+    /// began, which is what undo has to put back -- and takes the latest <c>NewValue</c>. It also keeps
+    /// its original position, so the step stays in first-touched order.</summary>
+    private static EditStep Merge(EditStep step, ParameterChange change)
+    {
+        var changes = new List<ParameterChange>(step.Changes);
+        var existing = changes.FindIndex(c => IsSameTarget(c, change));
+        if (existing >= 0) changes[existing] = changes[existing] with { NewValue = change.NewValue };
+        else changes.Add(change);
+        return new EditStep(changes);
+    }
+
+    private static bool IsSameTarget(ParameterChange a, ParameterChange b) =>
         a.Start == b.Start && a.Offset == b.Offset && a.Offset2 == b.Offset2 && a.Path == b.Path;
 
     /// <summary>The one journal the application records into. Ambient like

@@ -46,7 +46,7 @@ public class EditRecordingTests
     public void ClearTheJournalAgain() => EditJournal.Default.Clear();
 
     [Test]
-    public void A_user_edit_records_one_step_with_the_parameters_address_and_both_values()
+    public void A_user_edit_records_one_change_with_the_parameters_address_and_both_values()
     {
         var p = NewParameter();
         p.StringValue = "100";
@@ -58,12 +58,16 @@ public class EditRecordingTests
 
         Assert.That(EditJournal.Default.CanUndo, Is.True, "a user edit must be recorded");
         Assert.That(EditJournal.Default.TryUndo(out var pending), Is.True);
-        Assert.That(pending!.Step.Start, Is.EqualTo(Start));
-        Assert.That(pending.Step.Offset, Is.EqualTo(Offset));
-        Assert.That(pending.Step.Offset2, Is.EqualTo(Offset2));
-        Assert.That(pending.Step.Path, Is.EqualTo(Path));
-        Assert.That(pending.Step.OldValue, Is.EqualTo("100"), "the value from before the edit");
-        Assert.That(pending.Step.NewValue, Is.EqualTo("110"), "the value the edit produced");
+        Assert.That(pending!.Step.Changes.Count, Is.EqualTo(1), "one setter call, one change");
+        var change = pending.Step.Changes[0];
+        Assert.That(change.Start, Is.EqualTo(Start));
+        Assert.That(change.Offset, Is.EqualTo(Offset));
+        Assert.That(change.Offset2, Is.EqualTo(Offset2));
+        Assert.That(change.Path, Is.EqualTo(Path));
+        Assert.That(change.OldValue, Is.EqualTo("100"), "the value from before the edit");
+        Assert.That(change.NewValue, Is.EqualTo("110"), "the value the edit produced");
+        Assert.That(pending.Writes.Single().ValueToApply, Is.EqualTo("100"),
+            "undoing it writes the value from before the edit");
         Assert.That(EditJournal.Default.CanUndo, Is.False, "exactly one step, not several");
     }
 

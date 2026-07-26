@@ -68,7 +68,7 @@ public sealed class ParamInt : ReactiveObject, IParam, IDisposable
                 // Inside the !_suppress branch on purpose: that is what distinguishes an edit the user
                 // made from one ApplyFromModel is echoing back from the device. Undoing the latter
                 // would fight the instrument's front panel.
-                EditJournal.Default.Record(new EditStep(
+                EditJournal.Default.Record(new ParameterChange(
                     Start: _domain.StartAddressName, Offset: _domain.OffsetAddressName,
                     Offset2: _domain.Offset2AddressName, Path: _p.ParSpec.Path,
                     OldValue: before, NewValue: Snapshot()));
@@ -164,7 +164,7 @@ public sealed class ParamString : ReactiveObject, IParam, IDisposable
             if (!_suppress)
             {
                 // Recorded inside the !_suppress branch only -- see ParamInt.Value for why.
-                EditJournal.Default.Record(new EditStep(
+                EditJournal.Default.Record(new ParameterChange(
                     Start: _domain.StartAddressName, Offset: _domain.OffsetAddressName,
                     Offset2: _domain.Offset2AddressName, Path: _p.ParSpec.Path,
                     OldValue: before, NewValue: Snapshot()));
@@ -246,7 +246,7 @@ public sealed class ParamBool : ReactiveObject, IParam, IDisposable
             if (!_suppress)
             {
                 // Recorded inside the !_suppress branch only -- see ParamInt.Value for why.
-                EditJournal.Default.Record(new EditStep(
+                EditJournal.Default.Record(new ParameterChange(
                     Start: _domain.StartAddressName, Offset: _domain.OffsetAddressName,
                     Offset2: _domain.Offset2AddressName, Path: _p.ParSpec.Path,
                     OldValue: before, NewValue: Snapshot()));

@@ -100,7 +100,7 @@ public partial class MainWindowViewModel : ViewModelBase
     public async Task UndoAsync()
     {
         if (!EditJournal.Default.TryUndo(out var pending)) return;
-        UserActionLog.Action($"undo '{pending.Path}' -> '{pending.ValueToApply}'");
+        UserActionLog.Action($"undo {pending.Description}");
         // TryUndo has already moved the step to the redo side, so a write that never happened would
         // leave the history describing an instrument state that was never reached. Moving it back is
         // what TryRedo does, so the failure path is the opposite move rather than a special case.
@@ -112,16 +112,16 @@ public partial class MainWindowViewModel : ViewModelBase
     public async Task RedoAsync()
     {
         if (!EditJournal.Default.TryRedo(out var pending)) return;
-        UserActionLog.Action($"redo '{pending.Path}' -> '{pending.ValueToApply}'");
+        UserActionLog.Action($"redo {pending.Description}");
         // Mirror of UndoAsync: put the step back where it came from when the write did not happen.
         if (!await ApplyEditAsync(pending)) EditJournal.Default.TryUndo(out _);
     }
 
-    /// <summary>Write one journal step's value back to the instrument. Shared by undo and redo, which
-    /// differ only in which of the step's two values the journal hands back.</summary>
-    /// <summary>Write one journal step back to the instrument. Returns false when nothing was written,
-    /// so the caller can put the step back rather than leave the history describing a state the
-    /// instrument never reached.</summary>
+    /// <summary>Write one journal step back to the instrument: every change the gesture made, in the
+    /// order the journal asked for. Shared by undo and redo, which differ only in the direction, and so
+    /// in the order and in which of each change's two values gets written. Returns false when the step
+    /// was not applied in full, so the caller can put it back rather than leave the history describing a
+    /// state the instrument never reached.</summary>
     private async Task<bool> ApplyEditAsync(PendingEdit pending)
     {
         // Locals, not the properties: everything below runs after awaits, and a rescan in the meantime
@@ -130,35 +130,63 @@ public partial class MainWindowViewModel : ViewModelBase
         var communicator = _integra7Communicator;
         if (api is null || communicator is null) return false;
 
-        var step = pending.Step;
+        var what = string.Join(", ", pending.Step.Changes.Select(c => c.Path));
         try
         {
-            // TryGetDomain, not GetDomain: the latter answers an address it does not recognise with an
-            // unrelated block rather than refusing, and writing this step into that block would change a
-            // part of the instrument the user never touched. Every triple in the journal was read off a
-            // live domain, so this should be unreachable -- which is exactly what makes it worth a guard
-            // rather than a comment. StudioSetSnapshotService validates a whole snapshot for this reason.
-            if (!communicator.TryGetDomain(step.Start, step.Offset, step.Offset2, out var domain))
-            {
-                UserActionLog.Failed($"apply '{step.Path}'",
-                    $"no such block (\"{step.Start}\", \"{step.Offset}\", \"{step.Offset2}\"); the step was dropped");
-                return false;
-            }
-
+            // One lease for the whole step, not one per change: a gesture's changes belong together (an
+            // envelope handle's level and its time), and another flow writing into the same block
+            // half-way through would leave the handle somewhere neither the user nor the history
+            // describes.
+            //
             // The lease is acquired outside ApplyAsync deliberately. Recording is suppressed for the
-            // whole of ApplyAsync (otherwise this write would record itself and the history would never
-            // empty), and an edit the user makes inside that window is dropped -- so the window has to
-            // cover the write and nothing more. Waiting for the wire to come free is the long part of
-            // this and is not the write, so it happens first, outside. The write itself is awaited
-            // wholly inside, which is what stops it escaping the suppression.
-            await using var lease = await api.BeginConversationAsync($"undo/redo {step.Path}");
-            await EditJournal.Default.ApplyAsync(() =>
-                domain.WriteToIntegraAsync(step.Path, pending.ValueToApply, lease));
-            return true;
+            // whole of ApplyAsync (otherwise these writes would record themselves and the history would
+            // never empty), and an edit the user makes inside that window is dropped -- so the window
+            // has to cover the writes and nothing more. Waiting for the wire to come free is the long
+            // part of this and is not a write, so it happens first, outside. The writes themselves are
+            // awaited wholly inside, which is what stops them escaping the suppression.
+            await using var lease = await api.BeginConversationAsync($"undo/redo {what}");
+            var appliedInFull = false;
+            await EditJournal.Default.ApplyAsync(async () =>
+            {
+                foreach (var (change, value) in pending.Writes)
+                {
+                    // TryGetDomain, not GetDomain: the latter answers an address it does not recognise
+                    // with an unrelated block rather than refusing, and writing this change into that
+                    // block would change a part of the instrument the user never touched. Every triple
+                    // in the journal was read off a live domain, so this should be unreachable -- which
+                    // is exactly what makes it worth a guard rather than a comment.
+                    // StudioSetSnapshotService validates a whole snapshot for this reason.
+                    if (!communicator.TryGetDomain(change.Start, change.Offset, change.Offset2,
+                            out var domain))
+                    {
+                        // Abandon the rest of the step rather than skip this change and carry on. Two
+                        // reasons. A later change in the step may be a dependent whose display value
+                        // only converts correctly while the discriminator this one names is where the
+                        // step says it is (see PendingEdit.Writes), so carrying on can write a value
+                        // nobody asked for. And returning false puts the whole step back on the stack it
+                        // came from, which is the only way out of a half-applied gesture: every write
+                        // here is an absolute display value, not a delta, so pressing undo again
+                        // re-applies the changes that did land and retries this one. Skipping and
+                        // reporting would leave the step consumed, the instrument half-way, and nothing
+                        // left in the history able to finish the job.
+                        UserActionLog.Failed($"apply '{change.Path}'",
+                            $"no such block (\"{change.Start}\", \"{change.Offset}\", \"{change.Offset2}\"); " +
+                            "the rest of the step was abandoned and the step put back");
+                        return;
+                    }
+
+                    await domain.WriteToIntegraAsync(change.Path, value, lease);
+                }
+
+                appliedInFull = true;
+            });
+            return appliedInFull;
         }
         catch (Exception e)
         {
-            UserActionLog.Failed($"apply '{step.Path}'", e.ToString());
+            // A write that threw part-way leaves appliedInFull false, so the step goes back -- see the
+            // reasoning at the guard above.
+            UserActionLog.Failed($"apply '{what}'", e.ToString());
             return false;
         }
     }
@@ -1193,7 +1221,7 @@ public partial class MainWindowViewModel : ViewModelBase
         UserActionLog.Action($"edit parameter '{p.ParSpec.Path}' -> '{s.DisplayValue}'");
         // Before the assignment below: afterwards the value it replaced is gone. Record ignores this
         // while an undo is being applied, so an undo writing through here cannot record itself.
-        EditJournal.Default.Record(new EditStep(
+        EditJournal.Default.Record(new ParameterChange(
             Start: p.Start, Offset: p.Offset, Offset2: p.Offset2, Path: p.ParSpec.Path,
             OldValue: p.StringValue, NewValue: s.DisplayValue));
         p.StringValue = s.DisplayValue;
