@@ -710,4 +710,79 @@ public class EditJournalTests
         journal.Clear();
         Assert.That(journal.HistoryTruncated, Is.False, "a cleared history has lost nothing");
     }
+
+    [Test]
+    public void Redo_is_refused_while_comparing()
+    {
+        var (journal, clock) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        clock.Now += EditJournal.CoalesceWindow * 2;
+        journal.Record(Change("Studio Set Part/Part Pan", "0", "10"));
+
+        Assert.That(journal.TryUndo(out _), Is.True); // the Pan step is on the redo side now
+        Assert.That(journal.TryBeginCompareToggle(out var enter), Is.True);
+        journal.CommitCompareToggle(enter!);
+
+        Assert.That(journal.CanRedo, Is.False,
+            "the redo side belongs to the edited sound, and that is not what is playing");
+        Assert.That(journal.TryRedo(out _), Is.False);
+        Assert.That(journal.CanUndo, Is.False);
+        Assert.That(journal.TryUndo(out _), Is.False);
+    }
+
+    [Test]
+    public void A_comparison_leaves_an_undone_step_where_it_was()
+    {
+        var (journal, clock) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        clock.Now += EditJournal.CoalesceWindow * 2;
+        journal.Record(Change("Studio Set Part/Part Pan", "0", "10"));
+
+        Assert.That(journal.TryUndo(out _), Is.True);
+        Assert.That(journal.TryBeginCompareToggle(out var enter), Is.True);
+        journal.CommitCompareToggle(enter!);
+        Assert.That(journal.TryBeginCompareToggle(out var exit), Is.True);
+        journal.CommitCompareToggle(exit!);
+
+        Assert.That(journal.CanRedo, Is.True, "the redo side is reachable again once the edits are back");
+        Assert.That(journal.TryUndo(out var undo), Is.True);
+        Assert.That(Only(undo!).Change.Path, Is.EqualTo("Studio Set Part/Part Level"));
+        Assert.That(journal.CanUndo, Is.False,
+            "the step undone before the comparison is still on the redo side, not back under the history");
+    }
+
+    [Test]
+    public void A_toggle_is_refused_once_the_history_has_been_cleared()
+    {
+        var (journal, _) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        Assert.That(journal.TryBeginCompareToggle(out var toggle), Is.True);
+
+        // A preset change, or a Studio Set change from the front panel, arriving between the press and the
+        // writes landing.
+        journal.Clear();
+        journal.CommitCompareToggle(toggle!);
+
+        Assert.That(journal.IsComparing, Is.False,
+            "the buffer would hold steps belonging to a patch that is no longer loaded");
+        Assert.That(journal.CanCompare, Is.False);
+    }
+
+    [Test]
+    public void A_toggle_is_refused_once_another_edit_has_been_recorded()
+    {
+        var (journal, clock) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        Assert.That(journal.TryBeginCompareToggle(out var toggle), Is.True);
+
+        // An edit made while Compare waits for the wire: recording is only suppressed over the writes
+        // themselves, and waiting for the lease happens before them.
+        clock.Now += EditJournal.CoalesceWindow * 2;
+        journal.Record(Change("Studio Set Part/Part Pan", "0", "10"));
+        journal.CommitCompareToggle(toggle!);
+
+        Assert.That(journal.IsComparing, Is.False,
+            "the press is abandoned rather than committed against a history it no longer describes");
+        Assert.That(journal.CanUndo, Is.True, "and nothing was consumed, so pressing Compare again retries");
+    }
 }

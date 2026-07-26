@@ -126,7 +126,7 @@ public sealed class EditJournal
     /// grow without bound; losing the oldest edits is the right thing to lose.</summary>
     public const int Capacity = 200;
 
-    // Guards _undo, _redo, _compare, _isComparing, _truncated, _lastRecordedAt, _isApplying,
+    // Guards _undo, _redo, _compare, _isComparing, _truncated, _generation, _lastRecordedAt, _isApplying,
     // _gestureDepth and _gestureGroupOpen. Record runs on the UI thread and on the thread pool (see the
     // class comment); List<T> is not thread-safe,
     // so without this two concurrent Record calls can corrupt the lists outright (reproduced in
@@ -155,6 +155,15 @@ public sealed class EditJournal
     /// to be able to say so, which is the alternative to a wrong answer with nothing to mark it.</summary>
     private bool _truncated;
 
+    /// <summary>How many times the history has changed shape. Stamped into a <see cref="CompareToggle"/>
+    /// when one is computed and checked when it is committed, because the two are deliberately separated by
+    /// the whole of the writes -- including waiting for the MIDI lease, which is outside the recording
+    /// suppression. A toggle is a description of one particular history; anything that adds to, reorders or
+    /// throws away that history in the meantime makes it a description of a state the journal is no longer
+    /// in. Incremented by everything that mutates <see cref="_undo"/>, <see cref="_redo"/> or
+    /// <see cref="_compare"/>.</summary>
+    private int _generation;
+
     private readonly Func<DateTimeOffset> _now;
     private DateTimeOffset _lastRecordedAt;
     private bool _isApplying;
@@ -173,8 +182,15 @@ public sealed class EditJournal
     /// the history would never empty.</summary>
     public bool IsApplying { get { lock (_gate) return _isApplying; } }
 
-    public bool CanUndo { get { lock (_gate) return _undo.Count > 0; } }
-    public bool CanRedo { get { lock (_gate) return _redo.Count > 0; } }
+    /// <summary>Whether there is a step to take back. False while comparing: the history is in Compare's
+    /// buffer then, and a step applied on top of the original sound would leave the instrument playing
+    /// neither it nor the edited one -- see <see cref="TryUndo"/>.</summary>
+    public bool CanUndo { get { lock (_gate) return !_isComparing && _undo.Count > 0; } }
+
+    /// <summary>Whether there is a step to put back. False while comparing, for the reason
+    /// <see cref="CanUndo"/> gives -- and it is <em>not</em> incidentally false the way CanUndo would be:
+    /// a step undone before the button was pressed is still on the redo side throughout.</summary>
+    public bool CanRedo { get { lock (_gate) return !_isComparing && _redo.Count > 0; } }
 
     /// <summary>True while the instrument is playing the sound from before the recorded edits.</summary>
     public bool IsComparing { get { lock (_gate) return _isComparing; } }
@@ -265,6 +281,7 @@ public sealed class EditJournal
             }
             // A new edit makes the redo history unreachable -- it described a future that no longer follows.
             _redo.Clear();
+            _generation++;
         }
         Changed?.Invoke();
     }
@@ -280,7 +297,12 @@ public sealed class EditJournal
         EditStep step;
         lock (_gate)
         {
-            if (_undo.Count == 0)
+            // Nothing may move while a comparison is in progress. The instrument is playing the sound from
+            // before the history, so a step applied now writes one edited value on top of it -- neither
+            // sound -- and, worse, leaves the stack out of chronological order once the buffer goes back
+            // under it, so the next undo takes back the older gesture first. The buttons are disabled
+            // through CanUndo/CanRedo; this is the guard behind them.
+            if (_isComparing || _undo.Count == 0)
             {
                 pending = default;
                 return false;
@@ -289,6 +311,7 @@ public sealed class EditJournal
             step = _undo[^1];
             _undo.RemoveAt(_undo.Count - 1);
             _redo.Add(step);
+            _generation++;
             // The step now on top of _undo (if any) was not the one Record last touched, so neither its
             // recorded time nor an open gesture's claim on it must be trusted as "still the same gesture"
             // by the next Record call -- see the regression this guards in TestEditJournal.
@@ -305,7 +328,8 @@ public sealed class EditJournal
         EditStep step;
         lock (_gate)
         {
-            if (_redo.Count == 0)
+            // See TryUndo: the history does not move while the original is playing.
+            if (_isComparing || _redo.Count == 0)
             {
                 pending = default;
                 return false;
@@ -314,6 +338,7 @@ public sealed class EditJournal
             step = _redo[^1];
             _redo.RemoveAt(_redo.Count - 1);
             _undo.Add(step);
+            _generation++;
             // Same reasoning as TryUndo: whatever Record does next must start a fresh step, not assume
             // it is continuing the gesture that originally produced the step redo just reinstated.
             _lastRecordedAt = default;
@@ -333,7 +358,10 @@ public sealed class EditJournal
     /// is on the side it was, and pressing Compare again retries the same direction. Every write is an
     /// absolute value, so the retry finishes the job rather than compounding a half-applied swap -- the
     /// same property that makes <c>StudioSetSnapshotService.RestoreAsync</c> safe to re-run.</summary>
-    public sealed record CompareToggle(IReadOnlyList<PendingEdit> Steps, bool Entering);
+    /// <param name="Generation">The history this toggle describes, as
+    /// <see cref="EditJournal"/> counted it when the toggle was computed. See
+    /// <c>EditJournal.CommitCompareToggle</c>, which refuses a toggle whose generation has moved on.</param>
+    public sealed record CompareToggle(IReadOnlyList<PendingEdit> Steps, bool Entering, int Generation);
 
     /// <summary>Work out what one press of Compare has to write. Changes no state -- see
     /// <see cref="CompareToggle"/>. False when there is nothing to compare with, i.e. an empty history.
@@ -347,7 +375,7 @@ public sealed class EditJournal
                 // Back to the edited sound: every buffered step forward, oldest first, so a parameter
                 // edited more than once ends on the value the newest step gave it.
                 toggle = new CompareToggle(
-                    [.. _compare.Select(s => new PendingEdit(s, EditDirection.Redo))], false);
+                    [.. _compare.Select(s => new PendingEdit(s, EditDirection.Redo))], false, _generation);
                 return true;
             }
 
@@ -362,7 +390,8 @@ public sealed class EditJournal
             // is the value it held before any of this. Oldest-first would leave it on the newest step's
             // OldValue -- an intermediate value the user passed through, not the sound they started from.
             toggle = new CompareToggle(
-                [.. Enumerable.Reverse(_undo).Select(s => new PendingEdit(s, EditDirection.Undo))], true);
+                [.. Enumerable.Reverse(_undo).Select(s => new PendingEdit(s, EditDirection.Undo))], true,
+                _generation);
             return true;
         }
     }
@@ -378,6 +407,15 @@ public sealed class EditJournal
     {
         lock (_gate)
         {
+            // The history has changed shape since this toggle was computed, so it describes writes for a
+            // state the journal is no longer in: a Clear -- a preset change, or a Studio Set change
+            // arriving from the front panel -- has thrown that history away, or an edit made while Compare
+            // waited for the wire has added to it (and Merge replaced the step instance, so the removal
+            // below would silently miss and leave one step in both lists). Refuse the whole press. Nothing
+            // is consumed, the caller reports that it did not finish, and pressing Compare again
+            // recomputes from the history that is really there.
+            if (toggle.Generation != _generation) return;
+
             if (toggle.Entering)
             {
                 if (_isComparing) return;
@@ -398,6 +436,7 @@ public sealed class EditJournal
                 _isComparing = false;
             }
 
+            _generation++;
             // Whichever way it went, the next change recorded starts a new step rather than folding into
             // one from before the swap -- the same reason TryUndo and TryRedo clear these.
             _lastRecordedAt = default;
@@ -442,6 +481,7 @@ public sealed class EditJournal
             _compare.Clear();
             _isComparing = false;
             _truncated = false;
+            _generation++;
             _gestureGroupOpen = false;
         }
         Changed?.Invoke();
