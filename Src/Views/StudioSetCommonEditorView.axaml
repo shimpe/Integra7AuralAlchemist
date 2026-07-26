@@ -112,6 +112,35 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+
+                    <!-- What the six boxes above actually choose. Written out here rather than left to a
+                         tooltip for two reasons: a tooltip is a popup and swallows clicks on the control it
+                         describes, and this is reference material a user wants to read *while* setting the
+                         six, not one hover at a time. The one thing everyone gets wrong is first: these
+                         choose where a unit's output goes, not which drums feed it. -->
+                    <Border Background="{StaticResource SnCardBackgroundBrush}" CornerRadius="4" Padding="8"
+                            Margin="0,4,0,0">
+                        <StackPanel Spacing="4">
+                            <TextBlock Opacity="0.85" FontSize="11" TextWrapping="Wrap"
+                                       Text="Each box says where that unit's output goes after the drum sound has passed through it. It does not choose which drums feed the unit — that is set per instrument inside the drum kit, where each one is assigned to PART or to COMP+EQ 1–6."/>
+                            <TextBlock Opacity="0.85" FontSize="11" TextWrapping="Wrap"
+                                       Text="PART — into the drum part's MFX, and on through its normal effects and output routing."/>
+                            <TextBlock Opacity="0.85" FontSize="11" TextWrapping="Wrap"
+                                       Text="A — straight out of OUTPUT A (MIX) L/R, in stereo. B, C, D — the matching stereo pair."/>
+                            <TextBlock Opacity="0.85" FontSize="11" TextWrapping="Wrap"
+                                       Text="1–8 — straight out of that individual jack, in mono. So the rear panel is either four stereo pairs (A–D) or eight mono outputs."/>
+                            <TextBlock Opacity="0.85" FontSize="11" TextWrapping="Wrap"
+                                       Text="The whole path is: drum instrument → COMP+EQ unit → this destination. A kick on COMP+EQ 1 set to 1 leaves by Individual Output 1 in mono; set to PART it goes to the part's MFX instead."/>
+                            <TextBlock Opacity="0.85" FontSize="11" TextWrapping="Wrap"
+                                       Text="Two assignments are easy to confuse: the knob above picks which one of parts 1–16 may use these six units at all; the per-instrument setting inside that kit picks which unit each drum uses."/>
+                            <!-- The exception is last and set apart, because it silently overrides all six
+                                 boxes: a user who has Motional Surround on and does not know this will read
+                                 the settings above as broken. -->
+                            <TextBlock Opacity="0.85" FontSize="11" TextWrapping="Wrap"
+                                       Foreground="{StaticResource SnMutedTextBrush}"
+                                       Text="One exception: while Motional Surround is on, these settings are ignored and every unit's output is routed into the part's MFX."/>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Border>
 
