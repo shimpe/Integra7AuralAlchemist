@@ -29,6 +29,15 @@ public partial class MainWindowViewModel : ViewModelBase
     private Integra7Domain? _integra7Communicator;
     [Reactive] private MotionalSurroundViewModel? _motionalSurroundVm;
 
+    /// <summary>The mixer page. Built and replaced exactly like the Motional Surround editor, and for the
+    /// same reason: both bind to the live parameters of every part, so both are only valid once all sixteen
+    /// Studio Set Part blocks have been read.</summary>
+    [Reactive] private MixerViewModel? _mixerVm;
+
+    /// <summary>Which top-level tab is showing. Bound two-way, so the mixer's click-through can take the
+    /// user to the Parameters tab — selecting a part is no use while the Mixer tab is still in front.</summary>
+    [Reactive] private int _topTabIndex;
+
     [Reactive] private bool _isSyncing = true;
     private string _syncInfo = "";
 
@@ -911,6 +920,10 @@ public partial class MainWindowViewModel : ViewModelBase
         UserActionLog.Action("button: Rescan MIDI devices");
         MotionalSurroundVm?.Dispose();
         MotionalSurroundVm = null;
+        // The mixer holds handlers on the current PartViewModels and their presets, so it has to let go
+        // before a rescan replaces them.
+        MixerVm?.Dispose();
+        MixerVm = null;
         Integra7 = new Integra7Api(
             new MidiPort(new MidiOut(INTEGRA_CONNECTION_STRING), new MidiIn(INTEGRA_CONNECTION_STRING)));
         await Integra7.CheckIdentityAsync();
@@ -1029,6 +1042,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 MotionalSurroundVm?.Dispose();
                 MotionalSurroundVm = new MotionalSurroundViewModel(_integra7Communicator);
 
+                // Same precondition, and the mixer additionally needs the parts themselves for their tone
+                // names. Built after PartViewModels is published so it watches the list the tabs show.
+                MixerVm?.Dispose();
+                MixerVm = new MixerViewModel(_integra7Communicator, PartViewModels, OpenPartTab);
+
                 // Fetching the user tone names costs ~10s of sysex round trips, and nothing above
                 // depends on it — the factory presets from the CSV are already in place. Let it run
                 // after the window is usable and drip the user presets into the lists as they arrive.
@@ -1040,6 +1058,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 MidiDevices = "Could not find " + INTEGRA_CONNECTION_STRING;
                 MotionalSurroundVm?.Dispose();
                 MotionalSurroundVm = null;
+                MixerVm?.Dispose();
+                MixerVm = null;
             }
 
             RescanButtonEnabled = !_connected;
@@ -1347,6 +1367,16 @@ public partial class MainWindowViewModel : ViewModelBase
             // idempotent, so returning to a tab costs nothing.
             _ = EnsureSelectedPartInitializedAsync(value);
         }
+    }
+
+    /// <summary>Show a part's own tab: select it, and bring the Parameters tab to the front, since the
+    /// mixer is a sibling of that tab rather than inside it. The part tab strip's selection is
+    /// <see cref="CurrentPartSelection"/>, which counts the Common tab as 0, and the Parameters tab is the
+    /// first TabItem of the top-level TabControl.</summary>
+    private void OpenPartTab(int zeroBasedPartNo)
+    {
+        CurrentPartSelection = zeroBasedPartNo + 1;
+        TopTabIndex = 0;
     }
 
     /// <summary>Initializes the part behind a tab index, reporting progress on the status bar. Runs

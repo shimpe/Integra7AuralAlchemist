@@ -35,6 +35,15 @@ public sealed partial class MixerStripViewModel : ViewModelBase, IDisposable
     private readonly List<IDisposable> _wrappers = [];
     private readonly Action<int>? _openPart;
 
+    /// <summary>Ask the mixer to toggle solo on this strip's part. A callback rather than the view
+    /// reaching the mixer through an ancestor binding: solo is one shared parameter, so the strip cannot
+    /// own it, but <c>{Binding $parent[ItemsControl].((vm:MixerViewModel)DataContext).ToggleSolo}</c> would
+    /// resolve at runtime only, silently doing nothing if any part of that path were wrong -- and it does
+    /// not exist at all for the External and Master strips, which are single ContentControls with no
+    /// ItemsControl above them. This is the same shape as <see cref="_openPart"/>, which the view already
+    /// reaches as a plain method binding.</summary>
+    private readonly Action<int>? _toggleSolo;
+
     public MixerStripKind Kind { get; }
 
     /// <summary>Zero-based part number, or -1 for the external and master strips.</summary>
@@ -69,23 +78,26 @@ public sealed partial class MixerStripViewModel : ViewModelBase, IDisposable
     /// <summary>Pan as the instrument labels it, recomputed whenever the value moves.</summary>
     public string PanLabel => Pan is null ? "" : MixerFormatting.PanLabel(Pan.Value);
 
-    private MixerStripViewModel(MixerStripKind kind, int partNo, string label, Action<int>? openPart)
+    private MixerStripViewModel(MixerStripKind kind, int partNo, string label, Action<int>? openPart,
+        Action<int>? toggleSolo)
     {
         Kind = kind;
         PartNo = partNo;
         Label = label;
         _openPart = openPart;
+        _toggleSolo = toggleSolo;
     }
 
     /// <summary>A part strip, over that part's own Studio Set Part block.</summary>
     public static MixerStripViewModel ForPart(Integra7Domain domain, int zeroBasedPartNo,
-        Action<int>? openPart)
+        Action<int>? openPart, Action<int>? toggleSolo)
     {
         const string p = "Studio Set Part/";
         var d = domain.StudioSetPart(zeroBasedPartNo);
         var byPath = ToDict(d);
         var vm = new MixerStripViewModel(MixerStripKind.Part, zeroBasedPartNo,
-            (zeroBasedPartNo + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), openPart);
+            (zeroBasedPartNo + 1).ToString(System.Globalization.CultureInfo.InvariantCulture), openPart,
+            toggleSolo);
 
         vm.Level = vm.Track(new ParamInt(d, byPath[p + "Part Level"], vm._writer, 0, 127));
         vm.Pan = vm.Track(new ParamInt(d, byPath[p + "Part Pan"], vm._writer, -64, 63));
@@ -106,7 +118,7 @@ public sealed partial class MixerStripViewModel : ViewModelBase, IDisposable
         const string p = "Studio Set Common/";
         var d = domain.StudioSetCommon;
         var byPath = ToDict(d);
-        var vm = new MixerStripViewModel(MixerStripKind.External, -1, "Ext", null);
+        var vm = new MixerStripViewModel(MixerStripKind.External, -1, "Ext", null, null);
 
         vm.Level = vm.Track(new ParamInt(d, byPath[p + "Ext Part Level"], vm._writer, 0, 127));
         vm.ChorusSend =
@@ -124,7 +136,7 @@ public sealed partial class MixerStripViewModel : ViewModelBase, IDisposable
     public static MixerStripViewModel ForMaster(Integra7Domain domain)
     {
         var d = domain.System;
-        var vm = new MixerStripViewModel(MixerStripKind.Master, -1, "Master", null);
+        var vm = new MixerStripViewModel(MixerStripKind.Master, -1, "Master", null, null);
 
         // By parameter Name, not by path -- the System domain's paths are prefixed "System Common/" rather
         // than "System/", and SystemEditorViewModel resolves this domain by Name for exactly that reason.
@@ -138,6 +150,12 @@ public sealed partial class MixerStripViewModel : ViewModelBase, IDisposable
     /// <summary>Open this part's own tab. The strip is a summary; everything it does not show is one click
     /// away, which is the whole point of the click-through.</summary>
     public void OpenPart() => _openPart?.Invoke(PartNo);
+
+    /// <summary>Solo this part, or clear solo if it is already the soloed one. The mixer does the work --
+    /// see <see cref="_toggleSolo"/> for why the strip carries the call rather than the view reaching the
+    /// mixer itself. Parameterless, so the view binds it as a command with no CommandParameter and the
+    /// XAML compiler type-checks it.</summary>
+    public void ToggleSolo() => _toggleSolo?.Invoke(PartNo);
 
     /// <summary>Keep <see cref="PanLabel"/> in step with the value. A derived string over a wrapper that
     /// raises its own PropertyChanged still has to be told to re-read.</summary>

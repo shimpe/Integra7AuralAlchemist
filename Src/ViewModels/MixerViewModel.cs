@@ -38,8 +38,11 @@ public sealed class MixerViewModel : ViewModelBase, IDisposable
     {
         _parts = parts;
 
+        // Each part strip is handed both callbacks: openPart takes the user to the part's own tab, and
+        // ToggleSolo writes the one shared Solo Part parameter this class owns. Handing solo down the same
+        // way keeps the view's binding a plain method on the strip -- see MixerStripViewModel's _toggleSolo.
         for (var i = 0; i < Constants.NO_OF_PARTS; i++)
-            PartStrips.Add(Track(MixerStripViewModel.ForPart(domain, i, openPart)));
+            PartStrips.Add(Track(MixerStripViewModel.ForPart(domain, i, openPart, ToggleSolo)));
 
         ExternalStrip = Track(MixerStripViewModel.ForExternal(domain));
         MasterStrip = Track(MixerStripViewModel.ForMaster(domain));

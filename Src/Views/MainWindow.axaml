@@ -91,7 +91,9 @@
             </StackPanel>
         </Border>
 
-        <TabControl Grid.Column="0" Grid.Row="1">
+        <!-- SelectedIndex is bound so the Mixer's Open button can bring the Parameters tab to the front:
+             selecting a part inside it is no use while the Mixer tab is still showing. -->
+        <TabControl Grid.Column="0" Grid.Row="1" SelectedIndex="{Binding TopTabIndex, Mode=TwoWay}">
             <TabItem Header="Parameters">
                 <Grid ColumnDefinitions="*"
                       RowDefinitions="Auto,*">
@@ -590,6 +592,16 @@
                     <TextBlock Text="Connect to your Integra-7 to edit Motional Surround."
                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                IsVisible="{Binding MotionalSurroundVm, Converter={x:Static conv:ObjectConverters.IsNull}}" />
+                </Panel>
+            </TabItem>
+            <TabItem Header="Mixer">
+                <Panel>
+                    <Panel IsVisible="{Binding MixerVm, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
+                        <local:MixerView DataContext="{Binding MixerVm}" />
+                    </Panel>
+                    <TextBlock Text="Connect to your Integra-7 to use the mixer."
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               IsVisible="{Binding MixerVm, Converter={x:Static conv:ObjectConverters.IsNull}}" />
                 </Panel>
             </TabItem>
         </TabControl>
