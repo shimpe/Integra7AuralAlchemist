@@ -115,6 +115,21 @@ public class LayerMapControl : Control
     /// belongs to this part" without hiding the lane's stripe or a neighbouring fade beneath it.</summary>
     private const double ZoneFillOpacity = 0.22;
 
+    /// <summary>How much of the body's fill a fade band still has at its far end, where the part is only just
+    /// starting to be heard. Not zero, which is what it was: on a ground this dark a translucent blue tapering
+    /// to nothing disappears well before the band does, so a crossfade looked like the hard split the band
+    /// exists to disprove. Half keeps the whole band present while still reading as quieter than the body —
+    /// the taper is the signal, and a floor does not remove it, it only stops it running out of contrast.
+    /// </summary>
+    private const double FadeFloorFraction = 0.5;
+
+    /// <summary>The dashed line marking where a fade begins. Thinner than the body's outline and dashed
+    /// against its solid, so the two edges of a crossfade are told apart at a glance: dashed is where the part
+    /// starts to be heard, solid is where it reaches full level.</summary>
+    private const double FadeEdgeThickness = 1;
+
+    private static readonly DashStyle FadeEdgeDashes = new([3, 3], 0);
+
     private const double ZoneStrokeThickness = 1.5;
     private const double SelectionThickness = 1.5;
     private const double OctaveAnchorThickness = 1.5;
@@ -409,32 +424,34 @@ public class LayerMapControl : Control
     {
         var body = ToRect(LayerMapGeometry.ZoneRect(zone, w, chartH));
 
-        // The four fades and the body share one opacity push, so where a gradient reaches full strength it is
-        // exactly the body's fill. Fade them separately and the seam shows, which turns a taper into a step and
-        // defeats the point of drawing fades at all.
-        using (context.PushOpacity(ZoneFillOpacity))
-        {
-            // Each band lies *outside* the range — the lower key band is below KeyLo, the lower velocity band
-            // below VelLo, which in a lane means below the box because loud is up. All four rects are already
-            // clipped to the chart and to the lane by the geometry (a twelve-semitone fade on a zone starting
-            // at key 3 is a three-semitone band), so nothing here clamps, measures or second-guesses them: the
-            // gradient simply runs from transparent at the far end of the band to the body's own fill where the
-            // band meets the body.
-            //
-            // This is the whole value of the chart. Two parts that crossfade across a break have to *look* like
-            // they overlap; drawn as hard rectangles they would look like a split, and the user would go
-            // looking for the crossfade they had already dialled in.
-            DrawFade(context, LayerMapGeometry.KeyFadeLowerRect(zone, w, chartH), palette.ZoneColor,
-                new Point(0, 0), new Point(1, 0));
-            DrawFade(context, LayerMapGeometry.KeyFadeUpperRect(zone, w, chartH), palette.ZoneColor,
-                new Point(1, 0), new Point(0, 0));
-            DrawFade(context, LayerMapGeometry.VelFadeLowerRect(zone, w, chartH), palette.ZoneColor,
-                new Point(0, 1), new Point(0, 0));
-            DrawFade(context, LayerMapGeometry.VelFadeUpperRect(zone, w, chartH), palette.ZoneColor,
-                new Point(0, 0), new Point(0, 1));
+        // Each band lies *outside* the range — the lower key band is below KeyLo, the lower velocity band below
+        // VelLo, which in a lane means below the box because loud is up. All four rects are already clipped to
+        // the chart and to the lane by the geometry (a twelve-semitone fade on a zone starting at key 3 is a
+        // three-semitone band), so nothing here clamps, measures or second-guesses them.
+        //
+        // This is the whole value of the chart. Two parts that crossfade across a break have to *look* like
+        // they overlap; drawn as hard rectangles they would look like a split, and the user would go looking
+        // for the crossfade they had already dialled in.
+        //
+        // Drawn outside the body's opacity push, each band carrying its own alphas, because the two ends want
+        // different things. Where a band meets the body it must match the body exactly or the seam shows and a
+        // taper reads as a step -- so its solid end is ZoneFillOpacity, the same value the push applies. Its
+        // far end used to be zero alpha, which was the mistake: over a ground this dark, a translucent blue
+        // fading to nothing is invisible for most of its length, so a crossfade looked like the hard split it
+        // was drawn to disprove. It now floors at FadeFloorFraction of the body, and the outer edge is marked
+        // with a dashed line at full strength, so the *extent* of a fade is legible even where its gradient is
+        // not: dashed for where the part starts to be heard, solid for where it reaches full level.
+        DrawFade(context, LayerMapGeometry.KeyFadeLowerRect(zone, w, chartH), palette.ZoneColor,
+            new Point(0, 0), new Point(1, 0));
+        DrawFade(context, LayerMapGeometry.KeyFadeUpperRect(zone, w, chartH), palette.ZoneColor,
+            new Point(1, 0), new Point(0, 0));
+        DrawFade(context, LayerMapGeometry.VelFadeLowerRect(zone, w, chartH), palette.ZoneColor,
+            new Point(0, 1), new Point(0, 0));
+        DrawFade(context, LayerMapGeometry.VelFadeUpperRect(zone, w, chartH), palette.ZoneColor,
+            new Point(0, 0), new Point(0, 1));
 
+        using (context.PushOpacity(ZoneFillOpacity))
             context.FillRectangle(palette.Zone, body);
-        }
 
         // Full strength, and outside the opacity push: the edge is what a reader measures a split against, and
         // what a later pointer handler will let them grab. A zone one key wide has no width to fill, and this
@@ -452,21 +469,36 @@ public class LayerMapControl : Control
         // whose direction would be undefined.
         if (band.W <= 0 || band.H <= 0) return;
 
+        // Both ends are the zone's own colour at an explicit alpha, never a named transparent: a gradient
+        // towards a colourless stop washes through grey on the way, and the band would read as a shadow
+        // instead of as the part getting quieter.
+        var solid = (byte)Math.Round(byte.MaxValue * ZoneFillOpacity);
+        var floor = (byte)Math.Round(byte.MaxValue * ZoneFillOpacity * FadeFloorFraction);
+
         var brush = new LinearGradientBrush
         {
             StartPoint = new RelativePoint(transparentEnd, RelativeUnit.Relative),
             EndPoint = new RelativePoint(solidEnd, RelativeUnit.Relative),
             GradientStops =
             {
-                // The zone's own colour at zero alpha, not a named transparent: a gradient towards a colourless
-                // stop washes through grey on the way, and the band would read as a shadow instead of as the
-                // part getting quieter.
-                new GradientStop(Color.FromArgb(0, color.R, color.G, color.B), 0),
-                new GradientStop(color, 1)
+                new GradientStop(Color.FromArgb(floor, color.R, color.G, color.B), 0),
+                new GradientStop(Color.FromArgb(solid, color.R, color.G, color.B), 1)
             }
         };
 
         context.FillRectangle(brush, ToRect(band));
+
+        // The band's outer edge: where the part first starts to be heard. Dashed, against the body's solid
+        // outline for where it reaches full level, so the two edges of a crossfade cannot be confused with one
+        // another — and at full strength, because a gradient's own far end is by definition the faintest thing
+        // on the chart and cannot mark its own boundary.
+        var horizontal = Math.Abs(solidEnd.X - transparentEnd.X) > 0.5;
+        var outerX = transparentEnd.X <= 0.5 ? band.X : band.X + band.W;
+        var outerY = transparentEnd.Y <= 0.5 ? band.Y : band.Y + band.H;
+        var from = horizontal ? new Point(outerX, band.Y) : new Point(band.X, outerY);
+        var to = horizontal ? new Point(outerX, band.Y + band.H) : new Point(band.X + band.W, outerY);
+
+        context.DrawLine(new Pen(new SolidColorBrush(color), FadeEdgeThickness, FadeEdgeDashes), from, to);
     }
 
     /// <summary>The part number and its tone name, at the left of the part's lane.</summary>
