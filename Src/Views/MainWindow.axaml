@@ -587,8 +587,18 @@
                     </TabControl>
                 </Grid>
             </TabItem>
-            <TabItem Header="SRX Loader">
-                <local:SrxSelector />
+            <!-- Order: Parameters, Mixer, Motional Surround, SRX Loader — how often each is reached for,
+                 most first. Parameters stays index 0 because OpenPartTab and OpenCommonTab navigate to it by
+                 index; nothing else in the application depends on the position of any of the others. -->
+            <TabItem Header="Mixer">
+                <Panel>
+                    <Panel IsVisible="{Binding MixerVm, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
+                        <local:MixerView DataContext="{Binding MixerVm}" />
+                    </Panel>
+                    <TextBlock Text="Connect to your Integra-7 to use the mixer."
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               IsVisible="{Binding MixerVm, Converter={x:Static conv:ObjectConverters.IsNull}}" />
+                </Panel>
             </TabItem>
             <TabItem Header="Motional Surround">
                 <Panel>
@@ -600,15 +610,8 @@
                                IsVisible="{Binding MotionalSurroundVm, Converter={x:Static conv:ObjectConverters.IsNull}}" />
                 </Panel>
             </TabItem>
-            <TabItem Header="Mixer">
-                <Panel>
-                    <Panel IsVisible="{Binding MixerVm, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
-                        <local:MixerView DataContext="{Binding MixerVm}" />
-                    </Panel>
-                    <TextBlock Text="Connect to your Integra-7 to use the mixer."
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               IsVisible="{Binding MixerVm, Converter={x:Static conv:ObjectConverters.IsNull}}" />
-                </Panel>
+            <TabItem Header="SRX Loader">
+                <local:SrxSelector />
             </TabItem>
         </TabControl>
 
