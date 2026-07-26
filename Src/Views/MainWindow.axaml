@@ -608,15 +608,56 @@
                      from the other two — and with no keyboard shortcut (see Window.KeyBindings above)
                      that left undo unreachable from the Motional Surround editor entirely.
 
-                     IsEnabled follows the history, not Connected/IsSyncing: nothing can enter the
-                     journal while disconnected, so an empty history is the only reason to disable them. -->
-                <Button Command="{Binding UndoAsync}" IsEnabled="{Binding CanUndo}" Padding="8,2"
+                     IsEnabled follows the history, and also !IsSyncing. The history is the obvious half:
+                     nothing can enter the journal while disconnected, so an empty history is the only
+                     other reason to disable them. !IsSyncing is there for Compare, which is the one
+                     operation that leaves the history looking untouched while it writes: it computes its
+                     writes, streams them — hundreds, for a long session — and only then moves the journal,
+                     so CanUndo is genuinely true throughout. An undo in that window moves the history
+                     under the press, which the journal refuses rather than corrupts, but the user is left
+                     with an abandoned Compare they did not connect to the undo. The overlay does not help:
+                     it is a Border in grid row 1 and this status bar is row 2, so it cannot cover these. -->
+                <Button Command="{Binding UndoAsync}" Padding="8,2"
                         ToolTip.Tip="Take back the last parameter change and write the previous value back to the instrument.">
+                    <Button.IsEnabled>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <MultiBinding.Bindings>
+                                <Binding Path="CanUndo" />
+                                <Binding Path="!IsSyncing" />
+                            </MultiBinding.Bindings>
+                        </MultiBinding>
+                    </Button.IsEnabled>
                     Undo
                 </Button>
-                <Button Command="{Binding RedoAsync}" IsEnabled="{Binding CanRedo}" Padding="8,2"
+                <Button Command="{Binding RedoAsync}" Padding="8,2"
                         ToolTip.Tip="Put back the parameter change the last undo took away.">
+                    <Button.IsEnabled>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <MultiBinding.Bindings>
+                                <Binding Path="CanRedo" />
+                                <Binding Path="!IsSyncing" />
+                            </MultiBinding.Bindings>
+                        </MultiBinding>
+                    </Button.IsEnabled>
                     Redo
+                </Button>
+                <!-- Compare. Beside Undo and Redo because it is the same history, read all the way to the
+                     bottom in one press: there is nothing else to keep it in step with, and it is needed
+                     from every tab for the reason the comment above gives. The label carries the state —
+                     it is the only indication of which of the two sounds is playing — so no colour and no
+                     style: every brush in this file comes from a resource, and an inline one here would be
+                     wrong even for emphasis. -->
+                <Button Command="{Binding CompareAsync}" Padding="8,2"
+                        Content="{Binding CompareLabel}"
+                        ToolTip.Tip="Hear the sound as it was before the edits in the history; press again to hear the edits. Changes made while comparing are not kept.">
+                    <Button.IsEnabled>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <MultiBinding.Bindings>
+                                <Binding Path="CanCompare" />
+                                <Binding Path="!IsSyncing" />
+                            </MultiBinding.Bindings>
+                        </MultiBinding>
+                    </Button.IsEnabled>
                 </Button>
                 <TextBlock Text="{Binding MidiDevices}" VerticalAlignment="Center" />
                 <!-- Progress of the user tone names, which load after the window is usable.
