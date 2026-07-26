@@ -253,69 +253,89 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
         Dispatcher.UIThread.Post(InitGlobalsFromModel);
     }
 
-    // ---- Presets (batch updates; suppress UI writes then write each changed value once) ----
+    // ---- Presets (batch updates; write each changed value once, straight out) ----
+
+    /// <summary>Hold one undo step open for the whole of a preset command.
+    ///
+    /// A preset is one thing the user did -- they pressed "Ambient Hall" -- so undo has to put all of it
+    /// back on one press. Without this the globals would coalesce on the clock into a step or two of their
+    /// own and each part's position would be strewn across further steps, so one press would restore the
+    /// room and leave every part where the preset put it: neither the before state nor the after state, and
+    /// nothing on screen to say so.
+    ///
+    /// The scope outlives several awaits, which is safe and is why the journal counts gesture depth rather
+    /// than flagging it. It also has to: <see cref="EditJournal.StaleGestureWindow"/> only gives up on a
+    /// gesture that records <em>nothing</em> for ten seconds, and a preset records immediately before each
+    /// of its writes, so the gaps within one are a write apart and never approach that.
+    ///
+    /// The resulting step is large -- up to 17 parts x 2 axes plus the width, ambience and common values, so
+    /// on the order of 34 to 70 changes. That is one step against <see cref="EditJournal.Capacity"/>, which
+    /// counts steps, but undoing it writes every one of those parameters in turn under a single lease, so it
+    /// takes as long as the preset itself did rather than feeling instant like undoing a knob. That is the
+    /// right trade: the alternative is a step that only half describes what happened.</summary>
+    private static IDisposable BeginPresetStep() => EditJournal.Default.BeginGesture();
+
     [ReactiveCommand]
     public async Task CenterAll()
     {
-        foreach (var p in AllParts) { p.SetPositionSuppressed(0, 0); await p.WritePositionAsync(); }
+        using var step = BeginPresetStep();
+        foreach (var p in AllParts) await p.ApplyPositionAsync(0, 0);
     }
 
     [ReactiveCommand]
     public async Task WideStereoSpread()
     {
+        using var step = BeginPresetStep();
         // Spread internal parts evenly across L-R at center depth; external stays centered.
         for (var i = 0; i < InternalParts.Count; i++)
         {
             var lr = MotionalSurroundMapping.FromNormalized(i / (double)(InternalParts.Count - 1),
                 MotionalSurroundMapping.LrFbMin, MotionalSurroundMapping.LrFbMax);
-            InternalParts[i].SetPositionSuppressed(lr, 0);
-            await InternalParts[i].WritePositionAsync();
+            await InternalParts[i].ApplyPositionAsync(lr, 0);
         }
     }
 
     [ReactiveCommand]
     public async Task FrontBandLayout()
     {
+        using var step = BeginPresetStep();
         // A row of parts near the front (F-B = -48), spread across L-R.
         const int front = -48;
         for (var i = 0; i < InternalParts.Count; i++)
         {
             var lr = MotionalSurroundMapping.FromNormalized(i / (double)(InternalParts.Count - 1),
                 MotionalSurroundMapping.LrFbMin, MotionalSurroundMapping.LrFbMax);
-            InternalParts[i].SetPositionSuppressed(lr, front);
-            await InternalParts[i].WritePositionAsync();
+            await InternalParts[i].ApplyPositionAsync(lr, front);
         }
     }
 
     [ReactiveCommand]
     public async Task AmbientHallLayout()
     {
+        using var step = BeginPresetStep();
         // Big, lush room + parts pushed slightly back with healthy ambience send.
         RoomTypeIndex = 3;            // Hall2
         RoomSizeIndex = 2;            // Large
         Depth = 80; AmbienceLevel = 100; AmbienceTime = 70; AmbienceDensity = 60; AmbienceHfDamp = 40;
         foreach (var p in InternalParts)
         {
-            p.SetPositionSuppressed(p.Lr, 24);          // nudge back, keep L-R
-            p.SetWidthAmbienceSuppressed(20, 90);
-            await p.WritePositionAsync();
-            await p.WriteWidthAmbienceAsync();
+            await p.ApplyPositionAsync(p.Lr, 24);       // nudge back, keep L-R
+            await p.ApplyWidthAmbienceAsync(20, 90);
         }
     }
 
     [ReactiveCommand]
     public async Task ResetMotionalSurround()
     {
+        using var step = BeginPresetStep();
         // Opinionated neutral defaults (UI-level reset, not a factory dump).
         MotionalSurroundOn = true;
         RoomTypeIndex = 0; RoomSizeIndex = 1;
         Depth = 50; AmbienceLevel = 64; AmbienceTime = 50; AmbienceDensity = 50; AmbienceHfDamp = 50;
         foreach (var p in AllParts)
         {
-            p.SetPositionSuppressed(0, 0);
-            p.SetWidthAmbienceSuppressed(16, 0);
-            await p.WritePositionAsync();
-            await p.WriteWidthAmbienceAsync();
+            await p.ApplyPositionAsync(0, 0);
+            await p.ApplyWidthAmbienceAsync(16, 0);
         }
         ExternalPart.Channel = "OFF";
     }
@@ -323,6 +343,7 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
     [ReactiveCommand]
     public async Task CircleAroundCenter()
     {
+        using var step = BeginPresetStep();
         // Evenly space all parts on a circle of radius 32 (L-R/F-B units) around the centre.
         const double radius = 32.0;
         var n = AllParts.Count;
@@ -331,8 +352,7 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
             var angle = 2.0 * Math.PI * i / n;
             var lr = (int)Math.Round(radius * Math.Cos(angle), MidpointRounding.AwayFromZero);
             var fb = (int)Math.Round(radius * Math.Sin(angle), MidpointRounding.AwayFromZero);
-            AllParts[i].SetPositionSuppressed(lr, fb);
-            await AllParts[i].WritePositionAsync();
+            await AllParts[i].ApplyPositionAsync(lr, fb);
         }
     }
 
@@ -348,11 +368,11 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
     [ReactiveCommand]
     public async Task RandomScatter()
     {
+        using var step = BeginPresetStep();
         for (var i = 0; i < AllParts.Count && i < ScatterPositions.Length; i++)
         {
             var (lr, fb) = ScatterPositions[i];
-            AllParts[i].SetPositionSuppressed(lr, fb);
-            await AllParts[i].WritePositionAsync();
+            await AllParts[i].ApplyPositionAsync(lr, fb);
         }
     }
 

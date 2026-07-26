@@ -486,6 +486,175 @@ public class EditRecordingTests
             "Direct: a capture-lost handler is only any use on the element that held the capture");
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // The preset commands. These bypass the setters by design -- a preset writes seventeen parts at once
+    // and cannot go through a debounced door -- so they record explicitly, and each command holds one
+    // journal gesture so that the whole preset is a single undo step.
+    // ---------------------------------------------------------------------------------------------
+
+    private static readonly string[] MsGlobalPaths =
+    [
+        MsPrefix + "Room Type", MsPrefix + "Room Size", MsDepthPath, MsPrefix + "Ambience Level",
+        MsPrefix + "Ambience Time", MsPrefix + "Ambience Density", MsPrefix + "Ambience HF Damp"
+    ];
+
+    private static readonly string[] ExtPartPaths =
+    [
+        MsPrefix + "Ext Part L-R", MsPrefix + "Ext Part F-B", MsPrefix + "Ext Part Width",
+        MsPrefix + "Ext Part Ambience Send Level"
+    ];
+
+    /// <summary>Seed every block a preset touches -- sixteen part blocks and the external part's four
+    /// parameters in the common one -- so the view model does not start from the empty string a never-read
+    /// parameter holds, and so there is an old value for undo to go back to.</summary>
+    private static void GivenEveryPartAt(Integra7Domain i7, int lr, int fb, int width, int ambience)
+    {
+        string S(int v) => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        for (var i = 0; i < Constants.NO_OF_PARTS; i++)
+        {
+            var part = i7.StudioSetPart(i);
+            part.ModifySingleParameterDisplayedValue(PartLrPath, S(lr));
+            part.ModifySingleParameterDisplayedValue(PartFbPath, S(fb));
+            part.ModifySingleParameterDisplayedValue(PartWidthPath, S(width));
+            part.ModifySingleParameterDisplayedValue(PartAmbiencePath, S(ambience));
+        }
+
+        var common = i7.StudioSetCommonMotionalSurround;
+        var extValues = new[] { S(lr), S(fb), S(width), S(ambience) };
+        for (var i = 0; i < ExtPartPaths.Length; i++)
+            common.ModifySingleParameterDisplayedValue(ExtPartPaths[i], extValues[i]);
+    }
+
+    /// <summary>Every parameter's display value as the blocks hold it now, for the paths given.</summary>
+    private static Dictionary<string, string> Snapshot(DomainBase domain, params string[] paths)
+        => paths.ToDictionary(p => p, domain.LookupSingleParameterDisplayedValue);
+
+    /// <summary>A preset is one thing the user did, so it is one step -- and every part it moved is in it.
+    /// <c>CenterAll</c> is the simplest: seventeen parts, both axes each, nothing else.</summary>
+    [Test]
+    public async Task A_preset_records_one_step_covering_every_part_it_moved()
+    {
+        var i7 = NewCommunicator();
+        GivenEveryPartAt(i7, 10, -20, 8, 5);
+        using var vm = new MotionalSurroundViewModel(i7);
+        Assert.That(EditJournal.Default.CanUndo, Is.False, "building the view model is not an edit");
+
+        await vm.CenterAll();
+
+        Assert.That(EditJournal.Default.TryUndo(out var pending), Is.True);
+        Assert.That(EditJournal.Default.CanUndo, Is.False, "one command, one step -- not one step per part");
+        var changes = pending!.Step.Changes;
+        Assert.That(changes.Count, Is.EqualTo(2 * 17),
+            "both axes of all sixteen internal parts and the external one");
+        Assert.That(changes.Select(c => c.OldValue).Distinct(), Is.EquivalentTo(new[] { "10", "-20" }),
+            "the values from before the preset, read off each block");
+        Assert.That(changes.Select(c => c.NewValue).Distinct(), Is.EqualTo(new[] { "0" }));
+        Assert.That(changes.Select(c => c.Offset2).Distinct().Count(), Is.EqualTo(17),
+            "each part's own block, so undo cannot move a part the preset never touched");
+        Assert.That(pending.Writes.Select(w => w.ValueToApply).Distinct(),
+            Is.EquivalentTo(new[] { "10", "-20" }), "undoing it puts every part back where it was");
+    }
+
+    /// <summary>The one the coordinator's half-undo was about. <c>AmbientHallLayout</c> changes the room and
+    /// the parts together, and one press has to put back both -- room and parts -- or the instrument ends up
+    /// in a state that is neither the before nor the after.</summary>
+    [Test]
+    public async Task Undoing_a_preset_restores_the_globals_and_the_positions_together()
+    {
+        var i7 = NewCommunicator();
+        var common = i7.StudioSetCommonMotionalSurround;
+        GivenEveryPartAt(i7, 10, -30, 8, 5);
+        foreach (var (path, value) in new[]
+                 {
+                     (MsPrefix + "Room Type", "Room1"), (MsPrefix + "Room Size", "Small"),
+                     (MsDepthPath, "10"), (MsPrefix + "Ambience Level", "5"),
+                     (MsPrefix + "Ambience Time", "5"), (MsPrefix + "Ambience Density", "5"),
+                     (MsPrefix + "Ambience HF Damp", "5")
+                 })
+            common.ModifySingleParameterDisplayedValue(path, value);
+
+        using var vm = new MotionalSurroundViewModel(i7);
+        var globalsBefore = Snapshot(common, MsGlobalPaths);
+        var partBefore = Snapshot(i7.StudioSetPart(0), PartLrPath, PartFbPath, PartWidthPath,
+            PartAmbiencePath);
+
+        await vm.AmbientHallLayout();
+
+        Assert.That(EditJournal.Default.TryUndo(out var pending), Is.True);
+        Assert.That(EditJournal.Default.CanUndo, Is.False, "the room and the parts are one step, not two");
+        var changes = pending!.Step.Changes;
+        Assert.That(changes.Count, Is.EqualTo(MsGlobalPaths.Length + 16 * 3),
+            "seven common values, and F-B, Width and Ambience for each of the sixteen internal parts");
+        Assert.That(changes.Where(c => c.Path == PartLrPath), Is.Empty,
+            "this preset keeps L-R, and a parameter it did not change must not be in the step");
+
+        var undoes = pending.Writes.ToDictionary(w => (w.Change.Offset2, w.Change.Path),
+            w => w.ValueToApply);
+        foreach (var (path, before) in globalsBefore)
+            Assert.That(undoes[(common.Offset2AddressName, path)], Is.EqualTo(before),
+                $"undo must put '{path}' back to what the room was before the preset");
+        foreach (var path in new[] { PartFbPath, PartWidthPath, PartAmbiencePath })
+            Assert.That(undoes[("Offset2/Studio Set Part 1", path)], Is.EqualTo(partBefore[path]),
+                $"and part 1's '{path}' back to where it was");
+    }
+
+    /// <summary>A preset asks every part for a position whether or not it is already there, so without the
+    /// unchanged check a press of <c>CenterAll</c> on an already-centred field would fill an undo step with
+    /// thirty-four changes that change nothing.</summary>
+    [Test]
+    public async Task A_preset_records_nothing_for_the_parts_it_does_not_move()
+    {
+        var i7 = NewCommunicator();
+        GivenEveryPartAt(i7, 0, 0, 8, 5);
+        using var vm = new MotionalSurroundViewModel(i7);
+
+        await vm.CenterAll();
+
+        Assert.That(EditJournal.Default.CanUndo, Is.False,
+            "every part was already centred, so the preset changed nothing there is to undo");
+    }
+
+    /// <summary>An <see cref="TestFailedReadKeepsValues.SilentApi"/> whose writes take real time, so a
+    /// preset's first and last records are further apart than <see cref="EditJournal.CoalesceWindow"/> and
+    /// only the gesture the command holds can keep them in one step.</summary>
+    private sealed class SlowWriteApi : TestFailedReadKeepsValues.SilentApi
+    {
+        public override async Task MakeDataTransmissionAsync(byte[] address, byte[] data,
+            IMidiLease? lease = null)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(20));
+            await base.MakeDataTransmissionAsync(address, data, lease);
+        }
+    }
+
+    /// <summary>The gesture, pinned the way the slow drags are: a preset that takes longer than the coalesce
+    /// window is still one step. Only the first and the last of the seventeen parts have anywhere to move,
+    /// so the two records that happen are separated by the thirty writes for the fifteen parts in between --
+    /// comfortably past the window, and nowhere near
+    /// <see cref="EditJournal.StaleGestureWindow"/>. Without the gesture this is two steps, and undo would
+    /// leave the field half-centred.</summary>
+    [Test]
+    public async Task A_preset_slower_than_the_coalesce_window_is_still_one_step()
+    {
+        var i7 = new Integra7Domain(new SlowWriteApi(), new Integra7StartAddresses(), Parameters());
+        GivenEveryPartAt(i7, 0, 0, 8, 5);
+        i7.StudioSetPart(0).ModifySingleParameterDisplayedValue(PartLrPath, "40");
+        i7.StudioSetCommonMotionalSurround
+            .ModifySingleParameterDisplayedValue(MsPrefix + "Ext Part L-R", "-40");
+        using var vm = new MotionalSurroundViewModel(i7);
+
+        var started = DateTimeOffset.UtcNow;
+        await vm.CenterAll();
+        var took = DateTimeOffset.UtcNow - started;
+
+        Assert.That(took, Is.GreaterThan(EditJournal.CoalesceWindow),
+            "the test only proves anything if the command really outlasted the coalesce window");
+        Assert.That(EditJournal.Default.TryUndo(out var pending), Is.True);
+        Assert.That(pending!.Step.Changes.Select(c => c.OldValue), Is.EqualTo(new[] { "40", "-40" }),
+            "the first part's L-R and the external part's, in one step, thirty writes apart");
+        Assert.That(EditJournal.Default.CanUndo, Is.False, "one command, one step");
+    }
+
     /// <summary>And that a Direct handler on the element really is served while a bubbling one on its parent
     /// is not -- the whole reason the view moved its capture-lost registration off the puck host and onto
     /// the puck. Raised directly rather than through an input device: this is about routing, and no windowing
