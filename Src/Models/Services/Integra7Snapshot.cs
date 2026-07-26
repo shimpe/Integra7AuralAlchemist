@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Text.Json;
 
 namespace Integra7AuralAlchemist.Models.Services;
@@ -47,7 +48,25 @@ public sealed record SnapshotDomain(string Start, string Offset, string Offset2,
 /// Version 1 is deliberately NOT read. It stored no raw values, so restoring one would run the old
 /// path with the old exposure, and no version 1 file was ever released -- the format changed while the
 /// feature was still being verified. Refusing with a message that names the version is better than
-/// silently restoring through the weaker path.</summary>
+/// silently restoring through the weaker path.
+///
+/// Format version 3 keeps every one of those decisions and changes only the shape on disk: the values
+/// nest by the three address names and then by the parameter path's own '/', which makes a Studio Set
+/// file about a third of its former size and makes a one-parameter change a one-line diff under a
+/// heading that says where it is. <see cref="SnapshotJsonConverter"/> is that shape and carries the
+/// reasoning for it; this record and everything that consumes it are unchanged, which is what made the
+/// change a small one. Version 2 is refused for the same reason version 1 is, minus the danger: no
+/// version 2 file was ever released either, so there is nothing to stay compatible with, and a build
+/// that reads one shape should say so rather than read half a file.
+///
+/// Version 3 also carries the metadata a library needs -- a category, tags, notes, a rating and a
+/// favourite flag -- in the file itself rather than in a sidecar or one index, so that a file carries its
+/// own notes when it is copied or sent, there is one thing to back up, and nothing goes stale when files
+/// are added or removed outside the application. All five are optional and all five default to "nothing
+/// said", so a version 3 file that carries none of them -- which is every one written before this, all of
+/// them on the machine this was built on -- still reads correctly. That is why adding them did not move
+/// the format version again: there is no file anywhere that this build would read differently than the
+/// build that wrote it meant.</summary>
 /// <param name="Kind">What this file holds -- one of <see cref="SnapshotKinds"/>. Defaults to
 /// <see cref="SnapshotKinds.StudioSet"/>, and that default is load-bearing rather than a convenience:
 /// a file written before tones existed carries no <c>Kind</c> property at all, System.Text.Json fills
@@ -56,16 +75,48 @@ public sealed record SnapshotDomain(string Start, string Offset, string Offset2,
 /// <param name="ToneType">Which engine a tone snapshot came from -- one of the five keys
 /// <c>ToneDomainNames.IsKnownToneType</c> accepts. Null for a Studio Set, where there is no single
 /// engine to name.</param>
+/// <param name="Category">One of the instrument's own tone categories, as <c>Integra7Preset</c>
+/// parses them -- "Ac.Piano", "Organ", "Synth Lead" and the rest. Stored as the string rather than as
+/// <c>EnumCategory</c> for the same reason <see cref="SnapshotKinds"/> stores strings: it is written into
+/// the file verbatim, and a string survives that enum gaining, losing or reordering a member while
+/// staying readable in the file, which is the point of the format. Empty for a Studio Set, which is
+/// sixteen parts each with its own and has no single category to name.</param>
+/// <param name="Tags">Free text, for what a fixed vocabulary cannot say -- "for the trio gig", "needs
+/// less bark". Nullable and defaulting to null because a defaulted parameter has to be a constant
+/// expression and an empty list is not one; read it through <see cref="TagList"/>, which is what makes
+/// that an implementation detail rather than every caller's problem.</param>
+/// <param name="Notes">Whatever the user wants to remember about this sound. Never interpreted.</param>
+/// <param name="Rating">0 to 5 stars, 0 meaning unrated.</param>
+/// <param name="Favourite">Set by hand, and independent of the rating: a sound can be a favourite
+/// without being the best thing in the library.</param>
 public sealed record Integra7Snapshot(
     int FormatVersion,
     string Name,
     List<SnapshotDomain> Domains,
     string Kind = SnapshotKinds.StudioSet,
-    string? ToneType = null)
+    string? ToneType = null,
+    string Category = "",
+    List<string>? Tags = null,
+    string Notes = "",
+    int Rating = 0,
+    bool Favourite = false)
 {
-    public const int CurrentFormatVersion = 2;
+    public const int CurrentFormatVersion = 3;
 
-    private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
+    /// <summary>Never null, whatever the file said. A file written by hand may carry no Tags property at
+    /// all, and the converter then passes the record's own default, so every reader would otherwise need
+    /// the same null check -- and the one that gets forgotten is a crash while listing a folder, which is
+    /// the one place this application has no business failing.</summary>
+    public IReadOnlyList<string> TagList => Tags ?? [];
+
+    /// <summary>The converter is what decides the shape of the file, including that the parameter data is
+    /// written last. Registered here rather than by attribute so that both directions go through the same
+    /// options object and cannot drift apart.</summary>
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        Converters = { new SnapshotJsonConverter() },
+    };
 
     /// <summary>Indented deliberately: these files are meant to be read and diffed.</summary>
     public static string ToJson(Integra7Snapshot snapshot) => JsonSerializer.Serialize(snapshot, Options);
@@ -75,7 +126,10 @@ public sealed record Integra7Snapshot(
         Integra7Snapshot? snapshot;
         try
         {
-            snapshot = JsonSerializer.Deserialize<Integra7Snapshot>(json, Options);
+            // A leading byte-order mark comes off first, for the reason ByteOrderMark gives -- and through
+            // the same helper SnapshotHead.TryRead uses, so that the two cannot come to disagree about
+            // whether a file is a snapshot.
+            snapshot = JsonSerializer.Deserialize<Integra7Snapshot>(ByteOrderMark.SkipIn(json), Options);
         }
         catch (JsonException e)
         {
@@ -102,6 +156,26 @@ public sealed record Integra7Snapshot(
         // optional by design: a text parameter has no raw form, so a null there is not a gap -- it is
         // the documented "no raw value, restore from the string". Adding it here would reject every
         // file that names a Studio Set.
+        // Version 3's shape makes some of these unreachable from a file rather than unnecessary, and they
+        // stay for that reason. An address name is now an object key, and a JSON object key cannot be
+        // null, so a block with a null Start, Offset or Offset2 can no longer be written by hand; the same
+        // goes for a null parameter path, which is now a key too, and for a null Values, which the reader
+        // always builds as a list. What that leaves reachable is a null Name, an absent or empty Blocks,
+        // and a null value (`"Studio Set Tempo": null`), which the converter deliberately keeps as a null
+        // rather than dropping so that this one condition is still what refuses it. Deleting the now-
+        // structural halves would save one expression and cost the property that this single check is
+        // where a snapshot's contents are judged, whatever shape a future version writes them in.
+        // The five metadata fields -- Category, Tags, Notes, Rating and Favourite -- are absent from it
+        // for the same reason SnapshotValue.Raw is: they are optional by design. A snapshot saved before
+        // the library existed carries none of them, and a file written by hand is not obliged to either;
+        // "nothing said" is a perfectly good answer for all five and is what their defaults mean. So the
+        // rule above -- every new *required* field needs a null check here -- does not reach them, and
+        // adding one would reject every snapshot already on disk to no purpose. What replaces it is that
+        // none of the five can be null by the time a reader sees it: Rating and Favourite are value types,
+        // Category and Notes are coalesced to empty by the converter (which keeps a null Kind, precisely
+        // because a null Kind decides where blocks get applied and a null note decides nothing), and Tags
+        // is read through TagList. Their contents are still judged, below -- a rating has a range, and a
+        // range is not a null check.
         // Kind and ToneType are absent from it for a different reason, and must also stay absent.
         // Kind's whole point is its default: a file written before tones existed has no Kind property,
         // so `default` -- SnapshotKinds.StudioSet -- is what makes it still read as the Studio Set it
@@ -128,6 +202,14 @@ public sealed record Integra7Snapshot(
             throw new SnapshotFormatException(
                 $"This tone snapshot names no tone type this build recognises (\"{snapshot.ToneType}\").");
 
+        // The star control cannot produce a rating outside the range, but a hand-edited file can, and a
+        // filter for five-star sounds that silently skipped a seven-star entry would be a puzzle rather
+        // than an error -- the file is in the folder, it says it is the best thing there, and it does not
+        // appear. Refusing it names the problem at the one moment the user is looking at that file.
+        if (snapshot.Rating is < 0 or > 5)
+            throw new SnapshotFormatException(
+                $"This snapshot's rating is {snapshot.Rating}; ratings run from 0 to 5.");
+
         return snapshot;
     }
 }
@@ -140,6 +222,51 @@ public static class SnapshotKinds
 {
     public const string StudioSet = "studio-set";
     public const string Tone = "tone";
+}
+
+/// <summary>Taking a leading UTF-8 byte-order mark off a snapshot file, so that a JSON reader never sees one.
+///
+/// <b>Why this is needed at all.</b> A byte-order mark is meaningless in UTF-8 -- there is no byte order to
+/// mark -- but it is legal, and a great deal of software on Windows writes one anyway. <c>Utf8JsonReader</c>
+/// is documented not to skip it, and JSON's own grammar does not count it as whitespace, so a reader handed
+/// those three bytes fails on the first token and reports a file that is not JSON.
+///
+/// <b>Why that matters here more than it would elsewhere.</b> This format exists to be read, diffed and
+/// hand-edited; that is the entire justification for nesting the parameter data by address and for carrying a
+/// display string beside every raw value. So these files will be opened in editors, and an editor that adds a
+/// mark on the way out turned a snapshot into a file this application refused -- silently, in the library
+/// listing, where a file that is not a snapshot is deliberately skipped so that another application's config
+/// in the same folder cannot produce an error the user can do nothing about. A user's own snapshot vanishing
+/// from that list, with nothing anywhere saying why, is the worst failure this format can have; the file was
+/// never damaged, and it was not open to being found either.
+///
+/// <b>Both entry points go through here</b> -- <see cref="Integra7Snapshot.FromJson"/> over a string and
+/// <see cref="SnapshotHead.TryRead"/> over a file's bytes -- and that is the point of the type rather than
+/// tidiness. If only one of them skipped the mark, the library would list files it cannot open or hide files
+/// it can, and a contradiction between the list and the file is worse than either answer given consistently.
+/// One helper makes agreeing structural instead of a promise in a comment.
+///
+/// <b>Only a leading mark, and only one.</b> U+FEFF anywhere else in a file is not a byte-order mark: inside
+/// a string it is a character JSON allows and the value's own text, so removing it would be this code quietly
+/// editing a name someone typed; between two tokens it is a character JSON does not allow, so the file is
+/// broken in a way no guess here can repair. Two marks in a row is the second case -- the file is broken, it
+/// stays broken, and both readers say so together.</summary>
+internal static class ByteOrderMark
+{
+    /// <summary>The mark as a character, which is what a string entry point sees when whoever decoded the
+    /// file did not strip the preamble. <c>File.ReadAllText</c> does strip it, which is why the application's
+    /// own Load Studio Set never met this; <c>Encoding.UTF8.GetString</c> over the same bytes does not, and a
+    /// format is not entitled to assume which one a future caller picks.</summary>
+    private const char Character = '\uFEFF';
+
+    /// <summary>And as bytes. Taken from the encoding rather than written out as EF BB BF so that it cannot be
+    /// mistyped, and so that it reads as what it is: the preamble UTF-8 puts at the front of a file.</summary>
+    private static ReadOnlySpan<byte> Preamble => Encoding.UTF8.Preamble;
+
+    public static string SkipIn(string json) => json.Length > 0 && json[0] == Character ? json[1..] : json;
+
+    public static ReadOnlySpan<byte> SkipIn(ReadOnlySpan<byte> utf8) =>
+        utf8.StartsWith(Preamble) ? utf8[Preamble.Length..] : utf8;
 }
 
 /// <summary>A snapshot file that cannot be read. Carries a message meant for the user.</summary>

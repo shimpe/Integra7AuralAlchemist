@@ -1,9 +1,11 @@
+using System.IO;
 using System.Reactive;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
 using FluentAvalonia.UI.Windowing;
+using Integra7AuralAlchemist.Models.Services;
 using Integra7AuralAlchemist.ViewModels;
 using ReactiveUI;
 
@@ -68,6 +70,8 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
             action(ViewModel!.ShowSaveUserToneDialog.RegisterHandler(DoShowDialogAsync));
             action(ViewModel!.ShowSaveSnapshotDialog.RegisterHandler(DoShowSaveSnapshotDialogAsync));
             action(ViewModel!.ShowOpenSnapshotDialog.RegisterHandler(DoShowOpenSnapshotDialogAsync));
+            action(ViewModel!.ShowSaveToLibraryDialog.RegisterHandler(DoShowSaveToLibraryDialogAsync));
+            action(ViewModel!.ShowPickLibraryFolderDialog.RegisterHandler(DoShowPickLibraryFolderDialogAsync));
         });
     }
 
@@ -97,6 +101,37 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
         // storage) is reported as "" rather than collapsed into null, so the command does not mistake
         // "picked but unusable" for "cancelled" -- see ShowSaveSnapshotDialog's doc comment.
         interaction.SetOutput(file is null ? null : file.TryGetLocalPath() ?? "");
+    }
+
+    /// <summary>Ask what a snapshot about to be saved into the library should be called and what should be said
+    /// about it. Modelled on <see cref="DoShowDialogAsync"/> down to the shape of its result: the dialog's own
+    /// commands answer the metadata or null, and null is what the caller reads as a cancellation.</summary>
+    private async Task DoShowSaveToLibraryDialogAsync(
+        IInteractionContext<SaveToLibraryViewModel, SnapshotMetadata?> interaction)
+    {
+        var dialog = new SaveToLibraryDialog { DataContext = interaction.Input };
+        interaction.SetOutput(await dialog.ShowDialog<SnapshotMetadata?>(this));
+    }
+
+    private async Task DoShowPickLibraryFolderDialogAsync(IInteractionContext<string, string?> interaction)
+    {
+        // Start where the library already is, when that is somewhere the picker can be pointed at. Only if the
+        // folder exists: TryGetFolderFromPathAsync over a path that is not there answers null, which is the same
+        // as not asking, and skipping the call keeps this from depending on that being true of every backend.
+        IStorageFolder? start = null;
+        if (Directory.Exists(interaction.Input))
+            start = await StorageProvider.TryGetFolderFromPathAsync(interaction.Input);
+
+        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        {
+            Title = "Choose the snapshot library folder",
+            AllowMultiple = false,
+            SuggestedStartLocation = start,
+        });
+
+        // Same null-vs-"" distinction as the snapshot pickers: null is a cancellation, "" is a folder that was
+        // chosen but has no local path this application can read or write (a cloud or virtual location).
+        interaction.SetOutput(folders.Count == 0 ? null : folders[0].TryGetLocalPath() ?? "");
     }
 
     private async Task DoShowOpenSnapshotDialogAsync(IInteractionContext<Unit, string?> interaction)

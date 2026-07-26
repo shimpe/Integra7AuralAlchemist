@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="220" d:DesignHeight="40"
+             x:Class="Integra7AuralAlchemist.Views.RatingView"
+             x:DataType="vm:RatingViewModel">
+
+    <!-- Five stars and the count in words. Used twice — by the library's metadata editor and by the save
+         dialog — so it is a control rather than a dozen lines duplicated in both; the name matches the view
+         model's, so the ViewLocator would also find it for anything that puts one in a ContentControl.
+
+         No ToolTip anywhere in here, and this is the control the rule was written for: five click targets side
+         by side, each about 30px wide. A tooltip is a real popup window, and sitting under the pointer it takes
+         the click and the button never sees it — which is exactly the reported "I have to click Compare more
+         than once". See the status-bar comment in MainWindow.axaml.
+
+         Ordinary button chrome, deliberately: a borderless star is prettier and does not look like something to
+         press, and a row of five identical glyphs is only useful if the user knows it is a control. -->
+    <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+        <ItemsControl ItemsSource="{Binding Stars}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="2" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RatingStarViewModel">
+                    <!-- Command on a parameterless method, so the XAML compiler type-checks it and there is no
+                         CommandParameter to be converted from a string at runtime. Clicking a star sets that
+                         many; clicking the one that is already the last lit star takes one off, which is how a
+                         rating is cleared without a sixth button in a row of five. -->
+                    <Button Content="{Binding Glyph}"
+                            Command="{Binding Set}"
+                            Foreground="{StaticResource SnRatingStarBrush}"
+                            FontSize="16"
+                            MinWidth="0"
+                            Padding="6,0" />
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="{Binding Label}"
+                   VerticalAlignment="Center"
+                   Foreground="{StaticResource SnMutedTextBrush}" />
+    </StackPanel>
+</UserControl>

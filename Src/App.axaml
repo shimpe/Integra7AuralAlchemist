@@ -95,6 +95,11 @@
             <SolidColorBrush x:Key="LayerMapZoneBrush" Color="#6b8dff"/>
             <!-- The part number in each lane: primary text, over a translucent range fill on a dark ground. -->
             <SolidColorBrush x:Key="LayerMapLabelBrush" Color="White"/>
+            <!-- The library's rating stars, filled and hollow alike: the glyph says which it is, so one brush is
+                 enough and a lit star cannot end up a different hue from an unlit one. The same amber the filter
+                 envelope and its knobs use, because it is the one accent in the palette that reads as a
+                 highlight rather than as a category. -->
+            <SolidColorBrush x:Key="SnRatingStarBrush" Color="#E0A23D"/>
             <!-- Drum note-rail key palette (SN-Drums + PCM-Drums). -->
             <SolidColorBrush x:Key="DrumWhiteKeyBrush" Color="#c8ccce"/>
             <SolidColorBrush x:Key="DrumBlackKeyBrush" Color="#23262a"/>
@@ -111,8 +116,14 @@
              overlay them, which puts a scrollbar on top of whatever sits at the edge of a scrolling
              area: a combo box in the SN-S header, the right hand side of a partial card. Measured on
              Avalonia 12.0.5 with AllowAutoHide left on, the viewport is the scroll viewer's full
-             size, so the bar has nowhere to go but over the content. Turning it off reserves 16px on
-             each scrolling axis instead. -->
+             size, so the bar has nowhere to go but over the content.
+
+             Turning it off does NOT reserve space — an earlier version of this comment claimed it did,
+             and that was measured wrong. All it does is make the bar permanently visible, still on top
+             of the content. What actually prevents overlap is giving the scrolling content a right
+             padding lane the width of the bar (~16px), so items stop short and the bar sits in the gap;
+             see the partial ListBoxes. This comment is left switched on anyway, because a bar that is
+             always there is easier to lay out around than one that appears on hover. -->
         <Style Selector="ScrollViewer">
             <Setter Property="ScrollViewer.AllowAutoHide" Value="False" />
         </Style>

@@ -1,0 +1,59 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+        xmlns:local="clr-namespace:Integra7AuralAlchemist.Views"
+        mc:Ignorable="d" d:DesignWidth="520" d:DesignHeight="470"
+        x:Class="Integra7AuralAlchemist.Views.SaveToLibraryDialog"
+        x:DataType="vm:SaveToLibraryViewModel"
+        Title="Save into the library"
+        Width="520"
+        Height="470"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Asked before the capture rather than after it: a Studio Set is 53 blocks off the wire and a drum kit 92,
+         and cancelling at the end of that would have paid for nothing. The name is also the file's name and the
+         snapshot's own, so one answer here reaches all three.
+
+         No ToolTip in here either — the star row is five click targets side by side, which is the shape of the
+         swallowed-click bug (see MainWindow.axaml). -->
+
+    <StackPanel Orientation="Vertical" Margin="16" Spacing="6">
+        <TextBlock Text="{Binding What, StringFormat='Read the {0} from the instrument and save it into the library.'}"
+                   TextWrapping="Wrap" />
+        <TextBlock Text="{Binding Folder}"
+                   TextWrapping="Wrap"
+                   Foreground="{StaticResource SnMutedTextBrush}"
+                   Margin="0,0,0,6" />
+
+        <TextBlock Text="Name" Foreground="{StaticResource SnMutedTextBrush}" />
+        <TextBox Text="{Binding Name, Mode=TwoWay}" PlaceholderText="what to call it in the library" />
+
+        <!-- Hidden, not disabled, for a Studio Set: it is sixteen parts each with a category of its own, so
+             there is nothing for the control to say and a greyed-out drop-down would only invite the question.
+             The library's own editor disables it instead, because there it has a value to keep showing. -->
+        <StackPanel Orientation="Vertical" Spacing="6" IsVisible="{Binding HasCategory}">
+            <TextBlock Text="Category" Foreground="{StaticResource SnMutedTextBrush}" />
+            <ComboBox ItemsSource="{Binding CategoryLabels}"
+                      SelectedItem="{Binding CategoryLabel, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch" />
+        </StackPanel>
+
+        <TextBlock Text="Tags, separated by commas" Foreground="{StaticResource SnMutedTextBrush}" />
+        <TextBox Text="{Binding Tags, Mode=TwoWay}" PlaceholderText="warm, trio gig" />
+
+        <TextBlock Text="Rating" Foreground="{StaticResource SnMutedTextBrush}" />
+        <local:RatingView DataContext="{Binding Rating}" />
+
+        <CheckBox IsChecked="{Binding Favourite, Mode=TwoWay}" Content="Favourite" />
+
+        <!-- Notes are deliberately not asked for here; they are what you write after playing the sound again,
+             and the library's editor is where they belong. -->
+
+        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="Save" Command="{Binding SaveCommand}" IsEnabled="{Binding CanSave}" Padding="14,3" />
+            <Button Content="Cancel" Command="{Binding CancelCommand}" Padding="14,3" />
+        </StackPanel>
+    </StackPanel>
+</Window>
