@@ -48,7 +48,8 @@ public partial class MainWindowViewModel : ViewModelBase
     /// Unlike <see cref="SyncInfo"/> this drives a status line rather than the blocking overlay.</summary>
     [Reactive] private string _backgroundInfo = "";
 
-    /// <summary>Outcome of the last Studio Set snapshot save or load, shown on the status bar. This is
+    /// <summary>Outcome of the last snapshot save or load, or of the last Compare, shown on the status bar.
+    /// This is
     /// the only channel this app has for telling the user that something failed -- <c>UserActionLog</c>
     /// only reaches the log file -- so a snapshot that cannot be read must land here, not just there.
     /// Empty means there is nothing to report; a cancelled file dialog leaves it untouched.</summary>
@@ -95,6 +96,15 @@ public partial class MainWindowViewModel : ViewModelBase
 
     [Reactive] private bool _canRedo;
 
+    /// <summary>Whether the Compare button has anything to do -- mirrored from the journal like
+    /// <see cref="CanUndo"/>, and for the same threading reason. True while comparing as well as while
+    /// there is something to compare, since the button is also the way back.</summary>
+    [Reactive] private bool _canCompare;
+
+    /// <summary>What the Compare button says. It doubles as the only indication of which of the two sounds
+    /// the instrument is playing, so it names the state rather than the action while comparing.</summary>
+    [Reactive] private string _compareLabel = "Compare";
+
     /// <summary>Take back the last edit the user made, from either editor.</summary>
     [ReactiveCommand]
     public async Task UndoAsync()
@@ -115,6 +125,86 @@ public partial class MainWindowViewModel : ViewModelBase
         UserActionLog.Action($"redo {pending.Description}");
         // Mirror of UndoAsync: put the step back where it came from when the write did not happen.
         if (!await ApplyEditsAsync([pending], "undo/redo")) EditJournal.Default.TryUndo(out _);
+    }
+
+    /// <summary>Play the sound as it was before the edits in the history, or -- pressed again -- put the
+    /// edits back. Both directions are the journal's own steps written through the ordinary write path, so
+    /// the editors follow the instrument either way: a write goes through
+    /// <c>DomainBase.WriteToIntegraAsync(path, value, lease)</c>, which modifies the parameter in memory,
+    /// and the wrappers pick that up through <c>SynthParam</c>'s model subscription. What the user hears
+    /// and what the screen shows do not come apart.
+    ///
+    /// The overlay is up for the whole press. A long session's history is hundreds of writes, and the
+    /// journal's two-phase toggle assumes nothing else touches the history in between -- which the overlay
+    /// is what guarantees, since it takes the buttons out of reach.</summary>
+    [ReactiveCommand]
+    public async Task CompareAsync()
+    {
+        if (!EditJournal.Default.TryBeginCompareToggle(out var toggle)) return;
+        UserActionLog.Action(toggle.Entering ? "button: Compare (hear the original)"
+            : "button: Compare (hear the edits)");
+
+        try
+        {
+            SignalStartSync();
+            SyncInfo = toggle.Entering
+                ? "Writing the values from before the edits"
+                : "Writing the edits back";
+
+            if (!await ApplyEditsAsync(toggle.Steps, "compare"))
+            {
+                // Nothing was committed, so the journal still says the instrument is on the side it was.
+                // Some of the writes may have landed; pressing Compare again repeats the same direction,
+                // and every write is an absolute value, so the retry finishes the job.
+                SnapshotFailed = true;
+                SnapshotStatus = "Compare did not finish writing to the instrument. Press it again to retry.";
+            }
+            else if (!EditJournal.Default.CommitCompareToggle(toggle))
+            {
+                // The history changed shape while the writes were going out -- a preset or Studio Set
+                // change arriving from the device clears it, an edit made while Compare waited for the wire
+                // adds to it -- so the toggle described a history that is no longer there and the journal
+                // refused it. Those writes did land, so the instrument is between the two sounds; a fresh
+                // press recomputes from the history that is really there and converges on one of them.
+                SnapshotFailed = true;
+                SnapshotStatus = "Compare was interrupted by another change, so the press was abandoned. " +
+                                 "Press it again to settle on one of the two sounds.";
+            }
+            else
+            {
+                SnapshotFailed = false;
+                SnapshotStatus = toggle.Entering
+                    // "Playing" rather than "restored": the device acknowledges no parameter write, so
+                    // this says the values went out. The truncation note is not a warning about damage --
+                    // nothing is lost from the instrument -- but about what this comparison means: the
+                    // edits older than the history's capacity are still in the sound being called the
+                    // original.
+                    ? "Playing the sound from before the edits. Press Compare again to hear them." +
+                      (EditJournal.Default.HistoryTruncated
+                          ? $" Edits older than the last {EditJournal.Capacity} are still included in it."
+                          : "")
+                    : "Playing the edited sound.";
+            }
+        }
+        finally
+        {
+            SignalStopSync();
+        }
+    }
+
+    /// <summary>Refuse an action that would capture or store the instrument's current sound while Compare
+    /// is playing the one from before the edits, and say why. Returns true when the caller must stop.
+    ///
+    /// Reads the journal rather than the mirrored property: the property is a UI convenience posted from
+    /// another thread, and this is a correctness guard -- saving here writes the pre-edit sound into a file
+    /// or, worse, over a user slot, and neither is undoable.</summary>
+    private bool RefuseWhileComparing(string what)
+    {
+        if (!EditJournal.Default.IsComparing) return false;
+        SnapshotFailed = true;
+        SnapshotStatus = $"Cannot {what} while comparing: the instrument is playing the sound from before " +
+                         "your edits. Press Compare again first.";
+        return true;
     }
 
     /// <summary>What a set of steps is about to write, short enough for a log line and a lease label. One
@@ -273,6 +363,8 @@ public partial class MainWindowViewModel : ViewModelBase
         if (_currentPartSelection == 0)
             return;
 
+        if (RefuseWhileComparing("save a user tone")) return;
+
         if (PartViewModels is null || PartViewModels.Count < 2)
         {
             Log.Error("Cannot save user tone because there are no parts initialized.");
@@ -324,6 +416,8 @@ public partial class MainWindowViewModel : ViewModelBase
         var api = Integra7;
         var communicator = _integra7Communicator;
         if (api is null || communicator is null) return;
+
+        if (RefuseWhileComparing("save the Studio Set")) return;
 
         // The Studio Set names itself; that is a far better default file name than "snapshot".
         var name = communicator.StudioSetCommon
@@ -557,6 +651,8 @@ public partial class MainWindowViewModel : ViewModelBase
         var api = Integra7;
         var communicator = _integra7Communicator;
         if (api is null || communicator is null) return;
+
+        if (RefuseWhileComparing("save the tone")) return;
 
         var selected = await ResolveSelectedToneAsync("save");
         if (selected is null) return; // ResolveSelectedToneAsync has already said why
@@ -1269,6 +1365,8 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             CanUndo = EditJournal.Default.CanUndo;
             CanRedo = EditJournal.Default.CanRedo;
+            CanCompare = EditJournal.Default.CanCompare;
+            CompareLabel = EditJournal.Default.IsComparing ? "Hearing the original" : "Compare";
         });
 
         ShowSaveUserToneDialog = new Interaction<SaveUserToneViewModel, UserToneToSave?>();
