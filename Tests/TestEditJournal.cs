@@ -787,6 +787,26 @@ public class EditJournalTests
     }
 
     [Test]
+    public void A_toggle_is_refused_when_an_edit_merges_into_a_step_it_covered()
+    {
+        var (journal, _) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        Assert.That(journal.TryBeginCompareToggle(out var toggle), Is.True);
+
+        // The same parameter again, inside the coalesce window, so Record folds it into the step the
+        // toggle already covers instead of adding one. Merge builds a new EditStep to do that, so the
+        // instance the toggle is holding is no longer the one on _undo, and CommitCompareToggle's removal
+        // would silently miss and leave a step in both lists. The step *count* does not change here --
+        // which is exactly why this case needs its own test: a generation bump tied to the history's shape
+        // rather than to every mutation would look correct and let this through.
+        journal.Record(Change("Studio Set Part/Part Level", "110", "120"));
+
+        Assert.That(journal.CommitCompareToggle(toggle!), Is.False);
+        Assert.That(journal.IsComparing, Is.False);
+        Assert.That(journal.CanUndo, Is.True, "and nothing was consumed");
+    }
+
+    [Test]
     public void Committing_says_whether_it_was_accepted()
     {
         var (journal, _) = NewJournal();

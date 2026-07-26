@@ -1141,6 +1141,29 @@ public partial class PartViewModel : ViewModelBase
     {
         if (_selectedPreset == value || value is null) return;
 
+        // Not while Compare is playing the sound from before the edits. Changing a preset clears the
+        // journal, and while comparing the journal's buffer is the *only* copy of the edited values --
+        // the instrument is deliberately holding the other half of the swap. Clearing it there does not
+        // merely lose the ability to step back, as it does for plain undo: it destroys the edits
+        // outright, for every part, including parts this preset change has nothing to do with. So a
+        // preset the user picks is refused with a reason, exactly as a save is.
+        //
+        // Only the user's own picks. A preset the device reports has already happened -- refusing it
+        // would leave the app describing a patch the instrument is not holding, which is worse. That
+        // path says what it cost instead; see ChangePresetAndReloadAsync.
+        if (source == PresetSource.User && EditJournal.Default.IsComparing)
+        {
+            UserActionLog.Action(
+                $"part {PartNo}: refusing preset '{value.Name}', a comparison is in progress");
+            _mwvm.SnapshotFailed = true;
+            _mwvm.SnapshotStatus =
+                "Cannot change preset while comparing: the edits Compare is holding would be lost. " +
+                "Press Compare again first.";
+            // Snap the list back to what is really selected, as the mid-load refusal below does.
+            this.RaisePropertyChanged(nameof(SelectedPreset));
+            return;
+        }
+
         var decision = _load.RequestPreset(source);
         if (!decision.Accepted)
         {
@@ -1880,6 +1903,23 @@ public partial class PartViewModel : ViewModelBase
             // A preset change: this part now holds a different tone, so every step in the history that
             // names one of its parameters describes the tone that just went away. The history is not
             // per-part, so this drops the lot rather than trying to keep the other parts' steps.
+            //
+            // Reaching here while comparing means the change came from the instrument, since a pick in
+            // the app is refused (see ApplyPreset). The buffer goes with the history, and it was the only
+            // copy of the edited values -- so those edits are gone, and the instrument keeps whatever
+            // Compare had written. Nothing can be done about it at this point; what can be done is not
+            // letting it happen in silence.
+            if (EditJournal.Default.IsComparing)
+            {
+                UserActionLog.Action(
+                    $"part {PartNo}: a preset changed on the instrument during a comparison; the edits " +
+                    "Compare was holding are gone");
+                _mwvm.SnapshotFailed = true;
+                _mwvm.SnapshotStatus =
+                    "A preset changed on the instrument while comparing. The edits Compare was holding " +
+                    "could not be put back and are lost; the instrument keeps the values Compare wrote.";
+            }
+
             EditJournal.Default.Clear();
         }
         catch (Exception e)

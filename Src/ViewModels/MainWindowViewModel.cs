@@ -769,6 +769,13 @@ public partial class MainWindowViewModel : ViewModelBase
         var communicator = _integra7Communicator;
         if (api is null || communicator is null) return;
 
+        // Refused while comparing, unlike Load Studio Set. The plan's reasoning for letting a load through
+        // -- it defines the sound outright, so there is nothing to get wrong -- holds only for a load that
+        // replaces everything the comparison covered. This one replaces a single part, then clears the
+        // journal, and the journal's buffer is the only copy of the edited values for the other fifteen.
+        // See PartViewModel.ApplyPreset, which refuses a preset pick for the same reason.
+        if (RefuseWhileComparing("load a tone")) return;
+
         var selected = await ResolveSelectedToneAsync("load");
         if (selected is null) return; // ResolveSelectedToneAsync has already said why
 
