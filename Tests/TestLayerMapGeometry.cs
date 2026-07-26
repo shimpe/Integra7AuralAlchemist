@@ -22,13 +22,13 @@ public class LayerMapGeometryTests
     [Test]
     public void The_lane_under_a_point_is_the_one_that_contains_it()
     {
-        Assert.That(LayerMapGeometry.LaneAt(0.0, W, H), Is.EqualTo(0));
-        Assert.That(LayerMapGeometry.LaneAt(H / 16 * 1.5, W, H), Is.EqualTo(1), "just inside part 2's lane");
-        Assert.That(LayerMapGeometry.LaneAt(H - 0.001, W, H), Is.EqualTo(15));
+        Assert.That(LayerMapGeometry.LaneAt(0.0, H), Is.EqualTo(0));
+        Assert.That(LayerMapGeometry.LaneAt(H / 16 * 1.5, H), Is.EqualTo(1), "just inside part 2's lane");
+        Assert.That(LayerMapGeometry.LaneAt(H - 0.001, H), Is.EqualTo(15));
         // Off the ends reads as no lane rather than clamping: a drag that leaves the chart must stop, not
         // silently start editing the first or last part.
-        Assert.That(LayerMapGeometry.LaneAt(-1, W, H), Is.Null);
-        Assert.That(LayerMapGeometry.LaneAt(H + 1, W, H), Is.Null);
+        Assert.That(LayerMapGeometry.LaneAt(-1, H), Is.Null);
+        Assert.That(LayerMapGeometry.LaneAt(H + 1, H), Is.Null);
     }
 
     [Test]
@@ -102,14 +102,181 @@ public class LayerMapGeometryTests
     }
 
     [Test]
-    public void A_fade_is_as_wide_as_its_fade_width_says()
+    public void A_key_fade_band_lies_below_the_range_and_is_clipped_at_the_chart_edge()
     {
-        // 12 semitones of fade at the lower edge, none at the upper.
-        var z = new LayerZone(0, 60, 72, 0, 127, 12, 0, 0, 0, "1", "");
-        // Stated independently of KeyToX rather than in terms of it: a fade width is a *span* of keys, so
-        // twelve semitones of fade is twelve semitones' worth of pixels wherever the zone happens to sit.
-        // Asserting KeyToX(12) would pass for an implementation that mistook the width for a position.
-        Assert.That(LayerMapGeometry.KeyFadeLowerWidth(z, W), Is.EqualTo(12.0 / 127.0 * W).Within(0.001));
-        Assert.That(LayerMapGeometry.KeyFadeUpperWidth(z, W), Is.EqualTo(0).Within(0.001));
+        // Part 3, keys 60..72, 12 semitones of fade in below and 6 out above.
+        var z = new LayerZone(2, 60, 72, 0, 127, 12, 6, 0, 0, "3", "");
+        var body = LayerMapGeometry.ZoneRect(2, 60, 72, 0, 127, W, H);
+
+        var lower = LayerMapGeometry.KeyFadeLowerRect(z, W, H);
+        Assert.That(lower.X, Is.EqualTo(PmtZoneMapping.KeyToX(48, W)).Within(0.001),
+            "the fade-in starts twelve semitones below the range");
+        Assert.That(lower.X + lower.W, Is.EqualTo(body.X).Within(0.001), "and ends where the range begins");
+        Assert.That(lower.Y, Is.EqualTo(body.Y).Within(0.001), "over the zone's own velocity extent");
+        Assert.That(lower.H, Is.EqualTo(body.H).Within(0.001));
+
+        var upper = LayerMapGeometry.KeyFadeUpperRect(z, W, H);
+        Assert.That(upper.X, Is.EqualTo(body.X + body.W).Within(0.001), "the fade-out starts where the range ends");
+        Assert.That(upper.X + upper.W, Is.EqualTo(PmtZoneMapping.KeyToX(78, W)).Within(0.001));
+
+        // Clipped at the bottom of the chart: a 12-semitone fade on a zone starting at key 3 has only three
+        // semitones of room, so it is a three-semitone band and not a band starting at key -9. Stated as a
+        // span rather than as KeyToX(3) so an implementation that mistook the clip for a position fails.
+        var low = new LayerZone(0, 3, 20, 0, 127, 12, 0, 0, 0, "1", "");
+        var clippedLo = LayerMapGeometry.KeyFadeLowerRect(low, W, H);
+        Assert.That(clippedLo.X, Is.EqualTo(0).Within(0.001), "never left of the chart");
+        Assert.That(clippedLo.W, Is.EqualTo(3.0 / 127.0 * W).Within(0.001));
+
+        // And at the top.
+        var high = new LayerZone(0, 100, 120, 0, 127, 0, 12, 0, 0, "1", "");
+        var clippedHi = LayerMapGeometry.KeyFadeUpperRect(high, W, H);
+        Assert.That(clippedHi.X + clippedHi.W, Is.EqualTo(W).Within(0.001), "never right of the chart");
+        Assert.That(clippedHi.W, Is.EqualTo(7.0 / 127.0 * W).Within(0.001));
+    }
+
+    [Test]
+    public void A_velocity_fade_band_lies_outside_the_range_and_stays_in_the_lane()
+    {
+        // Part 5, velocity 40..100, 20 steps of fade either side.
+        var z = new LayerZone(4, 0, 127, 40, 100, 0, 0, 20, 20, "5", "");
+        var body = LayerMapGeometry.ZoneRect(4, 0, 127, 40, 100, W, H);
+        var lane = LayerMapGeometry.LaneRect(4, W, H);
+
+        var lower = LayerMapGeometry.VelFadeLowerRect(z, W, H);
+        Assert.That(lower.Y, Is.EqualTo(body.Y + body.H).Within(0.001),
+            "the soft fade hangs below the zone, because loud is up");
+        Assert.That(lower.H, Is.EqualTo(20.0 / 127.0 * lane.H).Within(0.001), "twenty velocity steps' worth");
+
+        var upper = LayerMapGeometry.VelFadeUpperRect(z, W, H);
+        Assert.That(upper.Y + upper.H, Is.EqualTo(body.Y).Within(0.001), "the loud fade sits above the zone");
+        Assert.That(upper.H, Is.EqualTo(20.0 / 127.0 * lane.H).Within(0.001));
+
+        // Clipped by the lane, not by the chart: a 40-step fade below velocity 10 has ten steps of room, and
+        // the band must not spill into the neighbouring part's lane.
+        var soft = new LayerZone(4, 0, 127, 10, 100, 0, 0, 40, 0, "5", "");
+        var clippedLo = LayerMapGeometry.VelFadeLowerRect(soft, W, H);
+        Assert.That(clippedLo.H, Is.EqualTo(10.0 / 127.0 * lane.H).Within(0.001));
+        Assert.That(clippedLo.Y + clippedLo.H, Is.LessThanOrEqualTo(lane.Y + lane.H + 0.001));
+
+        var loud = new LayerZone(4, 0, 127, 40, 120, 0, 0, 0, 40, "5", "");
+        var clippedHi = LayerMapGeometry.VelFadeUpperRect(loud, W, H);
+        Assert.That(clippedHi.H, Is.EqualTo(7.0 / 127.0 * lane.H).Within(0.001));
+        Assert.That(clippedHi.Y, Is.GreaterThanOrEqualTo(lane.Y - 0.001));
+    }
+
+    [Test]
+    public void A_key_edge_dragged_past_its_opposite_blocks_instead_of_inverting()
+    {
+        var origin = new LayerZone(0, 60, 72, 0, 127, 0, 0, 0, 0, "1", "");
+
+        var pastRight = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Left, 100, 64, 60, 64);
+        Assert.That(pastRight.KeyLo, Is.EqualTo(72), "the left edge stops at the right edge");
+        Assert.That(pastRight.KeyHi, Is.EqualTo(72), "which stayed where it was -- blocked, not swapped");
+
+        var pastLeft = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Right, 20, 64, 72, 64);
+        Assert.That(pastLeft.KeyHi, Is.EqualTo(60));
+        Assert.That(pastLeft.KeyLo, Is.EqualTo(60));
+
+        // Ordinary drags, and the ends of the axis.
+        Assert.That(LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Left, 48, 64, 60, 64).KeyLo,
+            Is.EqualTo(48));
+        Assert.That(LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Left, -30, 64, 60, 64).KeyLo,
+            Is.EqualTo(0), "clamped, not negative");
+        Assert.That(LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Right, 200, 64, 72, 64).KeyHi,
+            Is.EqualTo(127));
+
+        // A key drag leaves the velocity range alone, so it costs no undo step of its own.
+        var moved = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Left, 48, 100, 60, 64);
+        Assert.That(moved.VelLo, Is.EqualTo(origin.VelLo));
+        Assert.That(moved.VelHi, Is.EqualTo(origin.VelHi));
+    }
+
+    [Test]
+    public void A_velocity_edge_dragged_past_its_opposite_blocks_too()
+    {
+        var origin = new LayerZone(0, 0, 127, 40, 100, 0, 0, 0, 0, "1", "");
+
+        var pastBottom = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Top, 64, 10, 64, 100);
+        Assert.That(pastBottom.VelHi, Is.EqualTo(40), "the top edge stops at the bottom edge");
+        Assert.That(pastBottom.VelLo, Is.EqualTo(40));
+
+        var pastTop = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Bottom, 64, 120, 64, 40);
+        Assert.That(pastTop.VelLo, Is.EqualTo(100));
+        Assert.That(pastTop.VelHi, Is.EqualTo(100));
+
+        Assert.That(LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Top, 64, 127, 64, 100).VelHi,
+            Is.EqualTo(127));
+        Assert.That(LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Bottom, 64, 0, 64, 40).VelLo,
+            Is.EqualTo(0));
+
+        var moved = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Top, 20, 127, 64, 100);
+        Assert.That(moved.KeyLo, Is.EqualTo(origin.KeyLo));
+        Assert.That(moved.KeyHi, Is.EqualTo(origin.KeyHi));
+    }
+
+    [Test]
+    public void A_body_drag_moves_both_ranges_and_never_squashes_them()
+    {
+        var origin = new LayerZone(0, 60, 72, 40, 100, 0, 0, 0, 0, "1", "");
+
+        var shifted = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Body, 76, 80, 66, 70);
+        Assert.That(shifted.KeyLo, Is.EqualTo(70));
+        Assert.That(shifted.KeyHi, Is.EqualTo(82));
+        Assert.That(shifted.VelLo, Is.EqualTo(50));
+        Assert.That(shifted.VelHi, Is.EqualTo(110));
+
+        // Dragged well past each end, the shift stops but the span survives: squashing the zone against the
+        // edge would silently narrow the thing the user was only trying to move.
+        var offRight = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Body, 127, 70, 66, 70);
+        Assert.That(offRight.KeyHi, Is.EqualTo(127));
+        Assert.That(offRight.KeyHi - offRight.KeyLo, Is.EqualTo(12), "the span is preserved");
+
+        var offLeft = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Body, 0, 70, 66, 70);
+        Assert.That(offLeft.KeyLo, Is.EqualTo(0));
+        Assert.That(offLeft.KeyHi - offLeft.KeyLo, Is.EqualTo(12));
+
+        var offTop = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Body, 66, 127, 66, 70);
+        Assert.That(offTop.VelHi, Is.EqualTo(127));
+        Assert.That(offTop.VelHi - offTop.VelLo, Is.EqualTo(60));
+
+        var offBottom = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Body, 66, 0, 66, 70);
+        Assert.That(offBottom.VelLo, Is.EqualTo(0));
+        Assert.That(offBottom.VelHi - offBottom.VelLo, Is.EqualTo(60));
+
+        // A zone that already fills an axis cannot move along it at all.
+        var everything = new LayerZone(0, 0, 127, 0, 127, 0, 0, 0, 0, "1", "");
+        var nudged = LayerMapGeometry.ResolveDrag(everything, PmtZoneMapping.Handle.Body, 90, 90, 60, 60);
+        Assert.That(nudged, Is.EqualTo(everything));
+    }
+
+    [Test]
+    public void A_body_drag_back_to_the_press_point_restores_the_zone_exactly()
+    {
+        // Resolved from the press-time zone rather than accumulated, so returning to where the press happened
+        // returns the values that were there -- no drift, whatever route the pointer took.
+        var origin = new LayerZone(6, 60, 72, 40, 100, 3, 4, 5, 6, "7", "Some Tone");
+        var back = LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.Body, 66, 70, 66, 70);
+        Assert.That(back, Is.EqualTo(origin));
+    }
+
+    [Test]
+    public void A_drag_on_no_handle_changes_nothing()
+    {
+        // Pressing an empty spot in a lane is a question, not an edit.
+        var origin = new LayerZone(6, 60, 72, 40, 100, 3, 4, 5, 6, "7", "Some Tone");
+        Assert.That(LayerMapGeometry.ResolveDrag(origin, PmtZoneMapping.Handle.None, 0, 0, 100, 100),
+            Is.EqualTo(origin));
+    }
+
+    [Test]
+    public void Sixteen_lanes_need_a_stated_minimum_height()
+    {
+        // The view sizes the chart from these, so they live beside the arithmetic that assumes them rather
+        // than being retyped in XAML.
+        Assert.That(LayerMapGeometry.MinLaneHeight, Is.EqualTo(20).Within(0.001));
+        Assert.That(LayerMapGeometry.MinHeight,
+            Is.EqualTo(LayerMapGeometry.Lanes * LayerMapGeometry.MinLaneHeight).Within(0.001));
+        Assert.That(LayerMapGeometry.MinHeight, Is.EqualTo(H).Within(0.001),
+            "which is the height this fixture's arithmetic is written around");
     }
 }
