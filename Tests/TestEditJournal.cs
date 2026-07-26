@@ -23,8 +23,10 @@ public class EditJournalTests
         return (new EditJournal(() => clock.Now), clock);
     }
 
-    private static ParameterChange Change(string path, string oldValue, string newValue) =>
-        new("Temporary Studio Set", "Offset/Not Used", "Offset2/Studio Set Part 1", path, oldValue, newValue);
+    private static ParameterChange Change(string path, string oldValue, string newValue,
+        bool isDiscriminator = false) =>
+        new("Temporary Studio Set", "Offset/Not Used", "Offset2/Studio Set Part 1", path, oldValue, newValue,
+            isDiscriminator);
 
     /// <summary>The single write a one-parameter step produces. Every assertion that reads a step's path
     /// or value goes through here, so a step that unexpectedly grew a second change fails loudly instead
@@ -126,9 +128,9 @@ public class EditJournalTests
         // two OldValues and undo the wrong part, leaving the other where the gesture left it.
         var (journal, _) = NewJournal();
         journal.Record(new ParameterChange("Temporary Studio Set", "Offset/Not Used",
-            "Offset2/Studio Set Part 1", "Studio Set Part/Part Level", "100", "101"));
+            "Offset2/Studio Set Part 1", "Studio Set Part/Part Level", "100", "101", false));
         journal.Record(new ParameterChange("Temporary Studio Set", "Offset/Not Used",
-            "Offset2/Studio Set Part 2", "Studio Set Part/Part Level", "50", "51"));
+            "Offset2/Studio Set Part 2", "Studio Set Part/Part Level", "50", "51", false));
 
         Assert.That(journal.TryUndo(out var pending), Is.True);
         Assert.That(pending!.Step.Changes.Select(c => c.Offset2),
@@ -136,8 +138,8 @@ public class EditJournalTests
         Assert.That(pending.Writes.Select(w => (w.Change.Offset2, w.ValueToApply)),
             Is.EqualTo(new[]
             {
-                ("Offset2/Studio Set Part 2", "50"),
-                ("Offset2/Studio Set Part 1", "100")
+                ("Offset2/Studio Set Part 1", "100"),
+                ("Offset2/Studio Set Part 2", "50")
             }), "both parts go back, each to its own pre-gesture value");
         Assert.That(journal.CanUndo, Is.False);
     }
@@ -280,10 +282,10 @@ public class EditJournalTests
         Assert.That(journal.TryUndo(out var undo), Is.True);
         Assert.That(undo!.Writes.Select(w => (w.Change.Path, w.ValueToApply)), Is.EqualTo(new[]
         {
-            // Reversed -- each change inverted, in the opposite order. See PendingEdit.Writes for the
-            // one case in which the order is observable at all.
-            ("PCM Synth Tone Partial/TVA Env Time 3", "50"),
-            ("PCM Synth Tone Partial/TVA Env Level 3", "100")
+            // Neither of these governs the other, so they are written in the order the gesture recorded
+            // them -- the same order in both directions. See PendingEdit.Writes.
+            ("PCM Synth Tone Partial/TVA Env Level 3", "100"),
+            ("PCM Synth Tone Partial/TVA Env Time 3", "50")
         }), "both parameters go back to the values they held before the drag");
 
         Assert.That(journal.TryRedo(out var redo), Is.True);
@@ -291,7 +293,7 @@ public class EditJournalTests
         {
             ("PCM Synth Tone Partial/TVA Env Level 3", "103"),
             ("PCM Synth Tone Partial/TVA Env Time 3", "53")
-        }), "redo walks the same changes forward, to the values the drag ended on");
+        }), "redo walks the same changes in the same order, to the values the drag ended on");
     }
 
     [Test]
@@ -312,7 +314,7 @@ public class EditJournalTests
 
         Assert.That(journal.TryUndo(out var first), Is.True);
         Assert.That(first!.Step.Changes.Count, Is.EqualTo(2));
-        Assert.That(first.Writes.Select(w => w.ValueToApply), Is.EqualTo(new[] { "50", "100" }));
+        Assert.That(first.Writes.Select(w => w.ValueToApply), Is.EqualTo(new[] { "100", "50" }));
     }
 
     [Test]
@@ -331,9 +333,55 @@ public class EditJournalTests
         Assert.That(pending!.Step.Changes.Count, Is.EqualTo(2), "two parameters were touched, so two changes");
         Assert.That(pending.Writes.Select(w => (w.Change.Path, w.ValueToApply)), Is.EqualTo(new[]
         {
-            ("PCM Synth Tone Partial/TVA Env Time 3", "50"),
-            ("PCM Synth Tone Partial/TVA Env Level 3", "100")
+            ("PCM Synth Tone Partial/TVA Env Level 3", "100"),
+            ("PCM Synth Tone Partial/TVA Env Time 3", "50")
         }));
+    }
+
+    [Test]
+    public void A_discriminator_is_written_first_even_when_the_gesture_touched_it_last()
+    {
+        // Reachable, not hypothetical: pick a chorus type from its combo, then move one of that type's
+        // knobs inside 250 ms, and both land in one group -- with the knob recorded first and the
+        // discriminator second. "Studio Set Common Chorus/Chorus Type" really is isparent:true, and the
+        // Chorus Parameter slots below really do name it as their parent.
+        //
+        // A dependent's display value only converts to the right byte while the type holds the value that
+        // dependent belongs to: DomainBase.WriteToIntegraAsync rebuilds the ParserContext from the
+        // block's current values and skips a parameter that is not ValidInContext there. So the type has
+        // to be written first in BOTH directions. Reversing on undo happens to get the undo half of this
+        // right and the redo half wrong; recorded order gets both halves wrong. Only asking the change
+        // whether it is a discriminator gets both right.
+        var (journal, clock) = NewJournal();
+        journal.Record(Change("Studio Set Common Chorus/Chorus Parameter 1/Filter Type", "OFF", "LPF"));
+        clock.Now = clock.Now.AddMilliseconds(20);
+        journal.Record(Change("Studio Set Common Chorus/Chorus Type", "CHORUS", "GM2 CHORUS",
+            isDiscriminator: true));
+        clock.Now = clock.Now.AddMilliseconds(20);
+        journal.Record(Change("Studio Set Common Chorus/Chorus Parameter 2/Chorus Cutoff Freq", "800", "1000"));
+
+        Assert.That(journal.TryUndo(out var undo), Is.True);
+        Assert.That(undo!.Step.Changes.Select(c => c.Path), Is.EqualTo(new[]
+        {
+            "Studio Set Common Chorus/Chorus Parameter 1/Filter Type",
+            "Studio Set Common Chorus/Chorus Type",
+            "Studio Set Common Chorus/Chorus Parameter 2/Chorus Cutoff Freq"
+        }), "the step itself still records what the gesture touched, in the order it touched it");
+
+        Assert.That(undo.Writes.Select(w => (w.Change.Path, w.ValueToApply)), Is.EqualTo(new[]
+        {
+            ("Studio Set Common Chorus/Chorus Type", "CHORUS"),
+            ("Studio Set Common Chorus/Chorus Parameter 1/Filter Type", "OFF"),
+            ("Studio Set Common Chorus/Chorus Parameter 2/Chorus Cutoff Freq", "800")
+        }), "the discriminator goes back first; the rest follow in recorded order");
+
+        Assert.That(journal.TryRedo(out var redo), Is.True);
+        Assert.That(redo!.Writes.Select(w => (w.Change.Path, w.ValueToApply)), Is.EqualTo(new[]
+        {
+            ("Studio Set Common Chorus/Chorus Type", "GM2 CHORUS"),
+            ("Studio Set Common Chorus/Chorus Parameter 1/Filter Type", "LPF"),
+            ("Studio Set Common Chorus/Chorus Parameter 2/Chorus Cutoff Freq", "1000")
+        }), "and forward exactly the same way: the order is the dependency, never the direction");
     }
 
     [Test]

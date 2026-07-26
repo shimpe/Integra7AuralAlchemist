@@ -117,11 +117,11 @@ public partial class MainWindowViewModel : ViewModelBase
         if (!await ApplyEditAsync(pending)) EditJournal.Default.TryUndo(out _);
     }
 
-    /// <summary>Write one journal step back to the instrument: every change the gesture made, in the
-    /// order the journal asked for. Shared by undo and redo, which differ only in the direction, and so
-    /// in the order and in which of each change's two values gets written. Returns false when the step
-    /// was not applied in full, so the caller can put it back rather than leave the history describing a
-    /// state the instrument never reached.</summary>
+    /// <summary>Write one journal step back to the instrument: every change the gesture made, in the order
+    /// the journal asked for -- which is the dependency order and the same either way, so undo and redo
+    /// differ only in which of each change's two values gets written. Returns false when the step was not
+    /// applied in full, so the caller can put it back rather than leave the history describing a state the
+    /// instrument never reached.</summary>
     private async Task<bool> ApplyEditAsync(PendingEdit pending)
     {
         // Locals, not the properties: everything below runs after awaits, and a rescan in the meantime
@@ -180,6 +180,8 @@ public partial class MainWindowViewModel : ViewModelBase
 
                 appliedInFull = true;
             });
+
+            if (appliedInFull) await ResyncDependentsAsync(pending, communicator, lease, what);
             return appliedInFull;
         }
         catch (Exception e)
@@ -188,6 +190,60 @@ public partial class MainWindowViewModel : ViewModelBase
             // reasoning at the guard above.
             UserActionLog.Failed($"apply '{what}'", e.ToString());
             return false;
+        }
+    }
+
+    /// <summary>Bring the dependents of any discriminator the step moved back into line: reset a governed
+    /// wave the newly-selected bank does not contain, re-read the block so the dependent slots show what
+    /// the device now reports, and tell the editors to re-evaluate. The three things the other two write
+    /// doors already do after an <c>IsParent</c> write -- see <see cref="UpdateIntegraFromUiAsync"/> for
+    /// the shape -- and undo needs them for the same reason: moving a discriminator back leaves everything
+    /// it governs displaying the value it had under the other one.
+    ///
+    /// The I/O runs once per block, not once per change: the reset recomputes from the block's current
+    /// values, so a second discriminator in the same block (a wave group's Type and ID both moving in one
+    /// gesture) would only repeat identical work. The refresh is per change, because it is keyed by the
+    /// parameter's own path and performs no I/O.
+    ///
+    /// Deliberately outside <c>EditJournal.ApplyAsync</c> while still inside the lease. Neither call can
+    /// record: a read lands on the FQPs and reaches the wrappers through <c>ApplyFromModel</c>, which
+    /// suppresses itself, and <c>WaveOutOfRangeReset</c> writes a raw value straight through the domain
+    /// rather than through a wrapper's setter -- <see cref="UpdateIntegraFromUiAsync"/> runs both with
+    /// recording live and nothing records. Keeping them out of the suppression is what stops an edit the
+    /// user makes during a block read -- hundreds of milliseconds of wire time -- from being dropped from
+    /// the history.
+    ///
+    /// Best-effort by design: a failure here is logged and swallowed. The step's writes have already
+    /// happened, so reporting failure would put the step back and claim they had not; what is left wrong
+    /// is displayed values, which the next read of the block corrects anyway.</summary>
+    private async Task ResyncDependentsAsync(PendingEdit pending, Integra7Domain communicator,
+        IMidiLease lease, string what)
+    {
+        try
+        {
+            var blocksDone = new HashSet<(string, string, string)>();
+            foreach (var (change, _) in pending.Writes)
+            {
+                if (!change.IsDiscriminator) continue;
+
+                if (blocksDone.Add((change.Start, change.Offset, change.Offset2))
+                    && communicator.TryGetDomain(change.Start, change.Offset, change.Offset2, out var domain))
+                {
+                    // WaveOutOfRangeReset needs the discriminator as an FQP, not as a path, and answers
+                    // "not a wave group discriminator" for everything else by itself.
+                    var edited = domain.GetRelevantParameters(true, true)
+                        .FirstOrDefault(p => p.ParSpec.Path == change.Path);
+                    if (edited != null)
+                        await WaveOutOfRangeReset.ApplyAsync(domain, edited, WaveformBanks.Default, lease);
+                    await domain.ReadFromIntegraAsync(lease);
+                }
+
+                ForceUiRefresh(change.Start, change.Offset, change.Offset2, change.Path, true);
+            }
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed($"resync the dependents of '{what}'", e.ToString());
         }
     }
 
@@ -1223,7 +1279,8 @@ public partial class MainWindowViewModel : ViewModelBase
         // while an undo is being applied, so an undo writing through here cannot record itself.
         EditJournal.Default.Record(new ParameterChange(
             Start: p.Start, Offset: p.Offset, Offset2: p.Offset2, Path: p.ParSpec.Path,
-            OldValue: p.StringValue, NewValue: s.DisplayValue));
+            OldValue: p.StringValue, NewValue: s.DisplayValue,
+            IsDiscriminator: p.ParSpec.IsParent));
         p.StringValue = s.DisplayValue;
         if (Integra7 is null) return;
         // One conversation, for the same reason as the friendly editors' writes: the re-read must see

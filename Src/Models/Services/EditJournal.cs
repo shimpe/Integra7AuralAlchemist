@@ -9,8 +9,13 @@ namespace Integra7AuralAlchemist.Models.Services;
 /// <summary>One parameter's before and after, and the address that resolves it. Values are display
 /// strings because that is the form every write path already speaks -- see <c>IParam.Snapshot()</c> and
 /// <c>DomainBase.WriteToIntegraAsync(path, displayValue, lease)</c>.</summary>
+/// <param name="IsDiscriminator">Whether other parameters' values are interpreted through this one --
+/// <c>ParSpec.IsParent</c>, captured at record time because that is where it is known. The journal needs
+/// it for two things: to write a discriminator before anything that depends on it (see
+/// <see cref="PendingEdit.Writes"/>), and to resync the dependents afterwards.</param>
 public sealed record ParameterChange(
-    string Start, string Offset, string Offset2, string Path, string OldValue, string NewValue);
+    string Start, string Offset, string Offset2, string Path, string OldValue, string NewValue,
+    bool IsDiscriminator);
 
 /// <summary>One undo step: everything a single gesture changed. A knob drag is one change; dragging an
 /// envelope handle is two (a level from the pointer's Y, a time from its X -- see
@@ -31,27 +36,33 @@ public enum EditDirection
 /// order to perform them.</summary>
 public sealed record PendingEdit(EditStep Step, EditDirection Direction)
 {
-    /// <summary>Each change and the value it gets, ready to write in this order: undo walks the step's
-    /// changes backwards, redo forwards -- the usual rule for inverting a composition.
+    /// <summary>Each change and the value it gets, ready to write in this order: <b>discriminators
+    /// first</b>, everything else after them, each group keeping the order the gesture recorded it in.
+    /// The order does not depend on the direction -- only the value written does.
     ///
-    /// Every change is an absolute display value written to a fixed address, so for changes that do not
-    /// interpret one another the order makes no difference at all, and that is every gesture the editors
-    /// actually produce (a level and a time on one envelope handle govern nothing). It becomes
-    /// observable in exactly one case: a discriminator and one of its dependents landing in the same
-    /// group. A dependent's display value only means what it meant while its discriminator held the
-    /// value it held then -- <c>DomainBase.WriteToIntegraAsync</c> resolves the write through a
-    /// <c>ParserContext</c> built from the discriminator's <em>current</em> value, and skips the
-    /// parameter outright when it is not valid in that context -- so there the discriminator has to be
-    /// written before its dependent, whichever direction is being applied. Reversing gets that right
-    /// when the gesture touched the dependent first, and wrong when it touched the discriminator first;
-    /// nothing here says which of two changes governs the other, because <c>IsParent</c> lives on the
-    /// parameter spec and the journal only stores addresses and strings. No control writes a
-    /// discriminator and its dependent inside one 250 ms window today; if one is ever written, this
-    /// needs the dependency order rather than either fixed one.</summary>
+    /// Dependency order is the rule, not recording order and not its reverse. A dependent's display value
+    /// only converts to the right byte once the local context holds the discriminator value that dependent
+    /// belongs to: <c>DomainBase.WriteToIntegraAsync</c> resolves the write through a
+    /// <c>ParserContext</c> rebuilt from the block's <em>current</em> values, and
+    /// <c>ModifySingleParameterDisplayedValue</c> skips a parameter outright when it is not
+    /// <c>ValidInContext</c> there -- so the discriminator has to go first whichever direction we are
+    /// moving in and whichever one the user touched first. Reversing on undo and recording order each get
+    /// this right for one of the two touch orders and wrong for the other; asking the change itself gets
+    /// it right for both. This is reachable, not hypothetical: pick a chorus type from its combo and move
+    /// one of that type's knobs within 250 ms and both land in one group.
+    ///
+    /// It is not a general topological sort. Two discriminators in one group that depend on each other
+    /// keep their recorded order relative to one another, which is only right if the gesture happened to
+    /// touch the governing one first. What makes one level of "discriminators first" enough for the
+    /// database as it stands is that a two-level chain is rewritten so the dependent names the
+    /// <em>top-level</em> discriminator directly -- see
+    /// <c>Integra7ParameterDatabaseAnalyzer.FillInSecondaryDependencies</c>, which also asserts that no
+    /// three-level chain exists -- so a dependent is never more than one hop from what governs it.</summary>
     public IReadOnlyList<(ParameterChange Change, string ValueToApply)> Writes { get; } =
-        Direction == EditDirection.Undo
-            ? [.. Step.Changes.Reverse().Select(c => (c, c.OldValue))]
-            : [.. Step.Changes.Select(c => (c, c.NewValue))];
+        [.. Step.Changes
+            // OrderBy is a stable sort, which is what keeps "everything else in recorded order" true.
+            .OrderBy(c => c.IsDiscriminator ? 0 : 1)
+            .Select(c => (c, Direction == EditDirection.Undo ? c.OldValue : c.NewValue))];
 
     /// <summary>What this step is about to write, for the action log.</summary>
     public string Description =>

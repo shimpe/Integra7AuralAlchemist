@@ -71,7 +71,8 @@ public sealed class ParamInt : ReactiveObject, IParam, IDisposable
                 EditJournal.Default.Record(new ParameterChange(
                     Start: _domain.StartAddressName, Offset: _domain.OffsetAddressName,
                     Offset2: _domain.Offset2AddressName, Path: _p.ParSpec.Path,
-                    OldValue: before, NewValue: Snapshot()));
+                    OldValue: before, NewValue: Snapshot(),
+                    IsDiscriminator: _p.ParSpec.IsParent));
                 Enqueue();
             }
         }
@@ -167,7 +168,8 @@ public sealed class ParamString : ReactiveObject, IParam, IDisposable
                 EditJournal.Default.Record(new ParameterChange(
                     Start: _domain.StartAddressName, Offset: _domain.OffsetAddressName,
                     Offset2: _domain.Offset2AddressName, Path: _p.ParSpec.Path,
-                    OldValue: before, NewValue: Snapshot()));
+                    OldValue: before, NewValue: Snapshot(),
+                    IsDiscriminator: _p.ParSpec.IsParent));
                 _writer.Enqueue(_key, async () =>
                 {
                     // One conversation: the re-read below must see the state these writes produced, and
@@ -249,7 +251,8 @@ public sealed class ParamBool : ReactiveObject, IParam, IDisposable
                 EditJournal.Default.Record(new ParameterChange(
                     Start: _domain.StartAddressName, Offset: _domain.OffsetAddressName,
                     Offset2: _domain.Offset2AddressName, Path: _p.ParSpec.Path,
-                    OldValue: before, NewValue: Snapshot()));
+                    OldValue: before, NewValue: Snapshot(),
+                    IsDiscriminator: _p.ParSpec.IsParent));
                 _writer.Enqueue(_key, async () =>
                 {
                     // One conversation: the re-read below must see the state this write produced, and

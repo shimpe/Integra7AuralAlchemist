@@ -66,6 +66,8 @@ public class EditRecordingTests
         Assert.That(change.Path, Is.EqualTo(Path));
         Assert.That(change.OldValue, Is.EqualTo("100"), "the value from before the edit");
         Assert.That(change.NewValue, Is.EqualTo("110"), "the value the edit produced");
+        Assert.That(change.IsDiscriminator, Is.False,
+            "read off the real spec: nothing in the Studio Set Part block governs another parameter");
         Assert.That(pending.Writes.Single().ValueToApply, Is.EqualTo("100"),
             "undoing it writes the value from before the edit");
         Assert.That(EditJournal.Default.CanUndo, Is.False, "exactly one step, not several");
