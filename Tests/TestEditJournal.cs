@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Integra7AuralAlchemist.Controls;
 using Integra7AuralAlchemist.Models.Services;
 
 namespace Tests;
@@ -409,6 +410,209 @@ public class EditJournalTests
         Assert.That(journal.CanUndo, Is.True, "the original 100->110 step must still be there");
         Assert.That(journal.TryUndo(out var second), Is.True);
         Assert.That(Only(second!).ValueToApply, Is.EqualTo("100"));
+    }
+
+    [Test]
+    public void A_gesture_holds_one_step_open_however_long_it_takes()
+    {
+        // The reported bug. RotaryKnobDial.Commit assigns Value only when the *snapped* value changes,
+        // so a slow, precise drag -- one step per second, which is exactly how you set a value carefully
+        // -- records once per second. On the clock alone every one of those is its own undo step, and
+        // undoing walks back through every intermediate value. The control knows it is still dragging,
+        // so it says so.
+        var (journal, clock) = NewJournal();
+        using (journal.BeginGesture())
+        {
+            journal.Record(Change("Studio Set Part/Part Level", "100", "101"));
+            for (var i = 1; i < 5; i++)
+            {
+                // Ten coalesce windows apart: nothing about the timing suggests one gesture.
+                clock.Now = clock.Now.Add(EditJournal.CoalesceWindow * 10);
+                journal.Record(Change("Studio Set Part/Part Level", $"{100 + i}", $"{101 + i}"));
+            }
+        }
+
+        Assert.That(journal.TryUndo(out var undo), Is.True);
+        Assert.That(Only(undo!).ValueToApply, Is.EqualTo("100"),
+            "back to the value from before the drag, not to the previous step of it");
+        Assert.That(journal.CanUndo, Is.False, "one drag, one step");
+        Assert.That(journal.TryRedo(out var redo), Is.True);
+        Assert.That(Only(redo!).ValueToApply, Is.EqualTo("105"), "and forward to where the drag ended");
+    }
+
+    [Test]
+    public void Closing_a_gesture_ends_its_step()
+    {
+        // Releasing the knob ends the step even though no time has passed: turning a second knob
+        // immediately afterwards is a second edit, and undoing must take back only that one.
+        var (journal, _) = NewJournal();
+        using (journal.BeginGesture())
+            journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+
+        // No time advanced at all -- well inside CoalesceWindow of the record above.
+        journal.Record(Change("Studio Set Part/Part Pan", "0", "10"));
+
+        Assert.That(journal.TryUndo(out var second), Is.True);
+        Assert.That(Only(second!).Change.Path, Is.EqualTo("Studio Set Part/Part Pan"));
+        Assert.That(journal.TryUndo(out var first), Is.True);
+        Assert.That(Only(first!).Change.Path, Is.EqualTo("Studio Set Part/Part Level"));
+        Assert.That(Only(first!).ValueToApply, Is.EqualTo("100"));
+    }
+
+    [Test]
+    public void A_gesture_starts_its_own_step_even_when_an_edit_just_happened()
+    {
+        // The other half of the same rule: an edit made just before the drag began is not part of it.
+        // Grabbing a handle is a new gesture whatever the clock says.
+        var (journal, _) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Pan", "0", "10"));
+
+        using (journal.BeginGesture())
+            journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+
+        Assert.That(journal.TryUndo(out var drag), Is.True);
+        Assert.That(Only(drag!).Change.Path, Is.EqualTo("Studio Set Part/Part Level"));
+        Assert.That(journal.CanUndo, Is.True, "the edit before the drag is still its own step");
+        Assert.That(journal.TryUndo(out var before), Is.True);
+        Assert.That(Only(before!).Change.Path, Is.EqualTo("Studio Set Part/Part Pan"));
+    }
+
+    [Test]
+    public void An_inner_gesture_scope_closing_does_not_end_the_outer_one()
+    {
+        // Depth, not a flag: a control that nests scopes (or a handler that opens one while a drag is
+        // already in progress) must not be able to close the drag's group early.
+        var (journal, clock) = NewJournal();
+        using (journal.BeginGesture())
+        {
+            journal.Record(Change("Studio Set Part/Part Level", "100", "101"));
+            using (journal.BeginGesture())
+            {
+                clock.Now = clock.Now.Add(EditJournal.CoalesceWindow * 4);
+                journal.Record(Change("Studio Set Part/Part Level", "101", "102"));
+            }
+            clock.Now = clock.Now.Add(EditJournal.CoalesceWindow * 4);
+            journal.Record(Change("Studio Set Part/Part Level", "102", "103"));
+        }
+
+        Assert.That(journal.TryUndo(out var undo), Is.True);
+        Assert.That(Only(undo!).ValueToApply, Is.EqualTo("100"));
+        Assert.That(journal.CanUndo, Is.False, "all three records were inside the outer gesture");
+    }
+
+    [Test]
+    public void Disposing_a_gesture_scope_twice_does_not_close_an_outer_one()
+    {
+        // A control ends its drag from both pointer-released and pointer-capture-lost, so the same scope
+        // really does get disposed twice. That must not decrement the depth twice.
+        var (journal, clock) = NewJournal();
+        using var outer = journal.BeginGesture();
+        var inner = journal.BeginGesture();
+        inner.Dispose();
+        inner.Dispose();
+
+        journal.Record(Change("Studio Set Part/Part Level", "100", "101"));
+        clock.Now = clock.Now.Add(EditJournal.CoalesceWindow * 4);
+        journal.Record(Change("Studio Set Part/Part Level", "101", "102"));
+
+        Assert.That(journal.TryUndo(out var undo), Is.True);
+        Assert.That(Only(undo!).ValueToApply, Is.EqualTo("100"));
+        Assert.That(journal.CanUndo, Is.False, "the outer gesture was still open for both records");
+    }
+
+    [Test]
+    public void A_gesture_nobody_closed_stops_swallowing_edits_once_it_falls_silent()
+    {
+        // Containment, not correctness: a scope is held in a control's field across two event handlers,
+        // so unlike the rest of the journal it can leak. If it does, the group must not stay open for the
+        // rest of the session, folding every later edit into one unusable step. StaleGestureWindow is far
+        // longer than a pause inside a real drag, so this only fires once the "gesture" has genuinely
+        // stopped happening.
+        var (journal, clock) = NewJournal();
+        journal.BeginGesture();   // deliberately never disposed
+        journal.Record(Change("Studio Set Part/Part Level", "100", "101"));
+        clock.Now = clock.Now.Add(EditJournal.CoalesceWindow * 4);
+        journal.Record(Change("Studio Set Part/Part Level", "101", "102"));
+
+        clock.Now = clock.Now.Add(EditJournal.StaleGestureWindow).AddMilliseconds(1);
+        journal.Record(Change("Studio Set Part/Part Pan", "0", "10"));
+
+        Assert.That(journal.TryUndo(out var later), Is.True);
+        Assert.That(Only(later!).Change.Path, Is.EqualTo("Studio Set Part/Part Pan"),
+            "the later edit is its own step, not folded into the abandoned gesture");
+        Assert.That(journal.TryUndo(out var leaked), Is.True);
+        Assert.That(Only(leaked!).ValueToApply, Is.EqualTo("100"),
+            "and what the gesture did record is still one step of its own");
+    }
+
+    [Test]
+    public void An_edit_gesture_closes_its_scope_only_once_however_often_the_drag_ends()
+    {
+        // What EditGesture adds over calling the journal directly. Every one of the eight draggable
+        // controls ends its drag from both pointer-released and pointer-capture-lost, which for a drag
+        // that ends normally means End() runs twice; the second must not decrement a depth it does not
+        // own. The outer scope here stands in for whatever else might be open at the time.
+        var (journal, clock) = NewJournal();
+        using var outer = journal.BeginGesture();
+        var holder = new EditGesture(journal);
+        holder.Begin();
+        holder.End();
+        holder.End();
+
+        journal.Record(Change("Studio Set Part/Part Level", "100", "101"));
+        clock.Now = clock.Now.Add(EditJournal.CoalesceWindow * 4);
+        journal.Record(Change("Studio Set Part/Part Level", "101", "102"));
+
+        Assert.That(journal.TryUndo(out var undo), Is.True);
+        Assert.That(Only(undo!).ValueToApply, Is.EqualTo("100"));
+        Assert.That(journal.CanUndo, Is.False, "the outer gesture was still open for both records");
+    }
+
+    [Test]
+    public void An_edit_gesture_closes_a_scope_a_previous_press_left_open()
+    {
+        // The other half: if a press ever fails to see its release, the next press must not stack a
+        // second scope on top of the abandoned one -- that is how a depth counter leaks upwards.
+        var (journal, clock) = NewJournal();
+        var holder = new EditGesture(journal);
+        holder.Begin();
+        holder.Begin();
+        holder.End();
+
+        journal.Record(Change("Studio Set Part/Part Level", "100", "101"));
+        clock.Now = clock.Now.Add(EditJournal.CoalesceWindow).AddMilliseconds(1);
+        journal.Record(Change("Studio Set Part/Part Pan", "0", "10"));
+
+        Assert.That(journal.TryUndo(out var second), Is.True);
+        Assert.That(Only(second!).Change.Path, Is.EqualTo("Studio Set Part/Part Pan"),
+            "no gesture is open, so the clock governs again");
+        Assert.That(journal.TryUndo(out var first), Is.True);
+        Assert.That(Only(first!).Change.Path, Is.EqualTo("Studio Set Part/Part Level"));
+    }
+
+    [Test]
+    public void An_edit_after_undoing_mid_gesture_does_not_reopen_the_step_the_undo_left_on_top()
+    {
+        // Same regression as An_edit_after_undo_does_not_coalesce_with_whatever_is_now_on_top, for the
+        // gesture path: TryUndo changes what _undo[^1] is, so an open gesture's claim on it is stale and
+        // must be dropped, or the next record would merge into a step this gesture never touched.
+        var (journal, _) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Pan", "0", "10"));
+
+        using (journal.BeginGesture())
+        {
+            journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+            Assert.That(journal.TryUndo(out var undone), Is.True);
+            Assert.That(Only(undone!).ValueToApply, Is.EqualTo("100"));
+
+            journal.Record(Change("Studio Set Part/Part Level", "100", "120"));
+        }
+
+        Assert.That(journal.TryUndo(out var afterTheUndo), Is.True);
+        Assert.That(Only(afterTheUndo!).ValueToApply, Is.EqualTo("100"));
+        Assert.That(journal.CanUndo, Is.True, "the pan edit must not have been swallowed");
+        Assert.That(journal.TryUndo(out var pan), Is.True);
+        Assert.That(Only(pan!).Change.Path, Is.EqualTo("Studio Set Part/Part Pan"));
     }
 
     [Test]

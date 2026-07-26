@@ -73,6 +73,12 @@ public sealed record PendingEdit(EditStep Step, EditDirection Direction)
 /// The undo history. Records every parameter change the user makes, from either write path, groups the
 /// changes of one gesture into a single step, and hands back the writes needed to take that step back.
 ///
+/// What counts as one gesture is answered two ways. A draggable control says so outright, by holding a
+/// <see cref="BeginGesture"/> scope open from the pointer press to the release; that is the only reliable
+/// answer, because a control records only when its value actually changes and a slow, careful drag can be
+/// seconds between changes. Everything else -- keystrokes in a text box, repeated picks from a combo --
+/// has no gesture to delimit it and falls back to <see cref="CoalesceWindow"/>.
+///
 /// Pure -- no Avalonia, no MIDI -- so the whole of it is unit-tested. Applying a step is the caller's
 /// job, because that needs a device and a lease.
 ///
@@ -86,25 +92,47 @@ public sealed record PendingEdit(EditStep Step, EditDirection Direction)
 /// </summary>
 public sealed class EditJournal
 {
-    /// <summary>Changes that arrive within this window of one another are one step, <em>whatever they
-    /// target</em>. A step is a gesture, not a parameter: a knob drag is hundreds of setter calls on one
-    /// parameter, and a drag on any of the 2-D editors (envelopes, the EQ and filter curves, the PMT
-    /// zone map) is hundreds of calls alternating between two parameters, because one pointer move sets
-    /// a level from the pointer's Y and a time from its X. Coalescing on the target as well as the clock
-    /// would merge neither of the latter -- every record would see the other parameter on top -- so one
-    /// drag would fill the history and push everything before it out. Matches the write debounce, so a
-    /// coalesced group is also one write per parameter.</summary>
+    /// <summary>Outside a gesture (see <see cref="BeginGesture"/>), changes that arrive within this
+    /// window of one another are one step, <em>whatever they target</em>. A step is a gesture, not a
+    /// parameter: a knob drag is hundreds of setter calls on one parameter, and a drag on any of the 2-D
+    /// editors (envelopes, the EQ and filter curves, the PMT zone map) is hundreds of calls alternating
+    /// between two parameters, because one pointer move sets a level from the pointer's Y and a time from
+    /// its X. Coalescing on the target as well as the clock would merge neither of the latter -- every
+    /// record would see the other parameter on top -- so one drag would fill the history and push
+    /// everything before it out. Matches the write debounce, so a coalesced group is also one write per
+    /// parameter.
+    ///
+    /// This is the rule for everything that is <em>not</em> a pointer gesture -- keystrokes in a knob's
+    /// text box, repeated picks from a combo -- where nothing can tell us when the edit began and ended
+    /// and the clock is all there is.</summary>
     public static readonly TimeSpan CoalesceWindow = TimeSpan.FromMilliseconds(Constants.THROTTLE);
+
+    /// <summary>How long an open gesture may record nothing at all before its group is treated as
+    /// finished anyway. Purely a containment measure for a gesture scope that was never disposed: the
+    /// controls close theirs from both pointer-released and pointer-capture-lost, but a scope has to be
+    /// held in a field across those handlers (a <c>using</c> cannot span two event callbacks), so a leak
+    /// is possible in a way it is not for the rest of the journal. Without a bound, one leaked scope
+    /// would fold every later edit of the whole session into a single step -- silently, and with no way
+    /// back short of a resync.
+    ///
+    /// Deliberately far longer than <see cref="CoalesceWindow"/>: a real gesture <em>does</em> go quiet
+    /// for seconds at a time (that is the whole reason the clock cannot delimit one), so this must not
+    /// cut a slow, careful drag in half. Where it does fire mid-drag, the cost is one extra undo step --
+    /// what the user got for every step before gestures existed -- against a history that otherwise
+    /// stops working entirely.</summary>
+    public static readonly TimeSpan StaleGestureWindow = CoalesceWindow * 40;
 
     /// <summary>How many steps -- gestures, not parameter changes -- to keep. A long session must not
     /// grow without bound; losing the oldest edits is the right thing to lose.</summary>
     public const int Capacity = 200;
 
-    // Guards _undo, _redo, _lastRecordedAt and _isApplying. Record runs on the UI thread and on the
-    // thread pool (see the class comment); List<T> is not thread-safe, so without this two concurrent
-    // Record calls can corrupt the lists outright (reproduced in
+    // Guards _undo, _redo, _lastRecordedAt, _isApplying, _gestureDepth and _gestureGroupOpen. Record
+    // runs on the UI thread and on the thread pool (see the class comment); List<T> is not thread-safe,
+    // so without this two concurrent Record calls can corrupt the lists outright (reproduced in
     // TestEditJournal.Concurrent_records_from_many_threads_do_not_corrupt_the_history). The lists are
-    // tiny and uncontended, so a plain lock costs nothing.
+    // tiny and uncontended, so a plain lock costs nothing. The gesture state is in here for the same
+    // reason: a gesture is opened and closed on the UI thread but read by every Record call, including
+    // the ones that arrive from the pool.
     private readonly object _gate = new();
 
     private readonly List<EditStep> _undo = [];
@@ -112,6 +140,13 @@ public sealed class EditJournal
     private readonly Func<DateTimeOffset> _now;
     private DateTimeOffset _lastRecordedAt;
     private bool _isApplying;
+
+    // How many gesture scopes are open (nesting is counted, not flagged, so an inner scope closing
+    // cannot end an outer one), and whether the open gesture has already put a step on _undo to fold
+    // into. The latter is what makes the gesture's first record start a fresh step and every later one
+    // join it, however long the gesture takes.
+    private int _gestureDepth;
+    private bool _gestureGroupOpen;
 
     public EditJournal(Func<DateTimeOffset>? now = null) => _now = now ?? (() => DateTimeOffset.UtcNow);
 
@@ -127,6 +162,44 @@ public sealed class EditJournal
     /// from whichever thread made the change -- see the class remarks.</summary>
     public event Action? Changed;
 
+    /// <summary>Open while a control is mid-gesture. Everything recorded inside one belongs to a single
+    /// step no matter how long the gesture takes -- which timing alone cannot tell, because a knob only
+    /// records when its snapped value changes and a careful drag can be seconds between steps.
+    /// Re-entrant: a depth counter, so a control that nests scopes cannot close one early.
+    ///
+    /// Disposing the outermost scope ends the step: the next change recorded starts a new one, even if it
+    /// arrives immediately, so releasing a knob and turning another is two undo steps and not one.
+    /// Disposing a scope twice does nothing the second time.</summary>
+    public IDisposable BeginGesture()
+    {
+        lock (_gate) _gestureDepth++;
+        return new GestureScope(this);
+    }
+
+    /// <summary>One <see cref="BeginGesture"/> scope. Nulls its journal reference on the first dispose so
+    /// a second one -- a control ending its drag from both pointer-released and pointer-capture-lost --
+    /// cannot decrement the depth twice and close a gesture that is still in progress.</summary>
+    private sealed class GestureScope(EditJournal journal) : IDisposable
+    {
+        private EditJournal? _journal = journal;
+
+        public void Dispose() =>
+            System.Threading.Interlocked.Exchange(ref _journal, null)?.EndGesture();
+    }
+
+    private void EndGesture()
+    {
+        lock (_gate)
+        {
+            if (_gestureDepth == 0) return;
+            if (--_gestureDepth > 0) return;
+            _gestureGroupOpen = false;
+            // The gesture is over, so the next change is a new step whatever the clock says -- the same
+            // reason TryUndo clears this.
+            _lastRecordedAt = default;
+        }
+    }
+
     public void Record(ParameterChange change)
     {
         lock (_gate)
@@ -134,12 +207,20 @@ public sealed class EditJournal
             if (_isApplying) return;
 
             var at = _now();
-            if (_undo.Count > 0 && at - _lastRecordedAt <= CoalesceWindow)
-                // Still the same gesture, whichever parameter this change names.
+            // A control mid-gesture has told us where the step ends, so the clock does not get a say;
+            // with no gesture open the clock is all there is to go on.
+            var stillTheSameStep = _gestureDepth > 0
+                ? JoinsTheOpenGesture(at)
+                : at - _lastRecordedAt <= CoalesceWindow;
+
+            if (_undo.Count > 0 && stillTheSameStep)
+                // The same gesture, whichever parameter this change names.
                 _undo[^1] = Merge(_undo[^1], change);
             else
                 _undo.Add(new EditStep([change]));
 
+            // Whichever branch ran, _undo[^1] is now this gesture's step for the rest of it.
+            if (_gestureDepth > 0) _gestureGroupOpen = true;
             _lastRecordedAt = at;
             if (_undo.Count > Capacity) _undo.RemoveAt(0);
             // A new edit makes the redo history unreachable -- it described a future that no longer follows.
@@ -147,6 +228,12 @@ public sealed class EditJournal
         }
         Changed?.Invoke();
     }
+
+    /// <summary>Whether a change recorded at <paramref name="at"/> folds into the step the open gesture
+    /// already started. The elapsed time does not decide this -- that is the point of a gesture -- except
+    /// as the containment bound described on <see cref="StaleGestureWindow"/>. Call under the lock.</summary>
+    private bool JoinsTheOpenGesture(DateTimeOffset at) =>
+        _gestureGroupOpen && at - _lastRecordedAt <= StaleGestureWindow;
 
     public bool TryUndo([MaybeNullWhen(false)] out PendingEdit pending)
     {
@@ -162,10 +249,11 @@ public sealed class EditJournal
             step = _undo[^1];
             _undo.RemoveAt(_undo.Count - 1);
             _redo.Add(step);
-            // The step now on top of _undo (if any) was not the one Record last touched, so its
-            // recorded time must not be trusted as "still the same gesture" by the next Record call --
-            // see the regression this guards in TestEditJournal.
+            // The step now on top of _undo (if any) was not the one Record last touched, so neither its
+            // recorded time nor an open gesture's claim on it must be trusted as "still the same gesture"
+            // by the next Record call -- see the regression this guards in TestEditJournal.
             _lastRecordedAt = default;
+            _gestureGroupOpen = false;
         }
         pending = new PendingEdit(step, EditDirection.Undo);
         Changed?.Invoke();
@@ -189,6 +277,7 @@ public sealed class EditJournal
             // Same reasoning as TryUndo: whatever Record does next must start a fresh step, not assume
             // it is continuing the gesture that originally produced the step redo just reinstated.
             _lastRecordedAt = default;
+            _gestureGroupOpen = false;
         }
         pending = new PendingEdit(step, EditDirection.Redo);
         Changed?.Invoke();
@@ -212,13 +301,18 @@ public sealed class EditJournal
     }
 
     /// <summary>Forget everything. Used when the instrument's state stops being the one the history
-    /// describes -- a Studio Set change, a preset change, a snapshot restore.</summary>
+    /// describes -- a Studio Set change, a preset change, a snapshot restore.
+    ///
+    /// The step an open gesture was folding into has just been thrown away with the rest, so the gesture
+    /// starts a new one if it records again. The depth itself is left alone: it belongs to the scopes the
+    /// controls hold, and they are the only things that may close them.</summary>
     public void Clear()
     {
         lock (_gate)
         {
             _undo.Clear();
             _redo.Clear();
+            _gestureGroupOpen = false;
         }
         Changed?.Invoke();
     }
