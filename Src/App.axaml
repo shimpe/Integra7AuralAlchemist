@@ -116,8 +116,14 @@
              overlay them, which puts a scrollbar on top of whatever sits at the edge of a scrolling
              area: a combo box in the SN-S header, the right hand side of a partial card. Measured on
              Avalonia 12.0.5 with AllowAutoHide left on, the viewport is the scroll viewer's full
-             size, so the bar has nowhere to go but over the content. Turning it off reserves 16px on
-             each scrolling axis instead. -->
+             size, so the bar has nowhere to go but over the content.
+
+             Turning it off does NOT reserve space — an earlier version of this comment claimed it did,
+             and that was measured wrong. All it does is make the bar permanently visible, still on top
+             of the content. What actually prevents overlap is giving the scrolling content a right
+             padding lane the width of the bar (~16px), so items stop short and the bar sits in the gap;
+             see the partial ListBoxes. This comment is left switched on anyway, because a bar that is
+             always there is easier to lay out around than one that appears on hover. -->
         <Style Selector="ScrollViewer">
             <Setter Property="ScrollViewer.AllowAutoHide" Value="False" />
         </Style>
