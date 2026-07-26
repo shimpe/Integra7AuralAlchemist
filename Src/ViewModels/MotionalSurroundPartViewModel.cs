@@ -109,6 +109,19 @@ public class MotionalSurroundPartViewModel : ViewModelBase, IDisposable
         set => this.RaiseAndSetIfChanged(ref _isSelected, value);
     }
 
+    /// <summary>Record one axis of a position edit in the undo journal, before the write it belongs to is
+    /// enqueued (see <see cref="DomainEditRecorder"/> for why the order matters).
+    ///
+    /// One axis, not both, even though <c>EnqueuePositionWrite</c> writes L-R and F-B together: the pair
+    /// share a throttle key so a diagonal drag flushes both, but each setter is reached on its own and only
+    /// the one that fired has changed. Recording the pair from each would put a change whose old and new
+    /// values are equal into the step, which undo would then write back to the instrument for nothing --
+    /// and would do it on every single-axis edit, of which the arrow keys and the two position sliders are
+    /// nothing but.</summary>
+    private void RecordAxis(FullyQualifiedParameter axis, int value)
+        => DomainEditRecorder.Record(_domain, axis.ParSpec.Path,
+            value.ToString(CultureInfo.InvariantCulture));
+
     public int Lr
     {
         get => _lr;
@@ -119,7 +132,7 @@ public class MotionalSurroundPartViewModel : ViewModelBase, IDisposable
             this.RaiseAndSetIfChanged(ref _lr, value);
             this.RaisePropertyChanged(nameof(CanvasX));
             this.RaisePropertyChanged(nameof(PositionLabel));
-            if (!_suppress) _parent.EnqueuePositionWrite(this);
+            if (!_suppress) { RecordAxis(_lrParam, _lr); _parent.EnqueuePositionWrite(this); }
         }
     }
 
@@ -133,7 +146,7 @@ public class MotionalSurroundPartViewModel : ViewModelBase, IDisposable
             this.RaiseAndSetIfChanged(ref _fb, value);
             this.RaisePropertyChanged(nameof(CanvasY));
             this.RaisePropertyChanged(nameof(PositionLabel));
-            if (!_suppress) _parent.EnqueuePositionWrite(this);
+            if (!_suppress) { RecordAxis(_fbParam, _fb); _parent.EnqueuePositionWrite(this); }
         }
     }
 

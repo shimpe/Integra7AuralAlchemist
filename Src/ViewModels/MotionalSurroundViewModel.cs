@@ -89,8 +89,27 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
     public void EnqueuePositionWrite(MotionalSurroundPartViewModel part)
         => _writes.OnNext(new MsWrite($"pos:{part.Key}", part.WritePositionAsync));
 
+    /// <summary>The single-parameter write door, and with it the single-parameter <em>record</em> door:
+    /// every one of this editor's non-position edits funnels through here (the common values via
+    /// <see cref="EnqueueCommonWrite"/>, a part's Width, Ambience and Channel from their own setters), so
+    /// recording here records all of them.
+    ///
+    /// Every caller is inside an <c>if (!_suppress)</c> branch -- a user edit rather than a value the
+    /// device or a preset pushed back at us -- which is the same distinction, for the same reason, that
+    /// <c>ParamInt.Value</c> records inside.</summary>
     public void EnqueueValueWrite(DomainBase domain, string path, string displayValue)
-        => _writes.OnNext(new MsWrite($"val:{path}", () => domain.WriteToIntegraAsync(path, displayValue)));
+    {
+        // Before the enqueue, not after. The old value is read off the block, and nothing has replaced it
+        // yet: the write below is debounced (and deferred even without the debounce -- OnNext only pushes
+        // the closure), so ModifySingleParameterDisplayedValue has not run.
+        DomainEditRecorder.Record(domain, path, displayValue);
+        // The block is part of the throttle key, matching ThrottledParameterWriter's own
+        // start|offset2|path. Sixteen parts share one path for Width and for Ambience Send Level, so a
+        // key of the path alone put them in one debounce group and let a second part's edit supersede a
+        // first part's pending write -- leaving the journal describing a change that never went out.
+        var key = $"val:{domain.StartAddressName}|{domain.Offset2AddressName}|{path}";
+        _writes.OnNext(new MsWrite(key, () => domain.WriteToIntegraAsync(path, displayValue)));
+    }
 
     private void EnqueueCommonWrite(string shortName, string displayValue)
         => EnqueueValueWrite(_common, Prefix + shortName, displayValue);
