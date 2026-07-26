@@ -677,4 +677,37 @@ public class EditJournalTests
         Assert.That(journal.CanUndo, Is.False);
         Assert.That(journal.CanRedo, Is.False);
     }
+
+    [Test]
+    public void Nothing_is_recorded_while_comparing()
+    {
+        var (journal, clock) = NewJournal();
+        journal.Record(Change("Studio Set Part/Part Level", "100", "110"));
+        Assert.That(journal.TryBeginCompareToggle(out var enter), Is.True);
+        journal.CommitCompareToggle(enter!);
+
+        clock.Now += EditJournal.CoalesceWindow * 2;
+        journal.Record(Change("Studio Set Part/Part Pan", "0", "10"));
+
+        Assert.That(journal.CanUndo, Is.False,
+            "coming back overwrites what was edited while comparing, so recording it would put a step in " +
+            "the history that describes a value the instrument never keeps");
+    }
+
+    [Test]
+    public void A_history_that_lost_its_oldest_steps_says_so()
+    {
+        var (journal, clock) = NewJournal();
+        for (var i = 0; i <= EditJournal.Capacity; i++)
+        {
+            clock.Now += EditJournal.CoalesceWindow * 2;
+            journal.Record(Change("Studio Set Part/Part Level", i.ToString(), (i + 1).ToString()));
+        }
+
+        Assert.That(journal.HistoryTruncated, Is.True,
+            "one more step than the capacity evicted the oldest, so the original is no longer complete");
+
+        journal.Clear();
+        Assert.That(journal.HistoryTruncated, Is.False, "a cleared history has lost nothing");
+    }
 }
