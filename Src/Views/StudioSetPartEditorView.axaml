@@ -172,11 +172,15 @@
                     <TextBlock Text="Key &amp; velocity zone" FontWeight="Bold"/>
                     <TextBlock Text="Where this part answers — key (left→right) × velocity (loud at top). Drag to move, drag an edge to resize."
                                Opacity="0.7" FontSize="11" TextWrapping="Wrap"/>
-                    <!-- One zone: the same editor the PCM PMT tab uses, with the other three off. -->
+                    <!-- One zone: the same editor the PCM PMT tab uses, with the other three off. The four fade
+                         widths are bound one way — they are drawn as the bands outside the box, but the chart has
+                         no handle for them; the knobs below are how they are set. -->
                     <controls:PmtZoneEditorControl Height="280" Width="760" HorizontalAlignment="Left"
                         Partial1On="True"
                         Key1Lo="{Binding KeyRangeLower.Value, Mode=TwoWay}" Key1Hi="{Binding KeyRangeUpper.Value, Mode=TwoWay}"
                         Vel1Lo="{Binding VelocityRangeLower.Value, Mode=TwoWay}" Vel1Hi="{Binding VelocityRangeUpper.Value, Mode=TwoWay}"
+                        KeyFade1Lo="{Binding KeyFadeLower.Value}" KeyFade1Hi="{Binding KeyFadeUpper.Value}"
+                        VelFade1Lo="{Binding VelocityFadeLower.Value}" VelFade1Hi="{Binding VelocityFadeUpper.Value}"
                         Zone1Brush="{StaticResource PmtZone1Brush}"
                         BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
                         GridBrush="{StaticResource SnEnvelopeGridBrush}"

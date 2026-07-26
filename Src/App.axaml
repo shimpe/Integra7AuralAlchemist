@@ -68,6 +68,33 @@
             <SolidColorBrush x:Key="PmtZone2Brush" Color="#ff9e6b"/>
             <SolidColorBrush x:Key="PmtZone3Brush" Color="#7ad19a"/>
             <SolidColorBrush x:Key="PmtZone4Brush" Color="#d18ad1"/>
+            <!-- Layer map: all sixteen parts' key and velocity ranges on one chart, one lane per part. The
+                 chart reuses the envelope ground, grid and axis brushes, SnMutedTextBrush for the note names
+                 and tone names, and SnCardSelectedBorderBrush for the selected lane's outline; only these
+                 three have no existing equivalent. -->
+            <!-- Every other lane, so sixteen otherwise identical rows can be counted. Faint on purpose: it
+                 must not compete with the ranges drawn on top of it. -->
+            <SolidColorBrush x:Key="LayerMapLaneAltBrush" Color="#10FFFFFF"/>
+            <!-- The columns behind the keys, so the chart reads as a keyboard on its side and a key can be
+                 found by the two-and-three pattern instead of by counting from a C. Semi-transparent, not
+                 opaque: they have to tint both the chart ground and the alternating lane stripe drawn over
+                 them, and solid colours would need to be two colours kept in step with those.
+
+                 Both directions, and the lighter one does most of the work. SnEnvelopeBackgroundBrush is
+                 #1B1F22 — nearly black — so there is almost no headroom left below it: the original #20000000
+                 on the black keys moved the ground from 27 to 24 in each channel and was invisible on screen.
+                 Lightening has the whole range above it to use, so the white keys carry the contrast and the
+                 black keys deepen underneath, giving roughly (50,54,57) against (19,22,24). Still well below
+                 the ranges drawn over them, which are the thing being read — and if it is still wrong it is
+                 now one number in each direction rather than one number fighting a floor. -->
+            <SolidColorBrush x:Key="LayerMapWhiteKeyBrush" Color="#1AFFFFFF"/>
+            <SolidColorBrush x:Key="LayerMapBlackKeyBrush" Color="#4D000000"/>
+            <!-- A part's range: the body fill, its outline, and the colour its fade bands taper towards. The
+                 same blue the PMT zone chart gives its first zone, so "a range" looks like the same kind of
+                 thing on both charts. -->
+            <SolidColorBrush x:Key="LayerMapZoneBrush" Color="#6b8dff"/>
+            <!-- The part number in each lane: primary text, over a translucent range fill on a dark ground. -->
+            <SolidColorBrush x:Key="LayerMapLabelBrush" Color="White"/>
             <!-- Drum note-rail key palette (SN-Drums + PCM-Drums). -->
             <SolidColorBrush x:Key="DrumWhiteKeyBrush" Color="#c8ccce"/>
             <SolidColorBrush x:Key="DrumBlackKeyBrush" Color="#23262a"/>

@@ -34,6 +34,13 @@ public partial class MainWindowViewModel : ViewModelBase
     /// Studio Set Part blocks have been read.</summary>
     [Reactive] private MixerViewModel? _mixerVm;
 
+    /// <summary>The Layers page: every part's key and velocity range on one chart. Built, replaced and
+    /// disposed wherever <see cref="MixerVm"/> is, the rescan included — it wraps the same live Studio Set Part
+    /// parameters, and beyond that it holds <c>PropertyChanged</c> handlers on the <see cref="PartViewModel"/>s
+    /// themselves for their tone names, so a rescan that replaced the parts without disposing this would leave a
+    /// dead map attached to live objects, rebuilding a snapshot list nothing draws.</summary>
+    [Reactive] private LayerMapViewModel? _layerMapVm;
+
     /// <summary>Which top-level tab is showing. Bound two-way, so the mixer's click-through can take the
     /// user to the Parameters tab — selecting a part is no use while the Mixer tab is still in front.</summary>
     [Reactive] private int _topTabIndex;
@@ -921,9 +928,11 @@ public partial class MainWindowViewModel : ViewModelBase
         MotionalSurroundVm?.Dispose();
         MotionalSurroundVm = null;
         // The mixer holds handlers on the current PartViewModels and their presets, so it has to let go
-        // before a rescan replaces them.
+        // before a rescan replaces them. So does the layer map, for its tone names.
         MixerVm?.Dispose();
         MixerVm = null;
+        LayerMapVm?.Dispose();
+        LayerMapVm = null;
         Integra7 = new Integra7Api(
             new MidiPort(new MidiOut(INTEGRA_CONNECTION_STRING), new MidiIn(INTEGRA_CONNECTION_STRING)));
         await Integra7.CheckIdentityAsync();
@@ -1048,6 +1057,29 @@ public partial class MainWindowViewModel : ViewModelBase
                 MixerVm = new MixerViewModel(_integra7Communicator, PartViewModels, OpenPartTab,
                     OpenCommonTab);
 
+                // The layer map, on the same precondition and for the same reasons: it wraps eight live Studio
+                // Set Part parameters per part, and it needs the parts themselves for their tone names, so it is
+                // built after PartViewModels is published and watches the list the tabs show.
+                //
+                // The audition callback sounds the note under the pointer on the part's own channel: note-on, a
+                // short hold, note-off, exactly as the drum-kit note rails do it, and with its failures swallowed
+                // for the same reason -- hearing a part is a question, not an edit, and a MIDI port that will not
+                // answer it must not take the click down with it.
+                //
+                // The velocity is passed through as pressed, including zero. Zero is what the very bottom of a
+                // lane resolves to, and a note-on at velocity zero is a note-off on the wire, so that press makes
+                // no sound. Clamping it to 1 was considered and rejected: the chart's whole promise is that where
+                // you press is what the part is asked, and the silence at the bottom of a lane is of a piece with
+                // the silence outside a part's range -- the map answering "not here" rather than swallowing a
+                // note. The API takes a byte, and a byte cannot carry the difference anyway.
+                // The API is captured rather than read from the Integra7 property when a note is pressed: a
+                // rescan replaces that property, and this map is disposed and rebuilt alongside it, so the
+                // connection a press reaches is the one this map's parts belong to.
+                LayerMapVm?.Dispose();
+                LayerMapVm = new LayerMapViewModel(_integra7Communicator, PartViewModels, OpenPartTab,
+                    OpenPartSetPartTab,
+                    (part, note, velocity) => _ = AuditionOnPartAsync(integra7Api, part, note, velocity));
+
                 // Fetching the user tone names costs ~10s of sysex round trips, and nothing above
                 // depends on it — the factory presets from the CSV are already in place. Let it run
                 // after the window is usable and drip the user presets into the lists as they arrive.
@@ -1061,6 +1093,8 @@ public partial class MainWindowViewModel : ViewModelBase
                 MotionalSurroundVm = null;
                 MixerVm?.Dispose();
                 MixerVm = null;
+                LayerMapVm?.Dispose();
+                LayerMapVm = null;
             }
 
             RescanButtonEnabled = !_connected;
@@ -1397,6 +1431,50 @@ public partial class MainWindowViewModel : ViewModelBase
         CurrentPartSelection = 0; // the Common tab
         PartViewModels[0].CommonTabKey = "";
         PartViewModels[0].CommonTabKey = tag;
+    }
+
+    /// <summary>Show a part's own Set Part tab — where the four fade-width knobs are. The layer map draws fades
+    /// but does not drag them, so this is how the user gets from seeing a crossfade to changing it.
+    ///
+    /// Three moves, like <see cref="OpenCommonTab"/>, because the target is two levels in: the Parameters tab,
+    /// then the part's tab, then the sub-tab itself. The last goes through <c>ToneTabKey</c>, which
+    /// <c>TabControlBehaviors.SelectTabByTag</c> watches — cleared first, because setting the same tag twice
+    /// running raises nothing and a second press of the same button would go nowhere. The tag is
+    /// <c>SET-PART-FRIENDLY</c> and not <c>SET-PART</c>: the unsuffixed name belongs to the raw Studio Set Part
+    /// grid under "Advanced", and the friendly editor with the knobs on it is the one the user is being sent
+    /// to.</summary>
+    private void OpenPartSetPartTab(int zeroBasedPartNo)
+    {
+        if (PartViewModels is null || zeroBasedPartNo + 1 >= PartViewModels.Count) return;
+
+        TopTabIndex = 0;
+        CurrentPartSelection = zeroBasedPartNo + 1;
+        PartViewModels[zeroBasedPartNo + 1].ToneTabKey = "";
+        PartViewModels[zeroBasedPartNo + 1].ToneTabKey = "SET-PART-FRIENDLY";
+    }
+
+    /// <summary>Sound one note on a part's own channel and let it go again: what a press on the layer map asks
+    /// for. Static, and handed the API rather than reading <see cref="Integra7"/>, so a rescan swapping the
+    /// connection mid-note cannot leave the note-off going to a different port than the note-on did.
+    ///
+    /// Failures are swallowed whole, as the note rails' auditions are: an audition is the user asking a
+    /// question about their instrument, not an edit to it, and there is nothing to report and nothing to retry
+    /// if the port declines to answer. Everything that can throw is inside the try, so the async void this is
+    /// launched from has nothing to escape through.</summary>
+    private static async Task AuditionOnPartAsync(IIntegra7Api api, int zeroBasedPartNo, int note, int velocity)
+    {
+        // How long the note is held. The same 300ms the drum-kit editors' note rails use, so a note sounded
+        // from the layer map is the same length as one sounded from a rail.
+        const int holdMilliseconds = 300;
+
+
+        try
+        {
+            await api.NoteOnAsync((byte)zeroBasedPartNo, (byte)note, (byte)velocity);
+            await Task.Delay(holdMilliseconds);
+            await api.NoteOffAsync((byte)zeroBasedPartNo, (byte)note);
+        }
+        catch { /* ignore — auditioning is non-essential */ }
     }
 
     /// <summary>Initializes the part behind a tab index, reporting progress on the status bar. Runs

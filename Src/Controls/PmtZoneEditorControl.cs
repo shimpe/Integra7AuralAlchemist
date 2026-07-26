@@ -10,8 +10,13 @@ namespace Integra7AuralAlchemist.Controls;
 
 /// <summary>
 /// Four key×velocity zone rectangles (one per PCM partial). X is the MIDI key (0..127, left→right),
-/// Y is velocity (0..127, loud at top). Drag a zone body to move it, drag an edge to resize. Pure
-/// geometry and hit-testing are delegated to <see cref="PmtZoneMapping"/>.
+/// Y is velocity (0..127, loud at top). Drag a zone body to move it, drag an edge to resize.
+///
+/// <para>Geometry, hit-testing <b>and what a drag means</b> are all delegated to <see cref="PmtZoneMapping"/>.
+/// The last of those was this control's own inline pixel arithmetic until the sixteen-lane
+/// <see cref="LayerMapControl"/> arrived needing the same rules over the same four numbers; the two charts now
+/// resolve a drag through one tested function, so an edge dragged past its opposite or a body dragged off the
+/// end of the keyboard cannot mean one thing on the Set Part tab and another on the Layers tab.</para>
 /// </summary>
 public class PmtZoneEditorControl : Control
 {
@@ -37,6 +42,34 @@ public class PmtZoneEditorControl : Control
     public static readonly StyledProperty<int> Key4HiProperty = I(nameof(Key4Hi));
     public static readonly StyledProperty<int> Vel4LoProperty = I(nameof(Vel4Lo));
     public static readonly StyledProperty<int> Vel4HiProperty = I(nameof(Vel4Hi));
+
+    /// <summary>A fade width, in semitones or velocity steps, of the band *outside* one edge of a zone over
+    /// which it fades in or out.
+    ///
+    /// <para>Registered one-way and defaulting to 0, unlike the range properties above. One-way because a fade
+    /// has no handle on this chart — the eight range values are dragged, the eight fade widths are only read, so
+    /// there is no path by which the control could write one back and a two-way binding would only be a write
+    /// path nobody uses. Zero because both views that host this control predate the fades: a view that has not
+    /// yet bound them gets no bands, which is exactly what it drew before.</para></summary>
+    private static StyledProperty<int> F(string name) =>
+        AvaloniaProperty.Register<PmtZoneEditorControl, int>(name);
+
+    public static readonly StyledProperty<int> KeyFade1LoProperty = F(nameof(KeyFade1Lo));
+    public static readonly StyledProperty<int> KeyFade1HiProperty = F(nameof(KeyFade1Hi));
+    public static readonly StyledProperty<int> VelFade1LoProperty = F(nameof(VelFade1Lo));
+    public static readonly StyledProperty<int> VelFade1HiProperty = F(nameof(VelFade1Hi));
+    public static readonly StyledProperty<int> KeyFade2LoProperty = F(nameof(KeyFade2Lo));
+    public static readonly StyledProperty<int> KeyFade2HiProperty = F(nameof(KeyFade2Hi));
+    public static readonly StyledProperty<int> VelFade2LoProperty = F(nameof(VelFade2Lo));
+    public static readonly StyledProperty<int> VelFade2HiProperty = F(nameof(VelFade2Hi));
+    public static readonly StyledProperty<int> KeyFade3LoProperty = F(nameof(KeyFade3Lo));
+    public static readonly StyledProperty<int> KeyFade3HiProperty = F(nameof(KeyFade3Hi));
+    public static readonly StyledProperty<int> VelFade3LoProperty = F(nameof(VelFade3Lo));
+    public static readonly StyledProperty<int> VelFade3HiProperty = F(nameof(VelFade3Hi));
+    public static readonly StyledProperty<int> KeyFade4LoProperty = F(nameof(KeyFade4Lo));
+    public static readonly StyledProperty<int> KeyFade4HiProperty = F(nameof(KeyFade4Hi));
+    public static readonly StyledProperty<int> VelFade4LoProperty = F(nameof(VelFade4Lo));
+    public static readonly StyledProperty<int> VelFade4HiProperty = F(nameof(VelFade4Hi));
 
     public static readonly StyledProperty<bool> Partial1OnProperty =
         AvaloniaProperty.Register<PmtZoneEditorControl, bool>(nameof(Partial1On));
@@ -81,6 +114,22 @@ public class PmtZoneEditorControl : Control
     public int Key4Hi { get => GetValue(Key4HiProperty); set => SetValue(Key4HiProperty, value); }
     public int Vel4Lo { get => GetValue(Vel4LoProperty); set => SetValue(Vel4LoProperty, value); }
     public int Vel4Hi { get => GetValue(Vel4HiProperty); set => SetValue(Vel4HiProperty, value); }
+    public int KeyFade1Lo { get => GetValue(KeyFade1LoProperty); set => SetValue(KeyFade1LoProperty, value); }
+    public int KeyFade1Hi { get => GetValue(KeyFade1HiProperty); set => SetValue(KeyFade1HiProperty, value); }
+    public int VelFade1Lo { get => GetValue(VelFade1LoProperty); set => SetValue(VelFade1LoProperty, value); }
+    public int VelFade1Hi { get => GetValue(VelFade1HiProperty); set => SetValue(VelFade1HiProperty, value); }
+    public int KeyFade2Lo { get => GetValue(KeyFade2LoProperty); set => SetValue(KeyFade2LoProperty, value); }
+    public int KeyFade2Hi { get => GetValue(KeyFade2HiProperty); set => SetValue(KeyFade2HiProperty, value); }
+    public int VelFade2Lo { get => GetValue(VelFade2LoProperty); set => SetValue(VelFade2LoProperty, value); }
+    public int VelFade2Hi { get => GetValue(VelFade2HiProperty); set => SetValue(VelFade2HiProperty, value); }
+    public int KeyFade3Lo { get => GetValue(KeyFade3LoProperty); set => SetValue(KeyFade3LoProperty, value); }
+    public int KeyFade3Hi { get => GetValue(KeyFade3HiProperty); set => SetValue(KeyFade3HiProperty, value); }
+    public int VelFade3Lo { get => GetValue(VelFade3LoProperty); set => SetValue(VelFade3LoProperty, value); }
+    public int VelFade3Hi { get => GetValue(VelFade3HiProperty); set => SetValue(VelFade3HiProperty, value); }
+    public int KeyFade4Lo { get => GetValue(KeyFade4LoProperty); set => SetValue(KeyFade4LoProperty, value); }
+    public int KeyFade4Hi { get => GetValue(KeyFade4HiProperty); set => SetValue(KeyFade4HiProperty, value); }
+    public int VelFade4Lo { get => GetValue(VelFade4LoProperty); set => SetValue(VelFade4LoProperty, value); }
+    public int VelFade4Hi { get => GetValue(VelFade4HiProperty); set => SetValue(VelFade4HiProperty, value); }
     public bool Partial1On { get => GetValue(Partial1OnProperty); set => SetValue(Partial1OnProperty, value); }
     public bool Partial2On { get => GetValue(Partial2OnProperty); set => SetValue(Partial2OnProperty, value); }
     public bool Partial3On { get => GetValue(Partial3OnProperty); set => SetValue(Partial3OnProperty, value); }
@@ -97,10 +146,34 @@ public class PmtZoneEditorControl : Control
     public IBrush WhiteKeyBrush { get => GetValue(WhiteKeyBrushProperty); set => SetValue(WhiteKeyBrushProperty, value); }
     public IBrush BlackKeyBrush { get => GetValue(BlackKeyBrushProperty); set => SetValue(BlackKeyBrushProperty, value); }
 
+    // ---- Drag state --------------------------------------------------------------------------------------
+    //
+    // In parameter values, not pixels. This used to hold the pointer's press position as a Point and do its own
+    // arithmetic on the pixel delta in OnPointerMoved; it holds keys and velocity steps now so that the whole of
+    // what a drag *means* can be PmtZoneMapping.ResolveDrag's, shared with the sixteen-lane layer map, and
+    // covered by tests. There is no headless-Avalonia harness in this repository, so anything left in this file
+    // is arithmetic nothing can check -- and two charts that draw the same key x velocity zone must not disagree
+    // about what dragging one does.
+    //
+    // Values also make a drag survive a resize mid-gesture: a remembered key still means the same key when the
+    // chart is narrower, where a remembered X means a different one.
+
+    /// <summary>Which zone (1..4) is being dragged, or -1 when no drag is in progress.</summary>
     private int _dragZone = -1;
+
+    /// <summary>Which part of it was grabbed, and so what the movement will mean.</summary>
     private PmtZoneMapping.Handle _dragHandle;
-    private Point _dragOrigPos;                       // pointer position at press
-    private int _origLo, _origHi, _origVlo, _origVhi; // dragged zone's bounds at press (for body moves)
+
+    /// <summary>The dragged zone's four bounds as they were when the pointer went down. Every move resolves from
+    /// these rather than from the previous move, so the drag cannot accumulate rounding drift and bringing the
+    /// pointer back to where it started restores exactly the values that were there.</summary>
+    private int _origLo, _origHi, _origVlo, _origVhi;
+
+    /// <summary>Where the press landed, in keys and in velocity steps: the reference a <c>Body</c> drag measures
+    /// its shift from. Quantised once, at press, so a slow drag across a single key accumulates rather than
+    /// rounding to nothing on every move.</summary>
+    private int _dragKeyAtPress, _dragVelAtPress;
+
     private int _tipNote = int.MinValue;             // last note shown in the hover tooltip
 
     // The whole zone move or resize is one undo step -- up to four bounds, however slowly it is dragged.
@@ -113,6 +186,10 @@ public class PmtZoneEditorControl : Control
             Key2LoProperty, Key2HiProperty, Vel2LoProperty, Vel2HiProperty,
             Key3LoProperty, Key3HiProperty, Vel3LoProperty, Vel3HiProperty,
             Key4LoProperty, Key4HiProperty, Vel4LoProperty, Vel4HiProperty,
+            KeyFade1LoProperty, KeyFade1HiProperty, VelFade1LoProperty, VelFade1HiProperty,
+            KeyFade2LoProperty, KeyFade2HiProperty, VelFade2LoProperty, VelFade2HiProperty,
+            KeyFade3LoProperty, KeyFade3HiProperty, VelFade3LoProperty, VelFade3HiProperty,
+            KeyFade4LoProperty, KeyFade4HiProperty, VelFade4LoProperty, VelFade4HiProperty,
             Partial1OnProperty, Partial2OnProperty, Partial3OnProperty, Partial4OnProperty,
             PreviewProperty,
             Zone1BrushProperty, Zone2BrushProperty, Zone3BrushProperty, Zone4BrushProperty,
@@ -128,6 +205,18 @@ public class PmtZoneEditorControl : Control
         3 => (Key3Lo, Key3Hi, Vel3Lo, Vel3Hi, Partial3On, Zone3Brush),
         4 => (Key4Lo, Key4Hi, Vel4Lo, Vel4Hi, Partial4On, Zone4Brush),
         _ => (0, 0, 0, 0, false, Zone1Brush),
+    };
+
+    /// <summary>One zone's four fade widths. Kept apart from <see cref="Zone"/> rather than swelling its tuple
+    /// to ten elements, because the two are read by different halves of the control: the ranges are dragged and
+    /// hit-tested, the fades are only drawn. Nothing below <see cref="Render"/> has any use for these.</summary>
+    private (int keyLo, int keyHi, int velLo, int velHi) Fades(int i) => i switch
+    {
+        1 => (KeyFade1Lo, KeyFade1Hi, VelFade1Lo, VelFade1Hi),
+        2 => (KeyFade2Lo, KeyFade2Hi, VelFade2Lo, VelFade2Hi),
+        3 => (KeyFade3Lo, KeyFade3Hi, VelFade3Lo, VelFade3Hi),
+        4 => (KeyFade4Lo, KeyFade4Hi, VelFade4Lo, VelFade4Hi),
+        _ => (0, 0, 0, 0),
     };
 
     private PmtZoneMapping.Rect RectOf(int i, double w, double h)
@@ -177,7 +266,33 @@ public class PmtZoneEditorControl : Control
             if (!z.on) continue;
             var r = RectOf(i, w, mapH);
             var rect = new Rect(r.X, r.Y, r.W, r.H);
-            using (context.PushOpacity(0.22))
+
+            // The four crossfade bands, before the body so they sit under it and under its outline. Each lies
+            // *outside* the range — the lower key band below Key Lo, the lower velocity band below Vel Lo, which
+            // on this chart means under the box because loud is up — and each is already clipped to the chart by
+            // the geometry, so a twelve-semitone fade on a zone starting at key 3 is a three-semitone band and
+            // nothing here clamps or second-guesses it.
+            //
+            // This is what stops two partials that crossfade across a break from looking like a hard split. The
+            // same bands, from the same code, as the Layers tab draws for the sixteen parts: see ZoneShading,
+            // which owns the alphas, the floor and the dash pattern so the two charts cannot teach the user two
+            // different things about the same parameter.
+            var f = Fades(i);
+            var zoneColor = ZoneShading.ColorOf(z.brush);
+            ZoneShading.DrawFade(context,
+                PmtZoneMapping.KeyFadeLowerRect(z.lo, z.hi, z.vlo, z.vhi, f.keyLo, w, mapH),
+                zoneColor, ZoneShading.FadeSide.Left);
+            ZoneShading.DrawFade(context,
+                PmtZoneMapping.KeyFadeUpperRect(z.lo, z.hi, z.vlo, z.vhi, f.keyHi, w, mapH),
+                zoneColor, ZoneShading.FadeSide.Right);
+            ZoneShading.DrawFade(context,
+                PmtZoneMapping.VelFadeLowerRect(z.lo, z.hi, z.vlo, z.vhi, f.velLo, w, mapH),
+                zoneColor, ZoneShading.FadeSide.Below);
+            ZoneShading.DrawFade(context,
+                PmtZoneMapping.VelFadeUpperRect(z.lo, z.hi, z.vlo, z.vhi, f.velHi, w, mapH),
+                zoneColor, ZoneShading.FadeSide.Above);
+
+            using (context.PushOpacity(ZoneShading.FillOpacity))
                 context.FillRectangle(z.brush, rect);
             context.DrawRectangle(null, new Pen(z.brush, 2), rect);
 
@@ -235,8 +350,13 @@ public class PmtZoneEditorControl : Control
                 _gesture.Begin();
                 _dragZone = i;
                 _dragHandle = hit;
-                _dragOrigPos = pos;
                 _origLo = z.lo; _origHi = z.hi; _origVlo = z.vlo; _origVhi = z.vhi;
+
+                // The press in the units the rules speak, quantised here and only here. Everything the drag does
+                // from now on is measured against these two numbers, so the pixels-to-values mapping happens once
+                // per gesture rather than once per pointer move.
+                _dragKeyAtPress = PmtZoneMapping.XToKey(pos.X, w);
+                _dragVelAtPress = PmtZoneMapping.YToVel(pos.Y, mapH);
                 e.Pointer.Capture(this);
                 e.Handled = true;
                 InvalidateVisual();
@@ -261,33 +381,43 @@ public class PmtZoneEditorControl : Control
 
         if (_dragZone < 1) return;
         int z = _dragZone;
-        var cur = Zone(z);
 
+        // A lookup, a call and four setters. What the movement means -- which of the four values moves, where it
+        // stops, what happens when an edge meets its opposite -- is entirely PmtZoneMapping.ResolveDrag's, and
+        // there is deliberately no arithmetic here to disagree with it. This block used to compute a pixel delta,
+        // round it, and clamp it against the press-time bounds by hand; the sixteen-lane layer map resolved the
+        // same gesture through the geometry, and one application drawing the same chart two ways with two
+        // slightly different answers is worse than either answer alone.
+        var moved = PmtZoneMapping.ResolveDrag(_origLo, _origHi, _origVlo, _origVhi, _dragHandle,
+            PmtZoneMapping.XToKey(pos.X, w), PmtZoneMapping.YToVel(pos.Y, mapH),
+            _dragKeyAtPress, _dragVelAtPress);
+
+        // ResolveDrag returns all four values whatever was grabbed, but only the ones this handle owns get
+        // written -- the same ownership LayerZoneChanges.FieldsFor spells out for the layer map, and the same
+        // one this switch already expressed by calling one setter per edge.
+        //
+        // It is not merely tidiness. The other three values are the ones the *press* saw, and they go stale the
+        // moment anything else edits the partial: a front-panel tweak, or a tone change, which rewrites all four
+        // partials at once. Writing them back would push a press-time number over what the instrument had just
+        // reported, for a value the user never touched. Each of these properties is bound TwoWay straight to a
+        // ParamInt, so a write is a sysex round trip and an undo-journal entry, not a field assignment.
         switch (_dragHandle)
         {
             case PmtZoneMapping.Handle.Left:
-                SetKeyLo(z, Math.Min(PmtZoneMapping.XToKey(pos.X, w), cur.hi));
+                SetKeyLo(z, moved.KeyLo);
                 break;
             case PmtZoneMapping.Handle.Right:
-                SetKeyHi(z, Math.Max(PmtZoneMapping.XToKey(pos.X, w), cur.lo));
+                SetKeyHi(z, moved.KeyHi);
                 break;
             case PmtZoneMapping.Handle.Top:
-                SetVelHi(z, Math.Max(PmtZoneMapping.YToVel(pos.Y, mapH), cur.vlo));
+                SetVelHi(z, moved.VelHi);
                 break;
             case PmtZoneMapping.Handle.Bottom:
-                SetVelLo(z, Math.Min(PmtZoneMapping.YToVel(pos.Y, mapH), cur.vhi));
+                SetVelLo(z, moved.VelLo);
                 break;
             case PmtZoneMapping.Handle.Body:
-                // Cumulative move from the press point, quantised once here and applied to the bounds
-                // captured at press — so slow sub-key drags accumulate instead of rounding to nothing.
-                var dKey = (int)Math.Round((pos.X - _dragOrigPos.X) / w * 127.0, MidpointRounding.AwayFromZero);
-                var dVel = -(int)Math.Round((pos.Y - _dragOrigPos.Y) / mapH * 127.0, MidpointRounding.AwayFromZero);
-                if (_origLo + dKey < 0) dKey = -_origLo;
-                if (_origHi + dKey > 127) dKey = 127 - _origHi;
-                if (_origVlo + dVel < 0) dVel = -_origVlo;
-                if (_origVhi + dVel > 127) dVel = 127 - _origVhi;
-                SetKeyLo(z, _origLo + dKey); SetKeyHi(z, _origHi + dKey);
-                SetVelLo(z, _origVlo + dVel); SetVelHi(z, _origVhi + dVel);
+                SetKeyLo(z, moved.KeyLo); SetKeyHi(z, moved.KeyHi);
+                SetVelLo(z, moved.VelLo); SetVelHi(z, moved.VelHi);
                 break;
         }
 
