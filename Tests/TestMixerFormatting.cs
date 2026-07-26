@@ -34,6 +34,9 @@ public class SoloPartMappingTests
         // would show the solo the instrument is applying.
         Assert.That(SoloPartMapping.SoloedPart("0"), Is.Null);
         Assert.That(SoloPartMapping.SoloedPart("17"), Is.Null);
+        // The parameter is declared nullable, so the null path is part of the contract rather than an
+        // impossibility -- and int.TryParse answering false for it is what makes this the safe answer.
+        Assert.That(SoloPartMapping.SoloedPart(null), Is.Null);
     }
 
     [Test]
@@ -54,5 +57,9 @@ public class SoloPartMappingTests
         Assert.That(SoloPartMapping.OffValue(["Off", "1", "2"]), Is.EqualTo("Off"));
         Assert.That(SoloPartMapping.OffValue(["1", "2"]), Is.EqualTo("OFF"),
             "no non-part option at all: fall back to the spelling this build knows");
+        // An options list that is empty because the parameter has not been read yet. The fallback covers it
+        // for the same reason: writing nothing at all is not an option, and "OFF" is the spelling this
+        // build knows.
+        Assert.That(SoloPartMapping.OffValue([]), Is.EqualTo("OFF"));
     }
 }

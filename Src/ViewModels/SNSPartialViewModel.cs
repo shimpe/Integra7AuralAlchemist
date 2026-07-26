@@ -236,7 +236,7 @@ public sealed class SNSPartialViewModel : ViewModelBase, IDisposable
 
     // --- Card summary ---
     public string WaveSummary => OscWave.Value;
-    public string PanLabel => AmpPan.Value == 0 ? "C" : AmpPan.Value < 0 ? $"L{-AmpPan.Value}" : $"R{AmpPan.Value}";
+    public string PanLabel => MixerFormatting.PanLabel(AmpPan.Value);
     public string FilterSummary => $"{SnsFilterRules.Abbrev(FilterMode.Value)} {FilterCutoff.Value}";
 
     // --- Utilities (edit-buffer only; no save) ---
