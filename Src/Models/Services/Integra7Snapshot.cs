@@ -56,7 +56,16 @@ public sealed record SnapshotDomain(string Start, string Offset, string Offset2,
 /// reasoning for it; this record and everything that consumes it are unchanged, which is what made the
 /// change a small one. Version 2 is refused for the same reason version 1 is, minus the danger: no
 /// version 2 file was ever released either, so there is nothing to stay compatible with, and a build
-/// that reads one shape should say so rather than read half a file.</summary>
+/// that reads one shape should say so rather than read half a file.
+///
+/// Version 3 also carries the metadata a library needs -- a category, tags, notes, a rating and a
+/// favourite flag -- in the file itself rather than in a sidecar or one index, so that a file carries its
+/// own notes when it is copied or sent, there is one thing to back up, and nothing goes stale when files
+/// are added or removed outside the application. All five are optional and all five default to "nothing
+/// said", so a version 3 file that carries none of them -- which is every one written before this, all of
+/// them on the machine this was built on -- still reads correctly. That is why adding them did not move
+/// the format version again: there is no file anywhere that this build would read differently than the
+/// build that wrote it meant.</summary>
 /// <param name="Kind">What this file holds -- one of <see cref="SnapshotKinds"/>. Defaults to
 /// <see cref="SnapshotKinds.StudioSet"/>, and that default is load-bearing rather than a convenience:
 /// a file written before tones existed carries no <c>Kind</c> property at all, System.Text.Json fills
@@ -65,14 +74,39 @@ public sealed record SnapshotDomain(string Start, string Offset, string Offset2,
 /// <param name="ToneType">Which engine a tone snapshot came from -- one of the five keys
 /// <c>ToneDomainNames.IsKnownToneType</c> accepts. Null for a Studio Set, where there is no single
 /// engine to name.</param>
+/// <param name="Category">One of the instrument's own tone categories, as <c>Integra7Preset</c>
+/// parses them -- "Ac.Piano", "Organ", "Synth Lead" and the rest. Stored as the string rather than as
+/// <c>EnumCategory</c> for the same reason <see cref="SnapshotKinds"/> stores strings: it is written into
+/// the file verbatim, and a string survives that enum gaining, losing or reordering a member while
+/// staying readable in the file, which is the point of the format. Empty for a Studio Set, which is
+/// sixteen parts each with its own and has no single category to name.</param>
+/// <param name="Tags">Free text, for what a fixed vocabulary cannot say -- "for the trio gig", "needs
+/// less bark". Nullable and defaulting to null because a defaulted parameter has to be a constant
+/// expression and an empty list is not one; read it through <see cref="TagList"/>, which is what makes
+/// that an implementation detail rather than every caller's problem.</param>
+/// <param name="Notes">Whatever the user wants to remember about this sound. Never interpreted.</param>
+/// <param name="Rating">0 to 5 stars, 0 meaning unrated.</param>
+/// <param name="Favourite">Set by hand, and independent of the rating: a sound can be a favourite
+/// without being the best thing in the library.</param>
 public sealed record Integra7Snapshot(
     int FormatVersion,
     string Name,
     List<SnapshotDomain> Domains,
     string Kind = SnapshotKinds.StudioSet,
-    string? ToneType = null)
+    string? ToneType = null,
+    string Category = "",
+    List<string>? Tags = null,
+    string Notes = "",
+    int Rating = 0,
+    bool Favourite = false)
 {
     public const int CurrentFormatVersion = 3;
+
+    /// <summary>Never null, whatever the file said. A file written by hand may carry no Tags property at
+    /// all, and the converter then passes the record's own default, so every reader would otherwise need
+    /// the same null check -- and the one that gets forgotten is a crash while listing a folder, which is
+    /// the one place this application has no business failing.</summary>
+    public IReadOnlyList<string> TagList => Tags ?? [];
 
     /// <summary>The converter is what decides the shape of the file, including that the parameter data is
     /// written last. Registered here rather than by attribute so that both directions go through the same
@@ -127,6 +161,17 @@ public sealed record Integra7Snapshot(
         // rather than dropping so that this one condition is still what refuses it. Deleting the now-
         // structural halves would save one expression and cost the property that this single check is
         // where a snapshot's contents are judged, whatever shape a future version writes them in.
+        // The five metadata fields -- Category, Tags, Notes, Rating and Favourite -- are absent from it
+        // for the same reason SnapshotValue.Raw is: they are optional by design. A snapshot saved before
+        // the library existed carries none of them, and a file written by hand is not obliged to either;
+        // "nothing said" is a perfectly good answer for all five and is what their defaults mean. So the
+        // rule above -- every new *required* field needs a null check here -- does not reach them, and
+        // adding one would reject every snapshot already on disk to no purpose. What replaces it is that
+        // none of the five can be null by the time a reader sees it: Rating and Favourite are value types,
+        // Category and Notes are coalesced to empty by the converter (which keeps a null Kind, precisely
+        // because a null Kind decides where blocks get applied and a null note decides nothing), and Tags
+        // is read through TagList. Their contents are still judged, below -- a rating has a range, and a
+        // range is not a null check.
         // Kind and ToneType are absent from it for a different reason, and must also stay absent.
         // Kind's whole point is its default: a file written before tones existed has no Kind property,
         // so `default` -- SnapshotKinds.StudioSet -- is what makes it still read as the Studio Set it
@@ -152,6 +197,14 @@ public sealed record Integra7Snapshot(
             (snapshot.ToneType is null || !ToneDomainNames.IsKnownToneType(snapshot.ToneType)))
             throw new SnapshotFormatException(
                 $"This tone snapshot names no tone type this build recognises (\"{snapshot.ToneType}\").");
+
+        // The star control cannot produce a rating outside the range, but a hand-edited file can, and a
+        // filter for five-star sounds that silently skipped a seven-star entry would be a puzzle rather
+        // than an error -- the file is in the folder, it says it is the best thing there, and it does not
+        // appear. Refusing it names the problem at the one moment the user is looking at that file.
+        if (snapshot.Rating is < 0 or > 5)
+            throw new SnapshotFormatException(
+                $"This snapshot's rating is {snapshot.Rating}; ratings run from 0 to 5.");
 
         return snapshot;
     }

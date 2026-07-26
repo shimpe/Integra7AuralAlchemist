@@ -72,6 +72,18 @@ public sealed class SnapshotJsonConverter : JsonConverter<Integra7Snapshot>
         // property is one the head reader can treat uniformly, and it is what version 2 files look like.
         WriteStringOrNull(writer, nameof(Integra7Snapshot.ToneType), value.ToneType);
 
+        // The library's metadata, and all five are written whatever they hold -- an empty category, an
+        // empty tag array, an empty note, a rating of 0, a favourite flag of false. The alternative,
+        // omitting whatever is at its default, would save a few bytes in a file whose parameter data is
+        // three orders of magnitude larger, and would cost the two things that matter here: a head reader
+        // with no per-field "absent means this" branch, and a file whose shape is visible to a person
+        // editing it, who can see there is a Tags array to add a tag to.
+        WriteStringOrNull(writer, nameof(Integra7Snapshot.Category), value.Category);
+        WriteTags(writer, value.Tags);
+        WriteStringOrNull(writer, nameof(Integra7Snapshot.Notes), value.Notes);
+        writer.WriteNumber(nameof(Integra7Snapshot.Rating), value.Rating);
+        writer.WriteBoolean(nameof(Integra7Snapshot.Favourite), value.Favourite);
+
         WriteBlocks(writer, value.Domains, options);
 
         writer.WriteEndObject();
@@ -84,6 +96,23 @@ public sealed class SnapshotJsonConverter : JsonConverter<Integra7Snapshot>
     {
         if (value is null) writer.WriteNull(property);
         else writer.WriteString(property, value);
+    }
+
+    /// <summary>The tags, as a JSON array -- indented like any other array, unlike a parameter leaf, since
+    /// a handful of tags is not the ~4000 values that made the one-line fragment worth its machinery.
+    ///
+    /// A null tag is refused rather than written as a JSON null, for the rule the nesting already follows:
+    /// a file this build writes and then refuses to read is the worst thing this writer could produce. Only
+    /// code can put one in the list -- <see cref="Read"/> refuses it in a file -- and there is nothing to
+    /// coalesce it to, because an empty tag is not a tag and dropping it silently would lose something the
+    /// caller said.</summary>
+    private static void WriteTags(Utf8JsonWriter writer, List<string>? tags)
+    {
+        writer.WriteStartArray(nameof(Integra7Snapshot.Tags));
+        foreach (var tag in tags ?? [])
+            writer.WriteStringValue(tag ?? throw new SnapshotFormatException(
+                "This snapshot has a tag with no text, which is not something a file can say."));
+        writer.WriteEndArray();
     }
 
     private static void WriteBlocks(Utf8JsonWriter writer, List<SnapshotDomain>? domains,
@@ -271,6 +300,11 @@ public sealed class SnapshotJsonConverter : JsonConverter<Integra7Snapshot>
         string? name = null;
         var kind = SnapshotKinds.StudioSet;
         string? toneType = null;
+        var category = "";
+        List<string>? tags = null;
+        var notes = "";
+        var rating = 0;
+        var favourite = false;
         List<SnapshotDomain> domains = [];
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -307,6 +341,35 @@ public sealed class SnapshotJsonConverter : JsonConverter<Integra7Snapshot>
                 case nameof(Integra7Snapshot.ToneType):
                     toneType = ReadStringOrNull(ref reader, "ToneType");
                     break;
+                // The two free text annotations, and here a null deliberately does NOT survive as null --
+                // the opposite of Kind above, and for the reason that makes Kind's case what it is. A null
+                // Kind decides where a file's blocks get applied, so it is kept and refused by name; a null
+                // note decides nothing at all, and refusing to open an otherwise perfect snapshot over one
+                // would be the wrong trade. Absent and null therefore mean the same thing for these two --
+                // nothing said -- which is also what keeps FromJson from needing a null check per field.
+                case nameof(Integra7Snapshot.Category):
+                    category = ReadStringOrNull(ref reader, "Category") ?? "";
+                    break;
+                case nameof(Integra7Snapshot.Tags):
+                    tags = ReadTags(ref reader);
+                    break;
+                case nameof(Integra7Snapshot.Notes):
+                    notes = ReadStringOrNull(ref reader, "Notes") ?? "";
+                    break;
+                case nameof(Integra7Snapshot.Rating):
+                    // Whether the number is in range is FromJson's to say, not this method's: this reads
+                    // the file's shape, and 0 to 5 is a fact about ratings rather than about JSON.
+                    if (reader.TokenType != JsonTokenType.Number || !reader.TryGetInt32(out rating))
+                        throw new JsonException("A snapshot's rating is a whole number of stars.");
+                    break;
+                case nameof(Integra7Snapshot.Favourite):
+                    favourite = reader.TokenType switch
+                    {
+                        JsonTokenType.True => true,
+                        JsonTokenType.False => false,
+                        _ => throw new JsonException("A snapshot's favourite flag is true or false."),
+                    };
+                    break;
                 case BlocksProperty:
                     ReadBlocks(ref reader, domains);
                     break;
@@ -319,7 +382,39 @@ public sealed class SnapshotJsonConverter : JsonConverter<Integra7Snapshot>
             }
         }
 
-        return new Integra7Snapshot(formatVersion, name!, domains, kind, toneType);
+        return new Integra7Snapshot(formatVersion, name!, domains, kind, toneType,
+            category, tags, notes, rating, favourite);
+    }
+
+    /// <summary>The tags, or null if the file says nothing about them -- which <c>TagList</c> is what turns
+    /// back into an empty list, so that this method has one thing to represent rather than two.
+    ///
+    /// A null element is refused, not skipped and not coalesced. <c>TagList</c> promises no reader ever
+    /// sees a null tag list, and a list *containing* a null would keep that promise to the letter while
+    /// still crashing the first filter that lowercases a tag -- which is exactly the kind of null this
+    /// format is meant to keep out of the application, one that fails somewhere other than where it came
+    /// from.</summary>
+    private static List<string>? ReadTags(ref Utf8JsonReader reader)
+    {
+        if (reader.TokenType == JsonTokenType.Null) return null;
+        if (reader.TokenType != JsonTokenType.StartArray)
+            throw new JsonException("A snapshot's tags are a JSON array of text.");
+
+        List<string> tags = [];
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonTokenType.EndArray) return tags;
+            if (reader.TokenType != JsonTokenType.String)
+                throw new SnapshotFormatException(
+                    "This snapshot has a tag that is not text, so there is no telling what it was meant " +
+                    "to say.");
+            tags.Add(reader.GetString()!);
+        }
+
+        // Unreachable in practice: System.Text.Json refuses a truncated document before a converter is
+        // asked to read it. Present because the loop has to end somewhere, and ending it by returning the
+        // tags read so far would be inventing a value for a file that stopped mid-array.
+        throw new JsonException("A snapshot's tags are a JSON array of text.");
     }
 
     private static string? ReadStringOrNull(ref Utf8JsonReader reader, string property) =>
