@@ -78,8 +78,12 @@ public sealed partial class StudioSetCommonEditorViewModel : ViewModelBase, IDis
         DrumCompEqSwitch = PB("Drum Comp-EQ Switch");
 
         DrumCompEqPart = PI("Drum Comp-EQ Part", 1, 16);
+        // "Comp+EQ Unit 1", not "Unit 1". On this tab the six of them sit among the Studio Set's own
+        // switches and the external part's controls, with nothing between them and the rest to say what a
+        // unit is a unit *of* -- unlike the SN-Drums Comp-EQ tab, where the surrounding page is the answer
+        // and the shorter label reads better.
         DrumCompEqOutputs = Enumerable.Range(1, 6)
-            .Select(i => new LabelledChoice($"Unit {i}", PS($"Drum Comp-EQ {i} Output Assign")))
+            .Select(i => new LabelledChoice($"Comp+EQ Unit {i}", PS($"Drum Comp-EQ {i} Output Assign")))
             .ToList();
 
         ExtLevel = PI("Ext Part Level", 0, 127);
