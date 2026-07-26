@@ -10,8 +10,13 @@ namespace Integra7AuralAlchemist.Controls;
 
 /// <summary>
 /// Four key×velocity zone rectangles (one per PCM partial). X is the MIDI key (0..127, left→right),
-/// Y is velocity (0..127, loud at top). Drag a zone body to move it, drag an edge to resize. Pure
-/// geometry and hit-testing are delegated to <see cref="PmtZoneMapping"/>.
+/// Y is velocity (0..127, loud at top). Drag a zone body to move it, drag an edge to resize.
+///
+/// <para>Geometry, hit-testing <b>and what a drag means</b> are all delegated to <see cref="PmtZoneMapping"/>.
+/// The last of those was this control's own inline pixel arithmetic until the sixteen-lane
+/// <see cref="LayerMapControl"/> arrived needing the same rules over the same four numbers; the two charts now
+/// resolve a drag through one tested function, so an edge dragged past its opposite or a body dragged off the
+/// end of the keyboard cannot mean one thing on the Set Part tab and another on the Layers tab.</para>
 /// </summary>
 public class PmtZoneEditorControl : Control
 {
@@ -141,10 +146,34 @@ public class PmtZoneEditorControl : Control
     public IBrush WhiteKeyBrush { get => GetValue(WhiteKeyBrushProperty); set => SetValue(WhiteKeyBrushProperty, value); }
     public IBrush BlackKeyBrush { get => GetValue(BlackKeyBrushProperty); set => SetValue(BlackKeyBrushProperty, value); }
 
+    // ---- Drag state --------------------------------------------------------------------------------------
+    //
+    // In parameter values, not pixels. This used to hold the pointer's press position as a Point and do its own
+    // arithmetic on the pixel delta in OnPointerMoved; it holds keys and velocity steps now so that the whole of
+    // what a drag *means* can be PmtZoneMapping.ResolveDrag's, shared with the sixteen-lane layer map, and
+    // covered by tests. There is no headless-Avalonia harness in this repository, so anything left in this file
+    // is arithmetic nothing can check -- and two charts that draw the same key x velocity zone must not disagree
+    // about what dragging one does.
+    //
+    // Values also make a drag survive a resize mid-gesture: a remembered key still means the same key when the
+    // chart is narrower, where a remembered X means a different one.
+
+    /// <summary>Which zone (1..4) is being dragged, or -1 when no drag is in progress.</summary>
     private int _dragZone = -1;
+
+    /// <summary>Which part of it was grabbed, and so what the movement will mean.</summary>
     private PmtZoneMapping.Handle _dragHandle;
-    private Point _dragOrigPos;                       // pointer position at press
-    private int _origLo, _origHi, _origVlo, _origVhi; // dragged zone's bounds at press (for body moves)
+
+    /// <summary>The dragged zone's four bounds as they were when the pointer went down. Every move resolves from
+    /// these rather than from the previous move, so the drag cannot accumulate rounding drift and bringing the
+    /// pointer back to where it started restores exactly the values that were there.</summary>
+    private int _origLo, _origHi, _origVlo, _origVhi;
+
+    /// <summary>Where the press landed, in keys and in velocity steps: the reference a <c>Body</c> drag measures
+    /// its shift from. Quantised once, at press, so a slow drag across a single key accumulates rather than
+    /// rounding to nothing on every move.</summary>
+    private int _dragKeyAtPress, _dragVelAtPress;
+
     private int _tipNote = int.MinValue;             // last note shown in the hover tooltip
 
     // The whole zone move or resize is one undo step -- up to four bounds, however slowly it is dragged.
@@ -321,8 +350,13 @@ public class PmtZoneEditorControl : Control
                 _gesture.Begin();
                 _dragZone = i;
                 _dragHandle = hit;
-                _dragOrigPos = pos;
                 _origLo = z.lo; _origHi = z.hi; _origVlo = z.vlo; _origVhi = z.vhi;
+
+                // The press in the units the rules speak, quantised here and only here. Everything the drag does
+                // from now on is measured against these two numbers, so the pixels-to-values mapping happens once
+                // per gesture rather than once per pointer move.
+                _dragKeyAtPress = PmtZoneMapping.XToKey(pos.X, w);
+                _dragVelAtPress = PmtZoneMapping.YToVel(pos.Y, mapH);
                 e.Pointer.Capture(this);
                 e.Handled = true;
                 InvalidateVisual();
@@ -347,33 +381,43 @@ public class PmtZoneEditorControl : Control
 
         if (_dragZone < 1) return;
         int z = _dragZone;
-        var cur = Zone(z);
 
+        // A lookup, a call and four setters. What the movement means -- which of the four values moves, where it
+        // stops, what happens when an edge meets its opposite -- is entirely PmtZoneMapping.ResolveDrag's, and
+        // there is deliberately no arithmetic here to disagree with it. This block used to compute a pixel delta,
+        // round it, and clamp it against the press-time bounds by hand; the sixteen-lane layer map resolved the
+        // same gesture through the geometry, and one application drawing the same chart two ways with two
+        // slightly different answers is worse than either answer alone.
+        var moved = PmtZoneMapping.ResolveDrag(_origLo, _origHi, _origVlo, _origVhi, _dragHandle,
+            PmtZoneMapping.XToKey(pos.X, w), PmtZoneMapping.YToVel(pos.Y, mapH),
+            _dragKeyAtPress, _dragVelAtPress);
+
+        // ResolveDrag returns all four values whatever was grabbed, but only the ones this handle owns get
+        // written -- the same ownership LayerZoneChanges.FieldsFor spells out for the layer map, and the same
+        // one this switch already expressed by calling one setter per edge.
+        //
+        // It is not merely tidiness. The other three values are the ones the *press* saw, and they go stale the
+        // moment anything else edits the partial: a front-panel tweak, or a tone change, which rewrites all four
+        // partials at once. Writing them back would push a press-time number over what the instrument had just
+        // reported, for a value the user never touched. Each of these properties is bound TwoWay straight to a
+        // ParamInt, so a write is a sysex round trip and an undo-journal entry, not a field assignment.
         switch (_dragHandle)
         {
             case PmtZoneMapping.Handle.Left:
-                SetKeyLo(z, Math.Min(PmtZoneMapping.XToKey(pos.X, w), cur.hi));
+                SetKeyLo(z, moved.KeyLo);
                 break;
             case PmtZoneMapping.Handle.Right:
-                SetKeyHi(z, Math.Max(PmtZoneMapping.XToKey(pos.X, w), cur.lo));
+                SetKeyHi(z, moved.KeyHi);
                 break;
             case PmtZoneMapping.Handle.Top:
-                SetVelHi(z, Math.Max(PmtZoneMapping.YToVel(pos.Y, mapH), cur.vlo));
+                SetVelHi(z, moved.VelHi);
                 break;
             case PmtZoneMapping.Handle.Bottom:
-                SetVelLo(z, Math.Min(PmtZoneMapping.YToVel(pos.Y, mapH), cur.vhi));
+                SetVelLo(z, moved.VelLo);
                 break;
             case PmtZoneMapping.Handle.Body:
-                // Cumulative move from the press point, quantised once here and applied to the bounds
-                // captured at press — so slow sub-key drags accumulate instead of rounding to nothing.
-                var dKey = (int)Math.Round((pos.X - _dragOrigPos.X) / w * 127.0, MidpointRounding.AwayFromZero);
-                var dVel = -(int)Math.Round((pos.Y - _dragOrigPos.Y) / mapH * 127.0, MidpointRounding.AwayFromZero);
-                if (_origLo + dKey < 0) dKey = -_origLo;
-                if (_origHi + dKey > 127) dKey = 127 - _origHi;
-                if (_origVlo + dVel < 0) dVel = -_origVlo;
-                if (_origVhi + dVel > 127) dVel = 127 - _origVhi;
-                SetKeyLo(z, _origLo + dKey); SetKeyHi(z, _origHi + dKey);
-                SetVelLo(z, _origVlo + dVel); SetVelHi(z, _origVhi + dVel);
+                SetKeyLo(z, moved.KeyLo); SetKeyHi(z, moved.KeyHi);
+                SetVelLo(z, moved.VelLo); SetVelHi(z, moved.VelHi);
                 break;
         }
 

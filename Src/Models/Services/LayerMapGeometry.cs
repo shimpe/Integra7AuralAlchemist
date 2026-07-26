@@ -226,55 +226,22 @@ public static class LayerMapGeometry
     ///
     /// A <c>Body</c> drag preserves both spans: dragged past an end the movement stops, it does not squash.
     /// Squashing would be silent data loss — the user drags too far and the zone they were only trying to move
-    /// is narrower when they let go.</summary>
+    /// is narrower when they let go.
+    ///
+    /// **The rules themselves are <see cref="PmtZoneMapping.ResolveDrag"/>'s**, over four plain ints, and this is
+    /// the <see cref="LayerZone"/>-shaped wrapper around them. They moved down there when the PMT zone editor
+    /// needed the same rules: that chart has four zones in sixteen styled properties and no tone name, so a
+    /// LayerZone is the wrong currency for it, while the four numbers are exactly what both charts have. What is
+    /// left here is the wrapping — the fades, the part number and the labels ride through untouched, which is
+    /// also the guarantee that no drag on this chart can write a fade.</summary>
     public static LayerZone ResolveDrag(LayerZone origin, PmtZoneMapping.Handle handle,
         int keyNow, int velNow, int keyAtPress, int velAtPress)
     {
-        // The pointer's values are the only untrusted ones; the origin's come from 0..127 parameters.
-        var key = PmtZoneMapping.Clamp(keyNow);
-        var vel = PmtZoneMapping.Clamp(velNow);
+        var (keyLo, keyHi, velLo, velHi) = PmtZoneMapping.ResolveDrag(
+            origin.KeyLo, origin.KeyHi, origin.VelLo, origin.VelHi, handle,
+            keyNow, velNow, keyAtPress, velAtPress);
 
-        switch (handle)
-        {
-            case PmtZoneMapping.Handle.Left:
-                return origin with { KeyLo = Math.Min(key, origin.KeyHi) };
-
-            case PmtZoneMapping.Handle.Right:
-                return origin with { KeyHi = Math.Max(key, origin.KeyLo) };
-
-            case PmtZoneMapping.Handle.Top:
-                return origin with { VelHi = Math.Max(vel, origin.VelLo) };
-
-            case PmtZoneMapping.Handle.Bottom:
-                return origin with { VelLo = Math.Min(vel, origin.VelHi) };
-
-            case PmtZoneMapping.Handle.Body:
-                var dKey = ShiftPreservingSpan(origin.KeyLo, origin.KeyHi,
-                    key - PmtZoneMapping.Clamp(keyAtPress));
-                var dVel = ShiftPreservingSpan(origin.VelLo, origin.VelHi,
-                    vel - PmtZoneMapping.Clamp(velAtPress));
-                return origin with
-                {
-                    KeyLo = PmtZoneMapping.Clamp(origin.KeyLo + dKey),
-                    KeyHi = PmtZoneMapping.Clamp(origin.KeyHi + dKey),
-                    VelLo = PmtZoneMapping.Clamp(origin.VelLo + dVel),
-                    VelHi = PmtZoneMapping.Clamp(origin.VelHi + dVel)
-                };
-
-            default:
-                // Handle.None: a press on an empty spot in a lane is a question, not an edit.
-                return origin;
-        }
-    }
-
-    /// <summary>The largest part of <paramref name="delta"/> that moves lo..hi without either end leaving
-    /// 0..127, so the span survives the drag and only the movement is cut short. A range that already fills
-    /// the axis cannot move along it at all, which is correct: there is nowhere for it to go.</summary>
-    private static int ShiftPreservingSpan(int lo, int hi, int delta)
-    {
-        if (lo + delta < PmtZoneMapping.Min) delta = PmtZoneMapping.Min - lo;
-        if (hi + delta > PmtZoneMapping.Max) delta = PmtZoneMapping.Max - hi;
-        return delta;
+        return origin with { KeyLo = keyLo, KeyHi = keyHi, VelLo = velLo, VelHi = velHi };
     }
 
     // ---- Fades -------------------------------------------------------------------------------------------

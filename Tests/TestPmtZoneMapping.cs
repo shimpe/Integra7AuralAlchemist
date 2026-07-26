@@ -159,4 +159,103 @@ public class TestPmtZoneMapping
         Assert.That(PmtZoneMapping.HitRect(140, 140, r, 6), Is.EqualTo(PmtZoneMapping.Handle.Body));
         Assert.That(PmtZoneMapping.HitRect(10, 10, r, 6), Is.EqualTo(PmtZoneMapping.Handle.None));
     }
+
+    // ---- ResolveDrag -------------------------------------------------------------------------------------
+    //
+    // The *rules* -- an edge blocking at its opposite instead of swapping, a body drag preserving both spans at
+    // the ends of the axes, a drag resolving from the press rather than accumulating -- are pinned in
+    // TestLayerMapGeometry, exhaustively, through the LayerZone-shaped wrapper that now forwards to this
+    // function. Repeating them here would be copying a fixture, not testing anything new, and the wrapper's
+    // tests passing unchanged is precisely the evidence that the rules survived being moved.
+    //
+    // What is new is the *shape*: four positional ints in and a four-int tuple out, where the wrapper had eleven
+    // named record fields and `origin with { KeyLo = … }`. The three tests below cover what that shape can get
+    // wrong and what the wrapper's own tests never reach.
+
+    [Test]
+    public void ResolveDrag_moves_only_the_grabbed_value_and_returns_the_other_three_untouched()
+    {
+        // The tuple has no field names in it. `origin with { VelHi = … }` could not put a velocity in a key's
+        // place; `(keyLo, keyHi, velLo, Math.Max(vel, velLo))` written one element out is a transposition the
+        // compiler is delighted to accept and which would show up as dragging the top of a zone moving its
+        // bottom. Every handle is checked, including the two whose orientation reads backwards -- Top is the
+        // *loud* edge and so owns VelHi, Bottom is the soft one and owns VelLo, because loud is up on both
+        // charts.
+        const int keyLo = 60, keyHi = 72, velLo = 40, velHi = 100;
+
+        // Each drag is an ordinary one, well inside the axis and nowhere near its opposite edge, so the only
+        // thing under test is which of the four numbers came back different.
+        var left = PmtZoneMapping.ResolveDrag(keyLo, keyHi, velLo, velHi, PmtZoneMapping.Handle.Left,
+            50, 64, 60, 64);
+        Assert.That(left, Is.EqualTo((50, 72, 40, 100)));
+
+        var right = PmtZoneMapping.ResolveDrag(keyLo, keyHi, velLo, velHi, PmtZoneMapping.Handle.Right,
+            80, 64, 72, 64);
+        Assert.That(right, Is.EqualTo((60, 80, 40, 100)));
+
+        var top = PmtZoneMapping.ResolveDrag(keyLo, keyHi, velLo, velHi, PmtZoneMapping.Handle.Top,
+            66, 110, 66, 100);
+        Assert.That(top, Is.EqualTo((60, 72, 40, 110)), "the top edge is the loud one: it owns VelHi");
+
+        var bottom = PmtZoneMapping.ResolveDrag(keyLo, keyHi, velLo, velHi, PmtZoneMapping.Handle.Bottom,
+            66, 30, 66, 40);
+        Assert.That(bottom, Is.EqualTo((60, 72, 30, 100)), "and the bottom edge is the soft one: VelLo");
+
+        var body = PmtZoneMapping.ResolveDrag(keyLo, keyHi, velLo, velHi, PmtZoneMapping.Handle.Body,
+            70, 74, 66, 70);
+        Assert.That(body, Is.EqualTo((64, 76, 44, 104)), "all four, shifted by the same delta on each axis");
+
+        var none = PmtZoneMapping.ResolveDrag(keyLo, keyHi, velLo, velHi, PmtZoneMapping.Handle.None,
+            0, 0, 66, 70);
+        Assert.That(none, Is.EqualTo((60, 72, 40, 100)), "a press that grabbed nothing is a question");
+    }
+
+    [Test]
+    public void ResolveDrag_keeps_a_range_stored_the_wrong_way_round_inside_the_axis()
+    {
+        // ToRect promises to tolerate lo and hi being swapped, so every function in this class inherits that
+        // promise -- and a body drag is where it bites. The span-preserving shift stops the movement when the
+        // range's *upper* end would leave the axis, and for a range stored the wrong way round the upper end is
+        // the field called `KeyLo`: shifting 72..60 sixty-one keys to the right leaves KeyHi at a legal 121 and
+        // carries KeyLo to 133. A key that is not a key, heading for a 0..127 parameter through a two-way
+        // binding.
+        //
+        // Worth a test of its own because the final clamp is the one thing the extraction changed about the
+        // arithmetic rather than about where the arithmetic lives. The layer map cannot produce this input -- it
+        // builds its zones from the parameters, in order -- so nothing in its fixture reaches the case, and the
+        // PMT chart's old inline version wrote the 133.
+        var right = PmtZoneMapping.ResolveDrag(72, 60, 40, 100, PmtZoneMapping.Handle.Body, 127, 70, 66, 70);
+        Assert.That(right, Is.EqualTo((127, 121, 40, 100)));
+
+        // And the same downwards, where it is the velocities that are the wrong way round: VelHi would be -30.
+        var down = PmtZoneMapping.ResolveDrag(60, 72, 100, 40, PmtZoneMapping.Handle.Body, 66, 0, 66, 70);
+        Assert.That(down, Is.EqualTo((60, 72, 30, 0)));
+    }
+
+    [Test]
+    public void An_edge_blocked_against_its_opposite_can_be_dragged_back_out()
+    {
+        // Block-don't-swap collapses a zone to a single key or a single velocity step when an edge is pushed
+        // past its opposite, and `lo == hi` is legal and means exactly that. Which is only a livable rule if the
+        // collapse is reversible: a user who overshoots must be able to drag straight back out in the same
+        // gesture rather than being left with a one-key zone and no way back except the numeric grid.
+        //
+        // Nothing pinned that. The wrapper's fixture checks that the block happens and that it lands on `lo ==
+        // hi`; the press *after* the block -- which starts from a collapsed origin, the state the rule creates
+        // -- is not covered anywhere, and it is the half of the rule the user actually feels.
+        var collapsed = PmtZoneMapping.ResolveDrag(60, 72, 0, 127, PmtZoneMapping.Handle.Left, 100, 64, 60, 64);
+        Assert.That(collapsed, Is.EqualTo((72, 72, 0, 127)), "blocked at its opposite, one key wide");
+
+        var reopened = PmtZoneMapping.ResolveDrag(collapsed.KeyLo, collapsed.KeyHi, collapsed.VelLo,
+            collapsed.VelHi, PmtZoneMapping.Handle.Left, 48, 64, 72, 64);
+        Assert.That(reopened, Is.EqualTo((48, 72, 0, 127)), "and dragged straight back out again");
+
+        // The velocity axis behaves the same way: collapsed to a single step, then reopened.
+        var pinned = PmtZoneMapping.ResolveDrag(0, 127, 40, 100, PmtZoneMapping.Handle.Top, 64, 10, 64, 100);
+        Assert.That(pinned, Is.EqualTo((0, 127, 40, 40)));
+
+        var released = PmtZoneMapping.ResolveDrag(pinned.KeyLo, pinned.KeyHi, pinned.VelLo, pinned.VelHi,
+            PmtZoneMapping.Handle.Top, 64, 90, 64, 40);
+        Assert.That(released, Is.EqualTo((0, 127, 40, 90)));
+    }
 }
