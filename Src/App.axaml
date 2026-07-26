@@ -68,6 +68,19 @@
             <SolidColorBrush x:Key="PmtZone2Brush" Color="#ff9e6b"/>
             <SolidColorBrush x:Key="PmtZone3Brush" Color="#7ad19a"/>
             <SolidColorBrush x:Key="PmtZone4Brush" Color="#d18ad1"/>
+            <!-- Layer map: all sixteen parts' key and velocity ranges on one chart, one lane per part. The
+                 chart reuses the envelope ground, grid and axis brushes, SnMutedTextBrush for the note names
+                 and tone names, and SnCardSelectedBorderBrush for the selected lane's outline; only these
+                 three have no existing equivalent. -->
+            <!-- Every other lane, so sixteen otherwise identical rows can be counted. Faint on purpose: it
+                 must not compete with the ranges drawn on top of it. -->
+            <SolidColorBrush x:Key="LayerMapLaneAltBrush" Color="#10FFFFFF"/>
+            <!-- A part's range: the body fill, its outline, and the colour its fade bands taper towards. The
+                 same blue the PMT zone chart gives its first zone, so "a range" looks like the same kind of
+                 thing on both charts. -->
+            <SolidColorBrush x:Key="LayerMapZoneBrush" Color="#6b8dff"/>
+            <!-- The part number in each lane: primary text, over a translucent range fill on a dark ground. -->
+            <SolidColorBrush x:Key="LayerMapLabelBrush" Color="White"/>
             <!-- Drum note-rail key palette (SN-Drums + PCM-Drums). -->
             <SolidColorBrush x:Key="DrumWhiteKeyBrush" Color="#c8ccce"/>
             <SolidColorBrush x:Key="DrumBlackKeyBrush" Color="#23262a"/>
