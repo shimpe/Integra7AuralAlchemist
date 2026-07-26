@@ -122,41 +122,12 @@
                                 </Button.IsEnabled>
                                 Play Note
                             </Button>
-                            <Button Command="{Binding PlayPhraseAsync}">
-                                <Button.IsEnabled>
-                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                        <MultiBinding.Bindings>
-                                            <Binding Path="Connected" />
-                                            <Binding Path="!IsSyncing" />
-                                        </MultiBinding.Bindings>
-                                    </MultiBinding>
-                                </Button.IsEnabled>
-                                Play Phrase
-                            </Button>
-                            <Button Command="{Binding StopPhraseAsync}">
-                                <Button.IsEnabled>
-                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                        <MultiBinding.Bindings>
-                                            <Binding Path="Connected" />
-                                            <Binding Path="!IsSyncing" />
-                                        </MultiBinding.Bindings>
-                                    </MultiBinding>
-                                </Button.IsEnabled>
-                                Stop Phrase
-                            </Button>
-                            <Button Command="{Binding PanicAsync}"
-                                    Background="Red"
-                                    Foreground="White">
-                                <Button.IsEnabled>
-                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                        <MultiBinding.Bindings>
-                                            <Binding Path="Connected" />
-                                            <Binding Path="!IsSyncing" />
-                                        </MultiBinding.Bindings>
-                                    </MultiBinding>
-                                </Button.IsEnabled>
-                                Panic!
-                            </Button>
+                            <!-- Play Phrase, Stop Phrase and Panic used to sit here. They moved to the
+                                 status bar beside Undo, Redo and Compare, because they are the same kind
+                                 of thing: reached for at any moment, from any tab, and not part of the
+                                 Parameters tab's own work. Panic in particular is the one button whose
+                                 whole value is being where you already are. Play Note stays, because it
+                                 sounds the *selected part* and only this tab has a selected part. -->
                             <Button Command="{Binding SaveUserTone}">
                                 <Button.IsEnabled>
                                     <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -169,12 +140,17 @@
                                 </Button.IsEnabled>
                                 Save User Tone
                             </Button>
-                            <!-- Save writes into the library — searchable, filterable, one folder to back up — and
-                                 Export writes a snapshot file wherever the user likes. Both read the same 53 blocks
-                                 out of the instrument; they differ only in where the file lands and in whether a
-                                 name, category, tags and a rating are asked for first. -->
+                            <!-- "Add … to library" against "Export …": both read the same blocks out of the
+                                 instrument and differ only in where the file lands, so the labels name the
+                                 destination and nothing else. They say which *thing* is added, too, because
+                                 the alternative was two buttons in one row both reading "Add to library"
+                                 with only their position to say what they meant. Longer labels on a row
+                                 this wide is the cheaper cost.
+                                 "Save" appears nowhere here on purpose: "Save User Tone", further left,
+                                 writes into the instrument's own memory, and that is the only meaning of
+                                 the word left in this toolbar. -->
                             <Button Command="{Binding SaveStudioSetAsync}"
-                                    ToolTip.Tip="Read the Studio Set currently in the instrument — its common settings, effects and all 16 parts — and save it into the library.">
+                                    ToolTip.Tip="Read the Studio Set currently in the instrument — its common settings, effects and all 16 parts — and add it to the library, with a name, tags and a rating.">
                                 <Button.IsEnabled>
                                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                                         <MultiBinding.Bindings>
@@ -183,7 +159,7 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Save Studio Set…
+                                Add Studio Set to library
                             </Button>
                             <Button Command="{Binding ExportStudioSetAsync}"
                                     ToolTip.Tip="Read the Studio Set currently in the instrument and write it to a file anywhere you like, outside the library.">
@@ -209,8 +185,11 @@
                                 </Button.IsEnabled>
                                 Load Studio Set…
                             </Button>
+                            <!-- See the Studio Set pair above for why these read "Add … to library" rather
+                                 than "Save …". Lower-case "tone" against capitalised "Studio Set" is this
+                                 application's own usage, not an inconsistency. -->
                             <Button Command="{Binding SaveToneAsync}"
-                                    ToolTip.Tip="Read the tone currently loaded into the selected part — every one of its parameters — and save it into the library.">
+                                    ToolTip.Tip="Read the tone currently loaded into the selected part — every one of its parameters — and add it to the library, with a name, category, tags and a rating.">
                                 <Button.IsEnabled>
                                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                                         <MultiBinding.Bindings>
@@ -220,7 +199,7 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Save Tone…
+                                Add tone to library
                             </Button>
                             <Button Command="{Binding ExportToneAsync}"
                                     ToolTip.Tip="Read the tone currently loaded into the selected part and write it to a file anywhere you like, outside the library.">
@@ -778,6 +757,57 @@
                         </MultiBinding>
                     </Button.IsEnabled>
                 </Button>
+
+                <!-- Transport, moved here from the Parameters tab's toolbar. Same reasoning as Undo and
+                     Redo above: these are wanted from any tab and at any moment, and a Panic button on a
+                     tab you are not looking at is a Panic button you have to go and find. A rule off the
+                     history buttons, because the two groups do unrelated things and a row of six
+                     identical buttons reads as one group.
+
+                     IsEnabled is Connected AND !IsSyncing, as it was in the toolbar: unlike the history
+                     buttons these all send MIDI immediately, so there has to be a device and the wire has
+                     to be free. -->
+                <Rectangle Width="1" VerticalAlignment="Stretch" Margin="4,2"
+                           Fill="{StaticResource SnStatusBarBorderBrush}" />
+                <Button Command="{Binding PlayPhraseAsync}" Padding="8,2">
+                    <Button.IsEnabled>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <MultiBinding.Bindings>
+                                <Binding Path="Connected" />
+                                <Binding Path="!IsSyncing" />
+                            </MultiBinding.Bindings>
+                        </MultiBinding>
+                    </Button.IsEnabled>
+                    Play Phrase
+                </Button>
+                <Button Command="{Binding StopPhraseAsync}" Padding="8,2">
+                    <Button.IsEnabled>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <MultiBinding.Bindings>
+                                <Binding Path="Connected" />
+                                <Binding Path="!IsSyncing" />
+                            </MultiBinding.Bindings>
+                        </MultiBinding>
+                    </Button.IsEnabled>
+                    Stop Phrase
+                </Button>
+                <!-- Background from a resource, not the literal "Red" it carried in the toolbar: every
+                     colour in this application lives in App.axaml, and a named colour breaks that rule
+                     as thoroughly as a hex value would. -->
+                <Button Command="{Binding PanicAsync}" Padding="8,2"
+                        Background="{StaticResource PanicButtonBrush}"
+                        Foreground="{StaticResource SnBadgeForegroundBrush}">
+                    <Button.IsEnabled>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <MultiBinding.Bindings>
+                                <Binding Path="Connected" />
+                                <Binding Path="!IsSyncing" />
+                            </MultiBinding.Bindings>
+                        </MultiBinding>
+                    </Button.IsEnabled>
+                    Panic!
+                </Button>
+
                 <TextBlock Text="{Binding MidiDevices}" VerticalAlignment="Center" />
                 <!-- Progress of the user tone names, which load after the window is usable.
                      Collapses to nothing once they are in. -->
