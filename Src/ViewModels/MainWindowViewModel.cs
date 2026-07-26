@@ -103,6 +103,26 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <see cref="ShowSaveSnapshotDialog"/> for why "" is a safe sentinel here.</summary>
     public Interaction<Unit, string?> ShowOpenSnapshotDialog { get; }
 
+    /// <summary>Ask what a snapshot about to be saved into the library should be called and what should be said
+    /// about it. Output is the metadata, or null if the user cancelled -- the same "this or nothing" shape
+    /// <see cref="ShowSaveUserToneDialog"/> has, and read the same way.</summary>
+    public Interaction<SaveToLibraryViewModel, SnapshotMetadata?> ShowSaveToLibraryDialog { get; }
+
+    /// <summary>Ask the view for a library folder, starting at the one passed in. Output is the chosen folder,
+    /// null for a cancellation, or "" for a folder with no usable local path -- the same sentinel as the
+    /// snapshot pickers, for the same reason.</summary>
+    public Interaction<string, string?> ShowPickLibraryFolderDialog { get; }
+
+    /// <summary>The library browser. Built here, in the constructor, and never replaced: it reads files rather
+    /// than parameters, so unlike <see cref="MixerVm"/>, <see cref="LayerMapVm"/> and
+    /// <see cref="MotionalSurroundVm"/> it is valid with no instrument attached and has nothing to dispose on a
+    /// rescan. That is also why its tab needs no "connect your Integra-7" placeholder.
+    ///
+    /// Not <c>[Reactive]</c>, deliberately: a property that never changes has nothing to announce, and making
+    /// it observable would suggest to the next reader that it might be replaced -- which is exactly the mistake
+    /// that would leave the Save commands writing into a library the browser is no longer showing.</summary>
+    public LibraryViewModel LibraryVm { get; }
+
     /// <summary>Whether the journal has anything left to take back, and anything to put back. Mirrored
     /// onto the UI thread from <c>EditJournal.Changed</c> in the constructor, because the journal is
     /// mutated from both the UI thread and the pool -- see <see cref="EditJournal"/>'s class remarks.
@@ -472,8 +492,20 @@ public partial class MainWindowViewModel : ViewModelBase
             }
     }
 
-    /// <summary>Read the Studio Set currently in the instrument and write it to a file the user picks.
-    /// </summary>
+    /// <summary>Read the Studio Set currently in the instrument and save it into the library, asking first
+    /// what to call it and what to say about it.
+    ///
+    /// <b>This is what Save Studio Set does now</b>, and <see cref="ExportStudioSetAsync"/> is the file
+    /// dialog it used to open. The library is the default because it is the one place a saved sound can be
+    /// found again by anything other than remembering where it was put: it is searchable, it is filterable by
+    /// kind, category, rating and tag, and it is one folder to back up. Export stays because a snapshot is
+    /// still a file, and sending one to somebody or keeping one beside a project is a real thing to want.
+    ///
+    /// <b>The metadata is asked for before the capture</b>, for the reason
+    /// <see cref="SaveToLibraryViewModel"/> gives: a Studio Set is 53 blocks off the wire, and cancelling at
+    /// the end of that would have paid for nothing. Everything else about the lease and the atomic write is
+    /// the same as it was; the write now goes through <c>SnapshotLibrary.Create</c>, which is also where the
+    /// file name comes from.</summary>
     [ReactiveCommand]
     public async Task SaveStudioSetAsync()
     {
@@ -486,10 +518,85 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (RefuseWhileComparing("save the Studio Set")) return;
 
-        // The Studio Set names itself; that is a far better default file name than "snapshot".
+        var name = CurrentStudioSetName(communicator);
+        // No category: a Studio Set is sixteen parts each with one of their own, and there is no single tone
+        // category for the set. It is found by kind, tags and rating like everything else.
+        var metadata = await ShowSaveToLibraryDialog.Handle(new SaveToLibraryViewModel(
+            "Studio Set", name, hasCategory: false, "", LibraryVm.Folder));
+        if (metadata is null) return; // cancelled -- nothing happened, so say nothing
+
+        try
+        {
+            SignalStartSync();
+            SyncInfo = "Reading Studio Set";
+            Integra7Snapshot snapshot;
+            // One conversation for the whole capture, so nothing else can write to the instrument
+            // partway through and produce a Studio Set that never actually existed. Scoped to just the
+            // capture: the MIDI lease has no business being held across the disk write that follows, and
+            // holding it would block anything else on the wire for the duration of unrelated I/O.
+            await using (var lease = await api.BeginConversationAsync("capture Studio Set"))
+            {
+                // The name the user typed, not the one the instrument holds: it is what the library will
+                // show, what the file will be called, and what the snapshot itself will say -- one answer in
+                // all three places rather than a captured name overwritten by a typed one.
+                snapshot = await StudioSetSnapshotService.CaptureAsync(communicator, metadata.Name ?? name,
+                    lease);
+            }
+
+            var path = LibraryVm.SaveIntoLibrary(snapshot, metadata);
+            SnapshotFailed = false;
+            SnapshotStatus = $"Saved the Studio Set into the library as {Path.GetFileName(path)}.";
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("save Studio Set into the library", e.ToString());
+            SnapshotFailed = true;
+            // Naming Export is the whole point of this message: the failure is almost always the folder --
+            // a library on a share that is not reachable, or one the user has no right to write to -- and
+            // Export is the way to get the sound onto disk anyway while they sort the library out. The
+            // capture itself is already done and lost by the time this is read, which is why the advice
+            // matters more than the diagnosis.
+            SnapshotStatus = $"Could not save the Studio Set into the library: {e.Message} " +
+                             "Export… writes it anywhere you like.";
+        }
+        finally
+        {
+            SignalStopSync();
+        }
+    }
+
+    /// <summary>What the Studio Set in the instrument calls itself, or "Studio Set" when it says nothing. The
+    /// Studio Set names itself, and that is a far better suggestion than "snapshot".
+    ///
+    /// Takes the domain rather than reading the field, so that both callers keep the rule they open with: they
+    /// read it into a local before their awaits because a rescan replaces it, and a helper that went back to the
+    /// field would quietly undo that for the one line it is on.</summary>
+    private static string CurrentStudioSetName(Integra7Domain communicator)
+    {
         var name = communicator.StudioSetCommon
             .LookupSingleParameterDisplayedValue("Studio Set Common/Studio Set Name").Trim();
-        if (name.Length == 0) name = "Studio Set";
+        return name.Length == 0 ? "Studio Set" : name;
+    }
+
+    /// <summary>Read the Studio Set currently in the instrument and write it to a file the user picks.
+    ///
+    /// <b>This is what Save Studio Set used to be</b>, unchanged and relabelled: the library is now the
+    /// default (see <see cref="SaveStudioSetAsync"/>) and this is how a snapshot is written somewhere else --
+    /// beside a project, onto a stick, into a message. Nothing that worked before this branch stopped
+    /// working; it moved one button along.</summary>
+    [ReactiveCommand]
+    public async Task ExportStudioSetAsync()
+    {
+        UserActionLog.Action("button: Export Studio Set");
+        // Locals, not the properties: everything below runs after several awaits, and a rescan in the
+        // meantime replaces both of them.
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null) return;
+
+        if (RefuseWhileComparing("save the Studio Set")) return;
+
+        var name = CurrentStudioSetName(communicator);
 
         // The instrument's character set includes ':', '/' and '*', which a file name cannot hold; the
         // snapshot keeps the real name, only the suggestion in the dialog is scrubbed.
@@ -537,13 +644,13 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             SnapshotFailed = false;
-            SnapshotStatus = $"Saved the Studio Set to {Path.GetFileName(path)}.";
+            SnapshotStatus = $"Exported the Studio Set to {Path.GetFileName(path)}.";
         }
         catch (Exception e)
         {
-            UserActionLog.Failed("save Studio Set", e.ToString());
+            UserActionLog.Failed("export Studio Set", e.ToString());
             SnapshotFailed = true;
-            SnapshotStatus = $"Could not save the Studio Set: {e.Message}";
+            SnapshotStatus = $"Could not export the Studio Set: {e.Message}";
         }
         finally
         {
@@ -572,6 +679,22 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        await RestoreStudioSetFromFileAsync(api, communicator, path);
+    }
+
+    /// <summary>Write the Studio Set snapshot at <paramref name="path"/> into the instrument, replacing the
+    /// one loaded there, and bring the window back into line with it afterwards.
+    ///
+    /// <b>Extracted so the library can load through exactly this path</b> and not through one of its own.
+    /// Everything that made the file-dialog load correct -- one conversation for the whole restore, the
+    /// journal cleared because every step in it describes the Studio Set that has just gone away, the preset
+    /// preselection for the parts nobody has opened, the full resync -- is needed identically whichever button
+    /// asked, and a second copy of it is a second place for one of those to be forgotten.
+    ///
+    /// The api and the domain are passed in rather than read here, because the caller read them into locals
+    /// before its own awaits for the reason its comment gives: a rescan in the meantime replaces both.</summary>
+    private async Task RestoreStudioSetFromFileAsync(IIntegra7Api api, Integra7Domain communicator, string path)
+    {
         var restored = false;
         try
         {
@@ -648,8 +771,11 @@ public partial class MainWindowViewModel : ViewModelBase
     /// and <c>PlayNoteAsync</c> convert it.
     ///
     /// <paramref name="ToneName"/> comes from the same preset as <paramref name="ToneType"/>, so a file
-    /// cannot end up named after one patch and holding another.</summary>
-    private sealed record SelectedTone(int ZeroBasedPartNo, string ToneType, string ToneName);
+    /// cannot end up named after one patch and holding another. <paramref name="Category"/> comes from that
+    /// same preset for the same reason: it is the instrument's own word for what this sound is (one of the 34
+    /// <c>Integra7Preset</c> parses), it is what the library's category filter is built on, and a category
+    /// resolved from a different preset than the one being captured would be a lie that filters.</summary>
+    private sealed record SelectedTone(int ZeroBasedPartNo, string ToneType, string ToneName, string Category);
 
     /// <summary>Resolve the selected part and the tone type it holds, or explain on the status line why
     /// there is none and return null.
@@ -703,16 +829,77 @@ public partial class MainWindowViewModel : ViewModelBase
         // The preset name is what the user sees on the part, so it is the file name they expect. Empty
         // only if the preset list ever carries a nameless row; "Tone" is a better suggestion than "".
         var name = (preset?.Name ?? "").Trim();
-        return new SelectedTone(selection - 1, toneType, name.Length == 0 ? "Tone" : name);
+        return new SelectedTone(selection - 1, toneType, name.Length == 0 ? "Tone" : name,
+            preset?.CategoryStr ?? "");
     }
 
-    /// <summary>Read the tone currently loaded into the selected part and write it to a file the user
-    /// picks. The Studio Set sibling of this is <see cref="SaveStudioSetAsync"/>, and everything about
-    /// the lease, the file dialog's "" sentinel and the atomic write is the same there.</summary>
+    /// <summary>Read the tone currently loaded into the selected part and save it into the library, asking
+    /// first what to call it and what to say about it. The Studio Set sibling of this is
+    /// <see cref="SaveStudioSetAsync"/>, and every decision behind both is recorded there.
+    ///
+    /// <b>A tone does get a category</b>, and it starts on the one the instrument itself gives the preset in
+    /// that part -- <c>Integra7Preset.CategoryStr</c>, one of the same 34 the drop-down offers. A user saving
+    /// an edited E.Piano almost never wants to be asked what kind of sound it is, and a category that is right
+    /// by default is the difference between a library that is filterable and one where everything is
+    /// uncategorised.</summary>
     [ReactiveCommand]
     public async Task SaveToneAsync()
     {
         UserActionLog.Action("button: Save Tone");
+        // Locals, not the properties: everything below runs after several awaits, and a rescan in the
+        // meantime replaces both of them.
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null) return;
+
+        if (RefuseWhileComparing("save the tone")) return;
+
+        var selected = await ResolveSelectedToneAsync("save");
+        if (selected is null) return; // ResolveSelectedToneAsync has already said why
+
+        var metadata = await ShowSaveToLibraryDialog.Handle(new SaveToLibraryViewModel(
+            "tone", selected.ToneName, hasCategory: true, selected.Category, LibraryVm.Folder));
+        if (metadata is null) return; // cancelled -- nothing happened, so say nothing
+
+        try
+        {
+            SignalStartSync();
+            SyncInfo = $"Reading tone from part {selected.ZeroBasedPartNo + 1}";
+            Integra7Snapshot snapshot;
+            // One conversation for the whole capture, so nothing else can write to the instrument
+            // partway through and produce a tone that never actually existed. Scoped to just the
+            // capture: the MIDI lease has no business being held across the disk write that follows.
+            await using (var lease = await api.BeginConversationAsync("capture tone"))
+            {
+                // The typed name rather than the preset's, for the reason SaveStudioSetAsync gives.
+                snapshot = await StudioSetSnapshotService.CaptureToneAsync(communicator,
+                    selected.ZeroBasedPartNo, selected.ToneType, metadata.Name ?? selected.ToneName, lease);
+            }
+
+            var path = LibraryVm.SaveIntoLibrary(snapshot, metadata);
+            SnapshotFailed = false;
+            SnapshotStatus = $"Saved the tone from part {selected.ZeroBasedPartNo + 1} into the library as " +
+                             $"{Path.GetFileName(path)}.";
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("save tone into the library", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = $"Could not save the tone into the library: {e.Message} " +
+                             "Export… writes it anywhere you like.";
+        }
+        finally
+        {
+            SignalStopSync();
+        }
+    }
+
+    /// <summary>Read the tone currently loaded into the selected part and write it to a file the user picks.
+    /// What Save Tone used to be, relabelled -- see <see cref="ExportStudioSetAsync"/>.</summary>
+    [ReactiveCommand]
+    public async Task ExportToneAsync()
+    {
+        UserActionLog.Action("button: Export Tone");
         // Locals, not the properties: everything below runs after several awaits, and a rescan in the
         // meantime replaces both of them.
         var api = Integra7;
@@ -768,13 +955,14 @@ public partial class MainWindowViewModel : ViewModelBase
             }
 
             SnapshotFailed = false;
-            SnapshotStatus = $"Saved the tone from part {selected.ZeroBasedPartNo + 1} to {Path.GetFileName(path)}.";
+            SnapshotStatus =
+                $"Exported the tone from part {selected.ZeroBasedPartNo + 1} to {Path.GetFileName(path)}.";
         }
         catch (Exception e)
         {
-            UserActionLog.Failed("save tone", e.ToString());
+            UserActionLog.Failed("export tone", e.ToString());
             SnapshotFailed = true;
-            SnapshotStatus = $"Could not save the tone: {e.Message}";
+            SnapshotStatus = $"Could not export the tone: {e.Message}";
         }
         finally
         {
@@ -812,6 +1000,22 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        await RestoreToneFromFileAsync(api, communicator, selected, path);
+    }
+
+    /// <summary>Write the tone snapshot at <paramref name="path"/> into <paramref name="selected"/>'s part,
+    /// replacing the tone there, and re-read that part afterwards.
+    ///
+    /// <b>Extracted so the library loads through exactly this path</b>, for the reason
+    /// <see cref="RestoreStudioSetFromFileAsync"/> gives. The engine guard is the load-bearing part and it is
+    /// deliberately not here: <paramref name="selected"/> carries the engine the part genuinely holds right
+    /// now, <c>RestoreToneAsync</c> compares the snapshot's against it and refuses, and the message it gives is
+    /// the one the user sees whichever button they pressed. A second caller resolving the engine its own way is
+    /// exactly how PCM data reaches a SuperNATURAL part's addresses, where it means something else
+    /// entirely.</summary>
+    private async Task RestoreToneFromFileAsync(IIntegra7Api api, Integra7Domain communicator,
+        SelectedTone selected, string path)
+    {
         var restored = false;
         try
         {
@@ -881,6 +1085,54 @@ public partial class MainWindowViewModel : ViewModelBase
             // own, and not at all when the restore failed, because the screen still matches the device.
             await ResyncPartAsync((byte)selected.ZeroBasedPartNo);
         }
+    }
+
+    /// <summary>Send a snapshot the user picked in the library to the instrument.
+    ///
+    /// <b>Everything here is a decision about which existing path to take, and nothing is a new one.</b> A
+    /// Studio Set goes through <see cref="RestoreStudioSetFromFileAsync"/> and a tone through
+    /// <see cref="RestoreToneFromFileAsync"/> -- the same two methods the Load buttons use, with the same
+    /// leases, the same journal clearing and the same resyncs. What this adds is the routing, which the library
+    /// can do without opening the file because the entry's head already says which kind it is.
+    ///
+    /// <b>The comparing guard differs between the two, as it already does for the buttons.</b> A tone load is
+    /// refused while Compare is playing the pre-edit sound, because it replaces one part and then clears the
+    /// journal, which holds the only copy of the edited values for the other fifteen. A Studio Set load is
+    /// allowed, because it replaces everything the comparison covered. That asymmetry is
+    /// <see cref="LoadToneAsync"/>'s reasoning and is repeated here rather than moved, because it belongs to
+    /// the decision of whether to start rather than to the restore itself.
+    ///
+    /// A kind this build does not know cannot reach here: the head's kind came out of the file, and anything
+    /// other than the two is refused by <c>FromJson</c> the moment the file is opened, which is inside both
+    /// restore methods. Routing it as a Studio Set would apply its blocks somewhere they do not belong, so the
+    /// unknown case is sent down the path that will refuse it and say so.</summary>
+    private async Task LoadFromLibraryAsync(LibraryEntry entry)
+    {
+        // Locals, not the properties: everything below runs after several awaits, and a rescan in the
+        // meantime replaces both of them.
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null)
+        {
+            // The library is browsable with no instrument attached -- it is files -- so this is a real state
+            // and not a guard against the impossible. Saying so beats a button that does nothing.
+            SnapshotFailed = true;
+            SnapshotStatus = "Cannot load a snapshot: there is no connection to the instrument.";
+            return;
+        }
+
+        if (entry.Head.Kind == SnapshotKinds.Tone)
+        {
+            if (RefuseWhileComparing("load a tone")) return;
+
+            var selected = await ResolveSelectedToneAsync("load");
+            if (selected is null) return; // ResolveSelectedToneAsync has already said why
+
+            await RestoreToneFromFileAsync(api, communicator, selected, entry.FilePath);
+            return;
+        }
+
+        await RestoreStudioSetFromFileAsync(api, communicator, entry.FilePath);
     }
 
     [ReactiveCommand]
@@ -1558,6 +1810,28 @@ public partial class MainWindowViewModel : ViewModelBase
         ShowSaveUserToneDialog = new Interaction<SaveUserToneViewModel, UserToneToSave?>();
         ShowSaveSnapshotDialog = new Interaction<string, string?>();
         ShowOpenSnapshotDialog = new Interaction<Unit, string?>();
+        ShowSaveToLibraryDialog = new Interaction<SaveToLibraryViewModel, SnapshotMetadata?>();
+        ShowPickLibraryFolderDialog = new Interaction<string, string?>();
+
+        // After the interactions it reaches through, since it lists its folder while being constructed and
+        // reporting a folder that cannot be read needs the status properties -- which are fields on this object
+        // and therefore already there, unlike the interactions, which are not until the lines above have run.
+        //
+        // The two callbacks are closures over this object rather than over anything captured now, so a rescan
+        // replacing the API is invisible to them: LoadFromLibraryAsync reads Integra7 when a press happens, and
+        // the folder picker's interaction is the same instance for the life of the window.
+        LibraryVm = new LibraryViewModel(
+            LoadFromLibraryAsync,
+            async folder => await ShowPickLibraryFolderDialog.Handle(folder),
+            (message, failed) =>
+            {
+                // The window's own status bar, not a line of the library's own: it is visible from every tab,
+                // the save and load commands already report there, and one channel means the user never has to
+                // wonder which of two places the last answer went to.
+                SnapshotStatus = message;
+                SnapshotFailed = failed;
+            },
+            LibrarySettings.SettingsPath);
     }
 
     public async Task InitializeAsync()

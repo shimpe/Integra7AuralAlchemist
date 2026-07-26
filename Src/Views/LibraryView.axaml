@@ -1,0 +1,234 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:local="clr-namespace:Integra7AuralAlchemist.Views"
+             mc:Ignorable="d" d:DesignWidth="1600" d:DesignHeight="800"
+             x:Class="Integra7AuralAlchemist.Views.LibraryView"
+             x:DataType="vm:LibraryViewModel">
+
+    <!-- The snapshot library: the folder, the filters, the list, and what is selected.
+
+         No ToolTip anywhere in this file. Everything here is either clicked repeatedly (the stars, the tag
+         checkboxes, the sort toggle) or has its explanation on screen already, and a tooltip is a popup that
+         swallows the click on the control it describes — see the status-bar comment in MainWindow.axaml.
+
+         Every brush is a resource. The only colours in here are the muted text of the secondary lines and the
+         panel ground behind the editor, both of which already exist for exactly this. -->
+
+    <UserControl.Styles>
+        <!-- A row has to fill the list's width or the two elastic columns in its Grid collapse to their content
+             and nothing lines up with the header. Stretch is not the theme's default for a ListBoxItem's
+             content, and the failure is silent: the columns simply pack to the left. -->
+        <Style Selector="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="4,3" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="10" RowSpacing="8">
+
+        <!-- Where the library is. Read-only text rather than an editable box: a path typed one character at a
+             time would re-read the folder on every keystroke, and every intermediate path is a folder that does
+             not exist. Refresh is a button because nothing watches the folder — a file another application put
+             there appears when the list is read again. -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="Library folder:" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding Folder}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       MaxWidth="700" />
+            <Button Content="Change…" Command="{Binding ChangeFolderAsync}" Padding="8,2" />
+            <Button Content="Refresh" Command="{Binding Refresh}" Padding="8,2" />
+            <TextBlock Text="{Binding Summary}"
+                       VerticalAlignment="Center"
+                       Foreground="{StaticResource SnMutedTextBrush}" />
+        </StackPanel>
+
+        <!-- The filters. Six of them, and they narrow together: each is a separate question about the same
+             entry and an entry has to answer all of them. Every drop-down's first row means "not asking", so
+             the browser opens on the whole library. -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBox Text="{Binding SearchText, Mode=TwoWay}"
+                     PlaceholderText="Search names, notes, categories and tags"
+                     MinWidth="300" />
+            <ComboBox ItemsSource="{Binding KindLabels}"
+                      SelectedItem="{Binding KindLabel, Mode=TwoWay}"
+                      MinWidth="120" />
+            <ComboBox ItemsSource="{Binding CategoryLabels}"
+                      SelectedItem="{Binding CategoryLabel, Mode=TwoWay}"
+                      MinWidth="160" />
+            <ComboBox ItemsSource="{Binding RatingLabels}"
+                      SelectedItem="{Binding RatingLabel, Mode=TwoWay}"
+                      MinWidth="140" />
+            <CheckBox IsChecked="{Binding FavouritesOnly, Mode=TwoWay}" Content="Favourites only" />
+            <TextBlock Text="Sort by" VerticalAlignment="Center" Margin="12,0,0,0" />
+            <ComboBox ItemsSource="{Binding SortLabels}"
+                      SelectedItem="{Binding SortLabel, Mode=TwoWay}"
+                      MinWidth="100" />
+            <!-- One reversal toggle for all three orders rather than clickable column headers: the list below is
+                 a ListBox whose header row this file draws, so there is nothing to click, and "rating,
+                 descending" is what anybody wants of a rating every time. -->
+            <ToggleButton IsChecked="{Binding Descending, Mode=TwoWay}" Content="Reverse" Padding="8,2" />
+            <Button Content="Clear filters" Command="{Binding ClearFilters}" Padding="8,2" />
+        </StackPanel>
+
+        <!-- The tags in the library, each with a checkbox. Gathered from the files themselves, so a tag exists
+             exactly as long as something carries it. The ticks are AND-ed: two ticked tags asks for the sounds
+             carrying both, which is the one thing about a tag filter a user will assume either way, so it is
+             said here as well as in the model. Collapses entirely when nothing is tagged. -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Spacing="8"
+                    IsVisible="{Binding HasTags}">
+            <TextBlock Text="Tags (all of the ticked ones):" VerticalAlignment="Center"
+                       Foreground="{StaticResource SnMutedTextBrush}" />
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
+                          MaxWidth="1100">
+                <ItemsControl ItemsSource="{Binding Tags}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" Spacing="10" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:LibraryTagViewModel">
+                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                      Content="{Binding Name}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </StackPanel>
+
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+
+            <!-- The list. A ListBox with a header row rather than a DataGrid: a DataGrid's column bindings are
+                 resolved at runtime (they are not Controls, so the XAML compiler leaves them alone), and on this
+                 branch the build is the only check every binding gets. Inside an ItemTemplate with an x:DataType,
+                 every path below is compiled and a wrong property name is a build error.
+
+                 The header and the rows share one column layout, so it is written twice and has to agree; the
+                 header's right margin is the width Avalonia reserves for the vertical scrollbar (see the
+                 ScrollViewer style in App.axaml, which turns auto-hide off exactly so that the bar does not
+                 float over the last column). Tags is last and elastic, so any residual disagreement lands on the
+                 one column where a few pixels cannot be seen. -->
+            <Grid Grid.Column="0" RowDefinitions="Auto,*">
+                <Grid Grid.Row="0"
+                      ColumnDefinitions="28,2*,110,140,80,130,3*"
+                      Margin="4,0,16,4">
+                    <TextBlock Grid.Column="0" Text="♥" Foreground="{StaticResource SnMutedTextBrush}" />
+                    <TextBlock Grid.Column="1" Text="Name" FontWeight="Bold" />
+                    <TextBlock Grid.Column="2" Text="Kind" FontWeight="Bold" />
+                    <TextBlock Grid.Column="3" Text="Category" FontWeight="Bold" />
+                    <TextBlock Grid.Column="4" Text="Rating" FontWeight="Bold" />
+                    <TextBlock Grid.Column="5" Text="Date" FontWeight="Bold" />
+                    <TextBlock Grid.Column="6" Text="Tags" FontWeight="Bold" />
+                </Grid>
+
+                <ListBox Grid.Row="1"
+                         ItemsSource="{Binding Entries}"
+                         SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
+                         SelectionMode="Single">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:LibraryEntryViewModel">
+                            <Grid ColumnDefinitions="28,2*,110,140,80,130,3*">
+                                <TextBlock Grid.Column="0" Text="{Binding FavouriteMark}"
+                                           Foreground="{StaticResource SnRatingStarBrush}" />
+                                <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="2" Text="{Binding Kind}"
+                                           Foreground="{StaticResource SnMutedTextBrush}" />
+                                <TextBlock Grid.Column="3" Text="{Binding Category}"
+                                           Foreground="{StaticResource SnMutedTextBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="4" Text="{Binding Stars}"
+                                           Foreground="{StaticResource SnRatingStarBrush}" />
+                                <TextBlock Grid.Column="5" Text="{Binding Modified}"
+                                           Foreground="{StaticResource SnMutedTextBrush}" />
+                                <TextBlock Grid.Column="6" Text="{Binding Tags}"
+                                           Foreground="{StaticResource SnMutedTextBrush}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+
+            <!-- What is selected, and everything about it that can be changed. Explicit Save rather than saving
+                 as it is typed: the metadata lives in the same file as ~1,500 parameter values, so every save
+                 rewrites the whole snapshot, and doing that per keystroke would be both slow and a lot of
+                 rewrites of a file the user may have no other copy of. -->
+            <Border Grid.Column="1"
+                    Width="380"
+                    Background="{StaticResource SnPanelBackgroundBrush}"
+                    BorderBrush="{StaticResource SnStatusBarBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="10">
+                <Panel>
+                    <TextBlock Text="Select a snapshot to see and change what it says about itself."
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               Foreground="{StaticResource SnMutedTextBrush}"
+                               IsVisible="{Binding !HasSelection}" />
+
+                    <ScrollViewer IsVisible="{Binding HasSelection}"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Orientation="Vertical" Spacing="6">
+                            <TextBlock Text="Name" Foreground="{StaticResource SnMutedTextBrush}" />
+                            <!-- The name inside the snapshot, which is not the file's own name: renaming here
+                                 changes what the library and the instrument call the sound and leaves the file
+                                 where it is, under the name the user gave it. -->
+                            <TextBox Text="{Binding EditName, Mode=TwoWay}" />
+
+                            <TextBlock Text="Category" Foreground="{StaticResource SnMutedTextBrush}" />
+                            <!-- Disabled for a Studio Set, which is sixteen parts each with a category of its
+                                 own and has no single one to name. Disabled rather than hidden so that a
+                                 hand-edited file which does carry one still shows what it says. -->
+                            <ComboBox ItemsSource="{Binding EditCategoryLabels}"
+                                      SelectedItem="{Binding EditCategoryLabel, Mode=TwoWay}"
+                                      IsEnabled="{Binding SelectedIsTone}"
+                                      HorizontalAlignment="Stretch" />
+
+                            <TextBlock Text="Tags, separated by commas"
+                                       Foreground="{StaticResource SnMutedTextBrush}" />
+                            <TextBox Text="{Binding EditTags, Mode=TwoWay}" />
+
+                            <TextBlock Text="Notes" Foreground="{StaticResource SnMutedTextBrush}" />
+                            <TextBox Text="{Binding EditNotes, Mode=TwoWay}"
+                                     AcceptsReturn="True"
+                                     TextWrapping="Wrap"
+                                     Height="110" />
+
+                            <TextBlock Text="Rating" Foreground="{StaticResource SnMutedTextBrush}" />
+                            <local:RatingView DataContext="{Binding EditRating}" />
+
+                            <CheckBox IsChecked="{Binding EditFavourite, Mode=TwoWay}" Content="Favourite" />
+
+                            <Button Content="Save changes"
+                                    Command="{Binding SaveChanges}"
+                                    IsEnabled="{Binding CanSaveChanges}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center"
+                                    Margin="0,6,0,0" />
+
+                            <!-- Load goes through the window's own restore paths, so a tone still refuses to go
+                                 into a part holding a different engine, with the message it already gives. The
+                                 line under the button is that condition said before it is hit, because the
+                                 remedy — select a part holding that kind of tone — is not obvious from the
+                                 refusal alone. -->
+                            <Button Content="Load into the instrument"
+                                    Command="{Binding LoadSelectedAsync}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center" />
+                            <TextBlock Text="A Studio Set replaces the one in the instrument. A tone goes into the part selected on the Parameters tab, which must already hold a tone of the same kind."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource SnMutedTextBrush}" />
+                        </StackPanel>
+                    </ScrollViewer>
+                </Panel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

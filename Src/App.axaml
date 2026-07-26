@@ -95,6 +95,11 @@
             <SolidColorBrush x:Key="LayerMapZoneBrush" Color="#6b8dff"/>
             <!-- The part number in each lane: primary text, over a translucent range fill on a dark ground. -->
             <SolidColorBrush x:Key="LayerMapLabelBrush" Color="White"/>
+            <!-- The library's rating stars, filled and hollow alike: the glyph says which it is, so one brush is
+                 enough and a lit star cannot end up a different hue from an unlit one. The same amber the filter
+                 envelope and its knobs use, because it is the one accent in the palette that reads as a
+                 highlight rather than as a category. -->
+            <SolidColorBrush x:Key="SnRatingStarBrush" Color="#E0A23D"/>
             <!-- Drum note-rail key palette (SN-Drums + PCM-Drums). -->
             <SolidColorBrush x:Key="DrumWhiteKeyBrush" Color="#c8ccce"/>
             <SolidColorBrush x:Key="DrumBlackKeyBrush" Color="#23262a"/>

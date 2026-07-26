@@ -97,122 +97,159 @@
             <TabItem Header="Parameters">
                 <Grid ColumnDefinitions="*"
                       RowDefinitions="Auto,*">
-                    <StackPanel Grid.Row="0"
-                                Orientation="Horizontal"
-                                Spacing="20">
-                        <Button IsEnabled="{Binding RescanButtonEnabled}"
-                                Command="{Binding RescanMidiDevicesAsync}">
-                            Rescan Midi Devices
-                        </Button>
-                        <Button Command="{Binding PlayNoteAsync}">
-                            <Button.IsEnabled>
-                                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                    <MultiBinding.Bindings>
-                                        <Binding Path="Connected" />
-                                        <Binding Path="!IsSyncing" />
-                                    </MultiBinding.Bindings>
-                                </MultiBinding>
-                            </Button.IsEnabled>
-                            Play Note
-                        </Button>
-                        <Button Command="{Binding PlayPhraseAsync}">
-                            <Button.IsEnabled>
-                                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                    <MultiBinding.Bindings>
-                                        <Binding Path="Connected" />
-                                        <Binding Path="!IsSyncing" />
-                                    </MultiBinding.Bindings>
-                                </MultiBinding>
-                            </Button.IsEnabled>
-                            Play Phrase
-                        </Button>
-                        <Button Command="{Binding StopPhraseAsync}">
-                            <Button.IsEnabled>
-                                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                    <MultiBinding.Bindings>
-                                        <Binding Path="Connected" />
-                                        <Binding Path="!IsSyncing" />
-                                    </MultiBinding.Bindings>
-                                </MultiBinding>
-                            </Button.IsEnabled>
-                            Stop Phrase
-                        </Button>
-                        <Button Command="{Binding PanicAsync}"
-                                Background="Red"
-                                Foreground="White">
-                            <Button.IsEnabled>
-                                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                    <MultiBinding.Bindings>
-                                        <Binding Path="Connected" />
-                                        <Binding Path="!IsSyncing" />
-                                    </MultiBinding.Bindings>
-                                </MultiBinding>
-                            </Button.IsEnabled>
-                            Panic!
-                        </Button>
-                        <Button Command="{Binding SaveUserTone}">
-                            <Button.IsEnabled>
-                                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                    <MultiBinding.Bindings>
-                                        <Binding Path="Connected" />
-                                        <Binding Path="!IsSyncing" />
-                                        <Binding Path="CurrentPartIsNotCommonPart" />
-                                    </MultiBinding.Bindings>
-                                </MultiBinding>
-                            </Button.IsEnabled>
-                            Save User Tone
-                        </Button>
-                        <Button Command="{Binding SaveStudioSetAsync}"
-                                ToolTip.Tip="Read the Studio Set currently in the instrument — its common settings, effects and all 16 parts — and write it to a file.">
-                            <Button.IsEnabled>
-                                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                    <MultiBinding.Bindings>
-                                        <Binding Path="Connected" />
-                                        <Binding Path="!IsSyncing" />
-                                    </MultiBinding.Bindings>
-                                </MultiBinding>
-                            </Button.IsEnabled>
-                            Save Studio Set…
-                        </Button>
-                        <Button Command="{Binding LoadStudioSetAsync}"
-                                ToolTip.Tip="Write a saved Studio Set back into the instrument. This overwrites the Studio Set currently loaded there, including any edits you have not saved.">
-                            <Button.IsEnabled>
-                                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                    <MultiBinding.Bindings>
-                                        <Binding Path="Connected" />
-                                        <Binding Path="!IsSyncing" />
-                                    </MultiBinding.Bindings>
-                                </MultiBinding>
-                            </Button.IsEnabled>
-                            Load Studio Set…
-                        </Button>
-                        <Button Command="{Binding SaveToneAsync}"
-                                ToolTip.Tip="Read the tone currently loaded into the selected part — every one of its parameters — and write it to a file.">
-                            <Button.IsEnabled>
-                                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                    <MultiBinding.Bindings>
-                                        <Binding Path="Connected" />
-                                        <Binding Path="!IsSyncing" />
-                                        <Binding Path="CurrentPartIsNotCommonPart" />
-                                    </MultiBinding.Bindings>
-                                </MultiBinding>
-                            </Button.IsEnabled>
-                            Save Tone…
-                        </Button>
-                        <Button Command="{Binding LoadToneAsync}"
-                                ToolTip.Tip="Write a saved tone into the selected part. This overwrites the tone currently in that part, including any edits you have not saved, and the part must already hold a tone of the same kind — select a preset of that kind on it first.">
-                            <Button.IsEnabled>
-                                <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                    <MultiBinding.Bindings>
-                                        <Binding Path="Connected" />
-                                        <Binding Path="!IsSyncing" />
-                                        <Binding Path="CurrentPartIsNotCommonPart" />
-                                    </MultiBinding.Bindings>
-                                </MultiBinding>
-                            </Button.IsEnabled>
-                            Load Tone…
-                        </Button>
-                    </StackPanel>
+                    <!-- The toolbar scrolls sideways rather than clipping. It is a fixed row of twelve buttons
+                         now that both saves have an Export beside them, which at a narrow window width put the
+                         last of them past the right edge with nothing to reach them by; a StackPanel does not
+                         clip visibly, so the button was simply not there. Vertical scrolling is off so the row
+                         cannot grow, and the horizontal bar only appears when it is needed. -->
+                    <ScrollViewer Grid.Row="0"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Disabled">
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="12">
+                            <Button IsEnabled="{Binding RescanButtonEnabled}"
+                                    Command="{Binding RescanMidiDevicesAsync}">
+                                Rescan Midi Devices
+                            </Button>
+                            <Button Command="{Binding PlayNoteAsync}">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Play Note
+                            </Button>
+                            <Button Command="{Binding PlayPhraseAsync}">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Play Phrase
+                            </Button>
+                            <Button Command="{Binding StopPhraseAsync}">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Stop Phrase
+                            </Button>
+                            <Button Command="{Binding PanicAsync}"
+                                    Background="Red"
+                                    Foreground="White">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Panic!
+                            </Button>
+                            <Button Command="{Binding SaveUserTone}">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                            <Binding Path="CurrentPartIsNotCommonPart" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Save User Tone
+                            </Button>
+                            <!-- Save writes into the library — searchable, filterable, one folder to back up — and
+                                 Export writes a snapshot file wherever the user likes. Both read the same 53 blocks
+                                 out of the instrument; they differ only in where the file lands and in whether a
+                                 name, category, tags and a rating are asked for first. -->
+                            <Button Command="{Binding SaveStudioSetAsync}"
+                                    ToolTip.Tip="Read the Studio Set currently in the instrument — its common settings, effects and all 16 parts — and save it into the library.">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Save Studio Set…
+                            </Button>
+                            <Button Command="{Binding ExportStudioSetAsync}"
+                                    ToolTip.Tip="Read the Studio Set currently in the instrument and write it to a file anywhere you like, outside the library.">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Export Studio Set…
+                            </Button>
+                            <Button Command="{Binding LoadStudioSetAsync}"
+                                    ToolTip.Tip="Write a saved Studio Set back into the instrument. This overwrites the Studio Set currently loaded there, including any edits you have not saved.">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Load Studio Set…
+                            </Button>
+                            <Button Command="{Binding SaveToneAsync}"
+                                    ToolTip.Tip="Read the tone currently loaded into the selected part — every one of its parameters — and save it into the library.">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                            <Binding Path="CurrentPartIsNotCommonPart" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Save Tone…
+                            </Button>
+                            <Button Command="{Binding ExportToneAsync}"
+                                    ToolTip.Tip="Read the tone currently loaded into the selected part and write it to a file anywhere you like, outside the library.">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                            <Binding Path="CurrentPartIsNotCommonPart" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Export Tone…
+                            </Button>
+                            <Button Command="{Binding LoadToneAsync}"
+                                    ToolTip.Tip="Write a saved tone into the selected part. This overwrites the tone currently in that part, including any edits you have not saved, and the part must already hold a tone of the same kind — select a preset of that kind on it first.">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                            <Binding Path="CurrentPartIsNotCommonPart" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Load Tone…
+                            </Button>
+                        </StackPanel>
+                    </ScrollViewer>
                     <TabControl HorizontalContentAlignment="Left"
                                 TabStripPlacement="Left"
                                 Grid.Row="1"
@@ -593,12 +630,14 @@
                     </TabControl>
                 </Grid>
             </TabItem>
-            <!-- Order: Parameters, Mixer, Layers, Motional Surround, SRX Loader — how often each is reached
-                 for, most first. Parameters stays index 0 because OpenPartTab, OpenCommonTab and
+            <!-- Order: Parameters, Mixer, Layers, Library, Motional Surround, SRX Loader — how often each is
+                 reached for, most first. Parameters stays index 0 because OpenPartTab, OpenCommonTab and
                  OpenPartSetPartTab navigate to it by index; nothing else in the application depends on the
                  position of any of the others. Layers sits beside Mixer because the two answer neighbouring
                  questions about the same sixteen parts: how loud each one is, and where on the keyboard it
-                 answers. -->
+                 answers. Library comes after them because it is the one tab that is about files rather than
+                 about the sound currently in the instrument — and before Motional Surround because a saved
+                 sound is reached for far more often than a spatial layout. -->
             <TabItem Header="Mixer">
                 <Panel>
                     <Panel IsVisible="{Binding MixerVm, Converter={x:Static conv:ObjectConverters.IsNotNull}}">
@@ -618,6 +657,13 @@
                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                IsVisible="{Binding LayerMapVm, Converter={x:Static conv:ObjectConverters.IsNull}}" />
                 </Panel>
+            </TabItem>
+            <!-- No "connect your Integra-7" placeholder here, unlike the three tabs around it: the library is a
+                 folder of files, so browsing, searching, rating and annotating all work with nothing plugged
+                 in. Its view model is built once and never replaced, so there is nothing that can be null. Only
+                 its Load button needs the instrument, and it says so itself when there is none. -->
+            <TabItem Header="Library">
+                <local:LibraryView DataContext="{Binding LibraryVm}" />
             </TabItem>
             <TabItem Header="Motional Surround">
                 <Panel>
