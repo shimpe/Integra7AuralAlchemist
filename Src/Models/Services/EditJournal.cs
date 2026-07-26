@@ -400,9 +400,11 @@ public sealed class EditJournal
     /// one of its writes has landed.
     ///
     /// The steps come from the toggle rather than from the live lists: they are the steps whose writes just
-    /// went out, and coming back has to write exactly those forward again. The two cannot disagree today --
-    /// recording is suppressed for the whole of the writes and the caller holds the sync overlay up over
-    /// the press -- and taking them from the toggle means they still cannot if that changes.
+    /// went out, and coming back has to write exactly those forward again. The two genuinely can disagree --
+    /// recording is suppressed only over the writes themselves, and undo is reachable for the whole press
+    /// because <see cref="_isComparing"/> is not set until this method runs -- so the generation check above
+    /// is what makes that safe, and taking the steps from the toggle rather than from the lists is what
+    /// keeps this method honest about which steps its writes actually covered.
     ///
     /// False when the toggle was refused, which is not the same as nothing happening: its writes have
     /// already gone out, so the instrument is somewhere between the two sounds while the journal still says

@@ -134,9 +134,12 @@ public partial class MainWindowViewModel : ViewModelBase
     /// and the wrappers pick that up through <c>SynthParam</c>'s model subscription. What the user hears
     /// and what the screen shows do not come apart.
     ///
-    /// The overlay is up for the whole press. A long session's history is hundreds of writes, and the
-    /// journal's two-phase toggle assumes nothing else touches the history in between -- which the overlay
-    /// is what guarantees, since it takes the buttons out of reach.</summary>
+    /// A long session's history is hundreds of writes, and the journal's two-phase toggle spans all of them
+    /// -- so something else can move the history in between, and what protects the press is the toggle's
+    /// generation stamp, not the overlay. The overlay is up throughout, but it covers the tab area only (it
+    /// is a Border in the window's second grid row, the status bar is the third), so the buttons beside this
+    /// one stay clickable; the status bar's Undo and Redo are additionally disabled while syncing, which is
+    /// what keeps the ordinary case out of the way rather than merely detected.</summary>
     [ReactiveCommand]
     public async Task CompareAsync()
     {
@@ -161,14 +164,23 @@ public partial class MainWindowViewModel : ViewModelBase
             }
             else if (!EditJournal.Default.CommitCompareToggle(toggle))
             {
-                // The history changed shape while the writes were going out -- a preset or Studio Set
-                // change arriving from the device clears it, an edit made while Compare waited for the wire
-                // adds to it -- so the toggle described a history that is no longer there and the journal
-                // refused it. Those writes did land, so the instrument is between the two sounds; a fresh
-                // press recomputes from the history that is really there and converges on one of them.
+                // The history changed shape while the writes were going out, so the toggle described a
+                // history that is no longer there and the journal refused it. Those writes did land, so the
+                // instrument is between the two sounds.
+                //
+                // Which of the two causes it was decides what the user can do about it, so the message has
+                // to ask rather than guess. An edit recorded during the press leaves the history there and
+                // a fresh press recomputes from it and converges -- that is worth saying. A Clear (a preset
+                // change, or a Studio Set change arriving from the front panel) takes the history away
+                // entirely, and then a second press does nothing at all: CanCompare is false and the guard
+                // at the top of this method returns before writing anything. Telling them to press it again
+                // would be advice that silently fails.
                 SnapshotFailed = true;
-                SnapshotStatus = "Compare was interrupted by another change, so the press was abandoned. " +
-                                 "Press it again to settle on one of the two sounds.";
+                SnapshotStatus = EditJournal.Default.CanCompare
+                    ? "Compare was interrupted by another edit, so the press was abandoned. Press it again " +
+                      "to settle on one of the two sounds."
+                    : "Compare was interrupted: the sound it was comparing has been replaced, so there is " +
+                      "nothing left to compare. The instrument holds part of what Compare had written.";
             }
             else
             {
@@ -207,11 +219,19 @@ public partial class MainWindowViewModel : ViewModelBase
         return true;
     }
 
-    /// <summary>What a set of steps is about to write, short enough for a log line and a lease label. One
-    /// step names its parameters; a whole history would name hundreds, so it is counted instead.</summary>
+    /// <summary>What a set of steps is about to write, short enough for a log line and a lease label.
+    ///
+    /// One step names its parameters and the values they are getting -- <c>PendingEdit.Description</c>,
+    /// the same text the action log carries for a successful undo. This is the only record of a write that
+    /// threw part-way (see the catch in <see cref="ApplyEditsAsync"/> and the one in
+    /// <see cref="ResyncDependentsAsync"/>), so it must not say less than the success path does: which
+    /// parameters were touched, without the values, leaves out exactly what a partial write needs
+    /// diagnosing with.
+    ///
+    /// A whole history would name hundreds, so it is counted instead.</summary>
     private static string Describe(IReadOnlyList<PendingEdit> steps) =>
         steps.Count == 1
-            ? string.Join(", ", steps[0].Step.Changes.Select(c => c.Path))
+            ? steps[0].Description
             : $"{steps.Sum(s => s.Step.Changes.Count)} changes in {steps.Count} steps";
 
     /// <summary>Write journal steps back to the instrument: every change of every step, in the order the
