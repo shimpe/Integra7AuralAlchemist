@@ -46,12 +46,16 @@ public class Integra7SnapshotTests
     [Test]
     public void Rejects_the_next_format_version_up()
     {
-        // 3 is the version an off-by-one or a "<=" would most easily let through, and the one a future
-        // build will really write, carrying fields this build would silently ignore.
-        var json = Integra7Snapshot.ToJson(Sample() with { FormatVersion = 3 });
+        // One past the current version is what an off-by-one or a "<=" would most easily let through, and
+        // it is the version a future build will really write, carrying fields this build would silently
+        // ignore. Written as an offset from the constant rather than as a literal: this test read "3" while
+        // the current version was 2, and became a test that the current version is refused the moment the
+        // format moved to 3 -- which is exactly the failure it exists to prevent, aimed at itself.
+        const int next = Integra7Snapshot.CurrentFormatVersion + 1;
+        var json = Integra7Snapshot.ToJson(Sample() with { FormatVersion = next });
 
         var e = Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson(json));
-        Assert.That(e!.Message, Does.Contain("3"));
+        Assert.That(e!.Message, Does.Contain(next.ToString()));
     }
 
     /// <summary>The on-disk shape of a version 1 file: display strings only, no Raw anywhere. Written
@@ -84,37 +88,43 @@ public class Integra7SnapshotTests
         // weak way.
         var e = Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson(VersionOneFile));
 
-        Assert.That(e!.Message, Does.Contain("1"));
-        Assert.That(e.Message, Does.Contain("2"));
+        Assert.That(e!.Message, Does.Contain("1"), "the message has to name the version it found");
+        Assert.That(e.Message, Does.Contain(Integra7Snapshot.CurrentFormatVersion.ToString()),
+            "and the version this build reads");
     }
 
-    /// <summary>A file exactly as one written before the record was renamed from StudioSetSnapshot to
-    /// Integra7Snapshot: hand-written, not serialised here, so it cannot accidentally acquire whatever
-    /// this build's type happens to emit. System.Text.Json records no .NET type name anywhere in the
-    /// document -- only the property names -- so the rename is invisible on disk and every file already
-    /// written keeps loading. This test is what says so rather than the claim being taken on trust.</summary>
-    private const string FileWrittenBeforeTheRename = """
+    /// <summary>A version 3 file written by hand rather than serialised here, so it cannot accidentally
+    /// acquire whatever this build's own writer happens to emit. The document names no .NET type
+    /// anywhere -- only property names, address names and parameter paths -- which is why the record could
+    /// be renamed from StudioSetSnapshot to Integra7Snapshot without any file noticing, and why it could be
+    /// renamed again. This is what says so rather than the claim being taken on trust.
+    ///
+    /// It carried the version 2 shape until the format moved to 3, when it stopped being a file this build
+    /// reads at all. Rewritten rather than dropped: what it is really for is a file no writer of this build
+    /// produced, and that is worth having whatever the current shape is.</summary>
+    private const string HandWrittenFile = """
         {
-          "FormatVersion": 2,
+          "FormatVersion": 3,
           "Name": "World Pop Set",
-          "Domains": [
-            {
-              "Start": "Temporary Studio Set",
-              "Offset": "Offset/Not Used",
-              "Offset2": "Offset2/Studio Set Common",
-              "Values": [
-                { "Path": "Studio Set Common/Studio Set Name", "Value": "World Pop Set", "Raw": null },
-                { "Path": "Studio Set Common/Studio Set Tempo", "Value": "120", "Raw": 120 }
-              ]
+          "Blocks": {
+            "Temporary Studio Set": {
+              "Offset/Not Used": {
+                "Offset2/Studio Set Common": {
+                  "Studio Set Common": {
+                    "Studio Set Name": "World Pop Set",
+                    "Studio Set Tempo": [120, "120"]
+                  }
+                }
+              }
             }
-          ]
+          }
         }
         """;
 
     [Test]
-    public void Still_loads_a_file_written_before_the_record_was_renamed()
+    public void Still_loads_a_file_this_builds_own_writer_did_not_produce()
     {
-        var restored = Integra7Snapshot.FromJson(FileWrittenBeforeTheRename);
+        var restored = Integra7Snapshot.FromJson(HandWrittenFile);
 
         Assert.That(restored.Name, Is.EqualTo("World Pop Set"));
         Assert.That(restored.Domains, Has.Count.EqualTo(1));
@@ -126,11 +136,11 @@ public class Integra7SnapshotTests
     [Test]
     public void Reads_a_file_with_no_kind_as_a_studio_set()
     {
-        // The same hand-written file: it predates Kind existing, so it has no such property, and
-        // System.Text.Json fills the missing constructor parameter with the default. That default being
-        // the Studio Set is the only thing that keeps every file already on disk readable -- if it were
-        // anything else, or if Kind were required, all of them would now be refused or misread.
-        var restored = Integra7Snapshot.FromJson(FileWrittenBeforeTheRename);
+        // The same hand-written file, which carries no Kind property at all, so the reader falls back to
+        // the record's default. That default being the Studio Set is what keeps a file that says nothing
+        // about its kind readable as the Studio Set it is -- if it were anything else, or if Kind were
+        // required, such a file would be refused or misread.
+        var restored = Integra7Snapshot.FromJson(HandWrittenFile);
 
         Assert.That(restored.Kind, Is.EqualTo(SnapshotKinds.StudioSet));
         Assert.That(restored.ToneType, Is.Null, "a Studio Set has no single engine to name");
@@ -142,10 +152,10 @@ public class Integra7SnapshotTests
         // A file that says "tone" but names no engine cannot be restored to anything: the engine is what
         // decides which blocks the tone is even made of.
         var e = Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson($$"""
-            {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Kind":"tone","Domains":[
-                {"Start":"Temporary Tone Part 1","Offset":"Offset/Temporary SuperNATURAL Synth Tone",
-                 "Offset2":"Offset2/SuperNATURAL Synth Tone Common","Values":[{"Path":"p","Value":"v"}]}
-            ]}
+            {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Kind":"tone","Blocks":{
+                "Temporary Tone Part 1": { "Offset/Temporary SuperNATURAL Synth Tone": {
+                    "Offset2/SuperNATURAL Synth Tone Common": { "p": "v" } } }
+            } }
             """));
 
         Assert.That(e!.Message, Does.Contain("tone type"));
@@ -157,10 +167,9 @@ public class Integra7SnapshotTests
         // Naming an engine is not enough -- it has to be one ToneDomainNames can build a block list for.
         var e = Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson($$"""
             {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Kind":"tone",
-             "ToneType":"SN-Z","Domains":[
-                {"Start":"Temporary Tone Part 1","Offset":"o","Offset2":"o2",
-                 "Values":[{"Path":"p","Value":"v"}]}
-            ]}
+             "ToneType":"SN-Z","Blocks":{
+                "Temporary Tone Part 1": { "o": { "o2": { "p": "v" } } }
+            } }
             """));
 
         Assert.That(e!.Message, Does.Contain("SN-Z"));
@@ -173,7 +182,7 @@ public class Integra7SnapshotTests
         // apply its blocks somewhere they do not belong.
         var e = Assert.Throws<SnapshotFormatException>(() => Integra7Snapshot.FromJson($$"""
             {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Kind":"drum-map",
-             "Domains":[{"Start":"s","Offset":"o","Offset2":"o2","Values":[{"Path":"p","Value":"v"}]}]}
+             "Blocks":{"s":{"o":{"o2":{"p":"v"} } } } }
             """));
 
         Assert.That(e!.Message, Does.Contain("drum-map"));
@@ -194,7 +203,7 @@ public class Integra7SnapshotTests
         var json = Integra7Snapshot.ToJson(snapshot);
         var restored = Integra7Snapshot.FromJson(json);
 
-        Assert.That(restored.FormatVersion, Is.EqualTo(2));
+        Assert.That(restored.FormatVersion, Is.EqualTo(Integra7Snapshot.CurrentFormatVersion));
         Assert.That(restored.Domains[0].Values[0].Raw, Is.EqualTo(1));
         Assert.That(restored.Domains[0].Values[0].Value, Is.EqualTo("Room1"),
             "the display string stays in the file: these are meant to be read and diffed");
@@ -238,14 +247,31 @@ public class Integra7SnapshotTests
             () => Integra7Snapshot.FromJson($$"""{"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}}}"""));
     }
 
+    /// <summary>Restoring calls GetDomain(Start, Offset, Offset2) directly, and GetDomain does not throw
+    /// for an address triple it cannot resolve -- it logs and silently falls back to an unrelated block,
+    /// whose parameters then get written to the instrument.
+    ///
+    /// This asked for a block with a null address until the format moved to version 3, where an address
+    /// name is an object key and a JSON object key cannot be null. What is left reachable is something
+    /// other than an object sitting at an address level, which is what this asks for now. A level that is
+    /// simply *missing* is deliberately not claimed here, because nothing in the document could tell it
+    /// apart: a file nested two addresses deep whose block object holds one parameter object is, token for
+    /// token, a file nested three deep whose parameter paths contain no '/' -- and that second shape is
+    /// legal. <c>StudioSetSnapshotService.ValidateBlocksAreKnown</c> is what refuses that one, before any
+    /// read or write, by checking the triple against StudioSetDomainNames.All.</summary>
     [Test]
-    public void Rejects_a_domain_with_no_address()
+    public void Rejects_a_block_whose_address_level_is_not_an_object()
     {
-        // Restoring calls GetDomain(Start, Offset, Offset2) directly; a null there is a
-        // NullReferenceException the moment restore runs, not a graceful failure.
         Assert.Throws<SnapshotFormatException>(
             () => Integra7Snapshot.FromJson($$"""
-                {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Domains":[{"Values":[]}]}
+                {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x",
+                 "Blocks":{"Temporary Studio Set":{"Offset/Not Used":"oops"} } }
+                """));
+
+        Assert.Throws<SnapshotFormatException>(
+            () => Integra7Snapshot.FromJson($$"""
+                {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x",
+                 "Blocks":{"Temporary Studio Set":{"Offset/Not Used":{"Offset2/Studio Set Common":3} } } }
                 """));
     }
 
@@ -253,23 +279,24 @@ public class Integra7SnapshotTests
     public void Rejects_a_parameter_with_no_value()
     {
         // Restoring calls ModifySingleParameterDisplayedValue(Path, Value) directly; a null Value
-        // there is a NullReferenceException the moment restore runs.
+        // there is a NullReferenceException the moment restore runs. The version 3 reader deliberately
+        // keeps such a null rather than dropping the parameter, so that FromJson's contents check is what
+        // refuses it -- one place that judges a file, rather than two.
         Assert.Throws<SnapshotFormatException>(
             () => Integra7Snapshot.FromJson($$"""
-                {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Domains":[
-                    {"Start":"s","Offset":"o","Offset2":"o2","Values":[{"Path":"p"}]}
-                ]}
+                {"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x",
+                 "Blocks":{"s":{"o":{"o2":{"p":null} } } } }
                 """));
     }
 
     [Test]
     public void Rejects_a_snapshot_with_no_blocks()
     {
-        // A captured Studio Set always has blocks. An empty list means a truncated capture, and
+        // A captured Studio Set always has blocks. An empty object means a truncated capture, and
         // restoring it would silently do nothing.
         Assert.Throws<SnapshotFormatException>(
             () => Integra7Snapshot.FromJson(
-                $$"""{"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Domains":[]}"""));
+                $$"""{"FormatVersion":{{Integra7Snapshot.CurrentFormatVersion}},"Name":"x","Blocks":{ } }"""));
     }
 }
 
@@ -562,7 +589,7 @@ public class StudioSetSnapshotServiceTests
 
         var snapshot = await StudioSetSnapshotService.CaptureAsync(domain, "x", NoRealMidi());
 
-        Assert.That(snapshot.FormatVersion, Is.EqualTo(2));
+        Assert.That(snapshot.FormatVersion, Is.EqualTo(Integra7Snapshot.CurrentFormatVersion));
         var common = snapshot.Domains[0].Values;
         // Every numeric and discrete parameter carries a raw value; only text ones do not.
         Assert.That(common.Find(v => v.Path == "Studio Set Common/Studio Set Tempo")!.Raw, Is.Not.Null);

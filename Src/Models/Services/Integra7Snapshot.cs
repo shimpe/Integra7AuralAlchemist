@@ -47,7 +47,16 @@ public sealed record SnapshotDomain(string Start, string Offset, string Offset2,
 /// Version 1 is deliberately NOT read. It stored no raw values, so restoring one would run the old
 /// path with the old exposure, and no version 1 file was ever released -- the format changed while the
 /// feature was still being verified. Refusing with a message that names the version is better than
-/// silently restoring through the weaker path.</summary>
+/// silently restoring through the weaker path.
+///
+/// Format version 3 keeps every one of those decisions and changes only the shape on disk: the values
+/// nest by the three address names and then by the parameter path's own '/', which makes a Studio Set
+/// file about a third of its former size and makes a one-parameter change a one-line diff under a
+/// heading that says where it is. <see cref="SnapshotJsonConverter"/> is that shape and carries the
+/// reasoning for it; this record and everything that consumes it are unchanged, which is what made the
+/// change a small one. Version 2 is refused for the same reason version 1 is, minus the danger: no
+/// version 2 file was ever released either, so there is nothing to stay compatible with, and a build
+/// that reads one shape should say so rather than read half a file.</summary>
 /// <param name="Kind">What this file holds -- one of <see cref="SnapshotKinds"/>. Defaults to
 /// <see cref="SnapshotKinds.StudioSet"/>, and that default is load-bearing rather than a convenience:
 /// a file written before tones existed carries no <c>Kind</c> property at all, System.Text.Json fills
@@ -63,9 +72,16 @@ public sealed record Integra7Snapshot(
     string Kind = SnapshotKinds.StudioSet,
     string? ToneType = null)
 {
-    public const int CurrentFormatVersion = 2;
+    public const int CurrentFormatVersion = 3;
 
-    private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
+    /// <summary>The converter is what decides the shape of the file, including that the parameter data is
+    /// written last. Registered here rather than by attribute so that both directions go through the same
+    /// options object and cannot drift apart.</summary>
+    private static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        Converters = { new SnapshotJsonConverter() },
+    };
 
     /// <summary>Indented deliberately: these files are meant to be read and diffed.</summary>
     public static string ToJson(Integra7Snapshot snapshot) => JsonSerializer.Serialize(snapshot, Options);
@@ -102,6 +118,15 @@ public sealed record Integra7Snapshot(
         // optional by design: a text parameter has no raw form, so a null there is not a gap -- it is
         // the documented "no raw value, restore from the string". Adding it here would reject every
         // file that names a Studio Set.
+        // Version 3's shape makes some of these unreachable from a file rather than unnecessary, and they
+        // stay for that reason. An address name is now an object key, and a JSON object key cannot be
+        // null, so a block with a null Start, Offset or Offset2 can no longer be written by hand; the same
+        // goes for a null parameter path, which is now a key too, and for a null Values, which the reader
+        // always builds as a list. What that leaves reachable is a null Name, an absent or empty Blocks,
+        // and a null value (`"Studio Set Tempo": null`), which the converter deliberately keeps as a null
+        // rather than dropping so that this one condition is still what refuses it. Deleting the now-
+        // structural halves would save one expression and cost the property that this single check is
+        // where a snapshot's contents are judged, whatever shape a future version writes them in.
         // Kind and ToneType are absent from it for a different reason, and must also stay absent.
         // Kind's whole point is its default: a file written before tones existed has no Kind property,
         // so `default` -- SnapshotKinds.StudioSet -- is what makes it still read as the Studio Set it
