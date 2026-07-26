@@ -4,6 +4,7 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Data;
+using Avalonia.Input;
 using Avalonia.Media;
 using Integra7AuralAlchemist.Models.Services;
 
@@ -26,11 +27,13 @@ namespace Integra7AuralAlchemist.Controls;
 /// model owns the live parameter wrappers and hands over snapshots; this control knows nothing about view
 /// models at all.</para>
 ///
-/// <para>Drawing only, deliberately: pointer handling arrives separately, and the geometry it needs
-/// (<see cref="LayerMapGeometry.HitTest"/>, <see cref="LayerMapGeometry.ResolveDrag"/>) is already written and
-/// tested. There is no <c>ToolTip</c> here and there must never be one: a tooltip is a popup, it swallows
-/// clicks on the control it describes, and this chart is nothing but click targets. See the status-bar comment
-/// in <c>MainWindow.axaml</c> for what that cost the last time.</para></summary>
+/// <para>The pointer handling follows the same rule: a press is turned into a
+/// <see cref="LayerMapGeometry.HitTest"/>, a move into a <see cref="LayerMapGeometry.ResolveDrag"/>, and the
+/// result into one of three events. The control decides *what kind* of thing happened — a question, an edit, a
+/// navigation — and the geometry decides what the values become. There is no <c>ToolTip</c> here and there must
+/// never be one: a tooltip is a popup, it swallows clicks on the control it describes, and this chart is nothing
+/// but click targets. See the status-bar comment in <c>MainWindow.axaml</c> for what that cost the last
+/// time.</para></summary>
 public class LayerMapControl : Control
 {
     // ---- Palette -----------------------------------------------------------------------------------------
@@ -65,12 +68,11 @@ public class LayerMapControl : Control
     private const string SelectionKey = "SnCardSelectedBorderBrush";
 
     // ---- Fixed measurements ------------------------------------------------------------------------------
-
-    /// <summary>The strip along the bottom that holds the note names, below the lanes. Reserved rather than
-    /// written over the last lane, which is what the four-lane WMT map does: at sixteen lanes the bottom row is
-    /// as much real content as the other fifteen, and putting "C-1 C0 C1 …" through part 16's zone would make
-    /// one part permanently harder to read than the rest.</summary>
-    private const double AxisHeight = 16;
+    //
+    // The note-name strip's height is *not* here. It is LayerMapGeometry.AxisHeight, along with the reasoning
+    // for reserving a strip at all, because the drawing below and the pointer handling further down both have to
+    // subtract the identical value from Bounds.Height and a control-local copy is one edit away from disagreeing
+    // with the geometry the drags are resolved in.
 
     /// <summary>Note 60, middle C.</summary>
     private const int MiddleC = 60;
@@ -120,24 +122,97 @@ public class LayerMapControl : Control
         set => SetValue(SelectedPartProperty, value);
     }
 
+    // ---- Events ------------------------------------------------------------------------------------------
+    //
+    // Three events, rather than commands or a reference to a view model, for the same reason the control takes
+    // snapshots in: it is handed values and hands back what happened to them, and knows nothing about who is on
+    // the other end. That is what lets the view model own the live parameter wrappers, the throttled writer and
+    // the undo journal without any of it leaking into a file no test can reach.
+
+    /// <summary>A zone was dragged. Carries the whole new zone rather than a delta or a single edge, so the
+    /// handler writes values and does no arithmetic: every rule about what a drag *means* — an edge blocking at
+    /// its opposite instead of inverting the zone, a body move keeping its span at the chart edge — has already
+    /// been applied by <see cref="LayerMapGeometry.ResolveDrag"/>, where a test can see it.
+    ///
+    /// <para>Raised repeatedly through a drag, once for each pointer move that resolves to values different from
+    /// the ones already sent. The handler is expected to write only the fields that actually changed, so a key
+    /// drag does not also rewrite an untouched velocity range.</para></summary>
+    public event EventHandler<LayerZoneEditedEventArgs>? ZoneEdited;
+
+    /// <summary>A zone was double-clicked: show that part's own tab. The chart says which parts overlap where;
+    /// changing anything but the four ranges happens on the part's own page, and this is the way there.</summary>
+    public event EventHandler<LayerPartEventArgs>? ZoneActivated;
+
+    /// <summary>A point in a lane was pressed: sound that part at that key and that velocity.
+    ///
+    /// <para>Raised for a press anywhere in a lane, <b>including outside the part's own zone</b>. A part that
+    /// does not answer the key or the velocity under the pointer stays silent, and that silence is the chart
+    /// answering "no, not here" — it is the map working, not a dropped note.</para></summary>
+    public event EventHandler<LayerAuditionEventArgs>? AuditionRequested;
+
+    // ---- Drag state --------------------------------------------------------------------------------------
+    //
+    // PmtZoneEditorControl's _dragZone / _dragHandle / _dragOrigPos triple, in parameter space instead of pixels.
+    // Values and not pixels on purpose: the geometry speaks in keys and velocity steps, and it is the only layer
+    // of this feature a test can reach, so a drag remembered as pixels would put the pixels-to-values conversion
+    // here, in the file nothing can check. It also makes a drag survive a resize mid-gesture — a remembered key
+    // still means the same key when the chart is narrower, where a remembered X means a different one.
+
+    /// <summary>The part whose zone is being dragged, or -1 when no drag is in progress. Every velocity question
+    /// asked during the drag is asked about <i>this</i> part, never about the lane under the pointer.</summary>
+    private int _dragPart = -1;
+
+    /// <summary>Which part of the zone was grabbed, and so what the movement will mean.</summary>
+    private PmtZoneMapping.Handle _dragHandle;
+
+    /// <summary>The zone as it was when the pointer went down. Every move resolves from this rather than from the
+    /// previous move, so the drag cannot accumulate rounding drift and bringing the pointer back to where it
+    /// started restores exactly the values that were there.</summary>
+    private LayerZone _dragOrigin;
+
+    /// <summary>Where the press landed, in keys and in velocity steps: the reference a <c>Body</c> drag measures
+    /// its shift from. Quantised once, at press, so a slow drag across a single key accumulates rather than
+    /// rounding to nothing on every move.</summary>
+    private int _dragKeyAtPress, _dragVelAtPress;
+
+    /// <summary>The last zone handed to <see cref="ZoneEdited"/>. A pointer moved a few pixels within one key and
+    /// one velocity step resolves to the values already sent; re-raising them would ask the view model to write
+    /// what it has just written, dozens of times a second, for a drag that has not yet crossed a boundary.
+    /// Correctness does not depend on this — the handler ignores unchanged fields anyway — but the throttle and
+    /// the journal have better things to do.</summary>
+    private LayerZone _dragLast;
+
+    /// <summary>One drag is one undo step, however slowly it is dragged and however many of the four values it
+    /// moves. A <see cref="PointerGesture"/> rather than an <see cref="EditGesture"/> directly, because the step
+    /// also has to close when the drag is <i>interrupted</i> — the window losing activation with the button still
+    /// down — and the <c>PointerCaptureLost</c> event that says so is Direct, so it reaches only the element that
+    /// held the capture. That class already knows this; the last capture-lost handler written from scratch in this
+    /// repository hung it where a Direct event never arrives, and a leaked gesture is not confined to the control
+    /// that leaked it — the depth counter lives on the ambient journal, so every later edit anywhere in the
+    /// application would fold into that one step.</summary>
+    private readonly PointerGesture _gesture = new();
+
     static LayerMapControl()
     {
         // A new list (the view model rebuilds it rather than mutating it, precisely so this works) or a new
         // selection redraws the chart.
         AffectsRender<LayerMapControl>(ZonesProperty, SelectedPartProperty);
 
-        // The lane height comes from the geometry and not from a number chosen here, so this control and the
-        // view that hosts it cannot disagree about how tall a legible lane is. The axis strip is added on top
-        // of it rather than taken out of it: the lanes tile only the area above the strip, so a control exactly
-        // LayerMapGeometry.MinHeight tall would give each lane a pixel less than MinLaneHeight.
-        MinHeightProperty.OverrideDefaultValue<LayerMapControl>(LayerMapGeometry.MinHeight + AxisHeight);
+        // Taken from the geometry whole, and not added to: LayerMapGeometry.MinHeight is a *total* — sixteen
+        // legible lanes and the note-name strip — so a control exactly this tall gets full-height lanes with the
+        // strip already paid for. Adding AxisHeight here would reserve the strip twice over, which costs sixteen
+        // pixels of dead space at the bottom of the chart and shows up as nothing at all: no build error, no
+        // failing test, just a chart that is slightly too tall for its content. The number to hand over is the
+        // number, and the reason it is a total lives in MinHeight's own comment.
+        MinHeightProperty.OverrideDefaultValue<LayerMapControl>(LayerMapGeometry.MinHeight);
     }
 
     /// <summary>The height the sixteen lanes tile — everything above the note-name strip. Every call into
     /// <see cref="LayerMapGeometry"/> is passed this and never <c>Bounds.Height</c>, or a zone would be drawn a
-    /// lane's-worth of a strip lower than the lane it belongs to. Pointer handling added later must use the
-    /// same value for the same reason.</summary>
-    private double ChartHeight => Math.Max(0, Bounds.Height - AxisHeight);
+    /// lane's-worth of a strip lower than the lane it belongs to. The pointer handling below uses the same value
+    /// for the same reason: a press hit-tested against a different height than the zones were drawn with lands
+    /// on the wrong lane near the bottom of the chart, and near-misses everywhere else.</summary>
+    private double ChartHeight => LayerMapGeometry.LaneAreaHeight(Bounds.Height);
 
     public override void Render(DrawingContext context)
     {
@@ -199,7 +274,10 @@ public class LayerMapControl : Control
             // too and the axis cannot disagree with the note names printed under it.
             if (!MidiNote.IsC(key)) continue;
 
-            var x = PmtZoneMapping.KeyToX(key, w);
+            // Through the geometry's own key axis, not PmtZoneMapping's, even though one forwards to the other:
+            // the axis this chart draws its gridlines on has to be the axis its presses are hit-tested against,
+            // and the way to guarantee that is for both to go through the one class.
+            var x = LayerMapGeometry.KeyX(key, w);
 
             // Every C *is* an octave boundary, so "heavier at the octaves" can only mean heavier than the other
             // lines the chart draws — the lane hairlines — which is what the axis brush over the grid brush
@@ -215,7 +293,8 @@ public class LayerMapControl : Control
             // that would collide with the one before it leaves a sparser but readable axis, where drawing them
             // all leaves an unreadable smear.
             if (x + LabelPad < labelRight) continue;
-            context.DrawText(name, new Point(x + LabelPad, chartH + (AxisHeight - name.Height) / 2));
+            context.DrawText(name, new Point(x + LabelPad,
+                chartH + (LayerMapGeometry.AxisHeight - name.Height) / 2));
             labelRight = x + LabelPad + name.Width;
         }
     }
@@ -333,6 +412,153 @@ public class LayerMapControl : Control
             lane.Deflate(SelectionThickness / 2));
     }
 
+    // ---- Interaction -------------------------------------------------------------------------------------
+
+    /// <summary>A press selects the part whose lane it landed in, and then does exactly one of three things:
+    /// opens that part's tab (a double-click), starts a drag (an edge of the zone, or its body), or asks the part
+    /// to sound the note under the pointer (anywhere else in the lane — and on the body too, since a press there
+    /// is a question until the pointer moves).</summary>
+    protected override void OnPointerPressed(PointerPressedEventArgs e)
+    {
+        base.OnPointerPressed(e);
+
+        // Left button only. A right or middle press has nothing to mean on this chart, and letting one open a
+        // drag would hand an undo gesture to a button whose release this control has no promise of seeing. The
+        // Motional Surround pucks check for the same reason.
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+
+        var zones = Zones;
+        double w = Bounds.Width, chartH = ChartHeight;
+        if (zones is null || w <= 0 || chartH <= 0) return;
+
+        var pos = e.GetPosition(this);
+        var (hitPart, handle) = LayerMapGeometry.HitTest(pos.X, pos.Y, zones, w, chartH,
+            LayerMapGeometry.HitMargin);
+
+        // No lane means the note-name strip or off the chart altogether: nothing to select, nothing to sound and
+        // above all no drag. A press on the axis must not edit part 16 merely because its lane is the one next
+        // to it — which is why the geometry answers null there rather than clamping to the nearest lane.
+        if (hitPart is not { } part) return;
+
+        // A press in a lane is a selection, whatever else it turns out to be. The property is TwoWay, so this is
+        // how the readout learns whose four numbers to show.
+        SelectedPart = part;
+        e.Handled = true;
+
+        // The second press of a double-click. Navigating away is the whole of what it means: no note, because the
+        // first click already sounded one and the tab is about to change under the user, and no drag, because the
+        // pointer is about to be over a chart that is no longer on screen. Tested with >= rather than == so the
+        // third press of a rapid triple-click — which reports 3 — does not fall through into a drag.
+        if (e.ClickCount >= 2)
+        {
+            ZoneActivated?.Invoke(this, new LayerPartEventArgs(part));
+            return;
+        }
+
+        // The press, in the units the geometry and the audition both speak. Read once and reused for both, so the
+        // note the user hears and the reference a body drag is measured from cannot be a key apart. The velocity is
+        // asked of the part whose lane was hit -- the same lane the box is drawn in, which is what makes a press
+        // low in a lane soft and high in it loud.
+        var keyAtPress = LayerMapGeometry.KeyAt(pos.X, w);
+        var velAtPress = LayerMapGeometry.VelocityAt(part, pos.Y, chartH);
+
+        // Anywhere in the lane except an edge. An edge press is a drag and not a question: sounding a note every
+        // time a split is nudged would be maddening, and the note would be the *old* range's answer anyway.
+        if (handle is PmtZoneMapping.Handle.None or PmtZoneMapping.Handle.Body)
+            AuditionRequested?.Invoke(this, new LayerAuditionEventArgs(part, keyAtPress, velAtPress));
+
+        // Handle.None is a press in the empty part of a lane — a question, and it has just been asked. There is
+        // no edge and no body under the pointer, so there is nothing to drag.
+        if (handle == PmtZoneMapping.Handle.None) return;
+
+        // The hit named a handle, so the list does hold a zone for this part; the geometry could not have found
+        // an edge otherwise. Belt and braces, because a null here would mean dragging a default-constructed zone
+        // — part 1, keys 0..0 — over the top of whatever the user actually grabbed.
+        if (ZoneOf(zones, part) is not { } origin) return;
+
+        // Captured on the control itself, so the drag survives the pointer leaving it: a velocity edge dragged to
+        // 127 leaves its lane at the top, and a key edge dragged to 0 leaves the chart at the left. Captured
+        // *before* the gesture opens, because moving the capture makes whoever held it lose it — and when that is
+        // already this control, a capture-lost handler attached any earlier would be woken by this press rather
+        // than by the end of this drag.
+        e.Pointer.Capture(this);
+        _gesture.Begin(this, EndDrag);
+
+        // After Begin and not before: Begin closes any gesture still held from an earlier press, and closing one
+        // runs its EndDrag — which would clear the drag being set up here.
+        _dragPart = part;
+        _dragHandle = handle;
+        _dragOrigin = origin;
+        _dragLast = origin;
+        _dragKeyAtPress = keyAtPress;
+        _dragVelAtPress = velAtPress;
+    }
+
+    /// <summary>A lookup, a call and a raise. What the movement means — which of the four values moves, where it
+    /// stops, what happens when it meets its opposite — is entirely
+    /// <see cref="LayerMapGeometry.ResolveDrag"/>'s, and there is deliberately no arithmetic here to disagree
+    /// with it.</summary>
+    protected override void OnPointerMoved(PointerEventArgs e)
+    {
+        base.OnPointerMoved(e);
+        if (_dragPart < 0) return;
+
+        double w = Bounds.Width, chartH = ChartHeight;
+        if (w <= 0 || chartH <= 0) return;
+
+        var pos = e.GetPosition(this);
+
+        // VelocityAt is asked about the part the drag was *captured* on and never about the lane under the
+        // pointer. It clamps a Y outside the lane it is given — 127 above, 0 below — which is exactly what a
+        // velocity drag wants: pushed past the top of the lane, the edge pins at 127. Asking
+        // VelocityAt(LaneAt(pos.Y)!, ...) instead would re-read the value in whichever neighbouring lane the
+        // pointer strayed into and silently retarget the drag onto a part the user never touched.
+        var keyNow = LayerMapGeometry.KeyAt(pos.X, w);
+        var velNow = LayerMapGeometry.VelocityAt(_dragPart, pos.Y, chartH);
+
+        var edited = LayerMapGeometry.ResolveDrag(_dragOrigin, _dragHandle, keyNow, velNow,
+            _dragKeyAtPress, _dragVelAtPress);
+
+        e.Handled = true;
+        if (edited == _dragLast) return; // still the same key and velocity step: nothing new to say
+        _dragLast = edited;
+        ZoneEdited?.Invoke(this, new LayerZoneEditedEventArgs(edited));
+    }
+
+    protected override void OnPointerReleased(PointerReleasedEventArgs e)
+    {
+        base.OnPointerReleased(e);
+        if (_dragPart < 0) return;
+
+        // Releasing the capture reaches EndDrag through the gesture's own capture-lost handler; End() is
+        // idempotent, so it does not matter which of the two arrives first, and the undo step closes exactly
+        // once either way. There is no OnPointerCaptureLost override here on purpose — PointerGesture holds that
+        // half, and a second hand-rolled copy of it is what went wrong the last time.
+        e.Pointer.Capture(null);
+        _gesture.End();
+        e.Handled = true;
+    }
+
+    /// <summary>Forget the drag in progress. Reached from the release and — through the gesture — from a capture
+    /// loss, because an interrupted drag has to clear this as well as a released one: left set, the next pointer
+    /// move across the chart would go on resizing a zone with no button held.</summary>
+    private void EndDrag()
+    {
+        _dragPart = -1;
+        _dragHandle = PmtZoneMapping.Handle.None;
+    }
+
+    /// <summary>The snapshot a part contributed, or null if the list holds none for it. Sixteen entries walked
+    /// once per press; the list arrives in any order, so there is no index to shortcut to.</summary>
+    private static LayerZone? ZoneOf(IReadOnlyList<LayerZone> zones, int part)
+    {
+        foreach (var zone in zones)
+            if (zone.PartNo == part)
+                return zone;
+
+        return null;
+    }
+
     // ---- Resources ---------------------------------------------------------------------------------------
 
     /// <summary>Every brush the chart draws with, resolved once per render.</summary>
@@ -365,4 +591,48 @@ public class LayerMapControl : Control
     /// <summary>The geometry speaks in its own rectangle so it can stay free of Avalonia and testable. This is
     /// the bridge, and deliberately the only place the two rectangle types meet.</summary>
     private static Rect ToRect(PmtZoneMapping.Rect r) => new(r.X, r.Y, r.W, r.H);
+}
+
+/// <summary>What a drag resolved to: the zone the handler should write, whole. Carrying the whole zone and not a
+/// delta or a changed edge is what keeps the arithmetic in <see cref="LayerMapGeometry.ResolveDrag"/> — the
+/// handler compares these values with the ones it holds and writes the differences, which is a task with no rules
+/// in it and so nothing to get wrong twice.</summary>
+public sealed class LayerZoneEditedEventArgs(LayerZone zone) : EventArgs
+{
+    /// <summary>The values as they should now be, <see cref="LayerZone.PartNo"/> included — the drag was captured
+    /// on one part and stays on it however far the pointer wanders, so the part travels with the values rather
+    /// than being re-derived at the other end.</summary>
+    public LayerZone Zone { get; } = zone;
+
+    /// <summary>Zero-based, and the same number as <c>Zone.PartNo</c>. Here so a handler that only needs to know
+    /// whose values these are does not have to reach through the snapshot for it.</summary>
+    public int PartNo => Zone.PartNo;
+}
+
+/// <summary>Which part a gesture was about, when that is all there is to say.</summary>
+public sealed class LayerPartEventArgs(int partNo) : EventArgs
+{
+    /// <summary>Zero-based, like <see cref="LayerZone.PartNo"/> and unlike the part numbers the user reads on the
+    /// chart. Every part index crossing this boundary is zero-based; the "+ 1" belongs at the display end, where
+    /// the label is built.</summary>
+    public int PartNo { get; } = partNo;
+}
+
+/// <summary>A note to sound so the user can hear whether a part answers where they pressed.
+///
+/// The velocity is the pointer's height within the lane — the same mapping that draws the box — so pressing low
+/// in a lane plays soft and high plays loud. Both numbers are what was pressed and not what the part accepts: a
+/// press outside the part's range is passed on unchanged, the part ignores it, and the silence is the answer.
+/// </summary>
+public sealed class LayerAuditionEventArgs(int partNo, int note, int velocity) : EventArgs
+{
+    /// <summary>Zero-based.</summary>
+    public int PartNo { get; } = partNo;
+
+    /// <summary>MIDI note number, 0..127.</summary>
+    public int Note { get; } = note;
+
+    /// <summary>MIDI velocity, 0..127. Zero is possible — the very bottom of a lane — and a note-on at velocity
+    /// zero is a note-off on the wire, so a handler that means to be heard has to say so.</summary>
+    public int Velocity { get; } = velocity;
 }

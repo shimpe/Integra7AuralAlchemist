@@ -64,9 +64,16 @@ public static class LayerMapGeometry
 
     /// <summary>The strip along the bottom of the chart that holds the note names, below the lanes.
     ///
+    /// A strip *reserved* below the lanes, rather than axis labels written over the content the way the
+    /// four-lane WMT and PMT maps write their velocity ticks straight onto the chart. Four lanes over the whole
+    /// height can spare the corner of one; at sixteen lanes the bottom row is as much real content as the other
+    /// fifteen, and running "C-1 C0 C1 …" through part 16's zone would make one part permanently harder to read
+    /// than the rest.
+    ///
     /// It lives here rather than in the control because both the drawing and the pointer handling have to
     /// subtract the identical value — if they disagree by even a pixel, every drag lands a fraction of a lane
-    /// off the zone it is drawn on.</summary>
+    /// off the zone it is drawn on. Which is also why the control must not keep a constant of its own beside
+    /// this one: two copies of a number that has to agree with itself is the whole failure mode.</summary>
     public const double AxisHeight = 16;
 
     /// <summary>The total height a control needs: sixteen legible lanes **and** the note-name strip. A control

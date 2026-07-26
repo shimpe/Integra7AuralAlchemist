@@ -1,3 +1,5 @@
+using Avalonia.Layout;
+using Integra7AuralAlchemist.Controls;
 using Integra7AuralAlchemist.Models.Services;
 
 namespace Tests;
@@ -358,5 +360,28 @@ public class LayerMapGeometryTests
         var handles = 2 * LayerMapGeometry.HitMargin;
         Assert.That(body, Is.GreaterThan(handles),
             "raising HitMargin means raising MinLaneHeight to match, not shipping a lane that is all handle");
+    }
+
+    [Test]
+    public void The_control_takes_MinHeight_whole_and_reserves_the_strip_once()
+    {
+        // The one thing about LayerMapControl a test in this repository can reach, and -- not coincidentally --
+        // the one thing about it that went wrong. Nothing here is instantiated, laid out or rendered, so no
+        // headless-Avalonia harness is involved: a styled property's default value is plain metadata registered
+        // by the control's static constructor, and reading it needs no Application.
+        //
+        // It is worth pinning because the failure was invisible. The control was first written against a MinHeight
+        // that excluded the note-name strip, and so set MinHeightProperty to MinHeight + AxisHeight. When the
+        // strip moved inside MinHeight the addition stayed, reserving the strip twice: 352 instead of 336, sixteen
+        // pixels of dead space under the last lane, no build error and no failing test. This fixture already
+        // asserts that MinHeight is a total; this asserts that its only caller treats it as one.
+        // Touching a static member first, because that is what runs the static constructor that registers the
+        // override -- typeof() alone does not, and the assertion below would then read the base Layoutable
+        // default of zero and pass for any control at all.
+        Assert.That(LayerMapControl.ZonesProperty, Is.Not.Null);
+
+        Assert.That(Layoutable.MinHeightProperty.GetDefaultValue(typeof(LayerMapControl)),
+            Is.EqualTo(LayerMapGeometry.MinHeight).Within(0.001),
+            "MinHeight already includes AxisHeight -- hand it over as-is, do not add the strip again");
     }
 }
