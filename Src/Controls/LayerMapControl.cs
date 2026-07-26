@@ -91,6 +91,13 @@ public class LayerMapControl : Control
     /// <summary>Breathing space between a label and whatever it sits against.</summary>
     private const double LabelPad = 4;
 
+    /// <summary>Below this many pixels per key, the per-note gridlines are dropped and only the octaves are
+    /// drawn. Four is where 128 hairlines stop being a grid and start being a tint over the whole chart —
+    /// which would sit *under* the zones and make the thing the user is actually reading harder to see. The
+    /// chart is 128 keys wide whatever its size, so this is a statement about the window, not the data: it
+    /// bites below roughly 500px of chart.</summary>
+    private const double MinKeyWidthForAllNotes = 4;
+
     /// <summary>How much of the chart's width a tone name may occupy before it is trimmed. The tone name is
     /// context; the ranges are the content, and a patch called "Ac.Piano 1 w/Strings PRO" must not paint over
     /// the part of the chart the user came here to read.</summary>
@@ -260,13 +267,39 @@ public class LayerMapControl : Control
         }
     }
 
-    /// <summary>The key axis: a line at every C, its note name in the strip beneath.</summary>
+    /// <summary>The key axis: a line at every note, heavier at every C, heaviest at middle C, and the C names
+    /// in the strip beneath.
+    ///
+    /// <para>Every note gets a line so a zone edge can be read as the key it is rather than as a position
+    /// between two octaves — the question this chart exists to answer is usually "where exactly does part 3
+    /// stop", and counting semitones off a C twelve keys away is not answering it.</para>
+    ///
+    /// <para>The per-note lines are dropped below <see cref="MinKeyWidthForAllNotes"/> pixels a key. At 128
+    /// keys across the chart they are ~10px apart on a maximised window and legible; on a narrow one they
+    /// close to a grey wash that hides the zones drawn over them, which is worse than not having them. The
+    /// octave lines never drop, so the axis degrades to what it was rather than to nothing.</para></summary>
     private static void DrawKeyAxis(DrawingContext context, in Palette palette, double w, double chartH,
         CultureInfo culture)
     {
         var octavePen = new Pen(palette.Octave);
         var anchorPen = new Pen(palette.Octave, OctaveAnchorThickness);
+        var semitonePen = new Pen(palette.Grid);
         var labelRight = double.NegativeInfinity;
+
+        // One key's width, which is what decides whether 128 lines help or smear. The geometry maps 0..127
+        // across the full width, so a key is that width over 127 steps.
+        var keyWidth = w / (PmtZoneMapping.Max - PmtZoneMapping.Min);
+        var allNotes = keyWidth >= MinKeyWidthForAllNotes;
+
+        if (allNotes)
+            for (var key = PmtZoneMapping.Min; key <= PmtZoneMapping.Max; key++)
+            {
+                // The C lines are drawn again below, heavier, so skipping them here keeps a C from being a
+                // faint line with a strong one on top of it -- which at one pixel reads as neither.
+                if (MidiNote.IsC(key)) continue;
+                var kx = LayerMapGeometry.KeyX(key, w);
+                context.DrawLine(semitonePen, new Point(kx, 0), new Point(kx, chartH));
+            }
 
         for (var key = PmtZoneMapping.Min; key <= PmtZoneMapping.Max; key++)
         {
