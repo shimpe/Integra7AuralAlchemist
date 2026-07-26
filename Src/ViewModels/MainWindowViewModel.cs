@@ -86,6 +86,167 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <see cref="ShowSaveSnapshotDialog"/> for why "" is a safe sentinel here.</summary>
     public Interaction<Unit, string?> ShowOpenSnapshotDialog { get; }
 
+    /// <summary>Whether the journal has anything left to take back, and anything to put back. Mirrored
+    /// onto the UI thread from <c>EditJournal.Changed</c> in the constructor, because the journal is
+    /// mutated from both the UI thread and the pool -- see <see cref="EditJournal"/>'s class remarks.
+    /// The toolbar buttons bind to these rather than to the commands' CanExecute: an empty history is
+    /// the whole reason to disable them, and the journal cannot fill while disconnected.</summary>
+    [Reactive] private bool _canUndo;
+
+    [Reactive] private bool _canRedo;
+
+    /// <summary>Take back the last edit the user made, from either editor.</summary>
+    [ReactiveCommand]
+    public async Task UndoAsync()
+    {
+        if (!EditJournal.Default.TryUndo(out var pending)) return;
+        UserActionLog.Action($"undo {pending.Description}");
+        // TryUndo has already moved the step to the redo side, so a write that never happened would
+        // leave the history describing an instrument state that was never reached. Moving it back is
+        // what TryRedo does, so the failure path is the opposite move rather than a special case.
+        if (!await ApplyEditAsync(pending)) EditJournal.Default.TryRedo(out _);
+    }
+
+    /// <summary>Put back the edit the last undo took away.</summary>
+    [ReactiveCommand]
+    public async Task RedoAsync()
+    {
+        if (!EditJournal.Default.TryRedo(out var pending)) return;
+        UserActionLog.Action($"redo {pending.Description}");
+        // Mirror of UndoAsync: put the step back where it came from when the write did not happen.
+        if (!await ApplyEditAsync(pending)) EditJournal.Default.TryUndo(out _);
+    }
+
+    /// <summary>Write one journal step back to the instrument: every change the gesture made, in the order
+    /// the journal asked for -- which is the dependency order and the same either way, so undo and redo
+    /// differ only in which of each change's two values gets written. Returns false when the step was not
+    /// applied in full, so the caller can put it back rather than leave the history describing a state the
+    /// instrument never reached.</summary>
+    private async Task<bool> ApplyEditAsync(PendingEdit pending)
+    {
+        // Locals, not the properties: everything below runs after awaits, and a rescan in the meantime
+        // replaces both of them. Same reasoning as SaveStudioSetAsync.
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null) return false;
+
+        var what = string.Join(", ", pending.Step.Changes.Select(c => c.Path));
+        try
+        {
+            // One lease for the whole step, not one per change: a gesture's changes belong together (an
+            // envelope handle's level and its time), and another flow writing into the same block
+            // half-way through would leave the handle somewhere neither the user nor the history
+            // describes.
+            //
+            // The lease is acquired outside ApplyAsync deliberately. Recording is suppressed for the
+            // whole of ApplyAsync (otherwise these writes would record themselves and the history would
+            // never empty), and an edit the user makes inside that window is dropped -- so the window
+            // has to cover the writes and nothing more. Waiting for the wire to come free is the long
+            // part of this and is not a write, so it happens first, outside. The writes themselves are
+            // awaited wholly inside, which is what stops them escaping the suppression.
+            await using var lease = await api.BeginConversationAsync($"undo/redo {what}");
+            var appliedInFull = false;
+            await EditJournal.Default.ApplyAsync(async () =>
+            {
+                foreach (var (change, value) in pending.Writes)
+                {
+                    // TryGetDomain, not GetDomain: the latter answers an address it does not recognise
+                    // with an unrelated block rather than refusing, and writing this change into that
+                    // block would change a part of the instrument the user never touched. Every triple
+                    // in the journal was read off a live domain, so this should be unreachable -- which
+                    // is exactly what makes it worth a guard rather than a comment.
+                    // StudioSetSnapshotService validates a whole snapshot for this reason.
+                    if (!communicator.TryGetDomain(change.Start, change.Offset, change.Offset2,
+                            out var domain))
+                    {
+                        // Abandon the rest of the step rather than skip this change and carry on. Two
+                        // reasons. A later change in the step may be a dependent whose display value
+                        // only converts correctly while the discriminator this one names is where the
+                        // step says it is (see PendingEdit.Writes), so carrying on can write a value
+                        // nobody asked for. And returning false puts the whole step back on the stack it
+                        // came from, which is the only way out of a half-applied gesture: every write
+                        // here is an absolute display value, not a delta, so pressing undo again
+                        // re-applies the changes that did land and retries this one. Skipping and
+                        // reporting would leave the step consumed, the instrument half-way, and nothing
+                        // left in the history able to finish the job.
+                        UserActionLog.Failed($"apply '{change.Path}'",
+                            $"no such block (\"{change.Start}\", \"{change.Offset}\", \"{change.Offset2}\"); " +
+                            "the rest of the step was abandoned and the step put back");
+                        return;
+                    }
+
+                    await domain.WriteToIntegraAsync(change.Path, value, lease);
+                }
+
+                appliedInFull = true;
+            });
+
+            if (appliedInFull) await ResyncDependentsAsync(pending, communicator, lease, what);
+            return appliedInFull;
+        }
+        catch (Exception e)
+        {
+            // A write that threw part-way leaves appliedInFull false, so the step goes back -- see the
+            // reasoning at the guard above.
+            UserActionLog.Failed($"apply '{what}'", e.ToString());
+            return false;
+        }
+    }
+
+    /// <summary>Bring the dependents of any discriminator the step moved back into line: reset a governed
+    /// wave the newly-selected bank does not contain, re-read the block so the dependent slots show what
+    /// the device now reports, and tell the editors to re-evaluate. The three things the other two write
+    /// doors already do after an <c>IsParent</c> write -- see <see cref="UpdateIntegraFromUiAsync"/> for
+    /// the shape -- and undo needs them for the same reason: moving a discriminator back leaves everything
+    /// it governs displaying the value it had under the other one.
+    ///
+    /// The I/O runs once per block, not once per change: the reset recomputes from the block's current
+    /// values, so a second discriminator in the same block (a wave group's Type and ID both moving in one
+    /// gesture) would only repeat identical work. The refresh is per change, because it is keyed by the
+    /// parameter's own path and performs no I/O.
+    ///
+    /// Deliberately outside <c>EditJournal.ApplyAsync</c> while still inside the lease. Neither call can
+    /// record: a read lands on the FQPs and reaches the wrappers through <c>ApplyFromModel</c>, which
+    /// suppresses itself, and <c>WaveOutOfRangeReset</c> writes a raw value straight through the domain
+    /// rather than through a wrapper's setter -- <see cref="UpdateIntegraFromUiAsync"/> runs both with
+    /// recording live and nothing records. Keeping them out of the suppression is what stops an edit the
+    /// user makes during a block read -- hundreds of milliseconds of wire time -- from being dropped from
+    /// the history.
+    ///
+    /// Best-effort by design: a failure here is logged and swallowed. The step's writes have already
+    /// happened, so reporting failure would put the step back and claim they had not; what is left wrong
+    /// is displayed values, which the next read of the block corrects anyway.</summary>
+    private async Task ResyncDependentsAsync(PendingEdit pending, Integra7Domain communicator,
+        IMidiLease lease, string what)
+    {
+        try
+        {
+            var blocksDone = new HashSet<(string, string, string)>();
+            foreach (var (change, _) in pending.Writes)
+            {
+                if (!change.IsDiscriminator) continue;
+
+                if (blocksDone.Add((change.Start, change.Offset, change.Offset2))
+                    && communicator.TryGetDomain(change.Start, change.Offset, change.Offset2, out var domain))
+                {
+                    // WaveOutOfRangeReset needs the discriminator as an FQP, not as a path, and answers
+                    // "not a wave group discriminator" for everything else by itself.
+                    var edited = domain.GetRelevantParameters(true, true)
+                        .FirstOrDefault(p => p.ParSpec.Path == change.Path);
+                    if (edited != null)
+                        await WaveOutOfRangeReset.ApplyAsync(domain, edited, WaveformBanks.Default, lease);
+                    await domain.ReadFromIntegraAsync(lease);
+                }
+
+                ForceUiRefresh(change.Start, change.Offset, change.Offset2, change.Path, true);
+            }
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed($"resync the dependents of '{what}'", e.ToString());
+        }
+    }
+
     [ReactiveCommand]
     public async Task SaveUserTone()
     {
@@ -275,6 +436,10 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (restored)
         {
+            // A different Studio Set is now loaded, so every step in the history describes a value in
+            // the one it replaced.
+            EditJournal.Default.Clear();
+
             // A restore changes all 16 parts, including ones the user has never opened -- and
             // ResyncAllPartsAsync deliberately skips those. Left alone they keep the previous Studio
             // Set's tone type, and opening one later reads the wrong engine's domains, which the device
@@ -517,10 +682,16 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         if (restored)
+        {
+            // A different tone is now in the part, so any step naming one of its parameters describes
+            // the tone that was replaced. The history is not per-part, so this drops the lot.
+            EditJournal.Default.Clear();
+
             // Only this part changed, so only this part is re-read -- a Studio Set restore has to resync
             // all 16, a tone restore does not. Outside the lease above, since the resync acquires its
             // own, and not at all when the restore failed, because the screen still matches the device.
             await ResyncPartAsync((byte)selected.ZeroBasedPartNo);
+        }
     }
 
     [ReactiveCommand]
@@ -1069,6 +1240,18 @@ public partial class MainWindowViewModel : ViewModelBase
             .Throttle(TimeSpan.FromMilliseconds(Constants.THROTTLE))
             .Subscribe(async m => await SetPresetAndResyncPartAsync(m.PartNo));
 
+        // The journal is mutated from whichever thread made the edit -- the friendly editors record on
+        // the UI thread, the raw grid's path on a pool thread (its message bus subscription is
+        // throttled) -- and Changed fires from that thread, so the property writes have to be posted.
+        // It fires once per setter call, so a knob drag raises it hundreds of times; every one of those
+        // is a no-op assignment that ReactiveUI drops, which is cheap enough not to coalesce until
+        // something shows it is not.
+        EditJournal.Default.Changed += () => Dispatcher.UIThread.Post(() =>
+        {
+            CanUndo = EditJournal.Default.CanUndo;
+            CanRedo = EditJournal.Default.CanRedo;
+        });
+
         ShowSaveUserToneDialog = new Interaction<SaveUserToneViewModel, UserToneToSave?>();
         ShowSaveSnapshotDialog = new Interaction<string, string?>();
         ShowOpenSnapshotDialog = new Interaction<Unit, string?>();
@@ -1092,6 +1275,12 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         var p = s.Par;
         UserActionLog.Action($"edit parameter '{p.ParSpec.Path}' -> '{s.DisplayValue}'");
+        // Before the assignment below: afterwards the value it replaced is gone. Record ignores this
+        // while an undo is being applied, so an undo writing through here cannot record itself.
+        EditJournal.Default.Record(new ParameterChange(
+            Start: p.Start, Offset: p.Offset, Offset2: p.Offset2, Path: p.ParSpec.Path,
+            OldValue: p.StringValue, NewValue: s.DisplayValue,
+            IsDiscriminator: p.ParSpec.IsParent));
         p.StringValue = s.DisplayValue;
         if (Integra7 is null) return;
         // One conversation, for the same reason as the friendly editors' writes: the re-read must see
@@ -1121,6 +1310,10 @@ public partial class MainWindowViewModel : ViewModelBase
         if (parameters.Any(spec => StudioSetSelectors.Contains(spec.Par.ParSpec.Path)))
         {
             UserActionLog.Action("device reported a Studio Set change; resyncing everything");
+            // A Studio Set was selected on the front panel: every step in the history names a value in
+            // the Studio Set that just went away, so applying one would write it into a patch that never
+            // had it.
+            EditJournal.Default.Clear();
             await ResyncAllPartsAsync();
             return;
         }

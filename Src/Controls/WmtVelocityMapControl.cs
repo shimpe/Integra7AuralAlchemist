@@ -93,6 +93,9 @@ public class WmtVelocityMapControl : Control
     private double _dragOrigX;
     private int _origLo, _origHi;
 
+    // The whole band move or resize is one undo step, however slowly it is dragged.
+    private readonly EditGesture _gesture = new();
+
     static WmtVelocityMapControl()
     {
         AffectsRender<WmtVelocityMapControl>(
@@ -195,6 +198,9 @@ public class WmtVelocityMapControl : Control
             var hit = WmtVelocityMapping.HitBand(pos.X, pos.Y, band, HandleMargin);
             if (hit != WmtVelocityMapping.Handle.None)
             {
+                // Only inside the hit: a press that merely selects a lane (or lands on an off one)
+                // starts no drag and would never see a release to close a gesture with.
+                _gesture.Begin();
                 _dragLane = lane;
                 _dragHandle = hit;
                 _dragOrigX = pos.X;
@@ -241,6 +247,16 @@ public class WmtVelocityMapControl : Control
         if (_dragLane < 0) return;
         e.Pointer.Capture(null);
         _dragLane = -1;
+        _gesture.End();
         e.Handled = true;
+    }
+
+    /// <summary>Capture goes away without a release when the window is deactivated mid-drag: end the drag
+    /// (which used to stay live) and close the undo step with it.</summary>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        _dragLane = -1;
+        _gesture.End();
     }
 }

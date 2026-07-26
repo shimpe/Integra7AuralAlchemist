@@ -54,6 +54,11 @@ public class RotaryKnobDial : Control
     private double _dragStartY;
     private double _dragStartValue;
 
+    // One undo step per drag, not per snapped step: Commit below assigns Value only when the snapped
+    // value changes, so a slow, precise drag records seconds apart and no clock can tell it from two
+    // separate edits. See EditGesture.
+    private readonly EditGesture _gesture = new();
+
     /// <summary>Optional allowed values. When set, Value snaps to the nearest of these instead of to the
     /// nearest integer -- used for the FX parameters, whose displayed values are a non-uniform mapped
     /// list (e.g. LFO rate in Hz). Left null for the ordinary integer-valued knobs.</summary>
@@ -101,13 +106,15 @@ public class RotaryKnobDial : Control
 
         if (e.ClickCount == 2)
         {
-            // Reset: bipolar parameters reset to their centre, unipolar ones to their floor.
+            // Reset: bipolar parameters reset to their centre, unipolar ones to their floor. No gesture
+            // is opened: this is a single change, and no release will follow to close one.
             Commit(KnobGeometry.IsBipolar(Minimum, Maximum) ? 0 : Minimum);
             e.Handled = true;
             return;
         }
 
         _dragging = true;
+        _gesture.Begin();
         _dragStartY = e.GetPosition(this).Y;
         _dragStartValue = Value;
         e.Pointer.Capture(this);
@@ -132,8 +139,19 @@ public class RotaryKnobDial : Control
         base.OnPointerReleased(e);
         if (!_dragging) return;
         _dragging = false;
+        _gesture.End();
         e.Pointer.Capture(null);
         e.Handled = true;
+    }
+
+    /// <summary>Capture goes away without a release when the window is deactivated mid-drag. Before this
+    /// existed the drag simply stayed live -- _dragging never cleared -- and now there is an undo step
+    /// open as well, which would swallow every later edit if it were not closed here.</summary>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        _dragging = false;
+        _gesture.End();
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)

@@ -50,6 +50,9 @@ public class PitchEnvelopeControl : Control
 
     private int _drag = -1, _focused = 0; // 0 = peak (attack/depth), 1 = decay
 
+    // The whole handle drag is one undo step, however slowly it is made.
+    private readonly EditGesture _gesture = new();
+
     static PitchEnvelopeControl()
     {
         AffectsRender<PitchEnvelopeControl>(AttackProperty, DecayProperty, DepthProperty, PreviewProperty,
@@ -109,7 +112,10 @@ public class PitchEnvelopeControl : Control
         Focus();
         var pos = e.GetPosition(this);
         _drag = Nearest(pos, SnsEnvelopeMapping.ComputePitchPoints(Attack, Decay, Depth, Bounds.Width, Bounds.Height));
+        // A press that misses both handles returns here and never sees a release, so the gesture starts
+        // only once the drag is certain.
         if (_drag < 0) return;
+        _gesture.Begin();
         _focused = _drag;
         e.Pointer.Capture(this);
         e.Handled = true;
@@ -141,7 +147,17 @@ public class PitchEnvelopeControl : Control
         if (_drag < 0) return;
         e.Pointer.Capture(null);
         _drag = -1;
+        _gesture.End();
         e.Handled = true;
+    }
+
+    /// <summary>Capture goes away without a release when the window is deactivated mid-drag: end the drag
+    /// (which used to stay live) and close the undo step with it.</summary>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        _drag = -1;
+        _gesture.End();
     }
 
     protected override void OnKeyDown(KeyEventArgs e)

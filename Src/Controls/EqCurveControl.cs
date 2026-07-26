@@ -93,6 +93,9 @@ public class EqCurveControl : Control
 
     private int _dragBand = -1;
 
+    // The whole band drag is one undo step -- both the frequency and the gain it moves, however slowly.
+    private readonly EditGesture _gesture = new();
+
     static EqCurveControl()
     {
         AffectsRender<EqCurveControl>(LowHzProperty, MidHzProperty, HighHzProperty,
@@ -193,7 +196,8 @@ public class EqCurveControl : Control
         if (band < 0) return;
         Focus();
 
-        // Double-click flattens the band it lands on — the quickest way back to neutral.
+        // Double-click flattens the band it lands on — the quickest way back to neutral. No gesture is
+        // opened: this is a single change, and no release will follow to close one.
         if (e.ClickCount >= 2)
         {
             SetGain(band, 0);
@@ -202,6 +206,7 @@ public class EqCurveControl : Control
         }
 
         _dragBand = band;
+        _gesture.Begin();
         e.Pointer.Capture(this);
         e.Handled = true;
     }
@@ -219,8 +224,18 @@ public class EqCurveControl : Control
         base.OnPointerReleased(e);
         if (_dragBand < 0) return;
         _dragBand = -1;
+        _gesture.End();
         e.Pointer.Capture(null);
         e.Handled = true;
+    }
+
+    /// <summary>Capture goes away without a release when the window is deactivated mid-drag: end the drag
+    /// (which used to stay live) and close the undo step with it.</summary>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        _dragBand = -1;
+        _gesture.End();
     }
 
     private int BandAt(Point pos)

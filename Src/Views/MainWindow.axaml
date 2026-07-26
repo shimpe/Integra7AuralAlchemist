@@ -18,6 +18,17 @@
              to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
         <vm:MainWindowViewModel />
     </Design.DataContext>
+    <!-- No Ctrl+Z / Ctrl+Y binding here, deliberately. Avalonia evaluates KeyBindings by walking up
+         from the focused element BEFORE raising KeyDown on it (KeyboardDevice.ProcessRawEvent), and
+         KeyBinding.TryHandle does not look at whether the event was already handled. A window-level
+         binding therefore always beats a focused TextBox's own undo — so Ctrl+Z while typing a Studio
+         Set name, a search box or a grid's string editor would undo the last *parameter* edit and
+         write it to the instrument, rather than undoing the typing. A keystroke that means "take back
+         what I just typed" must not send MIDI.
+
+         Undo and Redo are on the toolbar instead. Restoring the shortcut needs the command to report
+         CanExecute=false while a text input has focus (TryHandle does not fire, and does not swallow,
+         when it cannot execute) — that is the fix, and it is more than a binding. -->
     <Window.Styles>
         <Style Selector="TabItem">
             <Setter Property="FontSize"
@@ -136,6 +147,19 @@
                                 </MultiBinding>
                             </Button.IsEnabled>
                             Panic!
+                        </Button>
+                        <!-- IsEnabled follows the history, not Connected/IsSyncing: nothing can enter the
+                             journal while disconnected, so an empty history is the only reason to
+                             disable these. -->
+                        <Button Command="{Binding UndoAsync}"
+                                IsEnabled="{Binding CanUndo}"
+                                ToolTip.Tip="Take back the last parameter change and write the previous value back to the instrument.">
+                            Undo
+                        </Button>
+                        <Button Command="{Binding RedoAsync}"
+                                IsEnabled="{Binding CanRedo}"
+                                ToolTip.Tip="Put back the parameter change the last undo took away.">
+                            Redo
                         </Button>
                         <Button Command="{Binding SaveUserTone}">
                             <Button.IsEnabled>

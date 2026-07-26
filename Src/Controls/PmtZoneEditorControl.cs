@@ -103,6 +103,9 @@ public class PmtZoneEditorControl : Control
     private int _origLo, _origHi, _origVlo, _origVhi; // dragged zone's bounds at press (for body moves)
     private int _tipNote = int.MinValue;             // last note shown in the hover tooltip
 
+    // The whole zone move or resize is one undo step -- up to four bounds, however slowly it is dragged.
+    private readonly EditGesture _gesture = new();
+
     static PmtZoneEditorControl()
     {
         AffectsRender<PmtZoneEditorControl>(
@@ -227,6 +230,9 @@ public class PmtZoneEditorControl : Control
             var hit = PmtZoneMapping.HitRect(pos.X, pos.Y, RectOf(i, w, mapH), HandleMargin);
             if (hit != PmtZoneMapping.Handle.None)
             {
+                // Only inside the hit: a press that lands on no zone falls out of the loop and never
+                // sees a release, so a gesture opened there would stay open.
+                _gesture.Begin();
                 _dragZone = i;
                 _dragHandle = hit;
                 _dragOrigPos = pos;
@@ -299,6 +305,16 @@ public class PmtZoneEditorControl : Control
         if (_dragZone < 1) return;
         e.Pointer.Capture(null);
         _dragZone = -1;
+        _gesture.End();
         e.Handled = true;
+    }
+
+    /// <summary>Capture goes away without a release when the window is deactivated mid-drag: end the drag
+    /// (which used to stay live) and close the undo step with it.</summary>
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e)
+    {
+        base.OnPointerCaptureLost(e);
+        _dragZone = -1;
+        _gesture.End();
     }
 }

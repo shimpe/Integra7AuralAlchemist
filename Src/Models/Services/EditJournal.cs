@@ -1,0 +1,340 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq;
+using Integra7AuralAlchemist.Models.Data;
+
+namespace Integra7AuralAlchemist.Models.Services;
+
+/// <summary>One parameter's before and after, and the address that resolves it. Values are display
+/// strings because that is the form every write path already speaks -- see <c>IParam.Snapshot()</c> and
+/// <c>DomainBase.WriteToIntegraAsync(path, displayValue, lease)</c>.</summary>
+/// <param name="IsDiscriminator">Whether other parameters' values are interpreted through this one --
+/// <c>ParSpec.IsParent</c>, captured at record time because that is where it is known. The journal needs
+/// it for two things: to write a discriminator before anything that depends on it (see
+/// <see cref="PendingEdit.Writes"/>), and to resync the dependents afterwards.</param>
+public sealed record ParameterChange(
+    string Start, string Offset, string Offset2, string Path, string OldValue, string NewValue,
+    bool IsDiscriminator);
+
+/// <summary>One undo step: everything a single gesture changed. A knob drag is one change; dragging an
+/// envelope handle is two (a level from the pointer's Y, a time from its X -- see
+/// <c>MultiStageEnvelopeControl.OnPointerMoved</c>), and undoing it has to put both back or the handle
+/// does not return to where it was. Changes are in the order the gesture first touched each
+/// parameter.</summary>
+public sealed record EditStep(IReadOnlyList<ParameterChange> Changes);
+
+/// <summary>Which way a step is being applied. Undo writes each change's <c>OldValue</c>, redo its
+/// <c>NewValue</c>.</summary>
+public enum EditDirection
+{
+    Undo,
+    Redo
+}
+
+/// <summary>An <see cref="EditStep"/> together with the writes the caller should now perform, in the
+/// order to perform them.</summary>
+public sealed record PendingEdit(EditStep Step, EditDirection Direction)
+{
+    /// <summary>Each change and the value it gets, ready to write in this order: <b>discriminators
+    /// first</b>, everything else after them, each group keeping the order the gesture recorded it in.
+    /// The order does not depend on the direction -- only the value written does.
+    ///
+    /// Dependency order is the rule, not recording order and not its reverse. A dependent's display value
+    /// only converts to the right byte once the local context holds the discriminator value that dependent
+    /// belongs to: <c>DomainBase.WriteToIntegraAsync</c> resolves the write through a
+    /// <c>ParserContext</c> rebuilt from the block's <em>current</em> values, and
+    /// <c>ModifySingleParameterDisplayedValue</c> skips a parameter outright when it is not
+    /// <c>ValidInContext</c> there -- so the discriminator has to go first whichever direction we are
+    /// moving in and whichever one the user touched first. Reversing on undo and recording order each get
+    /// this right for one of the two touch orders and wrong for the other; asking the change itself gets
+    /// it right for both. This is reachable, not hypothetical: pick a chorus type from its combo and move
+    /// one of that type's knobs within 250 ms and both land in one group.
+    ///
+    /// It is not a general topological sort. Two discriminators in one group that depend on each other
+    /// keep their recorded order relative to one another, which is only right if the gesture happened to
+    /// touch the governing one first. What makes one level of "discriminators first" enough for the
+    /// database as it stands is that a two-level chain is rewritten so the dependent names the
+    /// <em>top-level</em> discriminator directly -- see
+    /// <c>Integra7ParameterDatabaseAnalyzer.FillInSecondaryDependencies</c>, which also asserts that no
+    /// three-level chain exists -- so a dependent is never more than one hop from what governs it.</summary>
+    public IReadOnlyList<(ParameterChange Change, string ValueToApply)> Writes { get; } =
+        [.. Step.Changes
+            // OrderBy is a stable sort, which is what keeps "everything else in recorded order" true.
+            .OrderBy(c => c.IsDiscriminator ? 0 : 1)
+            .Select(c => (c, Direction == EditDirection.Undo ? c.OldValue : c.NewValue))];
+
+    /// <summary>What this step is about to write, for the action log.</summary>
+    public string Description =>
+        string.Join(", ", Writes.Select(w => $"'{w.Change.Path}' -> '{w.ValueToApply}'"));
+}
+
+/// <summary>
+/// The undo history. Records every parameter change the user makes, from either write path, groups the
+/// changes of one gesture into a single step, and hands back the writes needed to take that step back.
+///
+/// What counts as one gesture is answered two ways. A draggable control says so outright, by holding a
+/// <see cref="BeginGesture"/> scope open from the pointer press to the release; that is the only reliable
+/// answer, because a control records only when its value actually changes and a slow, careful drag can be
+/// seconds between changes. Everything else -- keystrokes in a text box, repeated picks from a combo --
+/// has no gesture to delimit it and falls back to <see cref="CoalesceWindow"/>.
+///
+/// Pure -- no Avalonia, no MIDI -- so the whole of it is unit-tested. Applying a step is the caller's
+/// job, because that needs a device and a lease.
+///
+/// Record is called from two different threads: the friendly editors call it from <c>SynthParam</c>'s
+/// setters on the UI thread, while the raw grid's path
+/// (<c>MainWindowViewModel.UpdateIntegraFromUiAsync</c>) is reached through
+/// <c>MessageBus.Current.Listen&lt;UpdateMessageSpec&gt;("ui2hw").Throttle(...)</c>, and <c>Throttle</c>
+/// with no scheduler runs on the thread pool. <see cref="_gate"/> below serializes all mutation for
+/// that reason. <see cref="Changed"/> is raised outside the lock and therefore fires from whichever of
+/// those two threads made the change -- a UI listener must marshal back to the UI thread itself.
+/// </summary>
+public sealed class EditJournal
+{
+    /// <summary>Outside a gesture (see <see cref="BeginGesture"/>), changes that arrive within this
+    /// window of one another are one step, <em>whatever they target</em>. A step is a gesture, not a
+    /// parameter: a knob drag is hundreds of setter calls on one parameter, and a drag on any of the 2-D
+    /// editors (envelopes, the EQ and filter curves, the PMT zone map) is hundreds of calls alternating
+    /// between two parameters, because one pointer move sets a level from the pointer's Y and a time from
+    /// its X. Coalescing on the target as well as the clock would merge neither of the latter -- every
+    /// record would see the other parameter on top -- so one drag would fill the history and push
+    /// everything before it out. Matches the write debounce, so a coalesced group is also one write per
+    /// parameter.
+    ///
+    /// This is the rule for everything that is <em>not</em> a pointer gesture -- keystrokes in a knob's
+    /// text box, repeated picks from a combo -- where nothing can tell us when the edit began and ended
+    /// and the clock is all there is.</summary>
+    public static readonly TimeSpan CoalesceWindow = TimeSpan.FromMilliseconds(Constants.THROTTLE);
+
+    /// <summary>How long an open gesture may record nothing at all before its group is treated as
+    /// finished anyway. Purely a containment measure for a gesture scope that was never disposed: the
+    /// controls close theirs from both pointer-released and pointer-capture-lost, but a scope has to be
+    /// held in a field across those handlers (a <c>using</c> cannot span two event callbacks), so a leak
+    /// is possible in a way it is not for the rest of the journal. Without a bound, one leaked scope
+    /// would fold every later edit of the whole session into a single step -- silently, and with no way
+    /// back short of a resync.
+    ///
+    /// Deliberately far longer than <see cref="CoalesceWindow"/>: a real gesture <em>does</em> go quiet
+    /// for seconds at a time (that is the whole reason the clock cannot delimit one), so this must not
+    /// cut a slow, careful drag in half. Where it does fire mid-drag, the cost is one extra undo step --
+    /// what the user got for every step before gestures existed -- against a history that otherwise
+    /// stops working entirely.</summary>
+    public static readonly TimeSpan StaleGestureWindow = CoalesceWindow * 40;
+
+    /// <summary>How many steps -- gestures, not parameter changes -- to keep. A long session must not
+    /// grow without bound; losing the oldest edits is the right thing to lose.</summary>
+    public const int Capacity = 200;
+
+    // Guards _undo, _redo, _lastRecordedAt, _isApplying, _gestureDepth and _gestureGroupOpen. Record
+    // runs on the UI thread and on the thread pool (see the class comment); List<T> is not thread-safe,
+    // so without this two concurrent Record calls can corrupt the lists outright (reproduced in
+    // TestEditJournal.Concurrent_records_from_many_threads_do_not_corrupt_the_history). The lists are
+    // tiny and uncontended, so a plain lock costs nothing. The gesture state is in here for the same
+    // reason: a gesture is opened and closed on the UI thread but read by every Record call, including
+    // the ones that arrive from the pool.
+    private readonly object _gate = new();
+
+    private readonly List<EditStep> _undo = [];
+    private readonly List<EditStep> _redo = [];
+    private readonly Func<DateTimeOffset> _now;
+    private DateTimeOffset _lastRecordedAt;
+    private bool _isApplying;
+
+    // How many gesture scopes are open (nesting is counted, not flagged, so an inner scope closing
+    // cannot end an outer one), and whether the open gesture has already put a step on _undo to fold
+    // into. The latter is what makes the gesture's first record start a fresh step and every later one
+    // join it, however long the gesture takes.
+    private int _gestureDepth;
+    private bool _gestureGroupOpen;
+
+    public EditJournal(Func<DateTimeOffset>? now = null) => _now = now ?? (() => DateTimeOffset.UtcNow);
+
+    /// <summary>True while a step is being applied. The write that undo performs comes back through
+    /// the same setters that record, so without this an undo would record itself as a new edit and
+    /// the history would never empty.</summary>
+    public bool IsApplying { get { lock (_gate) return _isApplying; } }
+
+    public bool CanUndo { get { lock (_gate) return _undo.Count > 0; } }
+    public bool CanRedo { get { lock (_gate) return _redo.Count > 0; } }
+
+    /// <summary>Raised whenever <see cref="CanUndo"/> or <see cref="CanRedo"/> may have changed. Fires
+    /// from whichever thread made the change -- see the class remarks.</summary>
+    public event Action? Changed;
+
+    /// <summary>Open while a control is mid-gesture. Everything recorded inside one belongs to a single
+    /// step no matter how long the gesture takes -- which timing alone cannot tell, because a knob only
+    /// records when its snapped value changes and a careful drag can be seconds between steps.
+    /// Re-entrant: a depth counter, so a control that nests scopes cannot close one early.
+    ///
+    /// Disposing the outermost scope ends the step: the next change recorded starts a new one, even if it
+    /// arrives immediately, so releasing a knob and turning another is two undo steps and not one.
+    /// Disposing a scope twice does nothing the second time.</summary>
+    public IDisposable BeginGesture()
+    {
+        lock (_gate) _gestureDepth++;
+        return new GestureScope(this);
+    }
+
+    /// <summary>One <see cref="BeginGesture"/> scope. Nulls its journal reference on the first dispose so
+    /// a second one -- a control ending its drag from both pointer-released and pointer-capture-lost --
+    /// cannot decrement the depth twice and close a gesture that is still in progress.</summary>
+    private sealed class GestureScope(EditJournal journal) : IDisposable
+    {
+        private EditJournal? _journal = journal;
+
+        public void Dispose() =>
+            System.Threading.Interlocked.Exchange(ref _journal, null)?.EndGesture();
+    }
+
+    private void EndGesture()
+    {
+        lock (_gate)
+        {
+            if (_gestureDepth == 0) return;
+            if (--_gestureDepth > 0) return;
+            _gestureGroupOpen = false;
+            // The gesture is over, so the next change is a new step whatever the clock says -- the same
+            // reason TryUndo clears this.
+            _lastRecordedAt = default;
+        }
+    }
+
+    public void Record(ParameterChange change)
+    {
+        lock (_gate)
+        {
+            if (_isApplying) return;
+
+            var at = _now();
+            // A control mid-gesture has told us where the step ends, so the clock does not get a say;
+            // with no gesture open the clock is all there is to go on.
+            var stillTheSameStep = _gestureDepth > 0
+                ? JoinsTheOpenGesture(at)
+                : at - _lastRecordedAt <= CoalesceWindow;
+
+            if (_undo.Count > 0 && stillTheSameStep)
+                // The same gesture, whichever parameter this change names.
+                _undo[^1] = Merge(_undo[^1], change);
+            else
+                _undo.Add(new EditStep([change]));
+
+            // Whichever branch ran, _undo[^1] is now this gesture's step for the rest of it.
+            if (_gestureDepth > 0) _gestureGroupOpen = true;
+            _lastRecordedAt = at;
+            if (_undo.Count > Capacity) _undo.RemoveAt(0);
+            // A new edit makes the redo history unreachable -- it described a future that no longer follows.
+            _redo.Clear();
+        }
+        Changed?.Invoke();
+    }
+
+    /// <summary>Whether a change recorded at <paramref name="at"/> folds into the step the open gesture
+    /// already started. The elapsed time does not decide this -- that is the point of a gesture -- except
+    /// as the containment bound described on <see cref="StaleGestureWindow"/>. Call under the lock.</summary>
+    private bool JoinsTheOpenGesture(DateTimeOffset at) =>
+        _gestureGroupOpen && at - _lastRecordedAt <= StaleGestureWindow;
+
+    public bool TryUndo([MaybeNullWhen(false)] out PendingEdit pending)
+    {
+        EditStep step;
+        lock (_gate)
+        {
+            if (_undo.Count == 0)
+            {
+                pending = default;
+                return false;
+            }
+
+            step = _undo[^1];
+            _undo.RemoveAt(_undo.Count - 1);
+            _redo.Add(step);
+            // The step now on top of _undo (if any) was not the one Record last touched, so neither its
+            // recorded time nor an open gesture's claim on it must be trusted as "still the same gesture"
+            // by the next Record call -- see the regression this guards in TestEditJournal.
+            _lastRecordedAt = default;
+            _gestureGroupOpen = false;
+        }
+        pending = new PendingEdit(step, EditDirection.Undo);
+        Changed?.Invoke();
+        return true;
+    }
+
+    public bool TryRedo([MaybeNullWhen(false)] out PendingEdit pending)
+    {
+        EditStep step;
+        lock (_gate)
+        {
+            if (_redo.Count == 0)
+            {
+                pending = default;
+                return false;
+            }
+
+            step = _redo[^1];
+            _redo.RemoveAt(_redo.Count - 1);
+            _undo.Add(step);
+            // Same reasoning as TryUndo: whatever Record does next must start a fresh step, not assume
+            // it is continuing the gesture that originally produced the step redo just reinstated.
+            _lastRecordedAt = default;
+            _gestureGroupOpen = false;
+        }
+        pending = new PendingEdit(step, EditDirection.Redo);
+        Changed?.Invoke();
+        return true;
+    }
+
+    /// <summary>Run <paramref name="apply"/> with recording switched off. Restores the previous
+    /// suppression state on exit rather than clearing it, so a nested call does not unsuppress a call
+    /// still in progress further up the stack.
+    ///
+    /// The suppression window spans real device I/O, including waiting on a MIDI lease, so a genuine
+    /// user edit made while an undo/redo is in flight is silently dropped from the history (it arrives
+    /// while <see cref="IsApplying"/> is true and <see cref="Record"/> discards it). Callers should
+    /// keep the awaited region as small as they can.</summary>
+    public async System.Threading.Tasks.Task ApplyAsync(Func<System.Threading.Tasks.Task> apply)
+    {
+        bool was;
+        lock (_gate) { was = _isApplying; _isApplying = true; }
+        try { await apply(); }
+        finally { lock (_gate) { _isApplying = was; } }
+    }
+
+    /// <summary>Forget everything. Used when the instrument's state stops being the one the history
+    /// describes -- a Studio Set change, a preset change, a snapshot restore.
+    ///
+    /// The step an open gesture was folding into has just been thrown away with the rest, so the gesture
+    /// starts a new one if it records again. The depth itself is left alone: it belongs to the scopes the
+    /// controls hold, and they are the only things that may close them.</summary>
+    public void Clear()
+    {
+        lock (_gate)
+        {
+            _undo.Clear();
+            _redo.Clear();
+            _gestureGroupOpen = false;
+        }
+        Changed?.Invoke();
+    }
+
+    /// <summary>Fold one more change into the open step. A parameter the gesture has already touched
+    /// keeps the <c>OldValue</c> from the first time it did -- that is the value from before the gesture
+    /// began, which is what undo has to put back -- and takes the latest <c>NewValue</c>. It also keeps
+    /// its original position, so the step stays in first-touched order.</summary>
+    private static EditStep Merge(EditStep step, ParameterChange change)
+    {
+        var changes = new List<ParameterChange>(step.Changes);
+        var existing = changes.FindIndex(c => IsSameTarget(c, change));
+        if (existing >= 0) changes[existing] = changes[existing] with { NewValue = change.NewValue };
+        else changes.Add(change);
+        return new EditStep(changes);
+    }
+
+    private static bool IsSameTarget(ParameterChange a, ParameterChange b) =>
+        a.Start == b.Start && a.Offset == b.Offset && a.Offset2 == b.Offset2 && a.Path == b.Path;
+
+    /// <summary>The one journal the application records into. Ambient like
+    /// <c>LoadedSrxState.Default</c> and <c>WaveformBanks.Default</c>: the alternative is threading it
+    /// through the constructor of every parameter wrapper in fifteen editor view models.</summary>
+    public static EditJournal Default { get; } = new();
+}
