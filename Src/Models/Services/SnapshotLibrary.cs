@@ -17,17 +17,22 @@ namespace Integra7AuralAlchemist.Models.Services;
 /// Sorting by it is unaffected either way.</summary>
 public sealed record LibraryEntry(string FilePath, SnapshotHead Head, DateTime Modified);
 
-/// <summary>The five things about a snapshot that the library lets a user change after the fact.
+/// <summary>What the library lets a user change about a snapshot after the fact: the five annotations, and --
+/// since the browser was built -- the name.
 ///
-/// A record rather than five parameters on <see cref="SnapshotLibrary.WriteMetadata"/> because two of the five
-/// are strings that would sit next to each other in a call and transpose silently -- a category written into
-/// the notes is not something any type system would have caught, and not something a test would either unless
-/// it happened to look.
+/// A record rather than parameters on <see cref="SnapshotLibrary.WriteMetadata"/> because several of them are
+/// strings that would sit next to each other in a call and transpose silently -- a category written into the
+/// notes is not something any type system would have caught, and not something a test would either unless it
+/// happened to look.
 ///
-/// The name is deliberately not here. It is what the file is called <i>inside</i> itself, it is what
-/// <c>CaptureAsync</c> took from the instrument, and rewriting it is a rename rather than an annotation. If
-/// the library's editor is to offer one, this is where it goes and the reasoning above is what it has to
-/// answer -- it is one field and one line, not a second write path.
+/// <b><paramref name="Name"/> is the odd one out, and it is last for two reasons.</b> It is not an annotation:
+/// it is what the file is called <i>inside</i> itself, it is what <c>CaptureAsync</c> took from the instrument,
+/// and rewriting it is a rename. This record originally left it out and said that if the library's editor ever
+/// offered one it would be one field and one line here rather than a second write path -- so that is what it
+/// is. It is <b>nullable, and null means leave the name alone</b>, which keeps every caller that only wants to
+/// annotate saying exactly that, and keeps "rename" something a caller has to ask for by name. And it is
+/// appended rather than put first because the five above are passed positionally in places, and quietly
+/// shifting them would have moved a tag list into a category.
 ///
 /// <paramref name="Tags"/> is nullable and read through <see cref="TagList"/>, for exactly the reason
 /// <see cref="Integra7Snapshot.Tags"/> is: a defaulted parameter has to be a constant expression, and an empty
@@ -37,7 +42,8 @@ public sealed record SnapshotMetadata(
     IReadOnlyList<string>? Tags = null,
     string Notes = "",
     int Rating = 0,
-    bool Favourite = false)
+    bool Favourite = false,
+    string? Name = null)
 {
     public IReadOnlyList<string> TagList => Tags ?? [];
 }
@@ -133,8 +139,8 @@ public static class SnapshotLibrary
         return entries;
     }
 
-    /// <summary>Replace the five annotations on the snapshot at <paramref name="filePath"/>, leaving every
-    /// parameter in it exactly as it was.
+    /// <summary>Replace the annotations -- and, if <see cref="SnapshotMetadata.Name"/> says so, the name -- on
+    /// the snapshot at <paramref name="filePath"/>, leaving every parameter in it exactly as it was.
     ///
     /// <b>The file is read back before it is written</b>, and that is the whole design of this method rather
     /// than a step in it. The metadata lives in the same file as ~1,500 parameter values, so annotating a
@@ -144,13 +150,9 @@ public static class SnapshotLibrary
     /// signature for a caller to accidentally hand it, which is the strongest form that guarantee can take:
     /// editing a note <i>cannot</i> rewrite a parameter value, because nothing here knows one.
     ///
-    /// <b>It is written atomically</b> -- a sibling temp file, then a rename over the target, which is atomic
-    /// on the same volume -- for the reason <c>MainWindowViewModel.SaveStudioSetAsync</c> gives: this file may
-    /// be the user's only copy of a Studio Set, and a failure partway through a direct write must not destroy
-    /// what was already there. That matters more here than it does for a capture, because a capture writes a
-    /// file the user is creating and this rewrites one they already have. The temp file is named beside the
-    /// target rather than under the system temp folder so that the rename stays on one volume; it does not
-    /// end in .json, so a listing racing this write cannot see it.
+    /// <b>It is written atomically</b> -- see <see cref="Write"/>, and note that the reasoning there matters
+    /// more for this method than for any other caller of it: a capture creates a file the user does not have
+    /// yet, and this rewrites one they do.
     ///
     /// <b>A file that cannot be opened cannot be annotated.</b> Reading goes through
     /// <see cref="Integra7Snapshot.FromJson"/>, which judges the file -- so a hand-edited snapshot with a
@@ -160,7 +162,76 @@ public static class SnapshotLibrary
     /// would be the worst possible time to do it.</summary>
     public static void WriteMetadata(string filePath, SnapshotMetadata metadata)
     {
-        // Refused before the file is touched, for the rule the converter already follows about null tags: the
+        Write(filePath, Annotated(Integra7Snapshot.FromJson(File.ReadAllText(filePath)), metadata));
+    }
+
+    /// <summary>Write <paramref name="snapshot"/> into <paramref name="folder"/> as a new file, named after the
+    /// snapshot itself, and answer where it went.
+    ///
+    /// <b>This is what "save into the library" is</b>, as opposed to <see cref="WriteMetadata"/>, which is what
+    /// "annotate what is already in the library" is. The two are different operations on purpose -- one takes an
+    /// in-memory snapshot the instrument was just read into, the other refuses to see one (read its remarks) --
+    /// and they share the one thing they must: <see cref="Write"/>, so there is a single place that turns a
+    /// snapshot into bytes on disk, and <see cref="Annotated"/>, so there is a single place that decides what
+    /// the metadata fields mean.
+    ///
+    /// <b>The folder is created if it is not there.</b> That is the normal first-save state of the default
+    /// library folder, and <c>LibrarySettings</c> deliberately does not create it -- recording where the library
+    /// is and putting a file in it are different questions, and this is the one that needs the folder to exist.
+    ///
+    /// The file name is <see cref="FileNameFor"/>'s, made unique against what is already there. A name that
+    /// collides gets " (2)", " (3)" and so on: the alternative is overwriting a snapshot the user still has, and
+    /// two sounds called "Init Tone" is exactly what a library of captures looks like.</summary>
+    public static string Create(string folder, Integra7Snapshot snapshot, SnapshotMetadata metadata)
+    {
+        var annotated = Annotated(snapshot, metadata);
+        Directory.CreateDirectory(folder);
+        var path = UniquePath(folder, FileNameFor(annotated.Name));
+        Write(path, annotated);
+        return path;
+    }
+
+    /// <summary>A file name for a snapshot called <paramref name="name"/>: the name itself where that is legal,
+    /// with a .json extension.
+    ///
+    /// Pure, and separate from <see cref="Create"/> so that it can be tested without a disk. The instrument's
+    /// character set includes ':', '/' and '*', none of which a file name can hold, and the same substitution
+    /// the save dialogs already make on their suggested name is made here -- the snapshot keeps the real name
+    /// inside itself either way, which is why scrubbing the file name loses nothing.
+    ///
+    /// A name that is nothing but unusable characters, or nothing at all, becomes "Snapshot": a file called
+    /// "_.json", or ".json" -- which on Windows is a hidden-extension file with no name -- would be worse than a
+    /// generic one, and the browser lists what is inside the file rather than what it is called.</summary>
+    public static string FileNameFor(string name)
+    {
+        var scrubbed = string.Join("_", (name ?? "").Split(Path.GetInvalidFileNameChars())).Trim();
+        // Trailing dots and spaces are legal in the string and not in a Windows file name -- the API silently
+        // drops them, so "Warm Rhodes ." would be created as "Warm Rhodes" and a uniqueness check done on the
+        // longer name would not see the collision.
+        scrubbed = scrubbed.TrimEnd('.', ' ');
+        return (scrubbed.Length == 0 ? "Snapshot" : scrubbed) + ".json";
+    }
+
+    /// <summary><paramref name="fileName"/> in <paramref name="folder"/>, suffixed until it names nothing that
+    /// is there. The loop is bounded by nothing but the file system, which is right: it stops the first time it
+    /// asks a question whose answer is no, and the only way it does not stop is a folder that is filling up as
+    /// fast as it is read.</summary>
+    private static string UniquePath(string folder, string fileName)
+    {
+        var stem = Path.GetFileNameWithoutExtension(fileName);
+        var extension = Path.GetExtension(fileName);
+        var path = Path.Combine(folder, fileName);
+        for (var n = 2; File.Exists(path); n++)
+            path = Path.Combine(folder, $"{stem} ({n}){extension}");
+        return path;
+    }
+
+    /// <summary><paramref name="snapshot"/> with <paramref name="metadata"/>'s fields on it. The one place the
+    /// metadata record is turned into a snapshot's own fields, so that saving a new file into the library and
+    /// annotating one already in it cannot come to disagree about what any of them means.</summary>
+    private static Integra7Snapshot Annotated(Integra7Snapshot snapshot, SnapshotMetadata metadata)
+    {
+        // Refused before anything is written, for the rule the converter already follows about null tags: the
         // worst thing a writer here can produce is a file this build writes and then refuses to read. A star
         // control cannot produce a rating outside the range, so this is about a caller with a bug rather than
         // a user with a mouse -- which is exactly the case that would otherwise turn a good file into an
@@ -169,8 +240,15 @@ public static class SnapshotLibrary
             throw new SnapshotFormatException(
                 $"A rating of {metadata.Rating} cannot be saved; ratings run from 0 to 5.");
 
-        var snapshot = Integra7Snapshot.FromJson(File.ReadAllText(filePath));
-        var json = Integra7Snapshot.ToJson(snapshot with
+        // A blank name is refused for the same reason and one more: it is the only metadata field whose absence
+        // the browser cannot show. An entry with no name is a row the user cannot tell from the row above it,
+        // and the file it names is the one thing here they may have no other copy of. Null is not blank -- it is
+        // "do not touch the name" -- so this only fires on a caller that asked for a rename and had nothing to
+        // rename it to, which is a bug rather than a preference.
+        if (metadata.Name is not null && string.IsNullOrWhiteSpace(metadata.Name))
+            throw new SnapshotFormatException("A snapshot needs a name.");
+
+        return snapshot with
         {
             Category = metadata.Category,
             // Copied into a List because that is what the record holds, and copied rather than shared so that
@@ -179,8 +257,23 @@ public static class SnapshotLibrary
             Notes = metadata.Notes,
             Rating = metadata.Rating,
             Favourite = metadata.Favourite,
-        });
+            // The one clause the name needed. Null leaves what the file already says -- see SnapshotMetadata.
+            Name = metadata.Name ?? snapshot.Name,
+        };
+    }
 
+    /// <summary>Put <paramref name="snapshot"/> at <paramref name="filePath"/>, atomically.
+    ///
+    /// <b>A sibling temp file, then a rename over the target</b>, which is atomic on the same volume -- for the
+    /// reason <c>MainWindowViewModel.SaveStudioSetAsync</c> gives: this file may be the user's only copy of a
+    /// Studio Set, and a failure partway through a direct write must not destroy what was already there. That
+    /// matters most for <see cref="WriteMetadata"/>, which rewrites a file the user already has rather than
+    /// creating one, and costs nothing for <see cref="Create"/>. The temp file is named beside the target rather
+    /// than under the system temp folder so that the rename stays on one volume; it does not end in .json, so a
+    /// listing racing this write cannot see it.</summary>
+    private static void Write(string filePath, Integra7Snapshot snapshot)
+    {
+        var json = Integra7Snapshot.ToJson(snapshot);
         var tempPath = filePath + ".saving";
         try
         {

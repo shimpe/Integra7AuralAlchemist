@@ -355,4 +355,116 @@ public class SnapshotLibraryTests
 
         Assert.That(SnapshotLibrary.Read(_folder).Select(e => e.FilePath), Is.EqualTo(new[] { path }));
     }
+
+    /// <summary>The name is the sixth metadata field, added when the browser needed the library's entries to be
+    /// renameable. It goes through the same write path as the other five -- one place rewrites a snapshot -- and
+    /// the assertion that matters is the same one: the parameter data does not move.</summary>
+    [Test]
+    public void A_snapshot_can_be_renamed_through_the_same_write_path_as_its_annotations()
+    {
+        var path = Save("set.json", StudioSet("World Pop Set"));
+        var before = ParameterData(path);
+
+        SnapshotLibrary.WriteMetadata(path, new SnapshotMetadata(Rating: 5, Name: "Sunday Morning Set"));
+
+        var head = SnapshotLibrary.Read(_folder).Single().Head;
+        Assert.That(head.Name, Is.EqualTo("Sunday Morning Set"));
+        Assert.That(head.Rating, Is.EqualTo(5));
+        Assert.That(ParameterData(path), Is.EqualTo(before), "and the parameters did not move");
+        Assert.That(path, Does.EndWith("set.json"),
+            "renaming changes what the snapshot calls itself and not what the file is called");
+    }
+
+    /// <summary>Null is not blank. A caller that only wants to annotate says nothing about the name and the file's
+    /// own is kept -- which is what every caller written before the browser existed does, and what the record's
+    /// default means.</summary>
+    [Test]
+    public void Metadata_that_says_nothing_about_the_name_leaves_the_name_alone()
+    {
+        var path = Save("rhodes.json", Tone("Warm Rhodes"));
+
+        SnapshotLibrary.WriteMetadata(path, new SnapshotMetadata(Notes: "less bark"));
+
+        var head = SnapshotLibrary.Read(_folder).Single().Head;
+        Assert.That(head.Name, Is.EqualTo("Warm Rhodes"));
+        Assert.That(head.Notes, Is.EqualTo("less bark"));
+    }
+
+    /// <summary>A blank name is refused before the file is touched, like a rating of seven. It is the one field
+    /// whose absence the browser cannot show: a row with no name is one the user cannot tell from the row above
+    /// it, and the file it names may be their only copy of that sound.</summary>
+    [Test]
+    public void A_blank_name_is_refused_before_the_file_is_touched()
+    {
+        var path = Save("rhodes.json", Tone("Warm Rhodes"));
+        var before = File.ReadAllText(path);
+
+        Assert.That(() => SnapshotLibrary.WriteMetadata(path, new SnapshotMetadata(Name: "")),
+            Throws.TypeOf<SnapshotFormatException>());
+        Assert.That(() => SnapshotLibrary.WriteMetadata(path, new SnapshotMetadata(Name: "   ")),
+            Throws.TypeOf<SnapshotFormatException>());
+        Assert.That(File.ReadAllText(path), Is.EqualTo(before));
+    }
+
+    [Test]
+    public void Creating_a_snapshot_in_the_library_names_the_file_after_it_and_applies_its_metadata()
+    {
+        var path = SnapshotLibrary.Create(_folder, Tone("Warm Rhodes"),
+            new SnapshotMetadata("E.Piano", ["warm"], "", 4, true, "Warm Rhodes"));
+
+        Assert.That(path, Is.EqualTo(Path.Combine(_folder, "Warm Rhodes.json")));
+        var head = SnapshotLibrary.Read(_folder).Single().Head;
+        Assert.That(head.Name, Is.EqualTo("Warm Rhodes"));
+        Assert.That(head.Category, Is.EqualTo("E.Piano"));
+        Assert.That(head.Tags, Is.EqualTo(new[] { "warm" }));
+        Assert.That(head.Rating, Is.EqualTo(4));
+        Assert.That(head.Favourite, Is.True);
+        Assert.That(head.ToneType, Is.EqualTo("SN-S"), "and it is still the tone that was captured");
+    }
+
+    /// <summary>Two captures of the same sound do not overwrite each other. A library of captures is full of
+    /// "Init Tone" and "Studio Set", and silently replacing the earlier one would destroy a snapshot the user
+    /// still has -- with the same button that is supposed to be keeping them.</summary>
+    [Test]
+    public void A_name_that_is_already_taken_is_suffixed_rather_than_overwritten()
+    {
+        var first = SnapshotLibrary.Create(_folder, Tone("Init Tone"), new SnapshotMetadata(Name: "Init Tone"));
+        var second = SnapshotLibrary.Create(_folder, Tone("Init Tone"), new SnapshotMetadata(Name: "Init Tone"));
+        var third = SnapshotLibrary.Create(_folder, Tone("Init Tone"), new SnapshotMetadata(Name: "Init Tone"));
+
+        Assert.That(Path.GetFileName(first), Is.EqualTo("Init Tone.json"));
+        Assert.That(Path.GetFileName(second), Is.EqualTo("Init Tone (2).json"));
+        Assert.That(Path.GetFileName(third), Is.EqualTo("Init Tone (3).json"));
+        Assert.That(SnapshotLibrary.Read(_folder), Has.Count.EqualTo(3));
+    }
+
+    /// <summary>The first save into the default library folder happens before anything has created it. Recording
+    /// where the library is and putting a file in it are different questions -- <c>LibrarySettings</c> answers the
+    /// first and deliberately does not create anything -- so this is where the folder comes into existence.
+    /// </summary>
+    [Test]
+    public void Creating_a_snapshot_creates_the_library_folder_if_it_is_not_there()
+    {
+        var folder = Path.Combine(_folder, "Library", "Nested");
+
+        var path = SnapshotLibrary.Create(folder, Tone("Warm Rhodes"), new SnapshotMetadata(Name: "Warm Rhodes"));
+
+        Assert.That(File.Exists(path));
+        Assert.That(SnapshotLibrary.Read(folder), Has.Count.EqualTo(1));
+    }
+
+    /// <summary>The instrument's character set includes ':', '/' and '*', which a file name cannot hold. Pure, so
+    /// it is tested without a disk -- and the cases below are the ones that produce a file with no name at all
+    /// rather than merely an ugly one.</summary>
+    [Test]
+    public void A_file_name_is_the_snapshot_name_with_whatever_a_file_name_cannot_hold_replaced()
+    {
+        Assert.That(SnapshotLibrary.FileNameFor("Warm Rhodes"), Is.EqualTo("Warm Rhodes.json"));
+        Assert.That(SnapshotLibrary.FileNameFor("Pad:2/3*"), Is.EqualTo("Pad_2_3_.json"));
+        Assert.That(SnapshotLibrary.FileNameFor(""), Is.EqualTo("Snapshot.json"));
+        Assert.That(SnapshotLibrary.FileNameFor("   "), Is.EqualTo("Snapshot.json"));
+        // Trailing dots and spaces are legal in a string and not in a Windows file name: the API drops them
+        // silently, so a uniqueness check made on the longer name would not see the collision.
+        Assert.That(SnapshotLibrary.FileNameFor("Warm Rhodes ."), Is.EqualTo("Warm Rhodes.json"));
+    }
 }

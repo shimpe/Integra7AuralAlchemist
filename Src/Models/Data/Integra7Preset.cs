@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using CoreMidi;
 
@@ -97,6 +99,29 @@ internal enum EnumInternalUserDefined
 /// </summary>
 public class Integra7Preset : INotifyPropertyChanged
 {
+    /// <summary>The instrument's own 34 tone categories, exactly as the preset CSV spells them and therefore
+    /// exactly as <see cref="CategoryStr"/> reports them.
+    ///
+    /// <b>The order is <see cref="EnumCategory"/>'s</b>, member for member, and the constructor converts by
+    /// position. That is why this is an array with a documented order rather than a set: the two have to agree,
+    /// and agreeing by construction is worth more than a comment asking whoever adds a category to remember.
+    ///
+    /// <b>Exposed because the snapshot library filters and labels by category</b>, and its drop-down has to
+    /// offer the vocabulary the user already knows from the preset grids -- not a second one invented for the
+    /// library. A snapshot stores the string, not the enum (see <c>Integra7Snapshot.Category</c>), so a string
+    /// list is what a browser needs.</summary>
+    private static readonly string[] Categories =
+    [
+        "Ac.Piano", "Other Keyboards", "Organ", "E.Guitar", "Dist.Guitar", "Ac.Bass", "E.Bass", "Ac.Guitar",
+        "Accordion/Harmonica", "Bell/Mallet", "Percussion", "Plucked/Stroke", "Strings", "Vox/Choir", "Brass",
+        "Sax", "Wind", "Flute", "Synth Pad/Strings", "Pulsating", "Synth Brass", "Synth PolyKey",
+        "Synth Bellpad", "Synth Seq/Pop", "Synth Bass", "Synth Lead", "FX", "E.Piano", "Hit", "Drums",
+        "Beat&Groove", "Recorder", "Sound FX", "Phrase",
+    ];
+
+    /// <inheritdoc cref="Categories"/>
+    public static IReadOnlyList<string> ToneCategories => Categories;
+
     public Integra7Preset(int Id, string InternalUserDefined, string ToneType, string ToneBank, int Number, string Name,
         int MSB, int LSB, int PC, string Category)
     {
@@ -143,44 +168,15 @@ public class Integra7Preset : INotifyPropertyChanged
             "ExPCM" => EnumToneBank.ExPCM,
             _ => throw new MidiException("Invalid string value for tone bank: " + ToneBank)
         };
-        _category = Category switch
-        {
-            "Ac.Piano" => EnumCategory.AcPiano,
-            "Other Keyboards" => EnumCategory.OtherKeyboards,
-            "Organ" => EnumCategory.Organ,
-            "E.Guitar" => EnumCategory.EGuitar,
-            "Dist.Guitar" => EnumCategory.DistGuitar,
-            "Ac.Bass" => EnumCategory.AcBass,
-            "E.Bass" => EnumCategory.EBass,
-            "Ac.Guitar" => EnumCategory.AcGuitar,
-            "Accordion/Harmonica" => EnumCategory.AccordionHarmonica,
-            "Bell/Mallet" => EnumCategory.BellMallet,
-            "Percussion" => EnumCategory.Percussion,
-            "Plucked/Stroke" => EnumCategory.PluckedStroke,
-            "Strings" => EnumCategory.Strings,
-            "Vox/Choir" => EnumCategory.VoxChoir,
-            "Brass" => EnumCategory.Brass,
-            "Sax" => EnumCategory.Sax,
-            "Wind" => EnumCategory.Wind,
-            "Flute" => EnumCategory.Flute,
-            "Synth Pad/Strings" => EnumCategory.SynthPadStrings,
-            "Pulsating" => EnumCategory.Pulsating,
-            "Synth Brass" => EnumCategory.SynthBrass,
-            "Synth PolyKey" => EnumCategory.SynthPolyKey,
-            "Synth Bellpad" => EnumCategory.SynthBellPad,
-            "Synth Seq/Pop" => EnumCategory.SynthSeqPop,
-            "Synth Bass" => EnumCategory.SynthBass,
-            "Synth Lead" => EnumCategory.SynthLead,
-            "FX" => EnumCategory.FX,
-            "E.Piano" => EnumCategory.EPiano,
-            "Hit" => EnumCategory.Hit,
-            "Drums" => EnumCategory.Drums,
-            "Beat&Groove" => EnumCategory.BeatGroove,
-            "Recorder" => EnumCategory.Recorder,
-            "Sound FX" => EnumCategory.SoundFX,
-            "Phrase" => EnumCategory.Phrase,
-            _ => throw new MidiException("Invalid string value for Category: " + Category)
-        };
+        // By position in ToneCategories, which is deliberately in EnumCategory's own order -- see the
+        // remarks there. This used to be a 34-arm switch listing the same 34 strings a second time, and
+        // adding the library's category drop-down would have made it a third: the list below is now the one
+        // place the instrument's vocabulary is written down, and this line is what keeps the enum agreeing
+        // with it instead of a comment asking someone to.
+        var categoryIndex = Array.IndexOf(Categories, Category);
+        if (categoryIndex < 0)
+            throw new MidiException("Invalid string value for Category: " + Category);
+        _category = (EnumCategory)categoryIndex;
         _internalUserDefined = InternalUserDefined switch
         {
             "INT" => EnumInternalUserDefined.Internal,
