@@ -109,7 +109,17 @@ public partial class MainWindowViewModel : ViewModelBase
     [ReactiveCommand]
     public async Task UndoAsync()
     {
-        if (!EditJournal.Default.TryUndo(out var pending)) return;
+        if (!EditJournal.Default.TryUndo(out var pending))
+        {
+            // The button is bound to CanUndo, so reaching here means the click arrived with nothing to take
+            // back. Worth a line rather than a silent return: when a user reports that a button "did
+            // nothing", the log is the only thing that can tell a click which never arrived -- eaten by the
+            // window's resize edge or a tooltip popup, both of which have happened here -- from one that
+            // arrived and found no work. Without it, the two look identical from the outside.
+            UserActionLog.Action("button: Undo (nothing to take back)");
+            return;
+        }
+
         UserActionLog.Action($"undo {pending.Description}");
         // TryUndo has already moved the step to the redo side, so a write that never happened would
         // leave the history describing an instrument state that was never reached. Moving it back is
@@ -121,7 +131,14 @@ public partial class MainWindowViewModel : ViewModelBase
     [ReactiveCommand]
     public async Task RedoAsync()
     {
-        if (!EditJournal.Default.TryRedo(out var pending)) return;
+        if (!EditJournal.Default.TryRedo(out var pending))
+        {
+            // See UndoAsync: a click that found nothing to do has to be distinguishable in the log from a
+            // click that never arrived.
+            UserActionLog.Action("button: Redo (nothing to put back)");
+            return;
+        }
+
         UserActionLog.Action($"redo {pending.Description}");
         // Mirror of UndoAsync: put the step back where it came from when the write did not happen.
         if (!await ApplyEditsAsync([pending], "undo/redo")) EditJournal.Default.TryUndo(out _);
@@ -143,7 +160,14 @@ public partial class MainWindowViewModel : ViewModelBase
     [ReactiveCommand]
     public async Task CompareAsync()
     {
-        if (!EditJournal.Default.TryBeginCompareToggle(out var toggle)) return;
+        if (!EditJournal.Default.TryBeginCompareToggle(out var toggle))
+        {
+            // See UndoAsync: logged rather than returned silently, so that "the button did nothing" can be
+            // told apart from "the click never got here".
+            UserActionLog.Action("button: Compare (nothing to compare with)");
+            return;
+        }
+
         UserActionLog.Action(toggle.Entering ? "button: Compare (hear the original)"
             : "button: Compare (hear the edits)");
 
