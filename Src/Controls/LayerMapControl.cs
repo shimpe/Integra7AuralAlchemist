@@ -86,6 +86,30 @@ public class LayerMapControl : Control
     /// <summary>Note 60, middle C.</summary>
     private const int MiddleC = 60;
 
+    // The three cursors a hover can produce, built once each and not per pointer move -- a move arrives for
+    // every pixel, and a Cursor owns a platform handle, so building them on the fly would allocate and free
+    // handles by the thousand for a value that only ever takes three states. RotaryKnobDial builds its one
+    // cursor in its constructor for the same reason; what differs here is that which one applies depends on
+    // where the pointer is, so they cannot be a single field set once.
+    //
+    // Lazy, and deliberately not `static readonly Cursor = new(...)`: constructing a Cursor asks the platform
+    // for a handle through ICursorFactory, so a plain static initialiser runs that the first time *anything*
+    // touches this type -- including a unit test reading a styled property's default, where no platform is
+    // registered and the whole type then fails to initialise. Deferring to first use means they are built when
+    // a pointer is actually over the control, by which time there is certainly a platform. A test caught this;
+    // the symptom was a TypeInitializationException wrapping "Unable to locate 'ICursorFactory'".
+
+    /// <summary>Over a key edge: the drag moves the range's lower or upper key, left and right.</summary>
+    private static readonly Lazy<Cursor> ResizeKeyCursor = new(() => new Cursor(StandardCursorType.SizeWestEast));
+
+    /// <summary>Over a velocity edge: the drag moves the range's loud or soft limit, up and down within the
+    /// lane.</summary>
+    private static readonly Lazy<Cursor> ResizeVelocityCursor =
+        new(() => new Cursor(StandardCursorType.SizeNorthSouth));
+
+    /// <summary>Over a zone's body: the drag moves the whole range in both axes at once.</summary>
+    private static readonly Lazy<Cursor> MoveCursor = new(() => new Cursor(StandardCursorType.SizeAll));
+
     /// <summary>How solid a zone's fill is. The same 0.22 the PMT zone editor uses, so a range means the same
     /// thing to the eye on both charts. The outline carries the edge; the fill only has to say "this area
     /// belongs to this part" without hiding the lane's stripe or a neighbouring fade beneath it.</summary>
@@ -590,7 +614,15 @@ public class LayerMapControl : Control
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (_dragPart < 0) return;
+
+        // Not dragging: the move is only worth anything as a question about what is under the pointer, and the
+        // answer is the cursor. A resize handle a few pixels wide is invisible otherwise -- the user finds it by
+        // pressing and seeing what happens, which on a chart where a press also auditions is a poor way to ask.
+        if (_dragPart < 0)
+        {
+            ShowHoverCursor(e.GetPosition(this));
+            return;
+        }
 
         double w = Bounds.Width, chartH = ChartHeight;
         if (w <= 0 || chartH <= 0) return;
@@ -617,6 +649,46 @@ public class LayerMapControl : Control
         // would revert whatever a front-panel edit or a Studio Set change had altered mid-drag. The handle is what
         // tells it which single field this gesture is entitled to write; see LayerZoneChanges.FieldsFor.
         ZoneEdited?.Invoke(this, new LayerZoneEditedEventArgs(edited, _dragHandle));
+    }
+
+    /// <summary>Say what a press here would do, by changing the cursor: the two key edges resize left-right,
+    /// the two velocity edges resize up-down, a zone's body moves in both, and everything else is a plain
+    /// arrow.
+    ///
+    /// <para>Hover only. During a drag the cursor is left exactly as the press set it, because the pointer
+    /// routinely leaves the zone it is dragging -- past the end of the key range, or into a neighbouring lane
+    /// -- and a cursor that flickered to "arrow" halfway through a resize would say the drag had stopped when
+    /// it had not.</para>
+    ///
+    /// <para>The margin this hit-tests with is <see cref="LayerMapGeometry.HitMargin"/>, the same one the press
+    /// uses. That is the whole point: a cursor that changed over a different band than the one that actually
+    /// grabs would be worse than no cursor at all, because the user would trust it.</para></summary>
+    private void ShowHoverCursor(Point pos)
+    {
+        double w = Bounds.Width, chartH = ChartHeight;
+        if (w <= 0 || chartH <= 0) return;
+
+        var zones = Zones;
+        var handle = zones is null
+            ? PmtZoneMapping.Handle.None
+            : LayerMapGeometry.HitTest(pos.X, pos.Y, zones, w, chartH, LayerMapGeometry.HitMargin).Handle;
+
+        Cursor = handle switch
+        {
+            PmtZoneMapping.Handle.Left or PmtZoneMapping.Handle.Right => ResizeKeyCursor.Value,
+            PmtZoneMapping.Handle.Top or PmtZoneMapping.Handle.Bottom => ResizeVelocityCursor.Value,
+            PmtZoneMapping.Handle.Body => MoveCursor.Value,
+            _ => Cursor.Default,
+        };
+    }
+
+    /// <summary>The pointer left the chart, so nothing here is under it any more. Without this the control
+    /// keeps whatever cursor the last hover set, and a pointer that leaves over a resize handle takes the
+    /// resize cursor with it for as long as it is away.</summary>
+    protected override void OnPointerExited(PointerEventArgs e)
+    {
+        base.OnPointerExited(e);
+        if (_dragPart < 0) Cursor = Cursor.Default;
     }
 
     protected override void OnPointerReleased(PointerReleasedEventArgs e)
