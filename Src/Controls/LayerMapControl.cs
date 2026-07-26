@@ -49,6 +49,11 @@ public class LayerMapControl : Control
     /// <summary>Tints every other lane, so sixteen rows can be counted.</summary>
     private const string LaneAltKey = "LayerMapLaneAltBrush";
 
+    /// <summary>Darkens the column behind every black key. Semi-transparent black rather than an opaque
+    /// colour, so it darkens whatever it is over — the chart ground, and the lane stripe drawn after it —
+    /// instead of having to be two colours that stay in step with both.</summary>
+    private const string BlackKeyKey = "LayerMapBlackKeyBrush";
+
     /// <summary>The finest lines on the chart: the hairline under each lane.</summary>
     private const string GridKey = "SnEnvelopeGridBrush";
 
@@ -231,6 +236,9 @@ public class LayerMapControl : Control
 
         var culture = CultureInfo.CurrentCulture;
 
+        // Before the lanes, so the lane stripe reads as a stripe over the keyboard rather than the keyboard
+        // interrupting it, and well before the zones, which are what the eye is meant to end up on.
+        DrawBlackKeyColumns(context, palette, w, chartH);
         DrawLanes(context, palette, w, chartH);
         DrawKeyAxis(context, palette, w, chartH, culture);
 
@@ -246,6 +254,33 @@ public class LayerMapControl : Control
             }
 
         DrawSelection(context, palette, w, chartH);
+    }
+
+    /// <summary>A darker column behind every black key, so the chart reads as a keyboard laid on its side and a
+    /// key can be found by its pattern rather than by counting from a C.
+    ///
+    /// <para>A column is centred on its key's gridline and one key wide, because the line <em>is</em> the key
+    /// here — <c>KeyX</c> maps a key to a position, not to a cell — so an edge dragged to F# sits in the middle
+    /// of F#'s band rather than against its edge.</para>
+    ///
+    /// <para>Unlike the per-note gridlines this never drops out on a narrow chart. A hairline at two pixels a
+    /// key becomes an even wash that hides what is drawn over it; a fill at two pixels a key is still the
+    /// two-and-three grouping, which is the whole of what it is for.</para></summary>
+    private static void DrawBlackKeyColumns(DrawingContext context, in Palette palette, double w, double chartH)
+    {
+        var keyWidth = w / (PmtZoneMapping.Max - PmtZoneMapping.Min);
+
+        for (var key = PmtZoneMapping.Min; key <= PmtZoneMapping.Max; key++)
+        {
+            // Asked of MidiNote, like the C test in the axis, so one definition of the keyboard serves the
+            // tint, the gridlines and the note names and none of the three can disagree with the others.
+            if (!MidiNote.IsBlack(key)) continue;
+
+            var centre = LayerMapGeometry.KeyX(key, w);
+            var x = Math.Max(0, centre - keyWidth / 2);
+            var right = Math.Min(w, centre + keyWidth / 2);
+            context.FillRectangle(palette.BlackKey, new Rect(x, 0, right - x, chartH));
+        }
     }
 
     /// <summary>Lane grounds: an alternating tint and a hairline under each row.</summary>
@@ -610,15 +645,16 @@ public class LayerMapControl : Control
 
     /// <summary>Every brush the chart draws with, resolved once per render.</summary>
     private readonly record struct Palette(
-        IBrush Background, IBrush LaneAlt, IBrush Grid, IBrush Octave, IBrush MutedText,
+        IBrush Background, IBrush LaneAlt, IBrush BlackKey, IBrush Grid, IBrush Octave, IBrush MutedText,
         IBrush Zone, Color ZoneColor, IBrush Label, IBrush Selection);
 
     private Palette ResolvePalette()
     {
         var zone = FindBrush(ZoneKey);
         return new Palette(
-            FindBrush(BackgroundKey), FindBrush(LaneAltKey), FindBrush(GridKey), FindBrush(OctaveKey),
-            FindBrush(MutedTextKey), zone, ColorOf(zone), FindBrush(LabelKey), FindBrush(SelectionKey));
+            FindBrush(BackgroundKey), FindBrush(LaneAltKey), FindBrush(BlackKeyKey), FindBrush(GridKey),
+            FindBrush(OctaveKey), FindBrush(MutedTextKey), zone, ColorOf(zone), FindBrush(LabelKey),
+            FindBrush(SelectionKey));
     }
 
     /// <summary>A brush from the resources, by key — resolved through the control itself, so it finds

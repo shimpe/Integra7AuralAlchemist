@@ -75,6 +75,13 @@
             <!-- Every other lane, so sixteen otherwise identical rows can be counted. Faint on purpose: it
                  must not compete with the ranges drawn on top of it. -->
             <SolidColorBrush x:Key="LayerMapLaneAltBrush" Color="#10FFFFFF"/>
+            <!-- The column behind each black key, so the chart reads as a keyboard on its side and a key can
+                 be found by the two-and-three pattern instead of by counting from a C. Semi-transparent
+                 black, not an opaque colour: it has to darken both the chart ground and the alternating lane
+                 stripe drawn over it, and a solid colour would need to be two colours kept in step with
+                 those. Deliberately weaker than DrumBlackKeyBrush below — that one *is* a key on a rail you
+                 click, this one sits under sixteen ranges that are the thing being read. -->
+            <SolidColorBrush x:Key="LayerMapBlackKeyBrush" Color="#20000000"/>
             <!-- A part's range: the body fill, its outline, and the colour its fade bands taper towards. The
                  same blue the PMT zone chart gives its first zone, so "a range" looks like the same kind of
                  thing on both charts. -->
