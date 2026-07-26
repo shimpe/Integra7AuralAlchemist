@@ -140,12 +140,16 @@
                                 </Button.IsEnabled>
                                 Save User Tone
                             </Button>
-                            <!-- "Add … to library" against "Export …": both read the same blocks out of the
+                            <!-- "Add … to Library" against "Export …": both read the same blocks out of the
                                  instrument and differ only in where the file lands, so the labels name the
                                  destination and nothing else. They say which *thing* is added, too, because
-                                 the alternative was two buttons in one row both reading "Add to library"
+                                 the alternative was two buttons in one row both reading "Add to Library"
                                  with only their position to say what they meant. Longer labels on a row
                                  this wide is the cheaper cost.
+                                 Title case throughout, because every other button in this toolbar uses it —
+                                 "Export Tone…", "Load Studio Set…", "Save User Tone". An earlier version of
+                                 this comment claimed lower-case "tone" was the application's own usage. It
+                                 is not, and nothing else in this window spells it that way.
                                  "Save" appears nowhere here on purpose: "Save User Tone", further left,
                                  writes into the instrument's own memory, and that is the only meaning of
                                  the word left in this toolbar. -->
@@ -159,7 +163,7 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Add Studio Set to library
+                                Add Studio Set to Library
                             </Button>
                             <Button Command="{Binding ExportStudioSetAsync}"
                                     ToolTip.Tip="Read the Studio Set currently in the instrument and write it to a file anywhere you like, outside the library.">
@@ -185,9 +189,8 @@
                                 </Button.IsEnabled>
                                 Load Studio Set…
                             </Button>
-                            <!-- See the Studio Set pair above for why these read "Add … to library" rather
-                                 than "Save …". Lower-case "tone" against capitalised "Studio Set" is this
-                                 application's own usage, not an inconsistency. -->
+                            <!-- See the Studio Set pair above for why these read "Add … to Library" rather
+                                 than "Save …". -->
                             <Button Command="{Binding SaveToneAsync}"
                                     ToolTip.Tip="Read the tone currently loaded into the selected part — every one of its parameters — and add it to the library, with a name, category, tags and a rating.">
                                 <Button.IsEnabled>
@@ -199,7 +202,7 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Add tone to library
+                                Add Tone to Library
                             </Button>
                             <Button Command="{Binding ExportToneAsync}"
                                     ToolTip.Tip="Read the tone currently loaded into the selected part and write it to a file anywhere you like, outside the library.">
