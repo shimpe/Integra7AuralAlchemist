@@ -103,9 +103,9 @@ comment fails the build.
 **Test fixtures you will reuse** (all already in the suite, all `internal` to the Tests assembly):
 - `TestFailedReadKeepsValues.LoadParameters()` — the real `parameters.bin`.
 - `TestFailedReadKeepsValues.SilentApi` — an `IIntegra7Api` whose reads time out.
-- `Integra7SnapshotRestoreTests.BlankReplyApi` — a `SilentApi` whose reads succeed with all-zero data.
-- `Integra7SnapshotRestoreTests.BuildDomain(api)` — an `Integra7Domain` over that fake.
-- `Integra7SnapshotRestoreTests.NoRealMidi()` — a lease that throws if touched.
+- `StudioSetSnapshotServiceTests.BlankReplyApi` — a `SilentApi` whose reads succeed with all-zero data.
+- `StudioSetSnapshotServiceTests.BuildDomain(api)` — an `Integra7Domain` over that fake.
+- `StudioSetSnapshotServiceTests.NoRealMidi()` — a lease that throws if touched.
 
 Check the exact fixture class names with
 `grep -n "internal static Integra7Domain BuildDomain" Tests/TestStudioSetSnapshot.cs` before using them.
@@ -558,8 +558,8 @@ public class ToneRandomiserTests
 
     private static List<FullyQualifiedParameter> PartialParameters()
     {
-        var domain = Integra7SnapshotRestoreTests.BuildDomain(
-            new Integra7SnapshotRestoreTests.BlankReplyApi());
+        var domain = StudioSetSnapshotServiceTests.BuildDomain(
+            new StudioSetSnapshotServiceTests.BlankReplyApi());
         return domain.GetDomain("Temporary Tone Part 1", Offset, Block)
             .GetRelevantParameters(false, false);
     }
@@ -636,8 +636,8 @@ public class ToneRandomiserTests
     [Test]
     public void Never_returns_a_discriminator_a_name_or_an_uncategorised_parameter()
     {
-        var domain = Integra7SnapshotRestoreTests.BuildDomain(
-            new Integra7SnapshotRestoreTests.BlankReplyApi());
+        var domain = StudioSetSnapshotServiceTests.BuildDomain(
+            new StudioSetSnapshotServiceTests.BlankReplyApi());
         var common = domain.GetDomain("Temporary Tone Part 1", Offset,
             "Offset2/SuperNATURAL Synth Tone Common").GetRelevantParameters(false, false);
         var mfx = domain.GetDomain("Temporary Tone Part 1", Offset,
@@ -825,8 +825,8 @@ public class ToneRandomisationServiceTests
     [Test]
     public async Task Records_one_undo_step_for_the_whole_operation()
     {
-        var api = new Integra7SnapshotRestoreTests.BlankReplyApi();
-        var domain = Integra7SnapshotRestoreTests.BuildDomain(api);
+        var api = new StudioSetSnapshotServiceTests.BlankReplyApi();
+        var domain = StudioSetSnapshotServiceTests.BuildDomain(api);
 
         var changed = await ToneRandomisationService.RandomiseAsync(
             domain, OnePartial(), Everything(), new Random(11), lease: null);
@@ -842,8 +842,8 @@ public class ToneRandomisationServiceTests
     [Test]
     public async Task Sends_one_transmission_per_block()
     {
-        var api = new Integra7SnapshotRestoreTests.BlankReplyApi();
-        var domain = Integra7SnapshotRestoreTests.BuildDomain(api);
+        var api = new StudioSetSnapshotServiceTests.BlankReplyApi();
+        var domain = StudioSetSnapshotServiceTests.BuildDomain(api);
 
         await ToneRandomisationService.RandomiseAsync(
             domain, OnePartial(), Everything(), new Random(12), lease: null);
@@ -854,8 +854,8 @@ public class ToneRandomisationServiceTests
     [Test]
     public async Task Changes_nothing_and_writes_nothing_when_no_category_is_ticked()
     {
-        var api = new Integra7SnapshotRestoreTests.BlankReplyApi();
-        var domain = Integra7SnapshotRestoreTests.BuildDomain(api);
+        var api = new StudioSetSnapshotServiceTests.BlankReplyApi();
+        var domain = StudioSetSnapshotServiceTests.BuildDomain(api);
 
         var changed = await ToneRandomisationService.RandomiseAsync(domain, OnePartial(),
             new RandomisationStrengths(new Dictionary<ToneCategory, double>()), new Random(13),
@@ -871,7 +871,7 @@ public class ToneRandomisationServiceTests
     [Test]
     public void Refuses_when_the_device_does_not_answer()
     {
-        var domain = Integra7SnapshotRestoreTests.BuildDomain(
+        var domain = StudioSetSnapshotServiceTests.BuildDomain(
             new TestFailedReadKeepsValues.SilentApi());
 
         Assert.That(async () => await ToneRandomisationService.RandomiseAsync(

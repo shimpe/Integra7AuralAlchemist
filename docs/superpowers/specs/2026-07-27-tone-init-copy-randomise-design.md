@@ -222,8 +222,11 @@ For each parameter, in the order given:
 2. Skip when its category has no strength, or a strength of zero.
 3. **Enumerated** — the spec carries a `Repr` or a `Discrete` list, so the values are labels and the
    distance between two of them means nothing. With probability equal to the strength, draw uniformly
-   from the legal values; otherwise leave it. At 0.1 most switches and modes hold; at 1.0 nearly all
-   change.
+   from the legal values **other than the one it currently holds**; otherwise leave it. Excluding the
+   current value is what makes the strength mean what it says: drawing from all *n* values gives a real
+   chance of change of only `strength × (n−1)/n`, which for a two-value switch — most of the switches
+   in this database — is half the setting the user chose. A parameter whose list holds one value is
+   left alone. At 0.1 most switches and modes hold; at 1.0 every one of them moves.
 4. **Numeric** — `window = round(strength × (IMax − IMin))`, new value =
    `clamp(current + rng.Next(−window, +window + 1), IMin, IMax)`. The window is symmetric around the
    current value, so a low strength nudges and a high one is close to a free draw, and clamping is what
