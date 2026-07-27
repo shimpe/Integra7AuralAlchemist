@@ -43,6 +43,27 @@ public static class ToneDomainNames
     public static bool IsKnownToneType(string toneType) =>
         toneType is "PCMS" or "PCMD" or "SN-S" or "SN-A" or "SN-D";
 
+    /// <summary>Whether this engine's tone is a kit of independently edited notes rather than one
+    /// patch. Randomise treats the two differently: a kit is randomised one note at a time, because
+    /// "every note in the kit at once" is 88 partials and an undo step nobody can use.</summary>
+    public static bool IsDrumKit(string toneType) => toneType is "PCMD" or "SN-D";
+
+    /// <summary>The single partial block holding one drum note. <paramref name="zeroBasedNoteIndex"/> is
+    /// the drum editor's own note index (0..61 for SN-D, 0..87 for PCMD), which is one less than the
+    /// partial number in the address.</summary>
+    public static (string Start, string Offset, string Offset2) DrumPartialFor(string toneType,
+        int zeroBasedPartNo, int zeroBasedNoteIndex)
+    {
+        var (offset, block) = toneType switch
+        {
+            "SN-D" => ("Offset/Temporary SuperNATURAL Drum Kit", "SuperNATURAL Drum Kit Partial"),
+            "PCMD" => ("Offset/Temporary PCM Drum Kit", "PCM Drum Kit Partial"),
+            _ => throw new ArgumentException($"'{toneType}' is not a drum kit.", nameof(toneType)),
+        };
+
+        return (Start(zeroBasedPartNo), offset, $"Offset2/{block} {zeroBasedNoteIndex + 1}");
+    }
+
     private static List<(string, string, string)> PcmSynthTone(string start)
     {
         const string offset = "Offset/Temporary PCM Synth Tone";
