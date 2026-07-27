@@ -2126,6 +2126,7 @@ public partial class MainWindowViewModel : ViewModelBase
         LibraryVm = new LibraryViewModel(
             LoadFromLibraryAsync,
             async folder => await ShowPickLibraryFolderDialog.Handle(folder),
+            async message => await ShowConfirmDialog.Handle(new ConfirmViewModel(message, "Delete")),
             (message, failed) =>
             {
                 // The window's own status bar, not a line of the library's own: it is visible from every tab,

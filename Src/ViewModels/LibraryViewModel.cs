@@ -49,6 +49,11 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// distinction the snapshot pickers already make.</summary>
     private readonly Func<string, Task<string?>> _pickFolder;
 
+    /// <summary>Ask the user a yes/no question. A callback for the same reason <see cref="_pickFolder"/> is one:
+    /// this view model is inside a tab, the dialog belongs to the window, and a view model that reached for a
+    /// window could not be constructed without one.</summary>
+    private readonly Func<string, Task<bool>> _confirm;
+
     /// <summary>Say something on the window's status bar: the message, and whether it is a failure. Shared with
     /// the save and load commands rather than duplicated as a status line of this tab's own -- the status bar is
     /// window chrome, it is visible from every tab, and one channel means a user never has to wonder which of two
@@ -72,13 +77,15 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     /// <param name="load">See <see cref="_load"/>.</param>
     /// <param name="pickFolder">See <see cref="_pickFolder"/>.</param>
+    /// <param name="confirm">See <see cref="_confirm"/>.</param>
     /// <param name="report">See <see cref="_report"/>.</param>
     /// <param name="settingsPath">See <see cref="_settingsPath"/>.</param>
     public LibraryViewModel(Func<LibraryEntry, Task> load, Func<string, Task<string?>> pickFolder,
-        Action<string, bool> report, string settingsPath)
+        Func<string, Task<bool>> confirm, Action<string, bool> report, string settingsPath)
     {
         _load = load;
         _pickFolder = pickFolder;
+        _confirm = confirm;
         _report = report;
         _settingsPath = settingsPath;
 
@@ -398,6 +405,55 @@ public sealed partial class LibraryViewModel : ViewModelBase
         // this one: the mark is per engine, so giving it to this tone takes it from whichever tone had it.
         ApplyInitToneMarks();
         this.RaisePropertyChanged(nameof(InitToneNote));
+    }
+
+    /// <summary>Remove the selected snapshot from the library, after asking. The file goes for good --
+    /// see <c>SnapshotLibrary.Delete</c> -- so this is the one place in the library that asks before acting.
+    ///
+    /// A mark pointing at the file goes with it. <c>InitToneResolution</c> copes with a stale mark by falling
+    /// back to the bundled tone and saying so, but a mark the user can no longer see or clear is a trap,
+    /// and this is the moment it is cheapest to tidy.</summary>
+    public async Task DeleteSelectedAsync()
+    {
+        UserActionLog.Action("button: Delete from library");
+        if (SelectedEntry is not { } selected) return;
+
+        if (!await _confirm($"Delete \"{selected.Name}\" from the library? " +
+                            $"The file {Path.GetFileName(selected.FilePath)} is removed for good — " +
+                            "this cannot be undone.")) return;
+
+        try
+        {
+            SnapshotLibrary.Delete(selected.FilePath);
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("delete a snapshot from the library", e.ToString());
+            _report($"Could not delete {selected.Name}: {e.Message}", true);
+            return;
+        }
+
+        // Clear a mark that pointed at it, before the refresh, so the row that replaces the selection is
+        // built against the marks as they now are.
+        var markedEngine = _initTones.FirstOrDefault(m =>
+            string.Equals(m.Value, Path.GetFileName(selected.FilePath), StringComparison.OrdinalIgnoreCase));
+        if (markedEngine.Key is not null)
+        {
+            _initTones.Remove(markedEngine.Key);
+            try
+            {
+                LibrarySettings.SaveAll(_settingsPath, new LibraryPreferences(Folder, _initTones));
+            }
+            catch (Exception e)
+            {
+                // The snapshot is already gone, so this cannot be undone by refusing. Say it and carry on:
+                // the mark is stale, which InitToneResolution handles, rather than wrong.
+                UserActionLog.Failed("clear the init-tone mark of a deleted snapshot", e.ToString());
+            }
+        }
+
+        Refresh();
+        _report($"Deleted {selected.Name} from the library.", false);
     }
 
     /// <summary>Choose a different library folder, list it, and remember it.
