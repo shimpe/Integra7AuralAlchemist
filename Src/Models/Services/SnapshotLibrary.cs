@@ -192,6 +192,36 @@ public static class SnapshotLibrary
         return path;
     }
 
+    /// <summary>Remove a snapshot from the library, permanently.
+    ///
+    /// <b>Not a move to the recycle bin</b>, because .NET has no cross-platform API for one and this
+    /// application runs on all three desktops. What stands between the user and a lost snapshot is the
+    /// confirmation the caller asks for, not this.
+    ///
+    /// A file that is already gone is not an error: the listing is a picture of a folder other things can
+    /// change, so by the time the user presses Delete another copy of this application, a file manager or
+    /// a sync client may have removed it. The folder ends in the state they asked for either way.
+    /// Everything else -- a denied folder, a file another process holds open, a directory sitting where a
+    /// snapshot should be -- is thrown, because the caller is the only one who can say the snapshot is
+    /// still there.</summary>
+    public static void Delete(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            // Deliberately checked rather than caught: File.Delete does not throw for a missing file,
+            // but it does for a *directory* at that path, and this must not swallow that.
+            if (Directory.Exists(filePath))
+                throw new IOException(
+                    $"Cannot delete \"{filePath}\": it is a folder, not a snapshot file.");
+
+            Log.Information("Not deleting {Path}: it is no longer there.", filePath);
+            return;
+        }
+
+        File.Delete(filePath);
+        Log.Information("Deleted the snapshot {Path} from the library.", filePath);
+    }
+
     /// <summary>What no file name here may hold.
     ///
     /// Deliberately <b>not</b> <see cref="Path.GetInvalidFileNameChars"/> on its own: that answers for the
