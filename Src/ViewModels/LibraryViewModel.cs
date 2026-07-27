@@ -54,6 +54,10 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// window could not be constructed without one.</summary>
     private readonly Func<string, Task<bool>> _confirm;
 
+    /// <summary>Hand this entry to the Compare tab. A callback for the same reason the others are: this view
+    /// model knows nothing about its neighbours.</summary>
+    private readonly Action<LibraryEntry> _compare;
+
     /// <summary>Say something on the window's status bar: the message, and whether it is a failure. Shared with
     /// the save and load commands rather than duplicated as a status line of this tab's own -- the status bar is
     /// window chrome, it is visible from every tab, and one channel means a user never has to wonder which of two
@@ -78,14 +82,17 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <param name="load">See <see cref="_load"/>.</param>
     /// <param name="pickFolder">See <see cref="_pickFolder"/>.</param>
     /// <param name="confirm">See <see cref="_confirm"/>.</param>
+    /// <param name="compare">See <see cref="_compare"/>.</param>
     /// <param name="report">See <see cref="_report"/>.</param>
     /// <param name="settingsPath">See <see cref="_settingsPath"/>.</param>
     public LibraryViewModel(Func<LibraryEntry, Task> load, Func<string, Task<string?>> pickFolder,
-        Func<string, Task<bool>> confirm, Action<string, bool> report, string settingsPath)
+        Func<string, Task<bool>> confirm, Action<LibraryEntry> compare, Action<string, bool> report,
+        string settingsPath)
     {
         _load = load;
         _pickFolder = pickFolder;
         _confirm = confirm;
+        _compare = compare;
         _report = report;
         _settingsPath = settingsPath;
 
@@ -405,6 +412,14 @@ public sealed partial class LibraryViewModel : ViewModelBase
         // this one: the mark is per engine, so giving it to this tone takes it from whichever tone had it.
         ApplyInitToneMarks();
         this.RaisePropertyChanged(nameof(InitToneNote));
+    }
+
+    /// <summary>Send the selected snapshot to the Compare tab, which fills whichever of its two slots is
+    /// free. The comparison itself is that tab's job; this is only a way in from the list.</summary>
+    public void CompareThis()
+    {
+        UserActionLog.Action("button: Compare this");
+        if (SelectedEntry is { } entry) _compare(entry.Entry);
     }
 
     /// <summary>Remove the selected snapshot from the library, after asking. The file goes for good --

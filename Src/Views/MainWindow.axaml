@@ -688,8 +688,8 @@
                     </TabControl>
                 </Grid>
             </TabItem>
-            <!-- Order: Parameters, Mixer, Layers, Library, Motional Surround, SRX Loader — how often each is
-                 reached for, most first. Parameters stays index 0 because OpenPartTab, OpenCommonTab and
+            <!-- Order: Parameters, Mixer, Layers, Library, Compare, Motional Surround, SRX Loader — how often
+                 each is reached for, most first. Parameters stays index 0 because OpenPartTab, OpenCommonTab and
                  OpenPartSetPartTab navigate to it by index; nothing else in the application depends on the
                  position of any of the others. Layers sits beside Mixer because the two answer neighbouring
                  questions about the same sixteen parts: how loud each one is, and where on the keyboard it
@@ -722,6 +722,15 @@
                  its Load button needs the instrument, and it says so itself when there is none. -->
             <TabItem Header="Library" Classes="top">
                 <local:LibraryView DataContext="{Binding LibraryVm}" />
+            </TabItem>
+            <!-- No "connect your Integra-7" placeholder, for the same reason the Library tab has none:
+                 comparing two saved snapshots works with nothing plugged in, and only the two "read the
+                 instrument" buttons need a device — they say so themselves when there is none.
+
+                 This is index 4, which MainWindowViewModel.CompareTabIndex names so that the library's
+                 "Compare this" can bring it forward. Moving it means changing that constant. -->
+            <TabItem Header="Compare" Classes="top">
+                <local:CompareView DataContext="{Binding CompareVm}" />
             </TabItem>
             <TabItem Header="Motional Surround" Classes="top">
                 <Panel>

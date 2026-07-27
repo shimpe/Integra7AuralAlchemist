@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reactive;
@@ -44,6 +45,11 @@ public partial class MainWindowViewModel : ViewModelBase
     /// <summary>Which top-level tab is showing. Bound two-way, so the mixer's click-through can take the
     /// user to the Parameters tab — selecting a part is no use while the Mixer tab is still in front.</summary>
     [Reactive] private int _topTabIndex;
+
+    /// <summary>Where the Compare tab sits in the top-level TabControl. A constant rather than a search,
+    /// because the strip is fixed in MainWindow.axaml -- but it has to be changed with it, which is why
+    /// it is named here rather than written as a bare 4 at the call site.</summary>
+    private const int CompareTabIndex = 4;
 
     [Reactive] private bool _isSyncing = true;
     private string _syncInfo = "";
@@ -121,6 +127,17 @@ public partial class MainWindowViewModel : ViewModelBase
     /// second press starts from the settings the first used.</summary>
     public Interaction<RandomiseToneViewModel, bool> ShowRandomiseToneDialog { get; }
 
+    /// <summary>Ask where to write a text file, answering the path, "" for a file with no local path, or
+    /// null for a cancellation -- the same three-way result as <see cref="ShowSaveSnapshotDialog"/>, whose
+    /// doc comment explains why "" and null are not the same thing. A second interaction rather than a
+    /// parameter on that one because the file type differs and the picker's filter is part of what makes
+    /// it usable.</summary>
+    public Interaction<string, string?> ShowSaveTextDialog { get; }
+
+    /// <summary>Put text on the system clipboard. An interaction rather than a service because the
+    /// clipboard belongs to the window, and this view model is not allowed to know about one.</summary>
+    public Interaction<string, Unit> ShowCopyToClipboard { get; }
+
     /// <summary>The tone Copy put there, waiting for Paste. One slot, this window's lifetime -- see
     /// ToneClipboard.</summary>
     private readonly ToneClipboard _toneClipboard = new();
@@ -146,6 +163,12 @@ public partial class MainWindowViewModel : ViewModelBase
     /// it observable would suggest to the next reader that it might be replaced -- which is exactly the mistake
     /// that would leave the Save commands writing into a library the browser is no longer showing.</summary>
     public LibraryViewModel LibraryVm { get; }
+
+    /// <summary>The Compare tab. Built once and never replaced, for the same reason <see cref="LibraryVm"/>
+    /// is: it holds two snapshots and a comparison of them, all of which are data rather than live
+    /// parameters, so a rescan has nothing to invalidate. It is also the only tab that never writes to the
+    /// instrument.</summary>
+    public CompareViewModel CompareVm { get; }
 
     /// <summary>Whether the journal has anything left to take back, and anything to put back. Mirrored
     /// onto the UI thread from <c>EditJournal.Changed</c> in the constructor, because the journal is
@@ -1188,6 +1211,117 @@ public partial class MainWindowViewModel : ViewModelBase
         await RestoreStudioSetFromFileAsync(api, communicator, entry.FilePath);
     }
 
+    /// <summary>A snapshot read from a file the user picks, for one side of a comparison. Null for a
+    /// cancellation or a failure -- both leave the slot as it was, and a failure has already been
+    /// reported.</summary>
+    private async Task<(Integra7Snapshot Snapshot, string Source)?> OpenSnapshotForComparisonAsync()
+    {
+        var path = await ShowOpenSnapshotDialog.Handle(Unit.Default);
+        if (path is null) return null; // cancelled
+        if (path.Length == 0)
+        {
+            SnapshotFailed = true;
+            SnapshotStatus = "Could not read that file: it has no accessible local path.";
+            return null;
+        }
+
+        try
+        {
+            var snapshot = Integra7Snapshot.FromJson(await File.ReadAllTextAsync(path));
+            return (snapshot, $"file {Path.GetFileName(path)}");
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("read a snapshot for comparison", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = e is SnapshotFormatException ? e.Message : $"Could not read that file: {e.Message}";
+            return null;
+        }
+    }
+
+    /// <summary>The library's currently selected entry, for one side of a comparison.</summary>
+    private async Task<(Integra7Snapshot Snapshot, string Source)?> LibrarySelectionForComparisonAsync()
+    {
+        if (LibraryVm.SelectedEntry is not { } entry)
+        {
+            SnapshotFailed = true;
+            SnapshotStatus = "Select a snapshot in the Library tab first.";
+            return null;
+        }
+
+        try
+        {
+            var snapshot = Integra7Snapshot.FromJson(await File.ReadAllTextAsync(entry.FilePath));
+            return (snapshot, $"library file {Path.GetFileName(entry.FilePath)}");
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("read a library snapshot for comparison", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = e is SnapshotFormatException ? e.Message : $"Could not read that file: {e.Message}";
+            return null;
+        }
+    }
+
+    /// <summary>Read the instrument into a snapshot for one side of a comparison: the whole Studio Set,
+    /// or the tone in the selected part.
+    ///
+    /// Nothing is written. This is the only path in the application that opens a conversation purely to
+    /// read, and the lease is held for the capture alone.
+    ///
+    /// Refused while Compare is playing the pre-edit sound, for the reason <see cref="CopyToneAsync"/>
+    /// gives: what the instrument would answer with is the sound from before the edits, and a slot
+    /// labelled "the instrument, read &lt;time&gt;" that holds it is a wrong answer with nothing on screen
+    /// to give it away.</summary>
+    private async Task<(Integra7Snapshot Snapshot, string Source)?> CaptureForComparisonAsync(bool studioSet)
+    {
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null)
+        {
+            SnapshotFailed = true;
+            SnapshotStatus = "Connect to your Integra-7 to read from it.";
+            return null;
+        }
+
+        if (RefuseWhileComparing("read the instrument")) return null;
+
+        SelectedTone? selected = null;
+        if (!studioSet)
+        {
+            selected = await ResolveSelectedToneAsync("compare");
+            if (selected is null) return null; // ResolveSelectedToneAsync has already said why
+        }
+
+        try
+        {
+            SignalStartSync();
+            SyncInfo = studioSet ? "Reading the Studio Set" : $"Reading tone from part {selected!.ZeroBasedPartNo + 1}";
+            await using var lease = await api.BeginConversationAsync("read for comparison");
+
+            // The captured-at time is part of what the slot says: "the instrument" means the instrument
+            // as it was when it was read, and a comparison pasted into a message needs to say when.
+            var at = DateTime.Now.ToString("g", CultureInfo.CurrentCulture);
+            return studioSet
+                ? (await StudioSetSnapshotService.CaptureAsync(communicator, "the instrument", lease),
+                    $"read {at}")
+                : (await StudioSetSnapshotService.CaptureToneAsync(communicator,
+                        selected!.ZeroBasedPartNo, selected.ToneType, "the instrument", lease),
+                    $"part {selected.ZeroBasedPartNo + 1}, read {at}");
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("read the instrument for comparison", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = e is SnapshotFormatException ? e.Message : $"Could not read the instrument: {e.Message}";
+            return null;
+        }
+        finally
+        {
+            SignalStopSync();
+        }
+    }
+
     /// <summary>Read the tone in the selected part into the clipboard, so it can be pasted into another
     /// part. Nothing is written to the instrument and nothing reaches the disk.
     ///
@@ -2122,6 +2256,8 @@ public partial class MainWindowViewModel : ViewModelBase
         ShowPickLibraryFolderDialog = new Interaction<string, string?>();
         ShowConfirmDialog = new Interaction<ConfirmViewModel, bool>();
         ShowRandomiseToneDialog = new Interaction<RandomiseToneViewModel, bool>();
+        ShowSaveTextDialog = new Interaction<string, string?>();
+        ShowCopyToClipboard = new Interaction<string, Unit>();
 
         // Fired from whichever thread called Put -- see ToneClipboard.Changed -- and CanPasteTone is
         // bound to a button, so it is set on the UI thread. Posted the same way the journal's Changed
@@ -2129,17 +2265,50 @@ public partial class MainWindowViewModel : ViewModelBase
         _toneClipboard.Changed += () =>
             Dispatcher.UIThread.Post(() => CanPasteTone = _toneClipboard.HasContent);
 
+        // Before LibraryVm, whose "Compare this" callback reads CompareVm: a get-only property is null
+        // until it is assigned, and the callback can run the moment the library's list is on screen.
+        CompareVm = new CompareViewModel(
+            OpenSnapshotForComparisonAsync,
+            LibrarySelectionForComparisonAsync,
+            CaptureForComparisonAsync,
+            async text => await ShowCopyToClipboard.Handle(text),
+            async suggested => await ShowSaveTextDialog.Handle(suggested),
+            (message, failed) =>
+            {
+                // The window's status bar, for the reason the library's own reporter gives: one channel,
+                // visible from every tab.
+                SnapshotStatus = message;
+                SnapshotFailed = failed;
+            });
+
         // After the interactions it reaches through, since it lists its folder while being constructed and
         // reporting a folder that cannot be read needs the status properties -- which are fields on this object
         // and therefore already there, unlike the interactions, which are not until the lines above have run.
         //
-        // The two callbacks are closures over this object rather than over anything captured now, so a rescan
+        // The callbacks are closures over this object rather than over anything captured now, so a rescan
         // replacing the API is invisible to them: LoadFromLibraryAsync reads Integra7 when a press happens, and
         // the folder picker's interaction is the same instance for the life of the window.
         LibraryVm = new LibraryViewModel(
             LoadFromLibraryAsync,
             async folder => await ShowPickLibraryFolderDialog.Handle(folder),
             async message => await ShowConfirmDialog.Handle(new ConfirmViewModel(message, "Delete")),
+            entry =>
+            {
+                try
+                {
+                    var snapshot = Integra7Snapshot.FromJson(File.ReadAllText(entry.FilePath));
+                    CompareVm.PutInFirstFreeSlot(snapshot, $"library file {Path.GetFileName(entry.FilePath)}");
+                    // Bring the tab forward: a slot filled on a tab the user cannot see looks like a
+                    // button that did nothing.
+                    TopTabIndex = CompareTabIndex;
+                }
+                catch (Exception e)
+                {
+                    UserActionLog.Failed("send a library snapshot to the Compare tab", e.ToString());
+                    SnapshotStatus = e is SnapshotFormatException ? e.Message : $"Could not read that file: {e.Message}";
+                    SnapshotFailed = true;
+                }
+            },
             (message, failed) =>
             {
                 // The window's own status bar, not a line of the library's own: it is visible from every tab,
