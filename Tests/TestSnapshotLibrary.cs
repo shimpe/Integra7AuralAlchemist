@@ -315,33 +315,53 @@ public class SnapshotLibraryTests
             new SnapshotMetadata(Rating: 3)), Throws.InstanceOf<IOException>());
     }
 
-    /// <summary>The write is atomic -- a temp file beside the target, then a rename over it -- so this pins the
-    /// half of that which has nothing else to witness it: when the rename fails, the file is whole and the temp
-    /// file is gone. A stray temp beside every snapshot the user failed to annotate would be a mess that never
-    /// cleans itself up.
+    /// <summary>The write is atomic -- a temp file beside the target, then a rename over it -- and these two
+    /// tests pin the half of that which nothing else witnesses: a write that cannot complete reports itself,
+    /// leaves the file whole, and leaves no temp file behind. A stray temp beside every snapshot the user
+    /// failed to annotate would be a mess that never cleans itself up.
     ///
-    /// The failure is arranged the way it will really happen: another process holding the file open. Sharing
-    /// read access lets the read succeed, so the write gets as far as the rename, and holding the handle
-    /// without delete access is what makes the rename fail.
+    /// <b>Both failures are arranged with a directory in the way</b>, which is contrived, and it is the only
+    /// arrangement that behaves the same on all three platforms this is built for. The obvious one -- hold the
+    /// file open in another handle, as a sync client would -- only fails a rename on Windows: .NET emulates
+    /// FileShare on Unix with an advisory <c>flock</c>, and <c>rename(2)</c> pays no attention to it, so on
+    /// Linux and macOS the write simply succeeded and this test failed in CI. A directory sitting where a file
+    /// must be written or renamed fails everywhere, and the contract being pinned is what the code does when a
+    /// write fails, not which of the ways it can fail happened.
     ///
-    /// Not a specific exception type, for the reason TestLibrarySettings gives about the same rename: what
-    /// Windows raises for a replace it cannot perform is UnauthorizedAccessException rather than the
-    /// IOException the operation reads like, and pinning either would be pinning the platform rather than the
-    /// contract. The contract is that the failure is reported at all, because the user just asked for
+    /// Not a specific exception type, for the reason TestLibrarySettings gives about the same rename: the type
+    /// varies by platform and by which step failed, and pinning one would be pinning the platform rather than
+    /// the contract. The contract is that the failure is reported at all, because the user just asked for
     /// something to be saved.</summary>
     [Test]
-    public void A_failed_write_reports_it_leaves_the_file_whole_and_leaves_no_temporary_file_behind()
+    public void A_write_that_cannot_even_start_reports_it_and_leaves_the_file_whole()
     {
         var path = Save("rhodes.json", Tone("Warm Rhodes"));
         var before = File.ReadAllText(path);
+        // Stands in for any failure to write the temp file -- a full disk, a denied folder. What matters is
+        // that the file the user already has is still their snapshot afterwards.
+        Directory.CreateDirectory(path + ".saving");
 
-        using (File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read))
-            Assert.That(() => SnapshotLibrary.WriteMetadata(path, new SnapshotMetadata(Rating: 4)),
-                Throws.Exception);
+        Assert.That(() => SnapshotLibrary.WriteMetadata(path, new SnapshotMetadata(Rating: 4)),
+            Throws.Exception);
 
         Assert.That(File.ReadAllText(path), Is.EqualTo(before));
         Assert.That(Directory.EnumerateFiles(_folder), Is.EqualTo(new[] { path }),
-            "no .saving file left behind");
+            "and nothing was written beside it");
+    }
+
+    /// <summary>The other half: the temp file is written, the rename onto it fails, and the temp file does not
+    /// survive the failure. Arranged through <c>Create</c> because it does not read the target first, so the
+    /// write gets as far as the rename -- onto a name that is taken by a directory, which no platform will
+    /// replace with a file.</summary>
+    [Test]
+    public void A_failed_rename_leaves_no_temporary_file_behind()
+    {
+        Directory.CreateDirectory(Path.Combine(_folder, "Warm Rhodes.json"));
+
+        Assert.That(() => SnapshotLibrary.Create(_folder, Tone("Warm Rhodes"),
+            new SnapshotMetadata(Name: "Warm Rhodes")), Throws.Exception);
+
+        Assert.That(Directory.EnumerateFiles(_folder), Is.Empty, "no .saving file left behind");
     }
 
     /// <summary>The temp file is not called .json, and this is why: a listing that ran while a write was in
@@ -455,7 +475,12 @@ public class SnapshotLibraryTests
 
     /// <summary>The instrument's character set includes ':', '/' and '*', which a file name cannot hold. Pure, so
     /// it is tested without a disk -- and the cases below are the ones that produce a file with no name at all
-    /// rather than merely an ugly one.</summary>
+    /// rather than merely an ugly one.
+    ///
+    /// The expected values are the same on every platform, which is the point of the one assertion that used to
+    /// fail in CI: ':' and '*' are legal in a Linux and macOS file name, so a substitution made from
+    /// <c>Path.GetInvalidFileNameChars()</c> left them in place there and produced a file Windows could not
+    /// receive. A library folder gets synced and shared, so the name has to be one all three can hold.</summary>
     [Test]
     public void A_file_name_is_the_snapshot_name_with_whatever_a_file_name_cannot_hold_replaced()
     {

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Serilog;
 
 namespace Integra7AuralAlchemist.Models.Services;
@@ -191,6 +192,24 @@ public static class SnapshotLibrary
         return path;
     }
 
+    /// <summary>What no file name here may hold.
+    ///
+    /// Deliberately <b>not</b> <see cref="Path.GetInvalidFileNameChars"/> on its own: that answers for the
+    /// platform this build happens to be running on, and on Linux and macOS the answer is two characters -- NUL
+    /// and '/'. A library folder is a folder like any other, so it is synced, shared and copied between
+    /// machines, and a snapshot written on Linux as "Pad:2/3*.json" is a file Windows cannot receive at all.
+    /// The set below is Windows' -- the strictest of the three -- unioned with whatever the running platform
+    /// adds, so a name is scrubbed identically everywhere and the file it produces can travel.
+    ///
+    /// The union repeats characters on Windows, which does not matter: this is only ever a separator set for
+    /// <see cref="string.Split(char[])"/>.</summary>
+    private static readonly char[] IllegalInAFileName =
+    [
+        ..Path.GetInvalidFileNameChars(),
+        '<', '>', ':', '"', '/', '\\', '|', '?', '*',
+        ..Enumerable.Range(0, 32).Select(c => (char)c),
+    ];
+
     /// <summary>A file name for a snapshot called <paramref name="name"/>: the name itself where that is legal,
     /// with a .json extension.
     ///
@@ -204,7 +223,7 @@ public static class SnapshotLibrary
     /// generic one, and the browser lists what is inside the file rather than what it is called.</summary>
     public static string FileNameFor(string name)
     {
-        var scrubbed = string.Join("_", (name ?? "").Split(Path.GetInvalidFileNameChars())).Trim();
+        var scrubbed = string.Join("_", (name ?? "").Split(IllegalInAFileName)).Trim();
         // Trailing dots and spaces are legal in the string and not in a Windows file name -- the API silently
         // drops them, so "Warm Rhodes ." would be created as "Warm Rhodes" and a uniqueness check done on the
         // longer name would not see the collision.

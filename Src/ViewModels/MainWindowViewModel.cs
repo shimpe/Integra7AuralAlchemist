@@ -599,9 +599,11 @@ public partial class MainWindowViewModel : ViewModelBase
         var name = CurrentStudioSetName(communicator);
 
         // The instrument's character set includes ':', '/' and '*', which a file name cannot hold; the
-        // snapshot keeps the real name, only the suggestion in the dialog is scrubbed.
-        var suggested = string.Join("_", name.Split(Path.GetInvalidFileNameChars()));
-        var path = await ShowSaveSnapshotDialog.Handle(suggested + ".json");
+        // snapshot keeps the real name, only the suggestion in the dialog is scrubbed. Through the library's
+        // own function rather than a second copy of the substitution: this one used the running platform's
+        // idea of an illegal character, which on Linux and macOS is NUL and '/' and nothing else, so the same
+        // name suggested here and created by the library came out differently on those platforms.
+        var path = await ShowSaveSnapshotDialog.Handle(SnapshotLibrary.FileNameFor(name));
         if (path is null) return; // cancelled -- nothing happened, so say nothing
         if (path.Length == 0)
         {
@@ -912,9 +914,9 @@ public partial class MainWindowViewModel : ViewModelBase
         if (selected is null) return; // ResolveSelectedToneAsync has already said why
 
         // The instrument's character set includes ':', '/' and '*', which a file name cannot hold; the
-        // snapshot keeps the real name, only the suggestion in the dialog is scrubbed.
-        var suggested = string.Join("_", selected.ToneName.Split(Path.GetInvalidFileNameChars()));
-        var path = await ShowSaveSnapshotDialog.Handle(suggested + ".json");
+        // snapshot keeps the real name, only the suggestion in the dialog is scrubbed. Through the library's
+        // own function, for the reason SaveStudioSetAsync gives.
+        var path = await ShowSaveSnapshotDialog.Handle(SnapshotLibrary.FileNameFor(selected.ToneName));
         if (path is null) return; // cancelled -- nothing happened, so say nothing
         if (path.Length == 0)
         {
