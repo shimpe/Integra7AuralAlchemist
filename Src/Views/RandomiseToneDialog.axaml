@@ -1,0 +1,52 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="560" d:DesignHeight="420"
+        x:Class="Integra7AuralAlchemist.Views.RandomiseToneDialog"
+        x:DataType="vm:RandomiseToneViewModel"
+        Title="Randomise"
+        Width="560"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- Strength is a deviation from the value that is there, not a fresh draw: at 10 % this is still
+         recognisably the sound you started from, at 100 % it is barely related. Enumerated parameters —
+         filter mode, LFO shape, switches — have no distance between their values, so for them the
+         strength is the chance of being re-picked at all. -->
+
+    <StackPanel Orientation="Vertical" Margin="16" Spacing="10">
+        <TextBlock Text="{Binding Target}" TextWrapping="Wrap" FontWeight="Bold" />
+        <TextBlock Text="Ticked groups move away from their current values by up to the amount set here. Everything else is left exactly as it is."
+                   TextWrapping="Wrap"
+                   Foreground="{StaticResource SnMutedTextBrush}" />
+
+        <ItemsControl ItemsSource="{Binding Categories}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate DataType="vm:RandomiseCategoryViewModel">
+                    <Grid ColumnDefinitions="200,*,50" Margin="0,3">
+                        <CheckBox Grid.Column="0"
+                                  Content="{Binding Label}"
+                                  IsChecked="{Binding Included, Mode=TwoWay}"
+                                  IsEnabled="{Binding IsPresent}" />
+                        <Slider Grid.Column="1"
+                                Minimum="0" Maximum="100"
+                                TickFrequency="5" IsSnapToTickEnabled="True"
+                                Value="{Binding StrengthPercent, Mode=TwoWay}"
+                                IsEnabled="{Binding Included}" />
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding StrengthPercent, StringFormat='{}{0:F0} %'}"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Right" />
+                    </Grid>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="Randomise" Command="{Binding RandomiseCommand}" Padding="14,3" />
+            <Button Content="Cancel" Command="{Binding CancelCommand}" Padding="14,3" />
+        </StackPanel>
+    </StackPanel>
+</Window>
