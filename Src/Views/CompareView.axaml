@@ -1,0 +1,81 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:svc="using:Integra7AuralAlchemist.Models.Services"
+             mc:Ignorable="d" d:DesignWidth="1600" d:DesignHeight="800"
+             x:Class="Integra7AuralAlchemist.Views.CompareView"
+             x:DataType="vm:CompareViewModel">
+
+    <!-- Two slots and what differs between them. The only tab in the application that never writes to
+         the instrument: filling a slot from it is a read, and comparing touches nothing at all. -->
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="10" RowSpacing="8">
+
+        <Grid Grid.Row="0" ColumnDefinitions="*,*" ColumnSpacing="16">
+            <StackPanel Grid.Column="0" Orientation="Vertical" Spacing="6">
+                <TextBlock Text="Left" FontWeight="Bold" />
+                <TextBlock Text="{Binding Left.Description}" TextWrapping="Wrap"
+                           Foreground="{StaticResource SnMutedTextBrush}" />
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Content="From the library" Command="{Binding FillLeftFromLibraryAsync}" />
+                    <Button Content="From a file…" Command="{Binding FillLeftFromFileAsync}" />
+                    <Button Content="Read the Studio Set" Command="{Binding FillLeftFromStudioSetAsync}" />
+                    <Button Content="Read the selected part's tone" Command="{Binding FillLeftFromToneAsync}" />
+                </StackPanel>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Vertical" Spacing="6">
+                <TextBlock Text="Right" FontWeight="Bold" />
+                <TextBlock Text="{Binding Right.Description}" TextWrapping="Wrap"
+                           Foreground="{StaticResource SnMutedTextBrush}" />
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Content="From the library" Command="{Binding FillRightFromLibraryAsync}" />
+                    <Button Content="From a file…" Command="{Binding FillRightFromFileAsync}" />
+                    <Button Content="Read the Studio Set" Command="{Binding FillRightFromStudioSetAsync}" />
+                    <Button Content="Read the selected part's tone" Command="{Binding FillRightFromToneAsync}" />
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+            <Button Content="Compare" Command="{Binding Compare}" IsEnabled="{Binding CanCompare}"
+                    Padding="14,3" />
+            <TextBox Text="{Binding SearchText, Mode=TwoWay}"
+                     PlaceholderText="Narrow by parameter name"
+                     MinWidth="260"
+                     IsEnabled="{Binding HasResult}" />
+            <Button Content="Copy" Command="{Binding CopyAsync}" IsEnabled="{Binding HasResult}" />
+            <Button Content="Save as text…" Command="{Binding SaveAsync}" IsEnabled="{Binding HasResult}" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="2" Text="{Binding Summary}" TextWrapping="Wrap" />
+
+        <ScrollViewer Grid.Row="3">
+            <!-- The right margin is the vertical scrollbar's lane: Avalonia's bars float over the content
+                 rather than reserving space, as App.axaml records at length. -->
+            <ItemsControl ItemsSource="{Binding Blocks}" Margin="0,0,16,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:CompareBlockViewModel">
+                        <StackPanel Orientation="Vertical" Spacing="2" Margin="0,0,0,12">
+                            <TextBlock Text="{Binding Heading}" FontWeight="Bold" />
+                            <ItemsControl ItemsSource="{Binding Rows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="svc:ValueDifference">
+                                        <Grid ColumnDefinitions="3*,*,*" Margin="12,1,0,1">
+                                            <TextBlock Grid.Column="0" Text="{Binding Path}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="1" Text="{Binding LeftValue}"
+                                                       Foreground="{StaticResource SnMutedTextBrush}" />
+                                            <TextBlock Grid.Column="2" Text="{Binding RightValue}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
