@@ -69,16 +69,27 @@ public class ToneParameterCategoriesTests
 
     /// <summary>Reserved parameters are excluded by the caller's GetRelevantParameters(false, false)
     /// too, but a rule that swept one up would be a rule matching more than it should, so the table
-    /// itself has to refuse them.</summary>
+    /// itself has to refuse them.
+    ///
+    /// Selected on the database's own <c>Reserved</c> flag rather than on the shape of the name, because
+    /// the names come in two shapes and only one of them looks like the word: a block's own filler is
+    /// "Reserved3", but an MFX slot a given effect type does not use is
+    /// "MFX Parameter 1/Thru (Reserved)". The second is the one that matters -- the part of its path
+    /// after the block name still begins "MFX Parameter", so without the guard it would match the
+    /// Effects rule and be randomised. A filter on "/Reserved" matches only the first shape and would
+    /// leave that half of the guard unpinned.</summary>
     [Test]
     public void Never_categorises_a_reserved_parameter()
     {
         var reserved = _parameters.GetParametersWithPrefix("SuperNATURAL Synth Tone")
-            .Where(p => p.Path.Contains("/Reserved"))
+            .Where(p => p.Reserved)
             .Select(p => p.Path)
             .ToList();
 
         Assert.That(reserved, Is.Not.Empty, "the fixture assumes this build has reserved parameters");
+        Assert.That(reserved, Has.Some.Contains("(Reserved)"),
+            "and that it has both naming shapes, since the guard has a branch for each");
+
         foreach (var path in reserved)
             Assert.That(ToneParameterCategories.For(path), Is.Null, path);
     }

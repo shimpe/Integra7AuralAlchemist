@@ -190,10 +190,15 @@ public static class ToneParameterCategories
         if (!ByBlock.TryGetValue(path[..slash], out var rules)) return null;
 
         var name = Normalise(path[(slash + 1)..]);
-        // A reserved parameter is named "Reserved3" or "... (Reserved)". The caller excludes them too,
-        // but a rule that swept one up would be a rule matching more than it means to.
-        if (name.StartsWith("Reserved", StringComparison.Ordinal) ||
-            name.Contains("(Reserved)", StringComparison.Ordinal)) return null;
+        // A reserved parameter says so in its own name, but in at least three shapes: a block's filler
+        // is "Reserved3", an MFX slot the selected effect does not use is "MFX Parameter 1/Thru
+        // (Reserved)", and some are simply "Phaser 3 Reserved". Matched anywhere in the name rather than
+        // shape by shape, because the shapes are not a closed set -- the third one was found only when a
+        // test started selecting on the database's own Reserved flag instead of on the spelling. Every
+        // path in the database containing the word is flagged reserved, so this cannot catch a real
+        // parameter. The caller excludes reserved parameters too; a rule that swept one up would still
+        // be a rule matching more than it means to.
+        if (name.Contains("Reserved", StringComparison.Ordinal)) return null;
 
         foreach (var (prefix, category) in rules)
             if (name.StartsWith(prefix, StringComparison.Ordinal))
