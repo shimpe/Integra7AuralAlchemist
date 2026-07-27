@@ -181,8 +181,12 @@ Unmapped: `Output Assign`, `Kit Name`, `Phrase Number`, `MFX Type`, the Comp-EQ 
 | `WMT* Wave Group Type`, `WMT* Wave Group ID`, `WMT* Wave Number`, `WMT* Wave Gain`, `WMT* Wave FXM`, `WMT* Wave Tempo Sync`, `WMT* Wave Switch` | Wave choice |
 | `TVF` | Filter |
 | `TVA`, `Partial Level`, `Partial Pan`, `Partial Random Pan Depth`, `Partial Alternate Pan Depth`, `WMT* Wave Level`, `WMT* Wave Pan`, `Kit Level` | Amplifier |
-| `LFO` | LFO & modulation |
 | `Partial Chorus Send Level`, `Partial Reverb Send Level`, `MFX Parameter`, `MFX Control`, `MFX Chorus Send Level`, `MFX Reverb Send Level`, `TFX Switch` | Effects |
+
+A PCM drum partial has **no LFO**, so this engine claims no LFO & modulation category and the dialog
+shows that row disabled. `TFX Switch` lives in the `Common 2` block for both PCM engines and in plain
+`Common` for all three SuperNATURAL ones — verified against the parameter database, and the reason the
+PCM `Common 2` blocks are mapped at all.
 
 `WMT*` means the rule applies to all four wave-mix-table slots (`WMT1`..`WMT4`). Unmapped: `Partial
 Name`, `Assign Type`, `Mute Group`, `Partial Output Level`, `Partial Output Assign`, `Partial Receive
