@@ -258,7 +258,7 @@
                                  while, so a tooltip is safe for the same reason it is on the two buttons
                                  above. -->
                             <Button Content="Compare this"
-                                    Command="{Binding CompareThis}"
+                                    Command="{Binding CompareThisAsync}"
                                     IsEnabled="{Binding HasSelection}"
                                     ToolTip.Tip="Send this snapshot to the Compare tab, to see how it differs from another one or from what the instrument holds now."
                                     HorizontalAlignment="Stretch"

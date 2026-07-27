@@ -55,8 +55,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
     private readonly Func<string, Task<bool>> _confirm;
 
     /// <summary>Hand this entry to the Compare tab. A callback for the same reason the others are: this view
-    /// model knows nothing about its neighbours.</summary>
-    private readonly Action<LibraryEntry> _compare;
+    /// model knows nothing about its neighbours.
+    ///
+    /// Task-returning like <see cref="_load"/>, because filling a slot means reading and parsing the file,
+    /// and a Studio Set snapshot is large enough that doing it synchronously on the click stalls the
+    /// window visibly.</summary>
+    private readonly Func<LibraryEntry, Task> _compare;
 
     /// <summary>Say something on the window's status bar: the message, and whether it is a failure. Shared with
     /// the save and load commands rather than duplicated as a status line of this tab's own -- the status bar is
@@ -86,7 +90,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <param name="report">See <see cref="_report"/>.</param>
     /// <param name="settingsPath">See <see cref="_settingsPath"/>.</param>
     public LibraryViewModel(Func<LibraryEntry, Task> load, Func<string, Task<string?>> pickFolder,
-        Func<string, Task<bool>> confirm, Action<LibraryEntry> compare, Action<string, bool> report,
+        Func<string, Task<bool>> confirm, Func<LibraryEntry, Task> compare, Action<string, bool> report,
         string settingsPath)
     {
         _load = load;
@@ -416,10 +420,10 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     /// <summary>Send the selected snapshot to the Compare tab, which fills whichever of its two slots is
     /// free. The comparison itself is that tab's job; this is only a way in from the list.</summary>
-    public void CompareThis()
+    public async Task CompareThisAsync()
     {
         UserActionLog.Action("button: Compare this");
-        if (SelectedEntry is { } entry) _compare(entry.Entry);
+        if (SelectedEntry is { } entry) await _compare(entry.Entry);
     }
 
     /// <summary>Remove the selected snapshot from the library, after asking. The file goes for good --

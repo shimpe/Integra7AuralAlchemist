@@ -154,10 +154,10 @@ public sealed partial class CompareViewModel : ViewModelBase
                     $"{b.Name}  ({b.Differences.Count})", b.Differences)),
         ];
 
-        Summary = comparison.Identical
-            ? $"These two are identical; {comparison.ParametersCompared} parameters compared."
-            : $"{comparison.DifferenceCount} difference(s) across {_allBlocks.Count} block(s); " +
-              $"{comparison.ParametersCompared} parameters compared.";
+        // The exported text's own summary line, not a second copy of it: they must agree, and when this
+        // was written twice they did not -- the tab reported "0 differences across 0 blocks" for a
+        // comparison whose only finding was a parameter one side does not carry.
+        Summary = ComparisonText.Summary(comparison);
         HasResult = true;
         ApplyFilter();
         _report(Summary, false);

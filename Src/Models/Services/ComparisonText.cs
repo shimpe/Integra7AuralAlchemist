@@ -58,7 +58,11 @@ public static class ComparisonText
     /// the tool failing rather than as the answer. It is emphatically not identical either: the two do not
     /// hold the same parameters, which is precisely what the "Only in the ... snapshot" sections below then
     /// say. So it gets a line of its own, phrased as the finding it is.</summary>
-    private static string Summary(SnapshotComparison comparison)
+    /// <remarks>Public because the Compare tab shows this same line on screen. It had its own copy, and
+    /// the copy was written before the three-case rule above existed and never gained it -- so the tab
+    /// said "0 differences across 0 blocks" for exactly the comparison this method exists to describe
+    /// properly, while the text it exported said the right thing. One rule, one place.</remarks>
+    public static string Summary(SnapshotComparison comparison)
     {
         if (comparison.Identical)
             return $"These two are identical; {comparison.ParametersCompared} parameters compared.";

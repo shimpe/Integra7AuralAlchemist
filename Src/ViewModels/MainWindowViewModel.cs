@@ -2292,11 +2292,14 @@ public partial class MainWindowViewModel : ViewModelBase
             LoadFromLibraryAsync,
             async folder => await ShowPickLibraryFolderDialog.Handle(folder),
             async message => await ShowConfirmDialog.Handle(new ConfirmViewModel(message, "Delete")),
-            entry =>
+            async entry =>
             {
                 try
                 {
-                    var snapshot = Integra7Snapshot.FromJson(File.ReadAllText(entry.FilePath));
+                    // Awaited, not blocking: this runs on the click, and a Studio Set snapshot is large
+                    // enough that reading and parsing it synchronously freezes the window. Every other
+                    // file read in this feature is async for the same reason.
+                    var snapshot = Integra7Snapshot.FromJson(await File.ReadAllTextAsync(entry.FilePath));
                     CompareVm.PutInFirstFreeSlot(snapshot, $"library file {Path.GetFileName(entry.FilePath)}");
                     // Bring the tab forward: a slot filled on a tab the user cannot see looks like a
                     // button that did nothing.
