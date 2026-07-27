@@ -1189,7 +1189,12 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     /// <summary>Read the tone in the selected part into the clipboard, so it can be pasted into another
-    /// part. Nothing is written to the instrument and nothing reaches the disk.</summary>
+    /// part. Nothing is written to the instrument and nothing reaches the disk.
+    ///
+    /// Refused while comparing even though it only reads. While a comparison is in progress the
+    /// instrument is playing the sound from <em>before</em> the edits, so a copy taken now would hold the
+    /// tone the user was working away from -- and it would look identical to one taken a moment later,
+    /// with nothing on screen to tell the two apart.</summary>
     [ReactiveCommand]
     public async Task CopyToneAsync()
     {
@@ -1197,6 +1202,8 @@ public partial class MainWindowViewModel : ViewModelBase
         var api = Integra7;
         var communicator = _integra7Communicator;
         if (api is null || communicator is null) return;
+
+        if (RefuseWhileComparing("copy the tone")) return;
 
         var selected = await ResolveSelectedToneAsync("copy");
         if (selected is null) return; // ResolveSelectedToneAsync has already said why
@@ -1403,8 +1410,14 @@ public partial class MainWindowViewModel : ViewModelBase
                 SnapshotFailed = false;
                 // "Sent", not "applied": the device acknowledges no parameter write. Undo is named
                 // because it is the whole reason this is one step.
-                SnapshotStatus = $"Sent {changed} randomised parameters to part " +
-                                 $"{selected.ZeroBasedPartNo + 1}. Undo takes all of it back.";
+                // Zero is reachable even with categories ticked: a low strength on a small range rounds
+                // the window to nothing, and an enum only moves on the draw. Reporting that as "sent 0
+                // parameters, undo takes it back" would offer to undo nothing and read as a failure.
+                SnapshotStatus = changed == 0
+                    ? "Nothing moved this time — the strengths were too low to change anything. " +
+                      "Raise them, or press Randomise again."
+                    : $"Sent {changed} randomised parameters to part " +
+                      $"{selected.ZeroBasedPartNo + 1}. Undo takes all of it back.";
             }
         }
         catch (SnapshotFormatException e)
