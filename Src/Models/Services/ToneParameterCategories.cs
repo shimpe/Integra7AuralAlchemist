@@ -68,7 +68,10 @@ public static class ToneParameterCategories
 
     private static readonly (string, ToneCategory)[] Mfx =
     [
-        ("MFX Parameter", Fx), ("MFX Control", Fx),
+        ("MFX Parameter", Fx),
+        // No "MFX Control" rule. MFX Control Assign, Source and Sens name which incoming MIDI
+        // controller drives which MFX parameter -- routing, not sound. Randomising them changes nothing
+        // audible until a controller moves, and rewires a mapping the user set up on purpose.
         ("MFX Chorus Send Level", Fx), ("MFX Reverb Send Level", Fx),
     ];
 
