@@ -110,16 +110,23 @@ Rules are matched against the part of the path after the block name, longest pre
 
 | Prefix | Category |
 | --- | --- |
-| `OSC Pitch Env`, `OSC Pitch`, `OSC Detune`, `OSC Pulse Width`, `Super Saw Detune`, `Octave Shift`, `Pitch Bend Range`, `Portamento`, `Analog Feel` | Pitch & oscillator |
+| `OSC Pitch Env`, `OSC Pitch`, `OSC Detune`, `OSC Pulse Width`, `Super Saw Detune`, `Octave Shift`, `Pitch Bend Range`, `Portamento Time`, `Analog Feel` | Pitch & oscillator |
 | `OSC Wave`, `Wave Gain`, `Wave Number`, `Wave Shape` | Wave choice |
 | `Filter`, `HPF Cutoff`, `Cutoff Aftertouch Sens` | Filter |
 | `AMP`, `Tone Level`, `Level Aftertouch Sens` | Amplifier |
 | `LFO`, `Modulation LFO` | LFO & modulation |
-| `MFX Parameter`, `MFX Control`, `MFX Chorus Send Level`, `MFX Reverb Send Level`, `TFX Switch`, `Ring Switch` | Effects |
+| `MFX Parameter`, `MFX Chorus Send Level`, `MFX Reverb Send Level`, `TFX Switch`, `Ring Switch` | Effects |
 
 Unmapped, therefore never randomised: `Tone Name`, `Tone Category`, `MFX Type` (a discriminator
 anyway), `Partial1..3 Switch` and `Select`, `Mono Switch`, `Unison Switch`, `Unison Size`,
-`Legato Switch`, `Phrase Number`, `Phrase Octave Shift`, every `Reserved*`.
+`Legato Switch`, `Portamento Switch`, `Portamento Mode`, `Phrase Number`, `Phrase Octave Shift`,
+every `Reserved*`.
+
+**`MFX Control` is unmapped in every engine**, and is the one exclusion worth spelling out because it
+looks like an effect parameter and is not: `MFX Control Assign 1..4`, `MFX Control 1..4 Source` and
+`MFX Control 1..4 Sens` say which incoming MIDI controller drives which MFX parameter and how far.
+Randomising them changes nothing audible until a controller moves, and silently rewires a mapping the
+user set up deliberately.
 
 **PCM Synth Tone** (`Common`, `Common 2`, `Common MFX`, `Partial Mix Table`, `Partial 1..4`)
 
@@ -130,7 +137,7 @@ anyway), `Partial1..3 Switch` and `Select`, `Mono Switch`, `Unison Switch`, `Uni
 | `TVF`, `Cutoff Offset`, `Resonance Offset` | Filter |
 | `TVA`, `Bias`, `Partial Level`, `Partial Pan`, `Partial Pan Keyfollow`, `Partial Random Pan Depth`, `Partial Alternate Pan Depth`, `PCM Synth Tone Level`, `PCM Synth Tone Pan`, `Attack Time Offset`, `Release Time Offset`, `Velocity Sens Offset` | Amplifier |
 | `LFO1`, `LFO2`, `LFO Step`, `Modulation LFO` | LFO & modulation |
-| `MFX Parameter`, `MFX Control`, `MFX Chorus Send Level`, `MFX Reverb Send Level`, `Partial Chorus Send Level`, `Partial Reverb Send Level`, `TFX Switch` | Effects |
+| `MFX Parameter`, `MFX Chorus Send Level`, `MFX Reverb Send Level`, `Partial Chorus Send Level`, `Partial Reverb Send Level`, `TFX Switch` | Effects |
 
 Unmapped: `PCM Synth Tone Name`, `PCM Synth Tone Priority`, `Tone Category`, `MFX Type`, `Mono-Poly`,
 `Legato Switch`, `Legato Retrigger`, `Portamento Switch`, `Portamento Mode`, `Portamento Type`,
@@ -149,7 +156,7 @@ zone silences a partial rather than changing its sound), `Phrase Number`, `Phras
 | `Cutoff Offset`, `Resonance Offset` | Filter |
 | `Attack Time Offset`, `Release Time Offset`, `Tone Level` | Amplifier |
 | `Vibrato Rate`, `Vibrato Depth`, `Vibrato Delay` | LFO & modulation |
-| `MFX Parameter`, `MFX Control`, `MFX Chorus Send Level`, `MFX Reverb Send Level`, `TFX Switch` | Effects |
+| `MFX Parameter`, `MFX Chorus Send Level`, `MFX Reverb Send Level`, `TFX Switch` | Effects |
 | `Modify Parameter ` | Instrument character |
 
 The modify parameters are what an SN-A tone mostly *is*, and each one's meaning depends on the selected
@@ -168,7 +175,7 @@ every `Reserved*`.
 | `Inst Number`, `Variation` | Wave choice |
 | `Brilliance` | Filter |
 | `Attack`, `Decay`, `Level`, `Pan`, `Stereo Width`, `Dynamic Range`, `Kit Level` | Amplifier |
-| `Chorus Send Level`, `Reverb Send Level`, `Ambience Level`, `TFX Switch`, `MFX Parameter`, `MFX Control` | Effects |
+| `Chorus Send Level`, `Reverb Send Level`, `Ambience Level`, `TFX Switch`, `MFX Parameter`, `MFX Chorus Send Level`, `MFX Reverb Send Level` | Effects |
 
 Unmapped: `Output Assign`, `Kit Name`, `Phrase Number`, `MFX Type`, the Comp-EQ block, every
 `Reserved*`.
@@ -181,7 +188,7 @@ Unmapped: `Output Assign`, `Kit Name`, `Phrase Number`, `MFX Type`, the Comp-EQ 
 | `WMT* Wave Group Type`, `WMT* Wave Group ID`, `WMT* Wave Number`, `WMT* Wave Gain`, `WMT* Wave FXM`, `WMT* Wave Tempo Sync`, `WMT* Wave Switch` | Wave choice |
 | `TVF` | Filter |
 | `TVA`, `Partial Level`, `Partial Pan`, `Partial Random Pan Depth`, `Partial Alternate Pan Depth`, `WMT* Wave Level`, `WMT* Wave Pan`, `Kit Level` | Amplifier |
-| `Partial Chorus Send Level`, `Partial Reverb Send Level`, `MFX Parameter`, `MFX Control`, `MFX Chorus Send Level`, `MFX Reverb Send Level`, `TFX Switch` | Effects |
+| `Partial Chorus Send Level`, `Partial Reverb Send Level`, `MFX Parameter`, `MFX Chorus Send Level`, `MFX Reverb Send Level`, `TFX Switch` | Effects |
 
 A PCM drum partial has **no LFO**, so this engine claims no LFO & modulation category and the dialog
 shows that row disabled. `TFX Switch` lives in the `Common 2` block for both PCM engines and in plain
