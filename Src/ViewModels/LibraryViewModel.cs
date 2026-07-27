@@ -202,11 +202,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
         ToneDomainNames.IsKnownToneType(t);
 
     /// <summary>What the details panel says about the selected entry's init-tone status -- empty when
-    /// there is nothing to say, which is most of the time.</summary>
+    /// there is nothing to say, which is most of the time.
+    ///
+    /// Reads the row's own mark rather than repeating the lookup <see cref="ApplyInitToneMarks"/> already
+    /// made: two places comparing the same file name against the same map is two places that can come to
+    /// disagree, and the list and the panel disagreeing about the same entry would be visible.</summary>
     public string InitToneNote =>
-        SelectedEntry?.Entry.Head.ToneType is { } toneType &&
-        _initTones.TryGetValue(toneType, out var file) &&
-        string.Equals(file, Path.GetFileName(SelectedEntry.FilePath), StringComparison.OrdinalIgnoreCase)
+        SelectedEntry is { IsInitTone: true, Entry.Head.ToneType: { } toneType }
             ? $"Init Tone starts from this when the part holds a {toneType} tone."
             : "";
 
@@ -277,6 +279,10 @@ public sealed partial class LibraryViewModel : ViewModelBase
         var selectedPath = SelectedEntry?.FilePath;
         Entries.Clear();
         foreach (var entry in admitted) Entries.Add(new LibraryEntryViewModel(entry));
+        // Before the selection is restored, not after: assigning SelectedEntry is what raises InitToneNote,
+        // and that note now reads the row's own mark -- so a row marked afterwards would leave the details
+        // panel saying nothing about a tone the list is already flagging.
+        ApplyInitToneMarks();
         SelectedEntry = Entries.FirstOrDefault(row =>
             string.Equals(row.FilePath, selectedPath, StringComparison.OrdinalIgnoreCase));
 
@@ -285,6 +291,19 @@ public sealed partial class LibraryViewModel : ViewModelBase
             : Entries.Count == _all.Count
                 ? $"{_all.Count} snapshot{(_all.Count == 1 ? "" : "s")}."
                 : $"{Entries.Count} of {_all.Count} snapshots.";
+    }
+
+    /// <summary>Point every row at the current marks. Called after the list is rebuilt and after the user
+    /// moves a mark, so the row that had it stops showing it in the same gesture that gives it to another.
+    /// Compared on the file name, which is what the settings store, and case-insensitively, because
+    /// Windows and macOS will hand back a name that differs from the stored one only in case.</summary>
+    private void ApplyInitToneMarks()
+    {
+        foreach (var entry in Entries)
+            entry.IsInitTone = entry.Entry.Head.ToneType is { } toneType &&
+                               _initTones.TryGetValue(toneType, out var file) &&
+                               string.Equals(file, Path.GetFileName(entry.FilePath),
+                                   StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Put the selected entry's metadata into the editor -- or clear it when nothing is selected. Every
@@ -375,6 +394,9 @@ public sealed partial class LibraryViewModel : ViewModelBase
                 true);
         }
 
+        // Before the raise below, which reads the selected row's own mark, and over every row rather than
+        // this one: the mark is per engine, so giving it to this tone takes it from whichever tone had it.
+        ApplyInitToneMarks();
         this.RaisePropertyChanged(nameof(InitToneNote));
     }
 

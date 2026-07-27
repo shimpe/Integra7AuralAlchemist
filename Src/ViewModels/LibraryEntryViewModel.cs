@@ -1,5 +1,8 @@
+using System;
 using System.Globalization;
 using Integra7AuralAlchemist.Models.Services;
+using ReactiveUI;
+using ReactiveUI.SourceGenerators;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
@@ -10,16 +13,23 @@ namespace Integra7AuralAlchemist.ViewModels;
 /// read -- so when a file changes, the honest thing is to read the folder again and build new rows, which is what
 /// <c>LibraryViewModel.Refresh</c> does after every write. A row that could update itself would be a row that can
 /// disagree with the file, and there is nothing here worth that: the whole list is a few dozen small objects.
-/// That is also why there is no <c>PropertyChanged</c> plumbing in this file at all.
+///
+/// <b>One property is not a projection of the file, and it is the only <c>PropertyChanged</c> plumbing here.</b>
+/// The init-tone mark is not in the snapshot -- it is in the settings -- so it cannot be read off the entry, and
+/// it moves between two rows without either file changing (see <see cref="IsInitTone"/>).
 ///
 /// <b>It carries the <see cref="Entry"/> itself</b>, not just its path, because loading a snapshot needs its kind
 /// to know which of the two restore paths to take and the head is where that already is. Reading the file a
 /// second time to ask would be a second answer that can differ from the one on screen.</summary>
-public sealed class LibraryEntryViewModel : ViewModelBase
+public sealed partial class LibraryEntryViewModel : ViewModelBase
 {
     public LibraryEntryViewModel(LibraryEntry entry)
     {
         Entry = entry;
+
+        // The generated IsInitTone setter announces itself and knows nothing of InitMark, which is what the
+        // list column binds to -- the same wiring SaveToLibraryViewModel needs for the same reason.
+        this.WhenAnyValue(x => x.IsInitTone).Subscribe(_ => this.RaisePropertyChanged(nameof(InitMark)));
     }
 
     public LibraryEntry Entry { get; }
@@ -43,6 +53,16 @@ public sealed class LibraryEntryViewModel : ViewModelBase
             return string.IsNullOrEmpty(Entry.Head.ToneType) ? kind : $"{kind} {Entry.Head.ToneType}";
         }
     }
+
+    /// <summary>Whether Init Tone starts from this snapshot for its engine. Not read from the file like
+    /// every other property here: the mark lives in the settings, so the library sets it when it builds
+    /// the row and again when the user moves it.</summary>
+    [Reactive] private bool _isInitTone;
+
+    /// <summary>What the Kind column adds when the mark is set. A word rather than a glyph: the two
+    /// glyphs this list already uses mean favourite and rating, and a third would be one more thing to
+    /// learn for a flag at most five rows in the library carry.</summary>
+    public string InitMark => IsInitTone ? "init" : "";
 
     /// <summary>Blank for a Studio Set, which is sixteen parts each with a category of its own and has none.
     /// </summary>

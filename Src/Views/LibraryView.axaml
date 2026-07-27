@@ -114,7 +114,7 @@
                  one column where a few pixels cannot be seen. -->
             <Grid Grid.Column="0" RowDefinitions="Auto,*">
                 <Grid Grid.Row="0"
-                      ColumnDefinitions="28,2*,110,140,80,130,3*"
+                      ColumnDefinitions="28,2*,150,140,80,130,3*"
                       Margin="4,0,16,4">
                     <TextBlock Grid.Column="0" Text="♥" Foreground="{StaticResource SnMutedTextBrush}" />
                     <TextBlock Grid.Column="1" Text="Name" FontWeight="Bold" />
@@ -131,13 +131,22 @@
                          SelectionMode="Single">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:LibraryEntryViewModel">
-                            <Grid ColumnDefinitions="28,2*,110,140,80,130,3*">
+                            <Grid ColumnDefinitions="28,2*,150,140,80,130,3*">
                                 <TextBlock Grid.Column="0" Text="{Binding FavouriteMark}"
                                            Foreground="{StaticResource SnRatingStarBrush}" />
                                 <TextBlock Grid.Column="1" Text="{Binding Name}"
                                            TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Column="2" Text="{Binding Kind}"
-                                           Foreground="{StaticResource SnMutedTextBrush}" />
+                                <!-- The kind and the init-tone mark share a column: the mark is set on at
+                                     most five rows in the whole library, and a column of its own would be
+                                     blank on every other one. The mark is accented rather than muted like
+                                     the kind beside it — it is a flag, and a second muted word would read
+                                     as part of the engine's name. -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding Kind}"
+                                               Foreground="{StaticResource SnMutedTextBrush}" />
+                                    <TextBlock Text="{Binding InitMark}"
+                                               Foreground="{StaticResource SnAccentBrush}" />
+                                </StackPanel>
                                 <TextBlock Grid.Column="3" Text="{Binding Category}"
                                            Foreground="{StaticResource SnMutedTextBrush}"
                                            TextTrimming="CharacterEllipsis" />
