@@ -39,9 +39,12 @@ public static class ToneRandomiser
             var spec = p.ParSpec;
 
             // A discriminator decides how every parameter that depends on it is interpreted, so moving
-            // one would mean writing values against a context that no longer holds. In this database
-            // that is MFX Type and the SuperNATURAL Acoustic instrument -- both of which a user asking
-            // to "randomise the effects" or "vary this piano" means to keep.
+            // one would mean writing values against a context that no longer holds. The obvious ones are
+            // MFX Type and the SuperNATURAL Acoustic instrument, which no category names anyway -- but
+            // this skip is not redundant with the category table, and an earlier version of this comment
+            // claiming those two were the whole list is what hid that: PCM Synth Wave Group Type and Wave
+            // Group ID are discriminators *and* are categorised WaveChoice, so this line is the only
+            // thing keeping them out of a randomise. Ask the flag, never a list of names.
             if (spec.IsParent) continue;
 
             // A name is text; there is no range to draw from and nothing musical to gain.
