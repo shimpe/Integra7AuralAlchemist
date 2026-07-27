@@ -1363,7 +1363,9 @@ and the handlers themselves, beside `DoShowSaveSnapshotDialogAsync`:
 ```
 
 Check the file's existing usings for `Avalonia.Platform.Storage` (`FilePickerFileType` lives there) and
-`System.Reactive`; add what is missing.
+`System.Reactive`; add what is missing. **`SetTextAsync` needs `using Avalonia.Input.Platform;`** — in
+Avalonia 12 it is an extension method on `ClipboardExtensions` rather than a member of `IClipboard`, so
+without that using this handler does not compile, and the using looks removable to anyone tidying later.
 
 - [ ] **Step 7: Build and run the whole suite**
 
