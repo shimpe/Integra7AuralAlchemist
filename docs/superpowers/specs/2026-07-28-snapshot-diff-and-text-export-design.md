@@ -151,9 +151,12 @@ each is filled by one of three buttons:
 | From a file… | The existing open-snapshot file picker |
 | From the instrument | Captures — a Studio Set, or the tone in the selected part |
 
-**From the instrument** needs to know which it is capturing. The slot offers both: "Read the Studio Set"
-and "Read the tone in part N", the second labelled with the part currently selected in the Parameters tab
-and disabled on the Common tab, so there is nothing to guess. The capture is one conversation, exactly as
+**From the instrument** needs to know which it is capturing, so the slot offers both: "Read the Studio
+Set" and "Read the selected part's tone". The second acts on whatever part the Parameters tab has
+selected and is refused, with `ResolveSelectedToneAsync`'s existing message, when that is the Common tab
+or a part whose tone this build does not recognise. The button is not disabled and does not name the part
+in its label: doing either means the Compare tab watching another tab's selection, and the message that
+already exists says the same thing at the moment it matters. The capture is one conversation, exactly as
 Save Studio Set and Save Tone already do.
 
 **Compare** is enabled when both slots are full. The result is a summary line, then one collapsible
