@@ -112,6 +112,62 @@ public class ToneRandomiserTests
         Assert.That(values.Keys.All(p => ToneParameterCategories.For(p) is not null));
     }
 
+    /// <summary>The case the test above cannot make. Tone Name and MFX Type are skipped as a name and as
+    /// a discriminator, but no rule categorises either of them, so that test stays green even with both
+    /// skips deleted. Wave Group Type and Wave Group ID are discriminators that <i>are</i> categorised --
+    /// WaveChoice, like the wave number beside them -- so the IsParent skip is the only thing keeping
+    /// them out, and deleting it fails this.
+    ///
+    /// Several seeds, because the wave number reads as 0 (BlankReplyApi) and its window is symmetric
+    /// about it, so roughly half the draws clamp back to 0 and record no change. The discriminators must
+    /// be absent from every seed; the wave number need only move in one of them, which is what proves the
+    /// category was randomised at all and that the two absences are the skip rather than an untouched
+    /// category.</summary>
+    [Test]
+    public void Never_returns_a_discriminator_even_when_its_category_is_randomised()
+    {
+        const string groupType = "PCM Synth Tone Partial/Wave Group Type";
+        const string groupId = "PCM Synth Tone Partial/Wave Group ID";
+        const string waveNumber = "PCM Synth Tone Partial/Wave Number L (Mono)";
+
+        var waveNumberMoved = false;
+        for (var seed = 0; seed < 20; seed++)
+        {
+            var domain = StudioSetSnapshotServiceTests.BuildDomain(
+                new StudioSetSnapshotServiceTests.BlankReplyApi());
+            var parameters = domain
+                .GetDomain("Temporary Tone Part 1", "Offset/Temporary PCM Synth Tone",
+                    "Offset2/PCM Synth Tone Partial 1")
+                .GetRelevantParameters(false, false);
+
+            var values = ToneRandomiser.NewValuesFor(parameters, All(1.0), new Random(seed));
+
+            Assert.That(values.Keys, Does.Not.Contain(groupType), $"seed {seed}");
+            Assert.That(values.Keys, Does.Not.Contain(groupId), $"seed {seed}");
+            waveNumberMoved |= values.ContainsKey(waveNumber);
+        }
+
+        Assert.That(waveNumberMoved, Is.True,
+            "WaveChoice really was randomised, so the two absences above are the IsParent skip and not a "
+            + "category that never moved");
+    }
+
+    /// <summary>Ticking one category must leave the others exactly as they were -- the dialog's whole
+    /// promise. A category missing from the map is not the same as one present at zero, and both have to
+    /// mean "do not touch it".</summary>
+    [Test]
+    public void Leaves_a_category_that_is_not_in_the_map_alone()
+    {
+        var filterOnly = new RandomisationStrengths(
+            new Dictionary<ToneCategory, double> { [ToneCategory.Filter] = 1.0 });
+
+        var values = ToneRandomiser.NewValuesFor(PartialParameters(), filterOnly, new Random(4));
+
+        Assert.That(values, Is.Not.Empty);
+        Assert.That(values.Keys.Select(ToneParameterCategories.For),
+            Is.All.EqualTo(ToneCategory.Filter));
+    }
+
     [Test]
     public void Is_deterministic_for_a_seed()
     {
