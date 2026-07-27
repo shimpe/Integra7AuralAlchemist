@@ -118,8 +118,18 @@
                     <ScrollViewer Grid.Row="0"
                                   HorizontalScrollBarVisibility="Auto"
                                   VerticalScrollBarVisibility="Disabled">
+                        <!-- The bottom margin is the horizontal scrollbar's lane. Avalonia's bars float
+                             over the content rather than reserving space (see App.axaml), so without it
+                             the bar that appears at a narrow window width sits across the bottom of this
+                             row of buttons — over their labels, and over the click target. 16px is the
+                             width the rest of the application reserves for the same reason.
+
+                             Always reserved, not only while the bar is showing: nothing in the layout
+                             can ask whether it is, and a row that changed height as the window crossed
+                             the width where the bar appears would move every button under the pointer. -->
                         <StackPanel Orientation="Horizontal"
-                                    Spacing="12">
+                                    Spacing="12"
+                                    Margin="0,0,0,16">
                             <Button IsEnabled="{Binding RescanButtonEnabled}"
                                     Command="{Binding RescanMidiDevicesAsync}">
                                 Rescan Midi Devices

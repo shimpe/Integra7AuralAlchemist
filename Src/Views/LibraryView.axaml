@@ -84,7 +84,11 @@
                        Foreground="{StaticResource SnMutedTextBrush}" />
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
                           MaxWidth="1100">
-                <ItemsControl ItemsSource="{Binding Tags}">
+                <!-- The bottom margin is the scrollbar's lane, for the reason the toolbar in
+                     MainWindow.axaml reserves one: Avalonia's bars float over the content, so with
+                     enough tags to scroll the bar would lie across these checkboxes and swallow the
+                     clicks that tick them. -->
+                <ItemsControl ItemsSource="{Binding Tags}" Margin="0,0,0,16">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel Orientation="Horizontal" Spacing="10" />
