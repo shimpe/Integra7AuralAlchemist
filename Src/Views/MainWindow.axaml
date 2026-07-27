@@ -243,6 +243,59 @@
                                 </Button.IsEnabled>
                                 Load Tone…
                             </Button>
+                            <Button Command="{Binding InitToneAsync}"
+                                    ToolTip.Tip="Replace the tone in the selected part with a neutral starting point — the library tone marked as this engine's init tone, or the one bundled with the application. This cannot be undone.">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                            <Binding Path="CurrentPartIsNotCommonPart" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Init Tone
+                            </Button>
+                            <Button Command="{Binding CopyToneAsync}"
+                                    ToolTip.Tip="Read the tone in the selected part and hold it, so it can be pasted into another part of the same kind.">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                            <Binding Path="CurrentPartIsNotCommonPart" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Copy Tone
+                            </Button>
+                            <Button Command="{Binding PasteToneAsync}"
+                                    ToolTip.Tip="Write the copied tone into the selected part. The part must already hold a tone of the same kind. This cannot be undone.">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                            <Binding Path="CurrentPartIsNotCommonPart" />
+                                            <Binding Path="CanPasteTone" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Paste Tone
+                            </Button>
+                            <Button Command="{Binding RandomiseToneAsync}"
+                                    ToolTip.Tip="Vary the tone in the selected part. You choose which groups of parameters move and how far from their current values; everything else is left alone. One press of Undo takes it all back.">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                            <Binding Path="CurrentPartIsNotCommonPart" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Randomise…
+                            </Button>
                         </StackPanel>
                     </ScrollViewer>
                     <TabControl HorizontalContentAlignment="Left"

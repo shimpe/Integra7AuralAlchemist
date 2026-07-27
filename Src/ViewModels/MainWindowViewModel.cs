@@ -113,6 +113,30 @@ public partial class MainWindowViewModel : ViewModelBase
     /// snapshot pickers, for the same reason.</summary>
     public Interaction<string, string?> ShowPickLibraryFolderDialog { get; }
 
+    /// <summary>Ask a yes/no question. Init and Paste both replace a whole tone and clear the edit
+    /// history, and neither is undoable, so both ask first.</summary>
+    public Interaction<ConfirmViewModel, bool> ShowConfirmDialog { get; }
+
+    /// <summary>Ask what a randomise should touch. The view model is kept rather than rebuilt, so a
+    /// second press starts from the settings the first used.</summary>
+    public Interaction<RandomiseToneViewModel, bool> ShowRandomiseToneDialog { get; }
+
+    /// <summary>The tone Copy put there, waiting for Paste. One slot, this window's lifetime -- see
+    /// ToneClipboard.</summary>
+    private readonly ToneClipboard _toneClipboard = new();
+
+    /// <summary>Kept, not rebuilt per press, so the categories and strengths a user set last time are
+    /// still there the next time.</summary>
+    private readonly RandomiseToneViewModel _randomiseVm = new();
+
+    /// <summary>One generator for the session. A fresh Random per press seeded from the clock can repeat
+    /// itself when two presses land in the same tick, which reads as "the button did nothing".</summary>
+    private readonly Random _randomiseRng = new();
+
+    /// <summary>Whether there is anything to paste. Bound by the Paste button, which is otherwise the
+    /// only thing that could tell the user the clipboard is empty.</summary>
+    [Reactive] private bool _canPasteTone;
+
     /// <summary>The library browser. Built here, in the constructor, and never replaced: it reads files rather
     /// than parameters, so unlike <see cref="MixerVm"/>, <see cref="LayerMapVm"/> and
     /// <see cref="MotionalSurroundVm"/> it is valid with no instrument attached and has nothing to dispose on a
@@ -1005,25 +1029,52 @@ public partial class MainWindowViewModel : ViewModelBase
         await RestoreToneFromFileAsync(api, communicator, selected, path);
     }
 
-    /// <summary>Write the tone snapshot at <paramref name="path"/> into <paramref name="selected"/>'s part,
-    /// replacing the tone there, and re-read that part afterwards.
+    /// <summary>Read the tone snapshot at <paramref name="path"/> and write it into
+    /// <paramref name="selected"/>'s part, replacing the tone there.
     ///
     /// <b>Extracted so the library loads through exactly this path</b>, for the reason
-    /// <see cref="RestoreStudioSetFromFileAsync"/> gives. The engine guard is the load-bearing part and it is
-    /// deliberately not here: <paramref name="selected"/> carries the engine the part genuinely holds right
-    /// now, <c>RestoreToneAsync</c> compares the snapshot's against it and refuses, and the message it gives is
-    /// the one the user sees whichever button they pressed. A second caller resolving the engine its own way is
-    /// exactly how PCM data reaches a SuperNATURAL part's addresses, where it means something else
-    /// entirely.</summary>
+    /// <see cref="RestoreStudioSetFromFileAsync"/> gives. Everything past the file is
+    /// <see cref="RestoreToneSnapshotAsync"/>, which Init and Paste reach with a snapshot that never came
+    /// from a file -- see there for why the engine guard is not in either of them.
+    ///
+    /// The read is outside that method rather than inside it because it is the only part of a load that a
+    /// file can fail at, and its message names the file rather than the restore.</summary>
     private async Task RestoreToneFromFileAsync(IIntegra7Api api, Integra7Domain communicator,
         SelectedTone selected, string path)
+    {
+        Integra7Snapshot snapshot;
+        try
+        {
+            snapshot = Integra7Snapshot.FromJson(await File.ReadAllTextAsync(path));
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("load tone", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = e is SnapshotFormatException ? e.Message : $"Could not load the tone: {e.Message}";
+            return;
+        }
+
+        await RestoreToneSnapshotAsync(api, communicator, selected, snapshot, Path.GetFileName(path));
+    }
+
+    /// <summary>Write <paramref name="snapshot"/> into <paramref name="selected"/>'s part and re-read that
+    /// part afterwards. <paramref name="source"/> is what the status line calls it -- a file name, "the
+    /// clipboard", "the init tone".
+    ///
+    /// <b>Every whole-tone replacement goes through here</b>: Load Tone, the library's own load, Init and
+    /// Paste. The engine guard is deliberately not in this method -- <paramref name="selected"/> carries the
+    /// engine the part genuinely holds, RestoreToneAsync compares the snapshot's against it and refuses, and
+    /// a second caller resolving the engine its own way is exactly how PCM data reaches a SuperNATURAL
+    /// part's addresses.</summary>
+    private async Task RestoreToneSnapshotAsync(IIntegra7Api api, Integra7Domain communicator,
+        SelectedTone selected, Integra7Snapshot snapshot, string source)
     {
         var restored = false;
         try
         {
             SignalStartSync();
             SyncInfo = $"Writing tone to part {selected.ZeroBasedPartNo + 1}";
-            var snapshot = Integra7Snapshot.FromJson(await File.ReadAllTextAsync(path));
 
             // RestoreToneAsync refuses this too, but it cannot know which button the user was reaching
             // for, and that is the whole content of the message. FromJson has already narrowed Kind to
@@ -1055,7 +1106,7 @@ public partial class MainWindowViewModel : ViewModelBase
             // "Sent", not "loaded": the device acknowledges no parameter write, so this confirms the
             // data went out, not that the instrument applied it. The resync below re-reads the device,
             // so the UI self-corrects if something did not stick.
-            SnapshotStatus = $"Sent the tone from {Path.GetFileName(path)} to part {selected.ZeroBasedPartNo + 1}.";
+            SnapshotStatus = $"Sent the tone from {source} to part {selected.ZeroBasedPartNo + 1}.";
         }
         catch (SnapshotFormatException e)
         {
@@ -1135,6 +1186,248 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         await RestoreStudioSetFromFileAsync(api, communicator, entry.FilePath);
+    }
+
+    /// <summary>Read the tone in the selected part into the clipboard, so it can be pasted into another
+    /// part. Nothing is written to the instrument and nothing reaches the disk.</summary>
+    [ReactiveCommand]
+    public async Task CopyToneAsync()
+    {
+        UserActionLog.Action("button: Copy Tone");
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null) return;
+
+        var selected = await ResolveSelectedToneAsync("copy");
+        if (selected is null) return; // ResolveSelectedToneAsync has already said why
+
+        try
+        {
+            SignalStartSync();
+            SyncInfo = $"Reading tone from part {selected.ZeroBasedPartNo + 1}";
+            // One conversation for the whole capture, so nothing else writes into the middle of it and
+            // produces a tone that never existed -- the reasoning SaveToneAsync records.
+            await using (var lease = await api.BeginConversationAsync("copy tone"))
+            {
+                _toneClipboard.Put(await StudioSetSnapshotService.CaptureToneAsync(communicator,
+                    selected.ZeroBasedPartNo, selected.ToneType, selected.ToneName, lease));
+            }
+
+            SnapshotFailed = false;
+            SnapshotStatus = $"Copied {selected.ToneName} from part {selected.ZeroBasedPartNo + 1}.";
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("copy tone", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = $"Could not copy the tone: {e.Message}";
+        }
+        finally
+        {
+            SignalStopSync();
+        }
+    }
+
+    /// <summary>Write the copied tone into the selected part. Refused while comparing and confirmed
+    /// first, for the reasons <see cref="LoadToneAsync"/> and <see cref="InitToneAsync"/> give.</summary>
+    [ReactiveCommand]
+    public async Task PasteToneAsync()
+    {
+        UserActionLog.Action("button: Paste Tone");
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null) return;
+
+        if (RefuseWhileComparing("paste a tone")) return;
+
+        if (_toneClipboard.Content is not { } snapshot)
+        {
+            // The button is disabled without content, but a command stays reachable, and silently doing
+            // nothing is worse than saying why.
+            SnapshotFailed = true;
+            SnapshotStatus = "Nothing to paste: copy a tone first.";
+            return;
+        }
+
+        var selected = await ResolveSelectedToneAsync("paste");
+        if (selected is null) return;
+
+        if (!await ShowConfirmDialog.Handle(new ConfirmViewModel(
+                $"Replacing the tone in part {selected.ZeroBasedPartNo + 1} with {snapshot.Name} cannot be " +
+                "undone, and it clears the edit history. Continue?", "Paste"))) return;
+
+        await RestoreToneSnapshotAsync(api, communicator, selected, snapshot, "the clipboard");
+    }
+
+    /// <summary>Replace the tone in the selected part with the init tone for its engine: the library
+    /// entry the user marked, or the tone bundled with this build.
+    ///
+    /// A real tone snapshot rather than a table of default values, so it is complete by construction --
+    /// every block, every parameter -- and so it goes through exactly the restore path (and validation)
+    /// that Load Tone does.</summary>
+    [ReactiveCommand]
+    public async Task InitToneAsync()
+    {
+        UserActionLog.Action("button: Init Tone");
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null) return;
+
+        if (RefuseWhileComparing("initialise a tone")) return;
+
+        var selected = await ResolveSelectedToneAsync("initialise");
+        if (selected is null) return;
+
+        var initTone = InitToneResolution.Resolve(
+            LibrarySettings.LoadAll(LibrarySettings.SettingsPath).InitTones,
+            LibraryVm.Folder, selected.ToneType, File.Exists,
+            uri => AssetLoader.Exists(new Uri(uri)));
+
+        if (!initTone.HasTone)
+        {
+            SnapshotFailed = true;
+            // Says how to fix it, not only that it is broken: there is no init tone for this engine in
+            // this build, and the user has a way to supply one.
+            SnapshotStatus = (initTone.MarkWasStale
+                                 ? $"The tone marked as the init tone for {selected.ToneType} is no longer in the library. "
+                                 : $"No init tone is set for {selected.ToneType}. ") +
+                             "Add a tone to the library, select it in the Library tab and press " +
+                             "\"Use as the init tone\".";
+            return;
+        }
+
+        if (!await ShowConfirmDialog.Handle(new ConfirmViewModel(
+                $"Replacing the tone in part {selected.ZeroBasedPartNo + 1} with the init tone cannot be " +
+                "undone, and it clears the edit history. Continue?", "Initialise"))) return;
+
+        Integra7Snapshot snapshot;
+        try
+        {
+            var json = initTone.FilePath is { } file
+                ? await File.ReadAllTextAsync(file)
+                : await new StreamReader(AssetLoader.Open(new Uri(initTone.AssetUri!))).ReadToEndAsync();
+            snapshot = Integra7Snapshot.FromJson(json);
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("read the init tone", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = $"Could not read the init tone for {selected.ToneType}: {e.Message}";
+            return;
+        }
+
+        // A stale mark still loads the bundled tone, but the user asked for a different one and has to
+        // know they did not get it. Said in the source rather than on the status line before the restore:
+        // the restore writes its own outcome there, so a line set first is one nobody ever reads.
+        await RestoreToneSnapshotAsync(api, communicator, selected, snapshot, initTone.MarkWasStale
+            ? "the bundled init tone (the one you marked for this engine is no longer in the library)"
+            : "the init tone");
+    }
+
+    /// <summary>Vary the tone in the selected part, under the categories and strengths the dialog
+    /// collects. Unlike Init and Paste this is an edit like any other: it records one undo step, so a
+    /// result the user does not like is one press away from gone.
+    ///
+    /// A drum kit is randomised one note at a time -- the note selected in its editor. Every note at once
+    /// would be 88 partials and an undo step nobody could use.</summary>
+    [ReactiveCommand]
+    public async Task RandomiseToneAsync()
+    {
+        UserActionLog.Action("button: Randomise Tone");
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null) return;
+
+        if (RefuseWhileComparing("randomise a tone")) return;
+
+        var selected = await ResolveSelectedToneAsync("randomise");
+        if (selected is null) return;
+
+        IReadOnlyList<(string Start, string Offset, string Offset2)> blocks;
+        string target;
+        if (ToneDomainNames.IsDrumKit(selected.ToneType))
+        {
+            // Indexed from what ResolveSelectedToneAsync settled on, not from CurrentPartSelection again:
+            // the tab can have changed under the awaits above, and the editor read here has to belong to
+            // the part everything else in this method is about.
+            var part = PartViewModels[selected.ZeroBasedPartNo + 1];
+
+            // Written out rather than nested in a conditional: the two editors are different types, so
+            // this is two lookups that happen to answer the same shape, not one expression.
+            (int Index, int Note)? note;
+            if (selected.ToneType == "SN-D")
+                note = part.SNDrumKitEditor?.SelectedNote is { } sn ? (sn.Index, sn.Note) : null;
+            else
+                note = part.PcmDrumKitEditor?.SelectedNote is { } pcm ? (pcm.Index, pcm.Note) : null;
+
+            if (note is not { } chosen)
+            {
+                SnapshotFailed = true;
+                SnapshotStatus = "Cannot randomise a drum kit: open the part's drum tab and select a note first.";
+                return;
+            }
+
+            blocks = [ToneDomainNames.DrumPartialFor(selected.ToneType, selected.ZeroBasedPartNo, chosen.Index)];
+            target = $"Randomising note {chosen.Note} ({MidiNote.Name(chosen.Note)}) of the kit in " +
+                     $"part {selected.ZeroBasedPartNo + 1}";
+        }
+        else
+        {
+            blocks = ToneDomainNames.For(selected.ToneType, selected.ZeroBasedPartNo);
+            target = $"Randomising the tone in part {selected.ZeroBasedPartNo + 1}";
+        }
+
+        _randomiseVm.PrepareFor(selected.ToneType, target);
+        if (!await ShowRandomiseToneDialog.Handle(_randomiseVm)) return;
+
+        var strengths = _randomiseVm.Strengths();
+        if (!strengths.Any)
+        {
+            SnapshotFailed = true;
+            SnapshotStatus = "Nothing was ticked, so nothing was randomised.";
+            return;
+        }
+
+        var randomised = false;
+        try
+        {
+            SignalStartSync();
+            SyncInfo = $"Randomising part {selected.ZeroBasedPartNo + 1}";
+            // One conversation for the whole operation: it reads each block and writes it back, and
+            // anything else writing in between would randomise around values that were never heard.
+            await using (var lease = await api.BeginConversationAsync("randomise tone"))
+            {
+                var changed = await ToneRandomisationService.RandomiseAsync(communicator, blocks,
+                    strengths, _randomiseRng, lease);
+                randomised = true;
+                SnapshotFailed = false;
+                // "Sent", not "applied": the device acknowledges no parameter write. Undo is named
+                // because it is the whole reason this is one step.
+                SnapshotStatus = $"Sent {changed} randomised parameters to part " +
+                                 $"{selected.ZeroBasedPartNo + 1}. Undo takes all of it back.";
+            }
+        }
+        catch (SnapshotFormatException e)
+        {
+            UserActionLog.Failed("randomise tone", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = e.Message;
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("randomise tone", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = $"Could not randomise the tone: {e.Message}";
+        }
+        finally
+        {
+            SignalStopSync();
+        }
+
+        if (randomised)
+            // Only this part changed. Outside the lease above, since the resync takes its own, and not
+            // at all on failure, because the screen still matches the device.
+            await ResyncPartAsync((byte)selected.ZeroBasedPartNo);
     }
 
     [ReactiveCommand]
@@ -1814,6 +2107,14 @@ public partial class MainWindowViewModel : ViewModelBase
         ShowOpenSnapshotDialog = new Interaction<Unit, string?>();
         ShowSaveToLibraryDialog = new Interaction<SaveToLibraryViewModel, SnapshotMetadata?>();
         ShowPickLibraryFolderDialog = new Interaction<string, string?>();
+        ShowConfirmDialog = new Interaction<ConfirmViewModel, bool>();
+        ShowRandomiseToneDialog = new Interaction<RandomiseToneViewModel, bool>();
+
+        // Fired from whichever thread called Put -- see ToneClipboard.Changed -- and CanPasteTone is
+        // bound to a button, so it is set on the UI thread. Posted the same way the journal's Changed
+        // above is, rather than through a scheduler: this build of ReactiveUI has no RxApp.
+        _toneClipboard.Changed += () =>
+            Dispatcher.UIThread.Post(() => CanPasteTone = _toneClipboard.HasContent);
 
         // After the interactions it reaches through, since it lists its folder while being constructed and
         // reporting a folder that cannot be read needs the status properties -- which are fields on this object

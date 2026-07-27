@@ -72,6 +72,8 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
             action(ViewModel!.ShowOpenSnapshotDialog.RegisterHandler(DoShowOpenSnapshotDialogAsync));
             action(ViewModel!.ShowSaveToLibraryDialog.RegisterHandler(DoShowSaveToLibraryDialogAsync));
             action(ViewModel!.ShowPickLibraryFolderDialog.RegisterHandler(DoShowPickLibraryFolderDialogAsync));
+            action(ViewModel!.ShowConfirmDialog.RegisterHandler(DoShowConfirmDialogAsync));
+            action(ViewModel!.ShowRandomiseToneDialog.RegisterHandler(DoShowRandomiseToneDialogAsync));
         });
     }
 
@@ -111,6 +113,22 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
     {
         var dialog = new SaveToLibraryDialog { DataContext = interaction.Input };
         interaction.SetOutput(await dialog.ShowDialog<SnapshotMetadata?>(this));
+    }
+
+    /// <summary>A yes/no question. The window closes with the answer, and a window closed any other way
+    /// -- the title bar's X, Escape -- answers false, which is the safe side for every caller: all of
+    /// them are about to replace something.</summary>
+    private async Task DoShowConfirmDialogAsync(IInteractionContext<ConfirmViewModel, bool> interaction)
+    {
+        var dialog = new ConfirmDialog { DataContext = interaction.Input };
+        interaction.SetOutput(await dialog.ShowDialog<bool>(this));
+    }
+
+    private async Task DoShowRandomiseToneDialogAsync(
+        IInteractionContext<RandomiseToneViewModel, bool> interaction)
+    {
+        var dialog = new RandomiseToneDialog { DataContext = interaction.Input };
+        interaction.SetOutput(await dialog.ShowDialog<bool>(this));
     }
 
     private async Task DoShowPickLibraryFolderDialogAsync(IInteractionContext<string, string?> interaction)
