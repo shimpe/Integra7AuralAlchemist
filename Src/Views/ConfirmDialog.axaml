@@ -1,0 +1,21 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="460" d:DesignHeight="160"
+        x:Class="Integra7AuralAlchemist.Views.ConfirmDialog"
+        x:DataType="vm:ConfirmViewModel"
+        Title="Are you sure?"
+        Width="460"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner">
+
+    <StackPanel Orientation="Vertical" Margin="16" Spacing="16">
+        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+            <Button Content="{Binding ConfirmLabel}" Command="{Binding ConfirmCommand}" Padding="14,3" />
+            <Button Content="Cancel" Command="{Binding CancelCommand}" Padding="14,3" IsDefault="True" />
+        </StackPanel>
+    </StackPanel>
+</Window>

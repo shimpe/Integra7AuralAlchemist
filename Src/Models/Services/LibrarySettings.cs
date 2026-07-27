@@ -1,18 +1,28 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using Serilog;
 
 namespace Integra7AuralAlchemist.Models.Services;
 
+/// <summary>Everything the settings file holds: where the library is, and which library file is the
+/// init tone for each engine, keyed by tone type ("SN-S", "PCMS", ...).
+///
+/// The init-tone values are file names <em>relative to the library folder</em>, not absolute paths.
+/// The folder is itself a setting the user can change, and a relative name follows it; an absolute
+/// path would silently point outside the library the moment they did.</summary>
+public sealed record LibraryPreferences(string Folder, IReadOnlyDictionary<string, string> InitTones);
+
 /// <summary>Where the snapshot library lives, remembered between sessions.
 ///
 /// This is the first thing this application has ever persisted, so it is deliberately the smallest thing
-/// that can work: one JSON file in the user's application data, holding one folder path. No settings
-/// framework, no schema, no migration, and nothing else moves in here without a reason of its own. The
-/// moment a second setting appears this will want a shape rather than a method per field, and it will be
-/// obvious; guessing at that shape now, for a file with one line in it, would be building the framework
-/// this comment exists to say we are not building.
+/// that can work: one JSON file in the user's application data. No settings framework, no schema, no
+/// migration, and nothing else moves in here without a reason of its own. It held one folder path until
+/// the init-tone marks arrived, and that second setting is the moment this file's first version predicted:
+/// it wants a shape rather than a method per field, and the shape is <see cref="LibraryPreferences"/>.
+/// <see cref="Load"/> and <see cref="Save"/> stay as one-field wrappers over it because every caller they
+/// have wants exactly the folder.
 ///
 /// <b><see cref="Load"/> never throws.</b> A missing file is the first run. An unreadable or malformed one
 /// is a file somebody edited, or a disk that failed, or a folder that has become unreadable -- and none of
@@ -45,17 +55,50 @@ public static class LibrarySettings
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "Integra7AuralAlchemist", "settings.json");
 
-    /// <summary>The file's shape, which is one property. A record rather than hand-rolled reader calls
-    /// because there is nothing here worth hand-rolling; the snapshot format has a converter because it has
-    /// ~1,500 values and an order that matters, and this has a string.
+    /// <summary>The file's shape. A record rather than hand-rolled reader calls because there is nothing
+    /// here worth hand-rolling; the snapshot format has a converter because it has ~1,500 values and an
+    /// order that matters, and this has a string and a small map.
     ///
-    /// The path is nullable so that a file which does not mention it deserializes rather than failing --
-    /// "nothing said" is a state this file is allowed to be in, and it means the default.</summary>
-    private sealed record Stored(string? LibraryFolder);
+    /// Both properties are nullable so that a file which mentions neither -- or which was written by a
+    /// build that had never heard of one of them -- deserializes rather than failing. "Nothing said" is a
+    /// state this file is allowed to be in, and for the folder it means the default.</summary>
+    private sealed record Stored(string? LibraryFolder, Dictionary<string, string>? InitTones = null);
 
     /// <summary>Indented, for the same reason the snapshot files are: somebody will open this in an editor,
     /// and a settings file is a thing people edit.</summary>
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
+
+    /// <summary>Everything in <paramref name="settingsPath"/>, with the same answers-whatever-happens
+    /// contract as <see cref="Load"/>: a file that cannot be read at all is the default folder and no
+    /// marks.</summary>
+    public static LibraryPreferences LoadAll(string settingsPath)
+    {
+        try
+        {
+            var stored = JsonSerializer.Deserialize<Stored>(File.ReadAllText(settingsPath), Options);
+            var folder = stored?.LibraryFolder;
+            // Empty or blank is "nothing said", exactly as an absent property is. Passing it through would
+            // resolve the library to the process's current directory, which is wherever the application
+            // happened to be launched from -- a far stranger place to put a library than Documents.
+            return new LibraryPreferences(
+                string.IsNullOrWhiteSpace(folder) ? DefaultFolder : folder,
+                stored?.InitTones ?? new Dictionary<string, string>());
+        }
+        catch (Exception e)
+        {
+            // Deliberately everything, and the width is the point rather than laziness. This method's whole
+            // contract is that it answers, and it has exactly one answer for every way reading a file can
+            // fail: the file is not there (first run, by far the common case), it is not readable, the
+            // folder above it is not readable, the path is not a legal path, the contents are not JSON, the
+            // contents are JSON of the wrong shape. Narrowing this to the six or so exception types that
+            // covers would produce a list that has to be complete, and the one left off it is a crash on
+            // startup over a file with two things in it. Logged rather than swallowed, so that a folder
+            // which keeps reverting has a reason recorded somewhere.
+            Log.Warning(e, "Could not read the library settings at {Path}; using the default folder",
+                settingsPath);
+            return new LibraryPreferences(DefaultFolder, new Dictionary<string, string>());
+        }
+    }
 
     /// <summary>The library folder recorded in <paramref name="settingsPath"/>, or
     /// <see cref="DefaultFolder"/> if there is nothing usable there.
@@ -66,31 +109,7 @@ public static class LibrarySettings
     /// user's library appears empty, and saving into it puts new files somewhere they did not ask for.
     /// Deciding a folder is gone -- and what to do about it -- is the caller's job, with the user in front
     /// of it.</summary>
-    public static string Load(string settingsPath)
-    {
-        try
-        {
-            var stored = JsonSerializer.Deserialize<Stored>(File.ReadAllText(settingsPath), Options);
-            var folder = stored?.LibraryFolder;
-            // Empty or blank is "nothing said", exactly as an absent property is. Passing it through would
-            // resolve the library to the process's current directory, which is wherever the application
-            // happened to be launched from -- a far stranger place to put a library than Documents.
-            return string.IsNullOrWhiteSpace(folder) ? DefaultFolder : folder;
-        }
-        catch (Exception e)
-        {
-            // Deliberately everything, and the width is the point rather than laziness. This method's whole
-            // contract is that it answers with a folder, and it has exactly one answer for every way reading
-            // a file can fail: the file is not there (first run, by far the common case), it is not readable,
-            // the folder above it is not readable, the path is not a legal path, the contents are not JSON,
-            // the contents are JSON of the wrong shape. Narrowing this to the six or so exception types that
-            // covers would produce a list that has to be complete, and the one left off it is a crash on
-            // startup over a one-line file. Logged rather than swallowed, so that a folder which keeps
-            // reverting has a reason recorded somewhere.
-            Log.Warning(e, "Could not read the library settings at {Path}; using the default folder", settingsPath);
-            return DefaultFolder;
-        }
-    }
+    public static string Load(string settingsPath) => LoadAll(settingsPath).Folder;
 
     /// <summary>Record <paramref name="folder"/> as the library folder in <paramref name="settingsPath"/>,
     /// creating the folder the settings file itself lives in if this is the first run.
@@ -104,18 +123,31 @@ public static class LibrarySettings
     ///
     /// The library folder itself is not created here. This method records where the library is; whether that
     /// place exists is a separate question, and it is the same question <see cref="Load"/> refuses to answer
-    /// for a stored path -- see there for why.</summary>
-    public static void Save(string settingsPath, string folder)
+    /// for a stored path -- see there for why.
+    ///
+    /// Reads the file before writing it so that the init-tone marks -- the other thing in it -- survive a
+    /// folder change. Writing from this one argument alone would forget them.</summary>
+    public static void Save(string settingsPath, string folder) =>
+        SaveAll(settingsPath, LoadAll(settingsPath) with { Folder = folder });
+
+    /// <summary>Write the whole settings file, atomically -- see <see cref="Save"/> for why that
+    /// matters and why a failure here is reported rather than swallowed.</summary>
+    public static void SaveAll(string settingsPath, LibraryPreferences preferences)
     {
         var directory = Path.GetDirectoryName(settingsPath);
         // Empty for a bare file name, which is a legal path relative to the current directory and has no
         // directory to create.
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 
+        // Copied into a concrete dictionary because that is what Stored deserializes into, and the caller
+        // may well hand over the live map a view model is still editing.
+        var stored = new Stored(preferences.Folder,
+            new Dictionary<string, string>(preferences.InitTones));
+
         var tempPath = settingsPath + ".tmp";
         try
         {
-            File.WriteAllText(tempPath, JsonSerializer.Serialize(new Stored(folder), Options));
+            File.WriteAllText(tempPath, JsonSerializer.Serialize(stored, Options));
             File.Move(tempPath, settingsPath, overwrite: true);
         }
         catch

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using Integra7AuralAlchemist.Models.Services;
 
@@ -175,5 +176,56 @@ public class LibrarySettingsTests
         Assert.That(LibrarySettings.SettingsPath, Is.EqualTo(Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "Integra7AuralAlchemist", "settings.json")));
+    }
+
+    /// <summary>The init-tone marks are the second thing in this file, and they arrived after it
+    /// shipped -- so the case that matters most is a settings file written by a build that had never
+    /// heard of them.</summary>
+    [Test]
+    public void A_settings_file_from_before_init_tones_still_loads()
+    {
+        File.WriteAllText(_settingsPath, """{ "LibraryFolder": "C:\\Sounds" }""");
+
+        var preferences = LibrarySettings.LoadAll(_settingsPath);
+
+        Assert.That(preferences.Folder, Is.EqualTo(@"C:\Sounds"));
+        Assert.That(preferences.InitTones, Is.Empty);
+    }
+
+    [Test]
+    public void A_mark_round_trips()
+    {
+        LibrarySettings.SaveAll(_settingsPath, new LibraryPreferences(@"C:\Sounds",
+            new Dictionary<string, string> { ["SN-S"] = "My Init Pad.json" }));
+
+        var preferences = LibrarySettings.LoadAll(_settingsPath);
+
+        Assert.That(preferences.InitTones["SN-S"], Is.EqualTo("My Init Pad.json"));
+    }
+
+    /// <summary>Changing the library folder goes through the one-argument Save, which predates the
+    /// marks. If it wrote the whole file from its single argument it would silently forget them.</summary>
+    [Test]
+    public void Changing_the_folder_keeps_the_marks()
+    {
+        LibrarySettings.SaveAll(_settingsPath, new LibraryPreferences(@"C:\Sounds",
+            new Dictionary<string, string> { ["PCMS"] = "Init.json" }));
+
+        LibrarySettings.Save(_settingsPath, @"D:\Other");
+
+        var preferences = LibrarySettings.LoadAll(_settingsPath);
+        Assert.That(preferences.Folder, Is.EqualTo(@"D:\Other"));
+        Assert.That(preferences.InitTones["PCMS"], Is.EqualTo("Init.json"));
+    }
+
+    [Test]
+    public void An_unreadable_settings_file_yields_the_default_folder_and_no_marks()
+    {
+        File.WriteAllText(_settingsPath, "this is not JSON");
+
+        var preferences = LibrarySettings.LoadAll(_settingsPath);
+
+        Assert.That(preferences.Folder, Is.EqualTo(LibrarySettings.DefaultFolder));
+        Assert.That(preferences.InitTones, Is.Empty);
     }
 }

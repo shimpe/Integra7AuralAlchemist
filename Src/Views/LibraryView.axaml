@@ -84,7 +84,11 @@
                        Foreground="{StaticResource SnMutedTextBrush}" />
             <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
                           MaxWidth="1100">
-                <ItemsControl ItemsSource="{Binding Tags}">
+                <!-- The bottom margin is the scrollbar's lane, for the reason the toolbar in
+                     MainWindow.axaml reserves one: Avalonia's bars float over the content, so with
+                     enough tags to scroll the bar would lie across these checkboxes and swallow the
+                     clicks that tick them. -->
+                <ItemsControl ItemsSource="{Binding Tags}" Margin="0,0,0,16">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel Orientation="Horizontal" Spacing="10" />
@@ -114,7 +118,7 @@
                  one column where a few pixels cannot be seen. -->
             <Grid Grid.Column="0" RowDefinitions="Auto,*">
                 <Grid Grid.Row="0"
-                      ColumnDefinitions="28,2*,110,140,80,130,3*"
+                      ColumnDefinitions="28,2*,150,140,80,130,3*"
                       Margin="4,0,16,4">
                     <TextBlock Grid.Column="0" Text="♥" Foreground="{StaticResource SnMutedTextBrush}" />
                     <TextBlock Grid.Column="1" Text="Name" FontWeight="Bold" />
@@ -131,13 +135,22 @@
                          SelectionMode="Single">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:LibraryEntryViewModel">
-                            <Grid ColumnDefinitions="28,2*,110,140,80,130,3*">
+                            <Grid ColumnDefinitions="28,2*,150,140,80,130,3*">
                                 <TextBlock Grid.Column="0" Text="{Binding FavouriteMark}"
                                            Foreground="{StaticResource SnRatingStarBrush}" />
                                 <TextBlock Grid.Column="1" Text="{Binding Name}"
                                            TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Column="2" Text="{Binding Kind}"
-                                           Foreground="{StaticResource SnMutedTextBrush}" />
+                                <!-- The kind and the init-tone mark share a column: the mark is set on at
+                                     most five rows in the whole library, and a column of its own would be
+                                     blank on every other one. The mark is accented rather than muted like
+                                     the kind beside it — it is a flag, and a second muted word would read
+                                     as part of the engine's name. -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="{Binding Kind}"
+                                               Foreground="{StaticResource SnMutedTextBrush}" />
+                                    <TextBlock Text="{Binding InitMark}"
+                                               Foreground="{StaticResource SnAccentBrush}" />
+                                </StackPanel>
                                 <TextBlock Grid.Column="3" Text="{Binding Category}"
                                            Foreground="{StaticResource SnMutedTextBrush}"
                                            TextTrimming="CharacterEllipsis" />
@@ -225,6 +238,31 @@
                             <TextBlock Text="A Studio Set replaces the one in the instrument. A tone goes into the part selected on the Parameters tab, which must already hold a tone of the same kind."
                                        TextWrapping="Wrap"
                                        Foreground="{StaticResource SnMutedTextBrush}" />
+
+                            <!-- The mark is per engine, so this is offered only for a tone whose engine this
+                                 build recognises — a Studio Set has sixteen of them and no single one to be
+                                 the starting point for. A tooltip is safe here: this is pressed once in a
+                                 while, not repeatedly, which is the shape of the swallowed-click bug. -->
+                            <Button Content="Use as the init tone"
+                                    Command="{Binding MarkAsInitTone}"
+                                    IsEnabled="{Binding CanMarkAsInitTone}"
+                                    ToolTip.Tip="Make this the tone the Init Tone button starts from, for parts holding this kind of tone. Replaces the bundled starting point."
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center" />
+                            <TextBlock Text="{Binding InitToneNote}"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource SnMutedTextBrush}" />
+
+                            <!-- The one button in this tab that asks first, because it is the one that
+                                 destroys something: the file is deleted rather than moved aside, .NET
+                                 having no cross-platform recycle bin. Pressed rarely, so a tooltip is
+                                 safe here for the same reason it is on the button above. -->
+                            <Button Content="Delete from the library"
+                                    Command="{Binding DeleteSelectedAsync}"
+                                    IsEnabled="{Binding HasSelection}"
+                                    ToolTip.Tip="Remove this snapshot from the library. The file is deleted for good — it does not go to the recycle bin."
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center" />
                         </StackPanel>
                     </ScrollViewer>
                 </Panel>

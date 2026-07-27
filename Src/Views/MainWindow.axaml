@@ -118,8 +118,18 @@
                     <ScrollViewer Grid.Row="0"
                                   HorizontalScrollBarVisibility="Auto"
                                   VerticalScrollBarVisibility="Disabled">
+                        <!-- The bottom margin is the horizontal scrollbar's lane. Avalonia's bars float
+                             over the content rather than reserving space (see App.axaml), so without it
+                             the bar that appears at a narrow window width sits across the bottom of this
+                             row of buttons — over their labels, and over the click target. 16px is the
+                             width the rest of the application reserves for the same reason.
+
+                             Always reserved, not only while the bar is showing: nothing in the layout
+                             can ask whether it is, and a row that changed height as the window crossed
+                             the width where the bar appears would move every button under the pointer. -->
                         <StackPanel Orientation="Horizontal"
-                                    Spacing="12">
+                                    Spacing="12"
+                                    Margin="0,0,0,16">
                             <Button IsEnabled="{Binding RescanButtonEnabled}"
                                     Command="{Binding RescanMidiDevicesAsync}">
                                 Rescan Midi Devices
@@ -242,6 +252,59 @@
                                     </MultiBinding>
                                 </Button.IsEnabled>
                                 Load Tone…
+                            </Button>
+                            <Button Command="{Binding InitToneAsync}"
+                                    ToolTip.Tip="Replace the tone in the selected part with a neutral starting point — the library tone marked as this engine's init tone, or the one bundled with the application. This cannot be undone.">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                            <Binding Path="CurrentPartIsNotCommonPart" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Init Tone
+                            </Button>
+                            <Button Command="{Binding CopyToneAsync}"
+                                    ToolTip.Tip="Read the tone in the selected part and hold it, so it can be pasted into another part of the same kind.">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                            <Binding Path="CurrentPartIsNotCommonPart" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Copy Tone
+                            </Button>
+                            <Button Command="{Binding PasteToneAsync}"
+                                    ToolTip.Tip="Write the copied tone into the selected part. The part must already hold a tone of the same kind. This cannot be undone.">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                            <Binding Path="CurrentPartIsNotCommonPart" />
+                                            <Binding Path="CanPasteTone" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Paste Tone
+                            </Button>
+                            <Button Command="{Binding RandomiseToneAsync}"
+                                    ToolTip.Tip="Vary the tone in the selected part. You choose which groups of parameters move and how far from their current values; everything else is left alone. One press of Undo takes it all back.">
+                                <Button.IsEnabled>
+                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                        <MultiBinding.Bindings>
+                                            <Binding Path="Connected" />
+                                            <Binding Path="!IsSyncing" />
+                                            <Binding Path="CurrentPartIsNotCommonPart" />
+                                        </MultiBinding.Bindings>
+                                    </MultiBinding>
+                                </Button.IsEnabled>
+                                Randomise…
                             </Button>
                         </StackPanel>
                     </ScrollViewer>

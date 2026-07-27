@@ -473,6 +473,45 @@ public class SnapshotLibraryTests
         Assert.That(SnapshotLibrary.Read(folder), Has.Count.EqualTo(1));
     }
 
+    [Test]
+    public void A_deleted_snapshot_is_gone_from_the_folder_and_the_listing()
+    {
+        var kept = Save("rhodes.json", Tone("Warm Rhodes"));
+        var doomed = Save("pad.json", Tone("Glass Pad"));
+
+        SnapshotLibrary.Delete(doomed);
+
+        Assert.That(File.Exists(doomed), Is.False);
+        Assert.That(File.Exists(kept), Is.True, "and nothing else went with it");
+        Assert.That(SnapshotLibrary.Read(_folder).Select(e => e.FilePath), Is.EqualTo(new[] { kept }));
+    }
+
+    /// <summary>The listing is a snapshot of a folder other things can change -- another copy of this
+    /// application, a file manager, a sync client -- so the file a user selects may already be gone by the
+    /// time they press Delete. Reporting that as a failure would say something went wrong when the folder
+    /// is in exactly the state they asked for.</summary>
+    [Test]
+    public void Deleting_a_file_that_is_already_gone_is_not_an_error()
+    {
+        var path = Path.Combine(_folder, "never-existed.json");
+
+        Assert.That(() => SnapshotLibrary.Delete(path), Throws.Nothing);
+    }
+
+    /// <summary>Anything else -- no permission, a file another process holds open on Windows -- must
+    /// reach the caller, which is the only place that can tell the user their snapshot is still there.</summary>
+    [Test]
+    public void A_deletion_that_cannot_happen_reports_it()
+    {
+        // A directory where the file should be: Delete refuses it rather than removing a directory
+        // that is not a snapshot at all.
+        var path = Path.Combine(_folder, "not-a-file.json");
+        Directory.CreateDirectory(path);
+
+        Assert.That(() => SnapshotLibrary.Delete(path), Throws.Exception);
+        Assert.That(Directory.Exists(path), Is.True);
+    }
+
     /// <summary>The instrument's character set includes ':', '/' and '*', which a file name cannot hold. Pure, so
     /// it is tested without a disk -- and the cases below are the ones that produce a file with no name at all
     /// rather than merely an ugly one.

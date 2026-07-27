@@ -49,6 +49,11 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// distinction the snapshot pickers already make.</summary>
     private readonly Func<string, Task<string?>> _pickFolder;
 
+    /// <summary>Ask the user a yes/no question. A callback for the same reason <see cref="_pickFolder"/> is one:
+    /// this view model is inside a tab, the dialog belongs to the window, and a view model that reached for a
+    /// window could not be constructed without one.</summary>
+    private readonly Func<string, Task<bool>> _confirm;
+
     /// <summary>Say something on the window's status bar: the message, and whether it is a failure. Shared with
     /// the save and load commands rather than duplicated as a status line of this tab's own -- the status bar is
     /// window chrome, it is visible from every tab, and one channel means a user never has to wonder which of two
@@ -65,22 +70,31 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// than over the rows on screen, so narrowing and then widening a filter cannot lose entries.</summary>
     private IReadOnlyList<LibraryEntry> _all = [];
 
+    /// <summary>Which library file is the init tone for each engine, keyed by tone type. Held here
+    /// rather than re-read on every use because it is also what the "Use as the init tone" button
+    /// edits.</summary>
+    private Dictionary<string, string> _initTones = [];
+
     /// <param name="load">See <see cref="_load"/>.</param>
     /// <param name="pickFolder">See <see cref="_pickFolder"/>.</param>
+    /// <param name="confirm">See <see cref="_confirm"/>.</param>
     /// <param name="report">See <see cref="_report"/>.</param>
     /// <param name="settingsPath">See <see cref="_settingsPath"/>.</param>
     public LibraryViewModel(Func<LibraryEntry, Task> load, Func<string, Task<string?>> pickFolder,
-        Action<string, bool> report, string settingsPath)
+        Func<string, Task<bool>> confirm, Action<string, bool> report, string settingsPath)
     {
         _load = load;
         _pickFolder = pickFolder;
+        _confirm = confirm;
         _report = report;
         _settingsPath = settingsPath;
 
         // Before the subscriptions below, so that the first filter runs against the real folder rather than
         // against "" -- which resolves to the process's current directory and would list whatever is beside the
         // executable.
-        _folder = LibrarySettings.Load(settingsPath);
+        var preferences = LibrarySettings.LoadAll(settingsPath);
+        _folder = preferences.Folder;
+        _initTones = new Dictionary<string, string>(preferences.InitTones);
 
         // Every filter and both halves of the sort, in one subscription. Seven properties rather than seven
         // subscriptions because they all do the same thing and doing it once is what stops a change of two of
@@ -105,6 +119,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(HasSelection));
             this.RaisePropertyChanged(nameof(SelectedIsTone));
             this.RaisePropertyChanged(nameof(CanSaveChanges));
+            this.RaisePropertyChanged(nameof(CanMarkAsInitTone));
+            this.RaisePropertyChanged(nameof(InitToneNote));
         });
 
         Refresh();
@@ -186,6 +202,23 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// not.</summary>
     public bool SelectedIsTone => SelectedEntry?.Entry.Head.Kind == SnapshotKinds.Tone;
 
+    /// <summary>Whether the selected entry can be made an init tone: a tone (not a Studio Set) whose
+    /// engine this build recognises, since the mark is stored per engine.</summary>
+    public bool CanMarkAsInitTone =>
+        SelectedIsTone && SelectedEntry?.Entry.Head.ToneType is { } t &&
+        ToneDomainNames.IsKnownToneType(t);
+
+    /// <summary>What the details panel says about the selected entry's init-tone status -- empty when
+    /// there is nothing to say, which is most of the time.
+    ///
+    /// Reads the row's own mark rather than repeating the lookup <see cref="ApplyInitToneMarks"/> already
+    /// made: two places comparing the same file name against the same map is two places that can come to
+    /// disagree, and the list and the panel disagreeing about the same entry would be visible.</summary>
+    public string InitToneNote =>
+        SelectedEntry is { IsInitTone: true, Entry.Head.ToneType: { } toneType }
+            ? $"Init Tone starts from this when the part holds a {toneType} tone."
+            : "";
+
     /// <summary>Whether Save changes can do anything. The name is the one field that cannot be cleared: an entry
     /// with no name is a row the user cannot tell from the one above it, and the file it names may be their only
     /// copy of that sound. <c>SnapshotLibrary</c> refuses a blank name as well -- this is the half that stops the
@@ -253,6 +286,10 @@ public sealed partial class LibraryViewModel : ViewModelBase
         var selectedPath = SelectedEntry?.FilePath;
         Entries.Clear();
         foreach (var entry in admitted) Entries.Add(new LibraryEntryViewModel(entry));
+        // Before the selection is restored, not after: assigning SelectedEntry is what raises InitToneNote,
+        // and that note now reads the row's own mark -- so a row marked afterwards would leave the details
+        // panel saying nothing about a tone the list is already flagging.
+        ApplyInitToneMarks();
         SelectedEntry = Entries.FirstOrDefault(row =>
             string.Equals(row.FilePath, selectedPath, StringComparison.OrdinalIgnoreCase));
 
@@ -261,6 +298,19 @@ public sealed partial class LibraryViewModel : ViewModelBase
             : Entries.Count == _all.Count
                 ? $"{_all.Count} snapshot{(_all.Count == 1 ? "" : "s")}."
                 : $"{Entries.Count} of {_all.Count} snapshots.";
+    }
+
+    /// <summary>Point every row at the current marks. Called after the list is rebuilt and after the user
+    /// moves a mark, so the row that had it stops showing it in the same gesture that gives it to another.
+    /// Compared on the file name, which is what the settings store, and case-insensitively, because
+    /// Windows and macOS will hand back a name that differs from the stored one only in case.</summary>
+    private void ApplyInitToneMarks()
+    {
+        foreach (var entry in Entries)
+            entry.IsInitTone = entry.Entry.Head.ToneType is { } toneType &&
+                               _initTones.TryGetValue(toneType, out var file) &&
+                               string.Equals(file, Path.GetFileName(entry.FilePath),
+                                   StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Put the selected entry's metadata into the editor -- or clear it when nothing is selected. Every
@@ -327,6 +377,83 @@ public sealed partial class LibraryViewModel : ViewModelBase
         var entry = SelectedEntry?.Entry;
         if (entry is null) return;
         await _load(entry);
+    }
+
+    /// <summary>Make the selected entry the tone Init starts from for its engine. Stored as a file name
+    /// relative to the library folder, so it follows the library if the folder moves.</summary>
+    public void MarkAsInitTone()
+    {
+        UserActionLog.Action("button: Use as the init tone (library)");
+        if (SelectedEntry?.Entry.Head.ToneType is not { } toneType) return;
+
+        _initTones[toneType] = Path.GetFileName(SelectedEntry.FilePath);
+        try
+        {
+            LibrarySettings.SaveAll(_settingsPath, new LibraryPreferences(Folder, _initTones));
+            _report($"Init Tone will start from {SelectedEntry.Name} for {toneType} tones.", false);
+        }
+        catch (Exception e)
+        {
+            // The in-memory map is left as it is: the user's intent is recorded for this session even
+            // when the file could not be written, and the message says the setting will not survive.
+            UserActionLog.Failed($"remember the init tone for '{toneType}'", e.ToString());
+            _report($"Could not remember that: {e.Message} The mark applies until the application closes.",
+                true);
+        }
+
+        // Before the raise below, which reads the selected row's own mark, and over every row rather than
+        // this one: the mark is per engine, so giving it to this tone takes it from whichever tone had it.
+        ApplyInitToneMarks();
+        this.RaisePropertyChanged(nameof(InitToneNote));
+    }
+
+    /// <summary>Remove the selected snapshot from the library, after asking. The file goes for good --
+    /// see <c>SnapshotLibrary.Delete</c> -- so this is the one place in the library that asks before acting.
+    ///
+    /// A mark pointing at the file goes with it. <c>InitToneResolution</c> copes with a stale mark by falling
+    /// back to the bundled tone and saying so, but a mark the user can no longer see or clear is a trap,
+    /// and this is the moment it is cheapest to tidy.</summary>
+    public async Task DeleteSelectedAsync()
+    {
+        UserActionLog.Action("button: Delete from library");
+        if (SelectedEntry is not { } selected) return;
+
+        if (!await _confirm($"Delete \"{selected.Name}\" from the library? " +
+                            $"The file {Path.GetFileName(selected.FilePath)} is removed for good — " +
+                            "this cannot be undone.")) return;
+
+        try
+        {
+            SnapshotLibrary.Delete(selected.FilePath);
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("delete a snapshot from the library", e.ToString());
+            _report($"Could not delete {selected.Name}: {e.Message}", true);
+            return;
+        }
+
+        // Clear a mark that pointed at it, before the refresh, so the row that replaces the selection is
+        // built against the marks as they now are.
+        var markedEngine = _initTones.FirstOrDefault(m =>
+            string.Equals(m.Value, Path.GetFileName(selected.FilePath), StringComparison.OrdinalIgnoreCase));
+        if (markedEngine.Key is not null)
+        {
+            _initTones.Remove(markedEngine.Key);
+            try
+            {
+                LibrarySettings.SaveAll(_settingsPath, new LibraryPreferences(Folder, _initTones));
+            }
+            catch (Exception e)
+            {
+                // The snapshot is already gone, so this cannot be undone by refusing. Say it and carry on:
+                // the mark is stale, which InitToneResolution handles, rather than wrong.
+                UserActionLog.Failed("clear the init-tone mark of a deleted snapshot", e.ToString());
+            }
+        }
+
+        Refresh();
+        _report($"Deleted {selected.Name} from the library.", false);
     }
 
     /// <summary>Choose a different library folder, list it, and remember it.
