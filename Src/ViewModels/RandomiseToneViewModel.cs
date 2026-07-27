@@ -35,8 +35,12 @@ public sealed partial class RandomiseCategoryViewModel : ViewModelBase
     [Reactive] private bool _included;
 
     /// <summary>0..100, as the slider shows it. Divided by 100 on the way out -- the service works in
-    /// 0..1, and a percentage is what a user reads.</summary>
-    [Reactive] private double _strengthPercent = 25;
+    /// 0..1, and a percentage is what a user reads.
+    ///
+    /// Starts at 5 %, which is a nudge rather than a new sound: the point of a strength control is that
+    /// the result is still recognisably the patch you began with, and a user who wants more will reach
+    /// for the slider. A default that lands somewhere unusable teaches people the feature is a toy.</summary>
+    [Reactive] private double _strengthPercent = 5;
 }
 
 /// <summary>What a randomise should touch and how hard.

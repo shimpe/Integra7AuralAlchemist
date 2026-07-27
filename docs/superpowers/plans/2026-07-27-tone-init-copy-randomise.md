@@ -1788,7 +1788,7 @@ public sealed partial class RandomiseCategoryViewModel : ViewModelBase
 
     /// <summary>0..100, as the slider shows it. Divided by 100 on the way out -- the service works in
     /// 0..1, and a percentage is what a user reads.</summary>
-    [Reactive] private double _strengthPercent = 25;
+    [Reactive] private double _strengthPercent = 5;
 }
 
 /// <summary>What a randomise should touch and how hard.
