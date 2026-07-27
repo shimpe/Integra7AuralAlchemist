@@ -65,6 +65,11 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// than over the rows on screen, so narrowing and then widening a filter cannot lose entries.</summary>
     private IReadOnlyList<LibraryEntry> _all = [];
 
+    /// <summary>Which library file is the init tone for each engine, keyed by tone type. Held here
+    /// rather than re-read on every use because it is also what the "Use as the init tone" button
+    /// edits.</summary>
+    private Dictionary<string, string> _initTones = [];
+
     /// <param name="load">See <see cref="_load"/>.</param>
     /// <param name="pickFolder">See <see cref="_pickFolder"/>.</param>
     /// <param name="report">See <see cref="_report"/>.</param>
@@ -80,7 +85,9 @@ public sealed partial class LibraryViewModel : ViewModelBase
         // Before the subscriptions below, so that the first filter runs against the real folder rather than
         // against "" -- which resolves to the process's current directory and would list whatever is beside the
         // executable.
-        _folder = LibrarySettings.Load(settingsPath);
+        var preferences = LibrarySettings.LoadAll(settingsPath);
+        _folder = preferences.Folder;
+        _initTones = new Dictionary<string, string>(preferences.InitTones);
 
         // Every filter and both halves of the sort, in one subscription. Seven properties rather than seven
         // subscriptions because they all do the same thing and doing it once is what stops a change of two of
@@ -105,6 +112,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
             this.RaisePropertyChanged(nameof(HasSelection));
             this.RaisePropertyChanged(nameof(SelectedIsTone));
             this.RaisePropertyChanged(nameof(CanSaveChanges));
+            this.RaisePropertyChanged(nameof(CanMarkAsInitTone));
+            this.RaisePropertyChanged(nameof(InitToneNote));
         });
 
         Refresh();
@@ -185,6 +194,21 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// row still shows what the file says, which matters for a hand-edited file that has a category it should
     /// not.</summary>
     public bool SelectedIsTone => SelectedEntry?.Entry.Head.Kind == SnapshotKinds.Tone;
+
+    /// <summary>Whether the selected entry can be made an init tone: a tone (not a Studio Set) whose
+    /// engine this build recognises, since the mark is stored per engine.</summary>
+    public bool CanMarkAsInitTone =>
+        SelectedIsTone && SelectedEntry?.Entry.Head.ToneType is { } t &&
+        ToneDomainNames.IsKnownToneType(t);
+
+    /// <summary>What the details panel says about the selected entry's init-tone status -- empty when
+    /// there is nothing to say, which is most of the time.</summary>
+    public string InitToneNote =>
+        SelectedEntry?.Entry.Head.ToneType is { } toneType &&
+        _initTones.TryGetValue(toneType, out var file) &&
+        string.Equals(file, Path.GetFileName(SelectedEntry.FilePath), StringComparison.OrdinalIgnoreCase)
+            ? $"Init Tone starts from this when the part holds a {toneType} tone."
+            : "";
 
     /// <summary>Whether Save changes can do anything. The name is the one field that cannot be cleared: an entry
     /// with no name is a row the user cannot tell from the one above it, and the file it names may be their only
@@ -327,6 +351,31 @@ public sealed partial class LibraryViewModel : ViewModelBase
         var entry = SelectedEntry?.Entry;
         if (entry is null) return;
         await _load(entry);
+    }
+
+    /// <summary>Make the selected entry the tone Init starts from for its engine. Stored as a file name
+    /// relative to the library folder, so it follows the library if the folder moves.</summary>
+    public void MarkAsInitTone()
+    {
+        UserActionLog.Action("button: Use as the init tone (library)");
+        if (SelectedEntry?.Entry.Head.ToneType is not { } toneType) return;
+
+        _initTones[toneType] = Path.GetFileName(SelectedEntry.FilePath);
+        try
+        {
+            LibrarySettings.SaveAll(_settingsPath, new LibraryPreferences(Folder, _initTones));
+            _report($"Init Tone will start from {SelectedEntry.Name} for {toneType} tones.", false);
+        }
+        catch (Exception e)
+        {
+            // The in-memory map is left as it is: the user's intent is recorded for this session even
+            // when the file could not be written, and the message says the setting will not survive.
+            UserActionLog.Failed($"remember the init tone for '{toneType}'", e.ToString());
+            _report($"Could not remember that: {e.Message} The mark applies until the application closes.",
+                true);
+        }
+
+        this.RaisePropertyChanged(nameof(InitToneNote));
     }
 
     /// <summary>Choose a different library folder, list it, and remember it.

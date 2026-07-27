@@ -225,6 +225,20 @@
                             <TextBlock Text="A Studio Set replaces the one in the instrument. A tone goes into the part selected on the Parameters tab, which must already hold a tone of the same kind."
                                        TextWrapping="Wrap"
                                        Foreground="{StaticResource SnMutedTextBrush}" />
+
+                            <!-- The mark is per engine, so this is offered only for a tone whose engine this
+                                 build recognises — a Studio Set has sixteen of them and no single one to be
+                                 the starting point for. A tooltip is safe here: this is pressed once in a
+                                 while, not repeatedly, which is the shape of the swallowed-click bug. -->
+                            <Button Content="Use as the init tone"
+                                    Command="{Binding MarkAsInitTone}"
+                                    IsEnabled="{Binding CanMarkAsInitTone}"
+                                    ToolTip.Tip="Make this the tone the Init Tone button starts from, for parts holding this kind of tone. Replaces the bundled starting point."
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center" />
+                            <TextBlock Text="{Binding InitToneNote}"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource SnMutedTextBrush}" />
                         </StackPanel>
                     </ScrollViewer>
                 </Panel>
