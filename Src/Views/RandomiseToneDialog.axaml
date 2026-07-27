@@ -45,7 +45,10 @@
         </ItemsControl>
 
         <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <Button Content="Randomise" Command="{Binding RandomiseCommand}" Padding="14,3" />
+            <!-- Disabled until something is ticked at a strength above zero, so a press that would do
+                 nothing cannot be made in the first place. -->
+            <Button Content="Randomise" Command="{Binding RandomiseCommand}"
+                    IsEnabled="{Binding CanRandomise}" Padding="14,3" />
             <Button Content="Cancel" Command="{Binding CancelCommand}" Padding="14,3" />
         </StackPanel>
     </StackPanel>

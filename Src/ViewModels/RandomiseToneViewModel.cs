@@ -76,6 +76,19 @@ public sealed partial class RandomiseToneViewModel : ViewModelBase
     public ReactiveCommand<Unit, bool> RandomiseCommand { get; }
     public ReactiveCommand<Unit, bool> CancelCommand { get; }
 
+    /// <summary>Whether pressing Randomise would do anything: at least one row ticked, on a category this
+    /// engine has, at a strength above zero. The button is bound to it, so "nothing happened" is answered
+    /// before the press rather than by a status line afterwards.
+    ///
+    /// A strength of zero is included in the test because the slider goes there: a ticked row at 0 % is a
+    /// user saying "this group, but do not move it", which is indistinguishable in effect from not
+    /// ticking it. The command behind the button still refuses an empty selection -- the dialog can be
+    /// dismissed in ways that do not consult this.</summary>
+    [Reactive] private bool _canRandomise;
+
+    private void RecomputeCanRandomise() =>
+        CanRandomise = Categories.Any(c => c.Included && c.IsPresent && c.StrengthPercent > 0);
+
     /// <summary>Point the rows at an engine: categories it does not have are disabled and unticked, so a
     /// tick left over from a different engine cannot silently do nothing.</summary>
     public void PrepareFor(string toneType, string target)
@@ -89,8 +102,15 @@ public sealed partial class RandomiseToneViewModel : ViewModelBase
             var row = new RandomiseCategoryViewModel(category, label, present.Contains(category));
             if (_lastIncluded.Contains(category) && row.IsPresent) row.Included = true;
             if (_lastStrengths.TryGetValue(category, out var strength)) row.StrengthPercent = strength;
+            // Subscribed here rather than once in the constructor because the rows are rebuilt on every
+            // PrepareFor -- a subscription to the old ones would go on answering for a dialog that is no
+            // longer on screen. Never unsubscribed: the handler is the only thing holding the row, not
+            // the other way round, so a discarded row is collectable.
+            row.PropertyChanged += (_, _) => RecomputeCanRandomise();
             Categories.Add(row);
         }
+
+        RecomputeCanRandomise();
     }
 
     /// <summary>What the user ticked, as the service wants it. Also remembers the settings for the next
