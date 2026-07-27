@@ -26,11 +26,7 @@ public static class ComparisonText
         text.AppendLine($"Right:  {comparison.RightName} — {rightSource}");
         text.AppendLine();
 
-        text.AppendLine(comparison.Identical
-            ? $"These two are identical; {comparison.ParametersCompared} parameters compared."
-            : $"{Count(comparison.DifferenceCount, "difference")} across " +
-              $"{Count(comparison.Blocks.Count(b => b.Differences.Count > 0), "block")}; " +
-              $"{comparison.ParametersCompared} parameters compared.");
+        text.AppendLine(Summary(comparison));
 
         foreach (var block in comparison.Blocks.Where(b => b.Differences.Count > 0))
         {
@@ -53,6 +49,27 @@ public static class ComparisonText
             comparison.Blocks.SelectMany(b => b.PathsOnlyOnRight));
 
         return text.ToString();
+    }
+
+    /// <summary>Three answers, not two.
+    ///
+    /// A comparison whose only finding is a path or a whole block one side carries and the other does not
+    /// has nothing to count, and counting it anyway said "0 differences across 0 blocks" -- which reads as
+    /// the tool failing rather than as the answer. It is emphatically not identical either: the two do not
+    /// hold the same parameters, which is precisely what the "Only in the ... snapshot" sections below then
+    /// say. So it gets a line of its own, phrased as the finding it is.</summary>
+    private static string Summary(SnapshotComparison comparison)
+    {
+        if (comparison.Identical)
+            return $"These two are identical; {comparison.ParametersCompared} parameters compared.";
+
+        if (comparison.DifferenceCount == 0)
+            return "The two differ only in which parameters they hold; " +
+                   $"{comparison.ParametersCompared} parameters compared.";
+
+        return $"{Count(comparison.DifferenceCount, "difference")} across " +
+               $"{Count(comparison.Blocks.Count(b => b.Differences.Count > 0), "block")}; " +
+               $"{comparison.ParametersCompared} parameters compared.";
     }
 
     private static void AppendOnlyOnOneSide(StringBuilder text, string side,

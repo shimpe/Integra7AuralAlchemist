@@ -43,6 +43,26 @@ public class ComparisonTextTests
         Assert.That(text, Does.Not.Contain("differences across"));
     }
 
+    /// <summary>The third answer, which used to be rendered as the second: nothing counted differs, but
+    /// the two do not hold the same parameters. "0 differences across 0 blocks" read as the tool failing,
+    /// and "identical" would have been a lie -- what is left is the finding itself.</summary>
+    [Test]
+    public void Says_the_two_hold_different_parameters_when_that_is_the_only_finding()
+    {
+        var comparison = new SnapshotComparison("A", "B",
+            [new BlockDifference("Offset/X", "Offset2/Common", [], ["Common/Only Here"], [])],
+            ParametersCompared: 1402,
+            BlocksOnlyOnLeft: [],
+            BlocksOnlyOnRight: []);
+
+        var text = ComparisonText.Format(comparison, "file A", "file B");
+
+        Assert.That(text, Does.Contain(
+            "The two differ only in which parameters they hold; 1402 parameters compared."));
+        Assert.That(text, Does.Not.Contain("identical"));
+        Assert.That(text, Does.Not.Contain("0 differences"));
+    }
+
     [Test]
     public void Lists_what_exists_on_only_one_side_when_there_is_any()
     {
