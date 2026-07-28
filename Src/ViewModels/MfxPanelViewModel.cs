@@ -26,7 +26,9 @@ public sealed class MfxPanelViewModel : ViewModelBase, IDisposable
     public DiscriminatedParamSectionViewModel Section { get; }
     public ParamInt ChorusSend { get; }
     public ParamInt ReverbSend { get; }
-    public ReactiveCommand<Unit, Unit> AdvancedMfxCommand { get; }
+    // Qualified for the reason ConfirmViewModel spells out: ReactiveUI 24 ships two ReactiveCommand<,>
+    // types and an alias cannot name an open generic, so the declaration has to say which it means.
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> AdvancedMfxCommand { get; }
 
     public MfxPanelViewModel(DomainBase mfxDomain, ThrottledParameterWriter writer, Action navigateToAdvanced)
     {

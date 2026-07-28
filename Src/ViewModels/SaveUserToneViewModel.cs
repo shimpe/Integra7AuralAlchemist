@@ -112,8 +112,10 @@ public partial class SaveUserToneViewModel : ViewModelBase
     /// answers null, which the caller cannot tell apart from Cancel. Better to not offer it.</summary>
     public bool CanSave => NewNameNotEmpty && SelectedPreset is not null;
 
-    public ReactiveCommand<Unit, UserToneToSave?> CancelCommand { get; }
+    // Qualified for the reason ConfirmViewModel spells out: ReactiveUI 24 ships two ReactiveCommand<,>
+    // types and an alias cannot name an open generic, so the declaration has to say which it means.
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, UserToneToSave?> CancelCommand { get; }
     /// <summary>Yields null -- which the caller reads as "cancelled" -- when there is no user slot to
     /// write to.</summary>
-    public ReactiveCommand<Unit, UserToneToSave?> SaveCommand { get; }
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, UserToneToSave?> SaveCommand { get; }
 }
