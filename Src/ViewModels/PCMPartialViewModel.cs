@@ -110,6 +110,9 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
     public PcmLfoPanelViewModel Lfo1 { get; }
     public PcmLfoPanelViewModel Lfo2 { get; }
 
+    /// <summary>The sixteen shared steps. One per partial, not one per LFO — see StepLfoPanelViewModel.</summary>
+    public StepLfoPanelViewModel StepLfo { get; }
+
     private readonly IReadOnlyList<IParam> _editable;
 
     public PCMPartialViewModel(PCMSynthToneEditorViewModel parent, DomainBase partialDomain,
@@ -190,6 +193,7 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
 
         Lfo1 = Track(new PcmLfoPanelViewModel(partialDomain, byPath, writer, "LFO1 ", "LFO 1"));
         Lfo2 = Track(new PcmLfoPanelViewModel(partialDomain, byPath, writer, "LFO2 ", "LFO 2"));
+        StepLfo = Track(new StepLfoPanelViewModel(partialDomain, byPath, writer));
 
         _editable = new IParam[]
         {
@@ -206,7 +210,7 @@ public sealed class PCMPartialViewModel : ViewModelBase, IDisposable
             TvfCutoffVeloSens, TvaVeloSens, PitchEnvVeloSens, TvfCutoffVelCurve, TvaVelCurve,
             TvfCutoffKeyfollow, WavePitchKeyfollow,
         }
-        .Concat(Lfo1.Params).Concat(Lfo2.Params).ToArray();
+        .Concat(Lfo1.Params).Concat(Lfo2.Params).Concat(StepLfo.Params).ToArray();
 
         // Card summaries follow the wave / level / pan / filter the user actually sees on the card.
         WaveGroupType.PropertyChanged += OnSummaryChanged;

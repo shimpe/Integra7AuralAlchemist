@@ -1,0 +1,86 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             x:DataType="vm:StepLfoPanelViewModel"
+             x:CompileBindings="True"
+             x:Class="Integra7AuralAlchemist.Views.StepLfoPanelView">
+    <UserControl.Styles>
+        <!-- Sixteen boxes across the width of the chart, so they are narrow by necessity: centred text,
+             no padding to speak of, and a small font, which is what lets "-36" fit in a column the width
+             of a bar. -->
+        <Style Selector="TextBox.step">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="2,1" />
+            <Setter Property="Margin" Value="1,0" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="TextAlignment" Value="Center" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+        <StackPanel Orientation="Vertical" Spacing="6">
+            <TextBlock Text="Step LFO" FontWeight="Bold" />
+            <!-- Said on screen because it surprises people: the sixteen steps belong to the partial, not to
+                 an LFO, so a tone with both LFOs set to Step plays the same sequence twice. -->
+            <TextBlock Text="Shared by LFO 1 and LFO 2 — plays on whichever has its waveform set to Step."
+                       Foreground="{StaticResource SnMutedTextBrush}" TextWrapping="Wrap" />
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Type" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding StepType.Options}"
+                          SelectedItem="{Binding StepType.Value, Mode=TwoWay}"
+                          MinWidth="180" />
+            </StackPanel>
+
+            <controls:StepLfoControl Height="140" MinWidth="520"
+                                     BarBrush="{StaticResource KnobPitchBrush}"
+                                     BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                                     AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
+                                     Step1="{Binding Step1.Value, Mode=TwoWay}"
+                                     Step2="{Binding Step2.Value, Mode=TwoWay}"
+                                     Step3="{Binding Step3.Value, Mode=TwoWay}"
+                                     Step4="{Binding Step4.Value, Mode=TwoWay}"
+                                     Step5="{Binding Step5.Value, Mode=TwoWay}"
+                                     Step6="{Binding Step6.Value, Mode=TwoWay}"
+                                     Step7="{Binding Step7.Value, Mode=TwoWay}"
+                                     Step8="{Binding Step8.Value, Mode=TwoWay}"
+                                     Step9="{Binding Step9.Value, Mode=TwoWay}"
+                                     Step10="{Binding Step10.Value, Mode=TwoWay}"
+                                     Step11="{Binding Step11.Value, Mode=TwoWay}"
+                                     Step12="{Binding Step12.Value, Mode=TwoWay}"
+                                     Step13="{Binding Step13.Value, Mode=TwoWay}"
+                                     Step14="{Binding Step14.Value, Mode=TwoWay}"
+                                     Step15="{Binding Step15.Value, Mode=TwoWay}"
+                                     Step16="{Binding Step16.Value, Mode=TwoWay}" />
+
+            <!-- One box per bar, in a grid of sixteen equal columns so each sits under the bar it belongs
+                 to: the control divides its width the same way, so the two line up at any width without
+                 either knowing about the other.
+
+                 Committed on losing focus rather than on every keystroke, which is what UpdateSourceTrigger
+                 buys here — typing "-12" would otherwise write "-1" on the way past, and every write is a
+                 message to the instrument. Enter commits by moving focus off the box (see the code-behind).
+                 A value out of range is clamped by ParamInt, exactly as the knobs' typed entry is. -->
+            <UniformGrid Columns="16" KeyDown="OnStepBoxKeyDown">
+                <TextBox Text="{Binding Step1.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step2.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step3.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step4.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step5.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step6.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step7.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step8.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step9.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step10.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step11.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step12.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step13.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step14.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step15.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+                <TextBox Text="{Binding Step16.Value, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Classes="step" />
+            </UniformGrid>
+        </StackPanel>
+    </Border>
+</UserControl>

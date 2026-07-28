@@ -539,6 +539,7 @@
                                         Spacing="6" Margin="0,0,0,8">
                                 <ContentControl Content="{Binding Lfo1}"/>
                                 <ContentControl Content="{Binding Lfo2}"/>
+                                <ContentControl Content="{Binding StepLfo}"/>
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
