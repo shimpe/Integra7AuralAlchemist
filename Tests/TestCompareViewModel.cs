@@ -115,4 +115,74 @@ public class CompareViewModelTests
         Assert.That(row.LeftValue, Is.EqualTo("ON"), "the value the side that has it holds");
         Assert.That(row.RightValue, Does.Contain("not in this snapshot"));
     }
+
+    private const string SnOffset = "Offset/Temporary SuperNATURAL Synth Tone";
+
+    /// <summary>An SN-S tone with partial 2 switched on or off, and one parameter of partial 2 to differ
+    /// on. The switch is in the Common block and the parameter is in the partial's, which is the whole
+    /// difficulty: the two land in different sections of the report.</summary>
+    private static Integra7Snapshot ToneWithPartial2(string name, bool on, long pitch) =>
+        new(Integra7Snapshot.CurrentFormatVersion, name,
+            [
+                new SnapshotDomain("Temporary Tone Part 1", SnOffset,
+                    "Offset2/SuperNATURAL Synth Tone Common",
+                    [
+                        new SnapshotValue("SuperNATURAL Synth Tone Common/Partial2 Switch",
+                            on ? "ON" : "OFF", on ? 1 : 0),
+                    ]),
+                new SnapshotDomain("Temporary Tone Part 1", SnOffset,
+                    "Offset2/SuperNATURAL Synth Tone Partial 2",
+                    [
+                        new SnapshotValue("SuperNATURAL Synth Tone Partial 2/OSC Pitch",
+                            $"{pitch}", pitch),
+                    ]),
+            ],
+            SnapshotKinds.Tone, "SN-S");
+
+    /// <summary>A section of twenty-three differences under "Partial 2" is mostly beside the point when
+    /// partial 2 is switched off on one side -- and the switch that says so is reported in the Common
+    /// section, nowhere near it. The section has to say so itself.</summary>
+    [Test]
+    public async Task A_partial_switched_off_on_one_side_says_so_in_its_heading_and_in_the_export()
+    {
+        List<string> copied = [];
+        var tab = Tab(copied);
+        tab.PutInFirstFreeSlot(ToneWithPartial2("a", on: true, pitch: 0), "file a");
+        tab.PutInFirstFreeSlot(ToneWithPartial2("b", on: false, pitch: 12), "file b");
+
+        tab.Compare();
+
+        var partial = tab.Blocks.Single(b => b.Heading.StartsWith("SuperNATURAL Synth Tone Partial 2"));
+        Assert.That(partial.Heading, Does.Contain("switched off on the right"));
+
+        await tab.CopyAsync();
+
+        Assert.That(copied.Single(), Does.Contain("switched off on the right"));
+    }
+
+    [Test]
+    public void A_partial_switched_on_on_both_sides_says_nothing_extra()
+    {
+        var tab = Tab([]);
+        tab.PutInFirstFreeSlot(ToneWithPartial2("a", on: true, pitch: 0), "file a");
+        tab.PutInFirstFreeSlot(ToneWithPartial2("b", on: true, pitch: 12), "file b");
+
+        tab.Compare();
+
+        var partial = tab.Blocks.Single(b => b.Heading.StartsWith("SuperNATURAL Synth Tone Partial 2"));
+        Assert.That(partial.Heading, Does.Not.Contain("switched off"));
+    }
+
+    [Test]
+    public void A_partial_switched_off_on_both_sides_says_so()
+    {
+        var tab = Tab([]);
+        tab.PutInFirstFreeSlot(ToneWithPartial2("a", on: false, pitch: 0), "file a");
+        tab.PutInFirstFreeSlot(ToneWithPartial2("b", on: false, pitch: 12), "file b");
+
+        tab.Compare();
+
+        var partial = tab.Blocks.Single(b => b.Heading.StartsWith("SuperNATURAL Synth Tone Partial 2"));
+        Assert.That(partial.Heading, Does.Contain("switched off on both sides"));
+    }
 }

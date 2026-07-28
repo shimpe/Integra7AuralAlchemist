@@ -32,6 +32,7 @@ public static class ComparisonText
         {
             text.AppendLine();
             text.AppendLine($"{block.Name}  ({Count(block.Differences.Count, "difference")})");
+            if (block.Note is { Length: > 0 }) text.AppendLine(NoteLine(block.Note));
 
             // Paths are shown relative to the block they already sit under: every path in a block starts
             // with that block's own name, and repeating it on every line costs half the width.
@@ -89,6 +90,16 @@ public static class ComparisonText
         foreach (var path in pathList)
             text.AppendLine($"  {path}");
     }
+
+    /// <summary>A block's note, under its heading and above the rows it qualifies -- "partial 2 is off on
+    /// the right" is what decides whether the twenty-three rows below are worth reading, so it is read
+    /// first.
+    ///
+    /// Led by a dash rather than aligned with the rows, because at the rows' own indent it would read as
+    /// one of them. The note itself is <see cref="BlockDifference.Note"/> verbatim: the Compare tab shows
+    /// that same string in that same section's heading, and the two saying different things is precisely
+    /// the failure the summary line already had once.</summary>
+    private static string NoteLine(string note) => $"  — {note}";
 
     /// <summary>"SuperNATURAL Synth Tone Common/Tone Level" under a heading that already says
     /// "SuperNATURAL Synth Tone Common" becomes "Tone Level". Anything that does not start with the

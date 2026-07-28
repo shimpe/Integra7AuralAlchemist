@@ -1,3 +1,4 @@
+using System.Linq;
 using Integra7AuralAlchemist.Models.Services;
 
 namespace Tests;
@@ -83,6 +84,43 @@ public class ComparisonTextTests
         Assert.That(text, Does.Contain("Only in the right snapshot:"));
         Assert.That(text, Does.Contain("  Common/Only There"));
     }
+
+    /// <summary>A block's note goes directly under its heading, where it is read before the rows it
+    /// qualifies rather than after them. It is what the tab shows in that section's heading, so a pasted
+    /// comparison and the screen say the same thing -- which the summary line proved is not automatic.
+    /// </summary>
+    [Test]
+    public void Prints_a_blocks_note_directly_under_its_heading()
+    {
+        var comparison = Comparison(new BlockDifference(
+            "Offset/Temporary SuperNATURAL Synth Tone",
+            "Offset2/SuperNATURAL Synth Tone Partial 2",
+            [new ValueDifference("SuperNATURAL Synth Tone Partial 2/OSC Pitch", "0", "12")],
+            [], [], "switched off on the right"));
+
+        var lines = Lines(ComparisonText.Format(comparison, "file A", "file B"));
+
+        var heading = lines.IndexOf("SuperNATURAL Synth Tone Partial 2  (1 difference)");
+        Assert.That(heading, Is.GreaterThan(-1));
+        Assert.That(lines[heading + 1], Is.EqualTo("  — switched off on the right"));
+        Assert.That(lines[heading + 2], Does.Contain("OSC Pitch"), "then the rows");
+    }
+
+    [Test]
+    public void Prints_nothing_extra_for_a_block_with_no_note()
+    {
+        var comparison = Comparison(new BlockDifference("Offset/X", "Offset2/Common",
+            [new ValueDifference("Common/Level", "1", "2")], [], []));
+
+        var lines = Lines(ComparisonText.Format(comparison, "file A", "file B"));
+
+        var heading = lines.IndexOf("Common  (1 difference)");
+        Assert.That(lines[heading + 1], Does.Contain("Level"), "the rows, with nothing between");
+    }
+
+    /// <summary>Line endings are the platform's, and CI runs on three of them.</summary>
+    private static System.Collections.Generic.List<string> Lines(string text) =>
+        [.. text.Split('\n').Select(line => line.TrimEnd('\r'))];
 
     [Test]
     public void Counts_one_block_and_one_difference_in_the_singular()

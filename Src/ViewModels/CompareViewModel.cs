@@ -153,8 +153,9 @@ public sealed partial class CompareViewModel : ViewModelBase
         }
 
         // Named before anything reads it, and once: the rows on screen and the exported text are then the
-        // same strings by construction rather than by two places agreeing.
-        comparison = Named(comparison);
+        // same strings by construction rather than by two places agreeing. Annotated for the same reason
+        // and at the same moment.
+        comparison = Annotated(Named(comparison));
 
         _text = ComparisonText.Format(comparison, Left.Source, Right.Source);
         _allBlocks = [.. comparison.Blocks.Select(RowsFor).Where(b => b.Rows.Count > 0),
@@ -198,6 +199,43 @@ public sealed partial class CompareViewModel : ViewModelBase
                 difference.RightValue),
         };
 
+    /// <summary>The same comparison with each block told what it cannot work out for itself.
+    ///
+    /// A partial's on/off switch is not in the partial's own block -- the instrument keeps a tone's switches
+    /// together -- so a report grouped by block lists twenty-three differences under "Partial 2" and says,
+    /// in the Common section further up, that partial 2 is off on one side. Both are correct, and reading
+    /// the first without the second wastes the reader's time on a partial that is not sounding.
+    ///
+    /// Done here rather than in <see cref="SnapshotDiff"/> deliberately: the diff compares two snapshots
+    /// and knows nothing about what a block means, which is what keeps it pure and every rule in it
+    /// testable. This view model is the thing that holds both snapshots *and* knows the instrument.</summary>
+    private SnapshotComparison Annotated(SnapshotComparison comparison) =>
+        comparison with
+        {
+            Blocks = [.. comparison.Blocks.Select(b => b with { Note = NoteFor(b) })],
+        };
+
+    /// <summary>What to say about a block beyond its own differences, or nothing.
+    ///
+    /// Only "off" is worth a note: "switched on on both sides" is the ordinary case and would be printed
+    /// over every section of every comparison for no information. Either side unknown -- a block with no
+    /// such switch, an engine without them, a snapshot that does not carry it -- says nothing at all,
+    /// because a guess here is worse than a silence: it would tell the reader to skip differences that
+    /// matter.</summary>
+    private string? NoteFor(BlockDifference block)
+    {
+        if (Left.Snapshot is not { } left || Right.Snapshot is not { } right) return null;
+
+        return (PartialSwitches.IsOn(left, block.Offset2), PartialSwitches.IsOn(right, block.Offset2))
+            switch
+            {
+                (true, false) => "switched off on the right",
+                (false, true) => "switched off on the left",
+                (false, false) => "switched off on both sides",
+                _ => null,
+            };
+    }
+
     /// <summary>What one column says for a side that does not carry the parameter at all.</summary>
     private const string Absent = "— not in this snapshot —";
 
@@ -222,7 +260,12 @@ public sealed partial class CompareViewModel : ViewModelBase
         foreach (var path in block.PathsOnlyOnRight)
             rows.Add(new ValueDifference(path, Absent, ValueIn(Right.Snapshot, block, path)));
 
-        return new CompareBlockViewModel($"{block.Name}  ({rows.Count})", rows);
+        // The block's own note, verbatim, so that this heading and the line ComparisonText puts under its
+        // heading are the one string rather than two that have to agree.
+        var heading = $"{block.Name}  ({rows.Count})";
+        if (block.Note is { Length: > 0 } note) heading += $"  — {note}";
+
+        return new CompareBlockViewModel(heading, rows);
     }
 
     /// <summary>A whole block one side does not have, as a section of its own. Rare -- it means the two
