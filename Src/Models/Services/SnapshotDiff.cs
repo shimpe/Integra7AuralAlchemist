@@ -4,8 +4,14 @@ using System.Linq;
 namespace Integra7AuralAlchemist.Models.Services;
 
 /// <summary>One parameter that differs, with both sides as the user reads them. The raw values decided
-/// that it differs (see <see cref="SnapshotDiff"/>); these strings are what gets shown.</summary>
-public sealed record ValueDifference(string Path, string LeftValue, string RightValue);
+/// that it differs (see <see cref="SnapshotDiff"/>); these strings are what gets shown.
+///
+/// The raws come along because the strings are only as good as the build that captured them: a parameter
+/// this build has since gained a name table for is stored as a bare number, and the raw is what lets a
+/// caller ask the database for a better one (see <see cref="SnapshotValueNames"/>). Null for a text
+/// parameter, whose value is its string.</summary>
+public sealed record ValueDifference(string Path, string LeftValue, string RightValue,
+    long? LeftRaw = null, long? RightRaw = null);
 
 /// <summary>What differs within one block, and what exists in only one side of it.</summary>
 public sealed record BlockDifference(
@@ -140,7 +146,8 @@ public static class SnapshotDiff
 
             compared++;
             if (Differs(value, other))
-                differences.Add(new ValueDifference(value.Path, value.Value, other.Value));
+                differences.Add(new ValueDifference(value.Path, value.Value, other.Value,
+                    value.Raw, other.Raw));
         }
 
         var onlyOnRight = right.Values.Where(v => !seen.Contains(v.Path)).Select(v => v.Path).ToList();

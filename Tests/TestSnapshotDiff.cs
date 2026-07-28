@@ -53,6 +53,36 @@ public class SnapshotDiffTests
         Assert.That(difference.RightValue, Is.EqualTo("118"));
     }
 
+    /// <summary>A difference carries the raw values as well as the strings, because the string a snapshot
+    /// stores is only what the build that captured it could render -- a build with no name table for a
+    /// parameter stored the bare number. The raw is what lets the caller ask this build's database for a
+    /// better answer; see <c>SnapshotValueNames</c>.</summary>
+    [Test]
+    public void A_difference_carries_both_raw_values()
+    {
+        var one = Tone("a", Block(Common, new SnapshotValue("Tone/Tone Category", "36", 36)));
+        var two = Tone("b", Block(Common, new SnapshotValue("Tone/Tone Category", "34", 34)));
+
+        var difference = SnapshotDiff.Compare(one, two).Blocks.Single().Differences.Single();
+
+        Assert.That(difference.LeftRaw, Is.EqualTo(36));
+        Assert.That(difference.RightRaw, Is.EqualTo(34));
+    }
+
+    /// <summary>And a text parameter carries none, which is how the caller knows there is nothing to look
+    /// up rather than looking up a zero.</summary>
+    [Test]
+    public void A_text_parameters_difference_carries_no_raw_values()
+    {
+        var one = Tone("a", Block(Common, new SnapshotValue("Tone/Tone Name", "Warm Rhodes")));
+        var two = Tone("b", Block(Common, new SnapshotValue("Tone/Tone Name", "Glass Pad")));
+
+        var difference = SnapshotDiff.Compare(one, two).Blocks.Single().Differences.Single();
+
+        Assert.That(difference.LeftRaw, Is.Null);
+        Assert.That(difference.RightRaw, Is.Null);
+    }
+
     /// <summary>The reason the raw value is in the file. Renaming an enum label -- "Low pass" to "LPF" --
     /// must not turn every filter in the library into a difference.</summary>
     [Test]
