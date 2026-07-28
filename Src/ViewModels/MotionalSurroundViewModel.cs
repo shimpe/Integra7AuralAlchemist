@@ -12,7 +12,6 @@ using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
 using ReactiveUI;
-using ReactiveUI.SourceGenerators;
 using Serilog;
 
 namespace Integra7AuralAlchemist.ViewModels;
@@ -275,14 +274,12 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
     /// right trade: the alternative is a step that only half describes what happened.</summary>
     private static IDisposable BeginPresetStep() => EditJournal.Default.BeginGesture();
 
-    [ReactiveCommand]
     public async Task CenterAll()
     {
         using var step = BeginPresetStep();
         foreach (var p in AllParts) await p.ApplyPositionAsync(0, 0);
     }
 
-    [ReactiveCommand]
     public async Task WideStereoSpread()
     {
         using var step = BeginPresetStep();
@@ -295,7 +292,6 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
         }
     }
 
-    [ReactiveCommand]
     public async Task FrontBandLayout()
     {
         using var step = BeginPresetStep();
@@ -309,7 +305,6 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
         }
     }
 
-    [ReactiveCommand]
     public async Task AmbientHallLayout()
     {
         using var step = BeginPresetStep();
@@ -324,7 +319,6 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
         }
     }
 
-    [ReactiveCommand]
     public async Task ResetMotionalSurround()
     {
         using var step = BeginPresetStep();
@@ -340,7 +334,6 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
         ExternalPart.Channel = "OFF";
     }
 
-    [ReactiveCommand]
     public async Task CircleAroundCenter()
     {
         using var step = BeginPresetStep();
@@ -365,7 +358,6 @@ public partial class MotionalSurroundViewModel : ViewModelBase, IDisposable
         (40, -20)
     ];
 
-    [ReactiveCommand]
     public async Task RandomScatter()
     {
         using var step = BeginPresetStep();

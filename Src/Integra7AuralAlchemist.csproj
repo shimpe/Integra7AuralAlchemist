@@ -14,13 +14,26 @@
         <AvaloniaResource Include="Assets\**"/>
     </ItemGroup>
     <ItemGroup>
+        <!-- ReactiveUI 24 split in two. The core's ReactiveCommand.Create answers a command over
+             RxVoid; the System.Reactive distribution, in the ReactiveUI.Reactive package, answers one
+             over Unit. This application, its view models and DynamicData all speak System.Reactive, so
+             the alias points the bare name at that flavour once, rather than in a using line at the top
+             of every view model. -->
+        <Using Include="ReactiveUI.Reactive.ReactiveCommand" Alias="ReactiveCommand" />
+        <!-- Same split, same reason: the core's RxSchedulers.MainThreadScheduler is now an ISequencer,
+             while everything downstream of it here (DynamicData's ObserveOn, System.Reactive's
+             operators) takes an IScheduler. Thirty-one call sites, one alias. -->
+        <Using Include="ReactiveUI.Reactive.RxSchedulers" Alias="RxSchedulers" />
+    </ItemGroup>
+    <ItemGroup>
         <PackageReference Include="Avalonia" Version="12.1.0" />
         <PackageReference Include="Avalonia.Controls.DataGrid" Version="12.1.0"/>
         <PackageReference Include="Avalonia.Desktop" Version="12.1.0"/>
         <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.0"/>
         <!-- Condition below is needed to remove the dev-tools package from build output in Release configuration. -->
         <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3"/>
-        <PackageReference Include="ReactiveUI.Avalonia" Version="12.0.3"/>
+        <PackageReference Include="ReactiveUI.Avalonia" Version="12.1.0"/>
+        <PackageReference Include="ReactiveUI.Reactive" Version="24.0.0"/>
         <PackageReference Include="dynamicdata" Version="9.4.33"/>
         <PackageReference Include="FluentAvaloniaUI" Version="3.0.2"/>
         <PackageReference Include="managed-midi" Version="1.10.1"/>

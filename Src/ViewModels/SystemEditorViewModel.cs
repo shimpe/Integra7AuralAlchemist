@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
-using ReactiveUI.SourceGenerators;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
@@ -81,7 +81,14 @@ public sealed partial class SystemEditorViewModel : ViewModelBase, IDisposable
     }
 
     // Open the raw System grid for the full parameter set.
-    [ReactiveCommand] public void AdvancedSystem() => _navigateToRawTab?.Invoke("COMMON-SYSTEM");
+    public void AdvancedSystem() => _navigateToRawTab?.Invoke("COMMON-SYSTEM");
+
+    // Hand-written rather than generated: ReactiveUI.SourceGenerators has no release that supports
+    // ReactiveUI 24, and what it emits names the core's RxVoid-flavoured ReactiveCommand fully
+    // qualified, so no alias can redirect it.
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _advancedSystemCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> AdvancedSystemCommand =>
+        _advancedSystemCommand ??= ReactiveCommand.Create(AdvancedSystem);
 
     private T Track<T>(T wrapper) where T : IDisposable
     {

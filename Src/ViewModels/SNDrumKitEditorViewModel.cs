@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Reactive;
 using Avalonia.Threading;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
 using ReactiveUI;
-using ReactiveUI.SourceGenerators;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
@@ -104,7 +104,14 @@ public sealed partial class SNDrumKitEditorViewModel : ViewModelBase, IDisposabl
             : null;
     }
 
-    [ReactiveCommand] public void AdvancedCommon() => _navigateToRawTab?.Invoke("SN-D-KIT", null);
+    public void AdvancedCommon() => _navigateToRawTab?.Invoke("SN-D-KIT", null);
+
+    // Hand-written rather than generated: ReactiveUI.SourceGenerators has no release that supports
+    // ReactiveUI 24, and what it emits names the core's RxVoid-flavoured ReactiveCommand fully
+    // qualified, so no alias can redirect it.
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _advancedCommonCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> AdvancedCommonCommand =>
+        _advancedCommonCommand ??= ReactiveCommand.Create(AdvancedCommon);
 
     /// <summary>Audition a drum by sending its MIDI note at the given velocity (note-on/off handled by the host).</summary>
     public void PlayNote(int note, int velocity)

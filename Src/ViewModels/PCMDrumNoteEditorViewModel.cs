@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Reactive;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
 using ReactiveUI;
-using ReactiveUI.SourceGenerators;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
@@ -219,9 +219,22 @@ public sealed partial class PCMDrumNoteEditorViewModel : ViewModelBase, IDisposa
     private T Track<T>(T w) where T : IDisposable { _wrappers.Add(w); return w; }
 
     // Copy / Paste / Init (shared clipboard lives on the parent kit editor).
-    [ReactiveCommand] public void CopyDrum() => _parent.DrumClipboard = SnsPartialClipboard.Snapshot(_editable);
-    [ReactiveCommand] public void PasteDrum() { if (_parent.DrumClipboard is { } data) SnsPartialClipboard.Apply(_editable, data); }
-    [ReactiveCommand] public void InitDrum() => SnsPartialClipboard.Apply(_editable, InitDefaults);
+    public void CopyDrum() => _parent.DrumClipboard = SnsPartialClipboard.Snapshot(_editable);
+    public void PasteDrum() { if (_parent.DrumClipboard is { } data) SnsPartialClipboard.Apply(_editable, data); }
+    public void InitDrum() => SnsPartialClipboard.Apply(_editable, InitDefaults);
+
+    // Hand-written rather than generated: ReactiveUI.SourceGenerators has no release that supports
+    // ReactiveUI 24, and what it emits names the core's RxVoid-flavoured ReactiveCommand fully
+    // qualified, so no alias can redirect it.
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _copyDrumCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> CopyDrumCommand =>
+        _copyDrumCommand ??= ReactiveCommand.Create(CopyDrum);
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _pasteDrumCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> PasteDrumCommand =>
+        _pasteDrumCommand ??= ReactiveCommand.Create(PasteDrum);
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _initDrumCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> InitDrumCommand =>
+        _initDrumCommand ??= ReactiveCommand.Create(InitDrum);
 
     private int _selectedWmtIndex;
     /// <summary>The WMT layer (0..3) shown in the detail panel; also driven by the velocity map.</summary>

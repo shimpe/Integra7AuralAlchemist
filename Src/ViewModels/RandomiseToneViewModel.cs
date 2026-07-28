@@ -77,8 +77,10 @@ public sealed partial class RandomiseToneViewModel : ViewModelBase
     /// knows which part is selected and what is in it.</summary>
     [Reactive] private string _target = "";
 
-    public ReactiveCommand<Unit, bool> RandomiseCommand { get; }
-    public ReactiveCommand<Unit, bool> CancelCommand { get; }
+    // Qualified for the reason ConfirmViewModel spells out: ReactiveUI 24 ships two ReactiveCommand<,>
+    // types and an alias cannot name an open generic, so the declaration has to say which it means.
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, bool> RandomiseCommand { get; }
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, bool> CancelCommand { get; }
 
     /// <summary>Whether pressing Randomise would do anything: at least one row ticked, on a category this
     /// engine has, at a strength above zero. The button is bound to it, so "nothing happened" is answered

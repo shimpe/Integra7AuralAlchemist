@@ -29,6 +29,9 @@ public sealed class ConfirmViewModel : ViewModelBase
     /// a caller with something more specific to say passes it.</summary>
     public string ConfirmLabel { get; }
 
-    public ReactiveCommand<Unit, bool> ConfirmCommand { get; }
-    public ReactiveCommand<Unit, bool> CancelCommand { get; }
+    // Qualified: ReactiveUI 24 ships two ReactiveCommand<,> types, the core's over RxVoid and this one
+    // over System.Reactive's Unit. The csproj aliases the bare name for the factory, but an alias cannot
+    // name an open generic, so the declarations say which they mean.
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, bool> ConfirmCommand { get; }
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, bool> CancelCommand { get; }
 }

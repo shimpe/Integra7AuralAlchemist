@@ -89,8 +89,10 @@ public sealed partial class SaveToLibraryViewModel : ViewModelBase
     /// at the write, where it is refused too but where the user has already lost the capture.</summary>
     public bool CanSave => Name.Trim().Length > 0;
 
-    public ReactiveCommand<Unit, SnapshotMetadata?> SaveCommand { get; }
+    // Qualified for the reason ConfirmViewModel spells out: ReactiveUI 24 ships two ReactiveCommand<,>
+    // types and an alias cannot name an open generic, so the declaration has to say which it means.
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, SnapshotMetadata?> SaveCommand { get; }
 
     /// <summary>Answers null, which the caller reads as "cancelled" -- exactly as Save User Tone's does.</summary>
-    public ReactiveCommand<Unit, SnapshotMetadata?> CancelCommand { get; }
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, SnapshotMetadata?> CancelCommand { get; }
 }

@@ -1886,7 +1886,6 @@ public partial class PartViewModel : ViewModelBase
         }
     }
 
-    [ReactiveCommand]
     /// <summary>Send the program change if this part is the one asking for it, then reload.
     ///
     /// The order is the whole point: reading before the device has switched returns the outgoing
