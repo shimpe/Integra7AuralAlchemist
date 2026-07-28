@@ -1,7 +1,13 @@
 # Morph pad — design
 
-**Goal.** A screen where two to seven library tones sit at the corners of a polygon and a point inside it
-blends them into the tone loaded in the selected part, live, as the point moves.
+**Goal.** A screen where two to seven library tones sit evenly spaced around a circle and a point inside
+it blends them into the tone loaded in the selected part, live, as the point moves.
+
+**A disc, not a polygon.** The corners sit on the rim either way, but taking the whole circle as the
+playable area removes three things: clamping becomes "scale the point back to radius 1" rather than a
+projection onto the nearest hull edge, the fill's inside test becomes `x² + y² ≤ 1`, and the two-corner
+case stops needing a special rule — a line has no interior to drag inside, a disc does. The cost is that
+the outline no longer announces the corner count: five and seven look alike until you count the markers.
 
 **Not in scope.** Drum kits, for the reason given below. Morphing between engines. Animating the point
 (an LFO or envelope driving it) — a later addition this design leaves room for. Writing a blend into the
@@ -70,9 +76,9 @@ Pure. Corner positions for a count of 2–7, and the weights for a point.
 ```csharp
 public static class MorphWeights
 {
-    /// <summary>Corner positions in a unit circle centred on (0,0): evenly spaced, first corner at the
-    /// top, and for two corners the left and right ends of the horizontal diameter rather than a
-    /// degenerate polygon.</summary>
+    /// <summary>Corner positions on the unit circle centred on (0,0): evenly spaced, first corner at the
+    /// top. Two corners are placed at the left and right ends of the horizontal diameter instead, because
+    /// a crossfade reads as a left-to-right movement and a vertical one does not.</summary>
     public static IReadOnlyList<Point> Corners(int count);
 
     /// <summary>Each corner's share of a point, summing to 1. A point on a corner gives that corner 1.0
@@ -131,13 +137,13 @@ treated as zero, and the blend records that it happened so the screen can say so
 ### `MorphPadGeometry` (`Src/Controls/`)
 
 Pure. Control-space arithmetic: corner positions scaled into the control's bounds, the point under the
-pointer, and **projection onto the polygon** so a pointer dragged outside lands on the nearest edge
-rather than leaving the shape. For two corners that projection is onto the segment.
+pointer, and **clamping into the disc**: a point beyond radius 1 is scaled back onto the rim, so a drag
+that leaves the circle slides around its edge instead of escaping. One rule for every corner count.
 
 ### `MorphPadControl` (`Src/Controls/`)
 
-Draws the polygon, the numbered corners with their patch names, and the point. One `PointerGesture` per
-drag. Reports the point in polygon space; it knows nothing about snapshots.
+Draws the disc, the numbered corner markers on its rim with their patch names, and the point. One
+`PointerGesture` per drag. Reports the point in unit-circle space; it knows nothing about snapshots.
 
 **The fill is the feature's face, and it is specified rather than left to taste.** Four candidates were
 rendered and compared before choosing (`scratchpad/pad-candidates.png` in the session that designed
@@ -166,8 +172,9 @@ to sit on this application's dark panels rather than glow off them. They go in `
 control. Corner *n* always takes colour *n*, so the association between a colour and a corner number is
 learnable.
 
-**Two corners have no interior**, so that case draws as a thick horizontal track with the gradient along
-it and a corner marker at each end — a crossfade rendered as one, which is what it is.
+**Two corners need no special case on a disc.** The fill becomes a left-to-right gradient with a neutral
+band down the middle where the two are level — a crossfade that looks like one, from the same code that
+draws seven.
 
 **Rendering cost is paid once, not per frame.** The weight field depends only on the corner count and the
 control's size, never on the pointer, so the fill is rendered into a `WriteableBitmap` when either
@@ -234,13 +241,14 @@ discrete one takes the winner's; every parameter of a discriminator group comes 
 when another corner is nearer on weight; the name comes from the winner; a parameter present in only
 some corners comes from the winner and is reported.
 
-**`MorphPadGeometry`** — a point inside is unchanged; one outside lands on the nearest edge; the
-projection for two corners stays on the segment; corner positions match `MorphWeights` after scaling.
+**`MorphPadGeometry`** — a point inside the disc is unchanged; one outside is scaled back onto the rim,
+keeping its direction; a point at the exact centre survives the clamp without dividing by zero; corner
+positions match `MorphWeights` after scaling into the control's bounds.
 
 **The fill** — its two shaping steps are arithmetic and testable without drawing anything: the sharpened
 weights still sum to 1; at a corner the sharpened mix is that corner's colour; dominance is 1 at a corner
-and 0 at the centre of a regular polygon; and the brightness factor stays within 0.55..1.15 everywhere,
-so no pixel is black or clipped.
+and 0 at the centre, where every corner is equidistant; and the brightness factor stays within
+0.55..1.15 everywhere, so no pixel is black or clipped.
 
 **`MorphPadFile`** — a pad round-trips; a pad naming a file that no longer exists loads with that corner
 marked missing rather than throwing.
@@ -260,5 +268,5 @@ repository.
 - [ ] Save a pad, close the application, load it: the same position produces the same sound.
 - [ ] Save a blend to the library, then load it into a part: it sounds like the spot on the pad.
 - [ ] With no instrument connected the pad still arranges and saves.
-- [ ] The fill looks right at 2, 3 and 7 corners, and dragging the point stays smooth — if it stutters,
+- [ ] The disc looks right at 2, 3, 5 and 7 corners, and dragging the point stays smooth — if it stutters,
   the fill is being re-rendered per pointer move rather than cached.
