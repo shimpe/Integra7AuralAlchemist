@@ -19,6 +19,47 @@ public static class MorphPadFile
 {
     private static readonly JsonSerializerOptions Options = new() { WriteIndented = true };
 
+    /// <summary>Where pads live: a <c>Pads</c> folder beside the library rather than inside it. Beside,
+    /// because the library is a folder of snapshots and a pad is not one -- a pad sitting in it would be a
+    /// file the listing silently skips, which is the shape of a bug rather than of a design.
+    ///
+    /// A library folder that is a drive root has nothing beside it, so the pads go under it instead. That
+    /// is a strange place to keep a library and a worse place to throw.</summary>
+    public static string FolderBeside(string libraryFolder)
+    {
+        // Trimmed first: GetDirectoryName of a path ending in a separator answers the path itself, so
+        // "…/Library/" would put the pads inside the library rather than beside it.
+        var parent = Path.GetDirectoryName(
+            libraryFolder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+
+        return Path.Combine(string.IsNullOrEmpty(parent) ? libraryFolder : parent, "Pads");
+    }
+
+    /// <summary>How a corner's file is written into a pad: its bare name when it sits in the library
+    /// folder, its whole path when it does not.
+    ///
+    /// The bare name is the point -- see <see cref="MorphPad.CornerFiles"/> -- but the corner picker is a
+    /// file dialog and a user can walk it anywhere. A pad that silently forgot such a corner would be
+    /// worse than one carrying a path that stops working if the file moves.</summary>
+    public static string RelativeName(string libraryFolder, string filePath)
+    {
+        if (libraryFolder.Length == 0) return filePath;
+
+        var directory = Path.GetDirectoryName(Path.GetFullPath(filePath));
+        return directory is not null && string.Equals(Trimmed(directory), Trimmed(libraryFolder),
+            StringComparison.OrdinalIgnoreCase)
+            ? Path.GetFileName(filePath)
+            : filePath;
+
+        static string Trimmed(string path) =>
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+    }
+
+    /// <summary>The other direction: a bare name is looked for in the library folder, a whole path is
+    /// taken as it stands.</summary>
+    public static string Resolve(string libraryFolder, string name) =>
+        Path.IsPathRooted(name) ? name : Path.Combine(libraryFolder, name);
+
     public static void Save(string path, MorphPad pad)
     {
         var directory = Path.GetDirectoryName(path);

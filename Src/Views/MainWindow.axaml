@@ -725,6 +725,17 @@
             <TabItem Header="Compare" Classes="top">
                 <local:CompareView DataContext="{Binding CompareVm}" />
             </TabItem>
+            <!-- No "connect your Integra-7" placeholder either, and for a stronger reason than the two tabs
+                 above it: a pad is arranged, saved and loaded entirely out of files, and only sending a
+                 blend needs a device — which the pad says for itself when there is none.
+
+                 This is index 5, which MainWindowViewModel.MorphPadTabIndex names. It sits after Compare
+                 because both are about sounds the user has already saved rather than about the one in the
+                 instrument, and before Motional Surround for the reason Library is: a saved sound is
+                 reached for far more often than a spatial layout. -->
+            <TabItem Header="Morph" Classes="top">
+                <local:MorphPadView DataContext="{Binding MorphPadVm}" />
+            </TabItem>
             <TabItem Header="Motional Surround" Classes="top">
                 <Panel>
                     <Panel IsVisible="{Binding MotionalSurroundVm, Converter={x:Static conv:ObjectConverters.IsNotNull}}">

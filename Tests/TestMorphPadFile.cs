@@ -68,4 +68,47 @@ public class MorphPadFileTests
 
         Assert.That(() => MorphPadFile.Load(path), Throws.TypeOf<SnapshotFormatException>());
     }
+
+    [Test]
+    public void Pads_live_beside_the_library_rather_than_in_it()
+    {
+        var library = Path.Combine(_folder, "Integra7AuralAlchemist", "Library");
+
+        Assert.That(MorphPadFile.FolderBeside(library),
+            Is.EqualTo(Path.Combine(_folder, "Integra7AuralAlchemist", "Pads")));
+    }
+
+    /// <summary>A trailing separator is the same folder, and must not put the pads inside the library.</summary>
+    [Test]
+    public void A_trailing_separator_does_not_move_the_pads_folder()
+    {
+        var library = Path.Combine(_folder, "Library");
+
+        Assert.That(MorphPadFile.FolderBeside(library + Path.DirectorySeparatorChar),
+            Is.EqualTo(MorphPadFile.FolderBeside(library)));
+    }
+
+    [Test]
+    public void A_corner_in_the_library_is_stored_by_name_and_found_again()
+    {
+        var file = Path.Combine(_folder, "Warm Rhodes.json");
+
+        var stored = MorphPadFile.RelativeName(_folder, file);
+
+        Assert.That(stored, Is.EqualTo("Warm Rhodes.json"));
+        Assert.That(MorphPadFile.Resolve(_folder, stored), Is.EqualTo(file));
+    }
+
+    /// <summary>The picker is a file dialog, so a corner can come from anywhere. Such a corner keeps its
+    /// whole path rather than being silently forgotten.</summary>
+    [Test]
+    public void A_corner_outside_the_library_keeps_its_path()
+    {
+        var elsewhere = Path.Combine(_folder, "Elsewhere", "Warm Rhodes.json");
+
+        var stored = MorphPadFile.RelativeName(Path.Combine(_folder, "Library"), elsewhere);
+
+        Assert.That(stored, Is.EqualTo(elsewhere));
+        Assert.That(MorphPadFile.Resolve(Path.Combine(_folder, "Library"), stored), Is.EqualTo(elsewhere));
+    }
 }

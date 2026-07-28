@@ -295,8 +295,15 @@ public static class StudioSetSnapshotService
     /// the snapshot's. These blocks are the *temporary tone* area, whose layout is the engine's: PCM Synth
     /// data written into a part whose temporary tone is SuperNATURAL lands at addresses that mean something
     /// else entirely.</summary>
-    public static async Task RestoreToneAsync(Integra7Domain domain, Integra7Snapshot snapshot,
-        int zeroBasedPartNo, string currentToneType, IMidiLease lease)
+    /// <summary>The three things that must be true before anything is written into a part's temporary
+    /// tone, as a method of its own so that the second path into that area -- the morph pad, which writes
+    /// a blend rather than a file -- refuses the same cases in the same words.
+    ///
+    /// It was extracted rather than copied for one reason: the engine message tells the user which preset
+    /// to select before trying again, and two versions of that sentence would eventually be two different
+    /// pieces of advice. Every throw carries a message written to be shown.</summary>
+    public static void EnsureToneFitsPart(Integra7Snapshot snapshot, int zeroBasedPartNo,
+        string currentToneType)
     {
         if (snapshot.Kind != SnapshotKinds.Tone)
             throw new SnapshotFormatException($"This file holds \"{snapshot.Kind}\", not a tone.");
@@ -312,8 +319,14 @@ public static class StudioSetSnapshotService
                 $"This snapshot holds a {snapshot.ToneType} tone, but part {zeroBasedPartNo + 1} currently " +
                 $"holds a {currentToneType} tone. Select a {snapshot.ToneType} preset on that part first, " +
                 $"then load the snapshot again.");
+    }
 
-        var targets = ToneDomainNames.For(snapshot.ToneType, zeroBasedPartNo);
+    public static async Task RestoreToneAsync(Integra7Domain domain, Integra7Snapshot snapshot,
+        int zeroBasedPartNo, string currentToneType, IMidiLease lease)
+    {
+        EnsureToneFitsPart(snapshot, zeroBasedPartNo, currentToneType);
+
+        var targets = ToneDomainNames.For(snapshot.ToneType!, zeroBasedPartNo);
 
         // Matched on the two offsets alone: they name the engine and the block within it, and nothing
         // about which part the tone was captured from.
