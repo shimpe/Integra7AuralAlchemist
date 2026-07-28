@@ -134,23 +134,16 @@
                                     Command="{Binding RescanMidiDevicesAsync}">
                                 Rescan Midi Devices
                             </Button>
-                            <Button Command="{Binding PlayNoteAsync}">
-                                <Button.IsEnabled>
-                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                        <MultiBinding.Bindings>
-                                            <Binding Path="Connected" />
-                                            <Binding Path="!IsSyncing" />
-                                        </MultiBinding.Bindings>
-                                    </MultiBinding>
-                                </Button.IsEnabled>
-                                Play Note
-                            </Button>
-                            <!-- Play Phrase, Stop Phrase and Panic used to sit here. They moved to the
-                                 status bar beside Undo, Redo and Compare, because they are the same kind
-                                 of thing: reached for at any moment, from any tab, and not part of the
-                                 Parameters tab's own work. Panic in particular is the one button whose
-                                 whole value is being where you already are. Play Note stays, because it
-                                 sounds the *selected part* and only this tab has a selected part. -->
+                            <!-- Play Note, Play Phrase, Stop Phrase and Panic used to sit here. They moved
+                                 to the status bar beside Undo, Redo and Compare, because they are the same
+                                 kind of thing: reached for at any moment, from any tab, and not part of the
+                                 Parameters tab's own work. Panic in particular is the one button whose whole
+                                 value is being where you already are.
+
+                                 Play Note was kept here at first, on the grounds that it sounds the selected
+                                 part and only this tab has one. That reasoning did not survive: Play Phrase
+                                 reads the same selection in the same way and had already moved, so the two
+                                 were split up for a difference they do not have. -->
                             <Button Command="{Binding SaveUserTone}">
                                 <Button.IsEnabled>
                                     <MultiBinding Converter="{x:Static BoolConverters.And}">
@@ -857,6 +850,21 @@
                      to be free. -->
                 <Rectangle Width="1" VerticalAlignment="Stretch" Margin="4,2"
                            Fill="{StaticResource SnStatusBarBorderBrush}" />
+                <!-- Beside Play Phrase because it is the same gesture on the same target: both sound the
+                     part selected in the Parameters tab, both fall back to channel 1 when that is the
+                     Common tab, and wanting to hear the part is not something that only happens while
+                     looking at its parameters. -->
+                <Button Command="{Binding PlayNoteAsync}" Padding="8,2">
+                    <Button.IsEnabled>
+                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                            <MultiBinding.Bindings>
+                                <Binding Path="Connected" />
+                                <Binding Path="!IsSyncing" />
+                            </MultiBinding.Bindings>
+                        </MultiBinding>
+                    </Button.IsEnabled>
+                    Play Note
+                </Button>
                 <Button Command="{Binding PlayPhraseAsync}" Padding="8,2">
                     <Button.IsEnabled>
                         <MultiBinding Converter="{x:Static BoolConverters.And}">
