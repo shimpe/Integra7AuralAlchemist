@@ -139,6 +139,40 @@ rather than leaving the shape. For two corners that projection is onto the segme
 Draws the polygon, the numbered corners with their patch names, and the point. One `PointerGesture` per
 drag. Reports the point in polygon space; it knows nothing about snapshots.
 
+**The fill is the feature's face, and it is specified rather than left to taste.** Four candidates were
+rendered and compared before choosing (`scratchpad/pad-candidates.png` in the session that designed
+this). Every interior pixel is coloured from the same inverse-distance weights the blend uses:
+
+1. **Hue** comes from a *sharpened* mix: each weight raised to the power **2.5**, renormalised, then used
+   to mix the corner colours. Sharpened because with seven corners the raw weights never let any colour
+   dominate, and the pad reads as one grey-brown wash.
+2. **Brightness** rises with how decided the point is. With `dominance = (w_max − w_second) / w_max`, the
+   mixed colour is multiplied by **0.55 + 0.60 × dominance** — never black at the centre, never blown out
+   at a corner.
+
+The faint seams this produces, radiating from the centre, fall exactly where two corners are level, which
+is where the discrete values flip. The picture therefore says something true about the sound rather than
+merely decorating it.
+
+**It is honest about one thing and not another.** The fill shows the *instantaneous* winner, while the
+audible discrete values follow `MorphWinner`, which is sticky. Near a boundary the colour can therefore
+say one corner while the sound still holds the previous one. That was accepted deliberately: drawing the
+hysteresis would mean the same pad position painting differently depending on how it was approached,
+which is worse to look at than a boundary that leads the ear by a few pixels.
+
+**Corner colours** are seven hues evenly spaced from 15°, at saturation 0.62 and lightness 0.58 — chosen
+to sit on this application's dark panels rather than glow off them. They go in `App.axaml` as
+`SnMorphCorner1Brush`..`SnMorphCorner7Brush`, because no colour in this application is written in a
+control. Corner *n* always takes colour *n*, so the association between a colour and a corner number is
+learnable.
+
+**Two corners have no interior**, so that case draws as a thick horizontal track with the gradient along
+it and a corner marker at each end — a crossfade rendered as one, which is what it is.
+
+**Rendering cost is paid once, not per frame.** The weight field depends only on the corner count and the
+control's size, never on the pointer, so the fill is rendered into a `WriteableBitmap` when either
+changes and simply blitted afterwards. Dragging the point redraws two markers over a cached image.
+
 ### `MorphPadViewModel` + `MorphPadView`
 
 A new top-level tab, **Morph**. The pad on the left; on the right the corner count (2–7), the engine the
@@ -203,6 +237,11 @@ some corners comes from the winner and is reported.
 **`MorphPadGeometry`** — a point inside is unchanged; one outside lands on the nearest edge; the
 projection for two corners stays on the segment; corner positions match `MorphWeights` after scaling.
 
+**The fill** — its two shaping steps are arithmetic and testable without drawing anything: the sharpened
+weights still sum to 1; at a corner the sharpened mix is that corner's colour; dominance is 1 at a corner
+and 0 at the centre of a regular polygon; and the brightness factor stays within 0.55..1.15 everywhere,
+so no pixel is black or clipped.
+
 **`MorphPadFile`** — a pad round-trips; a pad naming a file that no longer exists loads with that corner
 marked missing rather than throwing.
 
@@ -221,3 +260,5 @@ repository.
 - [ ] Save a pad, close the application, load it: the same position produces the same sound.
 - [ ] Save a blend to the library, then load it into a part: it sounds like the spot on the pad.
 - [ ] With no instrument connected the pad still arranges and saves.
+- [ ] The fill looks right at 2, 3 and 7 corners, and dragging the point stays smooth — if it stutters,
+  the fill is being re-rendered per pointer move rather than cached.
