@@ -253,6 +253,17 @@
                                        TextWrapping="Wrap"
                                        Foreground="{StaticResource SnMutedTextBrush}" />
 
+                            <!-- Nothing is read or written here: the Compare tab takes the file from the
+                                 list and fills whichever of its two slots is free. Pressed once in a
+                                 while, so a tooltip is safe for the same reason it is on the two buttons
+                                 above. -->
+                            <Button Content="Compare this"
+                                    Command="{Binding CompareThisAsync}"
+                                    IsEnabled="{Binding HasSelection}"
+                                    ToolTip.Tip="Send this snapshot to the Compare tab, to see how it differs from another one or from what the instrument holds now."
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Center" />
+
                             <!-- The one button in this tab that asks first, because it is the one that
                                  destroys something: the file is deleted rather than moved aside, .NET
                                  having no cross-platform recycle bin. Pressed rarely, so a tooltip is

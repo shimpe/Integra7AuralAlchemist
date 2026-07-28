@@ -1,0 +1,129 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:svc="using:Integra7AuralAlchemist.Models.Services"
+             mc:Ignorable="d" d:DesignWidth="1600" d:DesignHeight="800"
+             x:Class="Integra7AuralAlchemist.Views.CompareView"
+             x:DataType="vm:CompareViewModel">
+
+    <!-- Two slots and what differs between them. The only tab in the application that never writes to
+         the instrument: filling a slot from it is a read, and comparing touches nothing at all. -->
+
+    <UserControl.Styles>
+        <!-- A difference row has to fill the list's width or the three columns in its Grid collapse to
+             their content and the values stop lining up down the page — the same trap LibraryView records
+             for its own rows. The indent that used to be a margin on the Grid lives in the padding now, so
+             that the shading covers it rather than stopping short of the parameter name. -->
+        <Style Selector="ListBox.rows > ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="12,1,0,1" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+
+        <!-- Shading goes on the item's own ContentPresenter, which is where the theme puts its states; a
+             Background on the ListBoxItem is painted under them and would be overridden the moment the
+             pointer arrived. Both brushes are the ones the partial cards already use, so a highlighted row
+             here reads the same as a selected card elsewhere. -->
+        <Style Selector="ListBox.rows > ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource SnCardHoverBackgroundBrush}" />
+        </Style>
+        <Style Selector="ListBox.rows > ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource SnCardSelectedBackgroundBrush}" />
+        </Style>
+        <Style Selector="ListBox.rows > ListBoxItem:selected:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource SnCardSelectedBackgroundBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="10" RowSpacing="8">
+
+        <Grid Grid.Row="0" ColumnDefinitions="*,*" ColumnSpacing="16">
+            <StackPanel Grid.Column="0" Orientation="Vertical" Spacing="6">
+                <TextBlock Text="Left" FontWeight="Bold" />
+                <TextBlock Text="{Binding Left.Description}" TextWrapping="Wrap"
+                           Foreground="{StaticResource SnMutedTextBrush}" />
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Content="From the library" Command="{Binding FillLeftFromLibraryAsync}" />
+                    <Button Content="From a file…" Command="{Binding FillLeftFromFileAsync}" />
+                    <Button Content="Read the Studio Set" Command="{Binding FillLeftFromStudioSetAsync}" />
+                    <Button Content="Read the selected part's tone" Command="{Binding FillLeftFromToneAsync}" />
+                </StackPanel>
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Vertical" Spacing="6">
+                <TextBlock Text="Right" FontWeight="Bold" />
+                <TextBlock Text="{Binding Right.Description}" TextWrapping="Wrap"
+                           Foreground="{StaticResource SnMutedTextBrush}" />
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Button Content="From the library" Command="{Binding FillRightFromLibraryAsync}" />
+                    <Button Content="From a file…" Command="{Binding FillRightFromFileAsync}" />
+                    <Button Content="Read the Studio Set" Command="{Binding FillRightFromStudioSetAsync}" />
+                    <Button Content="Read the selected part's tone" Command="{Binding FillRightFromToneAsync}" />
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+            <Button Content="Compare" Command="{Binding Compare}" IsEnabled="{Binding CanCompare}"
+                    Padding="14,3" />
+            <TextBox Text="{Binding SearchText, Mode=TwoWay}"
+                     PlaceholderText="Narrow by parameter name"
+                     MinWidth="260"
+                     IsEnabled="{Binding HasResult}" />
+            <Button Content="Copy" Command="{Binding CopyAsync}" IsEnabled="{Binding HasResult}" />
+            <Button Content="Save as text…" Command="{Binding SaveAsync}" IsEnabled="{Binding HasResult}" />
+        </StackPanel>
+
+        <TextBlock Grid.Row="2" Text="{Binding Summary}" TextWrapping="Wrap" />
+
+        <ScrollViewer Grid.Row="3">
+            <!-- The right margin is the vertical scrollbar's lane: Avalonia's bars float over the content
+                 rather than reserving space, as App.axaml records at length. -->
+            <ItemsControl ItemsSource="{Binding Blocks}" Margin="0,0,16,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="vm:CompareBlockViewModel">
+                        <StackPanel Orientation="Vertical" Spacing="2" Margin="0,0,0,12">
+                            <TextBlock Text="{Binding Heading}" FontWeight="Bold" />
+                            <!-- A ListBox rather than an ItemsControl purely for the highlight: a row is
+                                 three columns wide, the leftmost of which can be trimmed, and following
+                                 a parameter name across to its two values is exactly what the eye loses.
+                                 Hovering shades a row and clicking keeps it shaded, so the one being read
+                                 stays marked while the eye travels.
+
+                                 Its own scrolling is off: the whole result already sits in one
+                                 ScrollViewer, and a list that scrolled inside a scrolling list would trap
+                                 the wheel. With no scrolling there is nothing to virtualise either, hence
+                                 the plain StackPanel — a virtualising panel measured at infinite height
+                                 realises every item anyway and only adds ways to be wrong. -->
+                            <ListBox Classes="rows"
+                                     ItemsSource="{Binding Rows}"
+                                     SelectionMode="Single"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Vertical" />
+                                    </ItemsPanelTemplate>
+                                </ListBox.ItemsPanel>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate DataType="svc:ValueDifference">
+                                        <Grid ColumnDefinitions="3*,*,*">
+                                            <TextBlock Grid.Column="0" Text="{Binding Path}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Grid.Column="1" Text="{Binding LeftValue}"
+                                                       Foreground="{StaticResource SnMutedTextBrush}" />
+                                            <TextBlock Grid.Column="2" Text="{Binding RightValue}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

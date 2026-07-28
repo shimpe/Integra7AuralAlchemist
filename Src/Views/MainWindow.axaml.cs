@@ -1,8 +1,12 @@
+using System;
 using System.IO;
 using System.Reactive;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
+// Avalonia 12 moved SetTextAsync off IClipboard and onto ClipboardExtensions in this namespace; without
+// it the call below does not compile.
+using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
 using FluentAvalonia.UI.Windowing;
 using Integra7AuralAlchemist.Models.Services;
@@ -74,6 +78,8 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
             action(ViewModel!.ShowPickLibraryFolderDialog.RegisterHandler(DoShowPickLibraryFolderDialogAsync));
             action(ViewModel!.ShowConfirmDialog.RegisterHandler(DoShowConfirmDialogAsync));
             action(ViewModel!.ShowRandomiseToneDialog.RegisterHandler(DoShowRandomiseToneDialogAsync));
+            action(ViewModel!.ShowSaveTextDialog.RegisterHandler(DoShowSaveTextDialogAsync));
+            action(ViewModel!.ShowCopyToClipboard.RegisterHandler(DoCopyToClipboardAsync));
         });
     }
 
@@ -103,6 +109,33 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
         // storage) is reported as "" rather than collapsed into null, so the command does not mistake
         // "picked but unusable" for "cancelled" -- see ShowSaveSnapshotDialog's doc comment.
         interaction.SetOutput(file is null ? null : file.TryGetLocalPath() ?? "");
+    }
+
+    private async Task DoShowSaveTextDialogAsync(IInteractionContext<string, string?> interaction)
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Save Comparison",
+            SuggestedFileName = interaction.Input,
+            DefaultExtension = "txt",
+            FileTypeChoices = [new FilePickerFileType("Text") { Patterns = ["*.txt"] }]
+        });
+
+        // "" for a picked file with no local path, null only for a cancellation -- see
+        // DoShowSaveSnapshotDialogAsync, which answers the same three ways for the same reason.
+        interaction.SetOutput(file is null ? null : file.TryGetLocalPath() ?? "");
+    }
+
+    /// <summary>The clipboard belongs to the top level, not to the view model, which is why this is an
+    /// interaction. A null clipboard is possible on a platform that has none; saying so is better than a
+    /// silent no-op.</summary>
+    private async Task DoCopyToClipboardAsync(IInteractionContext<string, Unit> interaction)
+    {
+        var clipboard = TopLevel.GetTopLevel(this)?.Clipboard;
+        if (clipboard is null) throw new InvalidOperationException("This platform has no clipboard.");
+
+        await clipboard.SetTextAsync(interaction.Input);
+        interaction.SetOutput(Unit.Default);
     }
 
     /// <summary>Ask what a snapshot about to be saved into the library should be called and what should be said
