@@ -183,8 +183,21 @@ public class MorphPadControl : Control
         var corners = MorphWeights.Corners(count);
         var colours = CornerColours(count);
 
-        var bitmap = new WriteableBitmap(new PixelSize(pixelWidth, pixelHeight), new Vector(96, 96),
-            PixelFormat.Bgra8888, AlphaFormat.Premul);
+        // Repainted into the surface already there whenever it is the right size, which is what a corner
+        // count or a colour change is -- writing into a locked buffer between frames is what a
+        // WriteableBitmap is for. Only a resize needs a new one, and the one it replaces is disposed
+        // rather than left to the collector: it holds a native surface the size of this control.
+        var size = new PixelSize(pixelWidth, pixelHeight);
+        WriteableBitmap bitmap;
+        if (_fill is { } existing && existing.PixelSize == size)
+        {
+            bitmap = existing;
+        }
+        else
+        {
+            bitmap = new WriteableBitmap(size, new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
+            _fill?.Dispose();
+        }
 
         // Written into a plain array and copied in, rather than into the locked buffer through a pointer.
         // One extra allocation per rebuild -- which happens on a resize and a corner change, not per frame --
@@ -239,13 +252,17 @@ public class MorphPadControl : Control
 
     /// <summary>The cache is keyed on the corner count and the size, because those are what the weight field
     /// depends on -- but the colours are baked into the same bitmap, and the view sets the seven brushes
-    /// from resources, which can land after the first render. So a colour change throws the picture away by
-    /// hand.</summary>
+    /// from resources, which can land after the first render. So a colour change invalidates the picture by
+    /// hand.
+    ///
+    /// The key is spoiled rather than the bitmap dropped, so that the surface is repainted instead of
+    /// reallocated: a count no disc can have is one no comparison in <see cref="EnsureFill"/> can
+    /// accidentally match.</summary>
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
         if (change.Property == CornerCountProperty || Array.IndexOf(CornerBrushes, change.Property) >= 0)
-            _fill = null;
+            _fillCorners = -1;
     }
 
     // ---- Drawing -----------------------------------------------------------------------------------------
