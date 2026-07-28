@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -137,6 +138,8 @@ public static class SnapshotDiff
 
         foreach (var value in left.Values)
         {
+            if (IsReserved(value.Path)) continue;
+
             seen.Add(value.Path);
             if (!rightValues.TryGetValue(value.Path, out var other))
             {
@@ -150,9 +153,29 @@ public static class SnapshotDiff
                     value.Raw, other.Raw));
         }
 
-        var onlyOnRight = right.Values.Where(v => !seen.Contains(v.Path)).Select(v => v.Path).ToList();
+        var onlyOnRight = right.Values
+            .Where(v => !IsReserved(v.Path) && !seen.Contains(v.Path))
+            .Select(v => v.Path)
+            .ToList();
         return new BlockDifference(left.Offset, left.Offset2, differences, onlyOnLeft, onlyOnRight);
     }
+
+    /// <summary>Whether this is one of the instrument's unused slots, which a comparison must not report.
+    ///
+    /// They are in the snapshot on purpose -- a block is bulk-written as one transmission and every byte
+    /// of it has to be there, so the capture takes reserved parameters too. They are not something a user
+    /// can act on: a difference in one says the device left something else in a byte it does not read,
+    /// and a report full of "Reserved12" buries the rows that mean something.
+    ///
+    /// Matched on the name rather than on the parameter database's own flag, so that this stays pure and
+    /// a snapshot can be compared without loading the database. That is sound because every path in the
+    /// database containing the word is flagged reserved -- checked, not assumed -- and because the shapes
+    /// are not a closed set: "Reserved3", "MFX Parameter 1/Thru (Reserved)" and "Phaser 3 Reserved" all
+    /// occur, the last of which was found only when something stopped matching on spelling. No block name
+    /// contains the word, so matching the whole path cannot catch an innocent parameter by its
+    /// prefix.</summary>
+    private static bool IsReserved(string path) =>
+        path.Contains("Reserved", StringComparison.Ordinal);
 
     /// <summary>Raw against raw whenever both sides have one; strings otherwise. A value with a raw on
     /// one side only is a file from a build before raw values existed compared against a current one --

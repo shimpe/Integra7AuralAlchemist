@@ -168,6 +168,46 @@ public class SnapshotDiffTests
         Assert.That(e.Message, Does.Contain("PCMS"));
     }
 
+    /// <summary>The instrument's unused slots are in a snapshot on purpose -- a block is bulk-written as
+    /// one transmission and every byte has to be there -- but a difference in one says only that the
+    /// device left something in a byte it does not read. All three spellings the database uses are
+    /// covered, because they are not a closed set.</summary>
+    [Test]
+    public void A_reserved_parameter_is_never_reported()
+    {
+        var one = Tone("a", Block(Common,
+            new SnapshotValue("Tone/Level", "100", 100),
+            new SnapshotValue("Tone/Reserved3", "0", 0),
+            new SnapshotValue("Tone/MFX Parameter 1/Thru (Reserved)", "0", 0),
+            new SnapshotValue("Tone/Phaser 3 Reserved", "0", 0)));
+        var two = Tone("b", Block(Common,
+            new SnapshotValue("Tone/Level", "100", 100),
+            new SnapshotValue("Tone/Reserved3", "64", 64),
+            new SnapshotValue("Tone/MFX Parameter 1/Thru (Reserved)", "64", 64),
+            new SnapshotValue("Tone/Phaser 3 Reserved", "64", 64)));
+
+        var result = SnapshotDiff.Compare(one, two);
+
+        Assert.That(result.Identical, Is.True, "three reserved slots differ and none of them counts");
+        Assert.That(result.ParametersCompared, Is.EqualTo(1), "and none of them was even compared");
+    }
+
+    /// <summary>The other half: a reserved slot one side does not carry at all must not turn up in the
+    /// "only in this snapshot" list either, which is the same report by another door.</summary>
+    [Test]
+    public void A_reserved_parameter_on_one_side_only_is_not_reported()
+    {
+        var one = Tone("a", Block(Common,
+            new SnapshotValue("Tone/Level", "100", 100),
+            new SnapshotValue("Tone/Reserved3", "0", 0)));
+        var two = Tone("b", Block(Common, new SnapshotValue("Tone/Level", "100", 100)));
+
+        var result = SnapshotDiff.Compare(one, two);
+
+        Assert.That(result.Identical, Is.True);
+        Assert.That(result.Blocks, Is.Empty);
+    }
+
     /// <summary>An older file, or one from a build that has since gained a parameter. A real answer, and
     /// refusing it would make exactly the snapshots most worth comparing uncomparable.</summary>
     [Test]
