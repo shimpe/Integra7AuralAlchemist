@@ -12,10 +12,18 @@ namespace Integra7AuralAlchemist.Controls;
 public sealed class MorphPadGeometry(Rect bounds)
 {
     /// <summary>The disc fills the smaller dimension, so a control that is not square still holds a
-    /// circle rather than an ellipse.</summary>
-    private double Radius => Math.Min(bounds.Width, bounds.Height) / 2;
+    /// circle rather than an ellipse.
+    ///
+    /// Public, with <see cref="Centre"/>, because the control draws the rim outline and a second copy of
+    /// this arithmetic there would be a copy that could disagree with the one the drags are resolved
+    /// in.</summary>
+    public double Radius => Math.Min(bounds.Width, bounds.Height) / 2;
 
-    private Point Centre => new(bounds.Width / 2, bounds.Height / 2);
+    /// <summary>The centre of the rect handed over, its origin included. The control does not hand over
+    /// its whole bounds: it insets them, so that a corner marker on the rim and the number beside it have
+    /// somewhere to be drawn other than outside the control. A disc that ignored the inset's offset would
+    /// sit up and to the left of the space reserved for it.</summary>
+    public Point Centre => new(bounds.X + bounds.Width / 2, bounds.Y + bounds.Height / 2);
 
     public Point ToControl(Point unit) => new(Centre.X + unit.X * Radius, Centre.Y + unit.Y * Radius);
 

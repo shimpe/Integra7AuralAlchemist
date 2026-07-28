@@ -53,6 +53,20 @@ public class MorphPadGeometryTests
         Assert.That(back.Y, Is.EqualTo(p.Y).Within(1e-9));
     }
 
+    /// <summary>The control reserves a margin for the corner markers and their numbers by handing over a
+    /// rect inset from its bounds, so the disc has to sit in the space it was given rather than at the
+    /// control's origin.</summary>
+    [Test]
+    public void An_inset_rect_puts_the_disc_where_the_rect_is()
+    {
+        var g = new MorphPadGeometry(new Rect(20, 20, 160, 160));
+
+        Assert.That(g.Centre, Is.EqualTo(new Point(100, 100)));
+        Assert.That(g.Radius, Is.EqualTo(80));
+        Assert.That(g.ToControl(new Point(0, -1)), Is.EqualTo(new Point(100, 20)));
+        Assert.That(g.ToUnit(new Point(100, 20)).Y, Is.EqualTo(-1).Within(1e-9));
+    }
+
     /// <summary>The disc fills the smaller dimension, so a wide control keeps a circle rather than
     /// stretching it into an ellipse.</summary>
     [Test]
