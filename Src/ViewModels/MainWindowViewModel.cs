@@ -1299,15 +1299,21 @@ public partial class MainWindowViewModel : ViewModelBase
             SyncInfo = studioSet ? "Reading the Studio Set" : $"Reading tone from part {selected!.ZeroBasedPartNo + 1}";
             await using var lease = await api.BeginConversationAsync("read for comparison");
 
-            // The captured-at time is part of what the slot says: "the instrument" means the instrument
-            // as it was when it was read, and a comparison pasted into a message needs to say when.
+            // The captured-at time is part of what the slot says: a reading of the instrument means the
+            // instrument as it was then, and a comparison pasted into a message needs to say when.
             var at = DateTime.Now.ToString("g", CultureInfo.CurrentCulture);
+
+            // Named after the sound, not after where it came from. The name is what both the slot and the
+            // exported comparison lead with, and "the instrument" there told the user nothing they had not
+            // just done themselves -- while hiding the one fact that identifies what was read. Where it
+            // came from is the source line beside it, which is where it belongs.
             return studioSet
-                ? (await StudioSetSnapshotService.CaptureAsync(communicator, "the instrument", lease),
-                    $"read {at}")
+                ? (await StudioSetSnapshotService.CaptureAsync(communicator,
+                        CurrentStudioSetName(communicator), lease),
+                    $"the instrument, read {at}")
                 : (await StudioSetSnapshotService.CaptureToneAsync(communicator,
-                        selected!.ZeroBasedPartNo, selected.ToneType, "the instrument", lease),
-                    $"part {selected.ZeroBasedPartNo + 1}, read {at}");
+                        selected!.ZeroBasedPartNo, selected.ToneType, selected.ToneName, lease),
+                    $"the instrument, part {selected.ZeroBasedPartNo + 1}, read {at}");
         }
         catch (Exception e)
         {
