@@ -18,6 +18,11 @@ namespace Integra7AuralAlchemist.Models.Services;
 /// patches captured from anywhere lands where it is asked to.</summary>
 public static class MorphWriter
 {
+    /// <param name="blend">Must come from <see cref="MorphedTone.Blend"/>. A raw value is applied wherever
+    /// the snapshot carries one, and <c>ApplyRawValue</c> throws for a text parameter; a blend never puts a
+    /// raw on one, but a file read straight off disk could. <c>ApplyBlockValues</c> guards this by asking
+    /// the domain which parameters are text, and that per-flush lookup is exactly the cost the no-read rule
+    /// is here to avoid, so this takes the precondition instead.</param>
     public static async Task WriteAsync(Integra7Domain domain, Integra7Snapshot blend,
         int zeroBasedPartNo, string toneType, IMidiLease? lease)
     {
