@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Reactive;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
 using ReactiveUI;
-using ReactiveUI.SourceGenerators;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
@@ -186,7 +186,14 @@ public sealed partial class StudioSetPartEditorViewModel : ViewModelBase, IDispo
             .Subscribe(_ => this.RaisePropertyChanged(derivedProperty)));
 
     // Open the raw Studio Set Part grid for the full parameter set (including the reserved slots).
-    [ReactiveCommand] public void AdvancedPart() => _navigateToRawTab?.Invoke("SET-PART", null);
+    public void AdvancedPart() => _navigateToRawTab?.Invoke("SET-PART", null);
+
+    // Hand-written rather than generated: ReactiveUI.SourceGenerators has no release that supports
+    // ReactiveUI 24, and what it emits names the core's RxVoid-flavoured ReactiveCommand fully
+    // qualified, so no alias can redirect it.
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _advancedPartCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> AdvancedPartCommand =>
+        _advancedPartCommand ??= ReactiveCommand.Create(AdvancedPart);
 
     private static Dictionary<string, FullyQualifiedParameter> ToDict(DomainBase d)
     {

@@ -1,7 +1,7 @@
 using System;
+using System.Reactive;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
-using ReactiveUI.SourceGenerators;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
@@ -22,7 +22,14 @@ public sealed partial class StudioSetMasterEqEditorViewModel : ViewModelBase, ID
     }
 
     // Open the raw Studio Set Master EQ grid for the full parameter set.
-    [ReactiveCommand] public void AdvancedMasterEq() => _navigateToRawTab?.Invoke("COMMON-MASTER-EQ");
+    public void AdvancedMasterEq() => _navigateToRawTab?.Invoke("COMMON-MASTER-EQ");
+
+    // Hand-written rather than generated: ReactiveUI.SourceGenerators has no release that supports
+    // ReactiveUI 24, and what it emits names the core's RxVoid-flavoured ReactiveCommand fully
+    // qualified, so no alias can redirect it.
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _advancedMasterEqCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> AdvancedMasterEqCommand =>
+        _advancedMasterEqCommand ??= ReactiveCommand.Create(AdvancedMasterEq);
 
     public void Dispose()
     {

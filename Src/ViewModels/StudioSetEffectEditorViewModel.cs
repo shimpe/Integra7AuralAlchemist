@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
 using ReactiveUI;
-using ReactiveUI.SourceGenerators;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
@@ -83,7 +83,14 @@ public sealed partial class StudioSetEffectEditorViewModel : ViewModelBase, IDis
     }
 
     // Open the raw grid for the full parameter set, reserved slots and all.
-    [ReactiveCommand] public void Advanced() => _navigateToRawTab?.Invoke(_rawTabTag);
+    public void Advanced() => _navigateToRawTab?.Invoke(_rawTabTag);
+
+    // Hand-written rather than generated: ReactiveUI.SourceGenerators has no release that supports
+    // ReactiveUI 24, and what it emits names the core's RxVoid-flavoured ReactiveCommand fully
+    // qualified, so no alias can redirect it.
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _advancedCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> AdvancedCommand =>
+        _advancedCommand ??= ReactiveCommand.Create(Advanced);
 
     public void Dispose()
     {

@@ -1,7 +1,7 @@
 using System;
+using System.Reactive;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
-using ReactiveUI.SourceGenerators;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
@@ -25,7 +25,14 @@ public sealed partial class StudioSetPartEqEditorViewModel : ViewModelBase, IDis
     }
 
     // Open the raw Studio Set Part EQ grid for the full parameter set.
-    [ReactiveCommand] public void AdvancedPartEq() => _navigateToRawTab?.Invoke("SET-PART-EQ", null);
+    public void AdvancedPartEq() => _navigateToRawTab?.Invoke("SET-PART-EQ", null);
+
+    // Hand-written rather than generated: ReactiveUI.SourceGenerators has no release that supports
+    // ReactiveUI 24, and what it emits names the core's RxVoid-flavoured ReactiveCommand fully
+    // qualified, so no alias can redirect it.
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _advancedPartEqCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> AdvancedPartEqCommand =>
+        _advancedPartEqCommand ??= ReactiveCommand.Create(AdvancedPartEq);
 
     public void Dispose()
     {

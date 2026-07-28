@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reactive;
 using Avalonia.Threading;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
 using ReactiveUI;
-using ReactiveUI.SourceGenerators;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
@@ -127,7 +127,14 @@ public sealed partial class SNAcousticToneEditorViewModel : ViewModelBase, IDisp
 
     // Open the raw SN-A Tone tab for the full parameter set. The friendly Editor tab owns Tag "SN-A"
     // (so it's the default on preset load), so the raw Tone tab uses the suffixed "SN-A-TONE".
-    [ReactiveCommand] public void AdvancedAcoustic() => _navigateToRawTab?.Invoke("SN-A-TONE", null);
+    public void AdvancedAcoustic() => _navigateToRawTab?.Invoke("SN-A-TONE", null);
+
+    // Hand-written rather than generated: ReactiveUI.SourceGenerators has no release that supports
+    // ReactiveUI 24, and what it emits names the core's RxVoid-flavoured ReactiveCommand fully
+    // qualified, so no alias can redirect it.
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _advancedAcousticCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> AdvancedAcousticCommand =>
+        _advancedAcousticCommand ??= ReactiveCommand.Create(AdvancedAcoustic);
 
     public void Dispose()
     {

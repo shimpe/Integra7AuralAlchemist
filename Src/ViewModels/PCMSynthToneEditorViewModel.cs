@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Reactive;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using Integra7AuralAlchemist.Models.Services;
 using ReactiveUI;
-using ReactiveUI.SourceGenerators;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
@@ -73,13 +73,32 @@ public sealed partial class PCMSynthToneEditorViewModel : ViewModelBase, IDispos
         }
     }
 
-    [ReactiveCommand] public void CopyPartial() => SelectedPartial.Copy();
-    [ReactiveCommand] public void PastePartial() => SelectedPartial.Paste();
-    [ReactiveCommand] public void InitPartial() => SelectedPartial.Init();
+    public void CopyPartial() => SelectedPartial.Copy();
+    public void PastePartial() => SelectedPartial.Paste();
+    public void InitPartial() => SelectedPartial.Init();
 
     // Open the raw "Advanced — …" tabs (the friendly Editor tab owns Tag "PCMS").
-    [ReactiveCommand] public void AdvancedCommon() => _navigateToRawTab?.Invoke("PCM-SYN-COMMON", null);
-    [ReactiveCommand] public void AdvancedPartial() => _navigateToRawTab?.Invoke("PCM-SYN-PARTIALS", SelectedPartial.Index);
+    public void AdvancedCommon() => _navigateToRawTab?.Invoke("PCM-SYN-COMMON", null);
+    public void AdvancedPartial() => _navigateToRawTab?.Invoke("PCM-SYN-PARTIALS", SelectedPartial.Index);
+
+    // Hand-written rather than generated: ReactiveUI.SourceGenerators has no release that supports
+    // ReactiveUI 24, and what it emits names the core's RxVoid-flavoured ReactiveCommand fully
+    // qualified, so no alias can redirect it.
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _copyPartialCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> CopyPartialCommand =>
+        _copyPartialCommand ??= ReactiveCommand.Create(CopyPartial);
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _pastePartialCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> PastePartialCommand =>
+        _pastePartialCommand ??= ReactiveCommand.Create(PastePartial);
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _initPartialCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> InitPartialCommand =>
+        _initPartialCommand ??= ReactiveCommand.Create(InitPartial);
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _advancedCommonCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> AdvancedCommonCommand =>
+        _advancedCommonCommand ??= ReactiveCommand.Create(AdvancedCommon);
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _advancedPartialCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> AdvancedPartialCommand =>
+        _advancedPartialCommand ??= ReactiveCommand.Create(AdvancedPartial);
 
     // --- Partial Solo/Mute audition (reuses the engine-agnostic PartialAudition helper) ---
     private readonly bool[] _savedSwitches = new bool[Constants.NO_OF_PARTIALS_PCM_SYNTH_TONE];
@@ -127,7 +146,6 @@ public sealed partial class PCMSynthToneEditorViewModel : ViewModelBase, IDispos
     }
 
     /// <summary>Clear all solo/mute and restore the saved switches (single recompute).</summary>
-    [ReactiveCommand]
     public void ClearAudition()
     {
         _suppressRecompute = true;
@@ -135,6 +153,10 @@ public sealed partial class PCMSynthToneEditorViewModel : ViewModelBase, IDispos
         _suppressRecompute = false;
         RecomputeAudition();
     }
+
+    private ReactiveUI.Reactive.ReactiveCommand<Unit, Unit>? _clearAuditionCommand;
+    public ReactiveUI.Reactive.ReactiveCommand<Unit, Unit> ClearAuditionCommand =>
+        _clearAuditionCommand ??= ReactiveCommand.Create(ClearAudition);
 
     /// <summary>Restore the pre-audition partial on/off switches to hardware (awaited) and clear all
     /// solo/mute. No-op when not auditioning. Called before a preset change so the patch is restored first.</summary>
