@@ -1,0 +1,45 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             x:DataType="vm:StepLfoPanelViewModel"
+             x:CompileBindings="True"
+             x:Class="Integra7AuralAlchemist.Views.StepLfoPanelView">
+    <Border Background="{StaticResource SnPanelBackgroundBrush}" CornerRadius="6" Padding="10">
+        <StackPanel Orientation="Vertical" Spacing="6">
+            <TextBlock Text="Step LFO" FontWeight="Bold" />
+            <!-- Said on screen because it surprises people: the sixteen steps belong to the partial, not to
+                 an LFO, so a tone with both LFOs set to Step plays the same sequence twice. -->
+            <TextBlock Text="Shared by LFO 1 and LFO 2 — plays on whichever has its waveform set to Step."
+                       Foreground="{StaticResource SnMutedTextBrush}" TextWrapping="Wrap" />
+
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <TextBlock Text="Type" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding StepType.Options}"
+                          SelectedItem="{Binding StepType.Value, Mode=TwoWay}"
+                          MinWidth="180" />
+            </StackPanel>
+
+            <controls:StepLfoControl Height="140" MinWidth="520"
+                                     BarBrush="{StaticResource KnobPitchBrush}"
+                                     BackgroundBrush="{StaticResource SnEnvelopeBackgroundBrush}"
+                                     AxisBrush="{StaticResource SnEnvelopeAxisBrush}"
+                                     Step1="{Binding Step1.Value, Mode=TwoWay}"
+                                     Step2="{Binding Step2.Value, Mode=TwoWay}"
+                                     Step3="{Binding Step3.Value, Mode=TwoWay}"
+                                     Step4="{Binding Step4.Value, Mode=TwoWay}"
+                                     Step5="{Binding Step5.Value, Mode=TwoWay}"
+                                     Step6="{Binding Step6.Value, Mode=TwoWay}"
+                                     Step7="{Binding Step7.Value, Mode=TwoWay}"
+                                     Step8="{Binding Step8.Value, Mode=TwoWay}"
+                                     Step9="{Binding Step9.Value, Mode=TwoWay}"
+                                     Step10="{Binding Step10.Value, Mode=TwoWay}"
+                                     Step11="{Binding Step11.Value, Mode=TwoWay}"
+                                     Step12="{Binding Step12.Value, Mode=TwoWay}"
+                                     Step13="{Binding Step13.Value, Mode=TwoWay}"
+                                     Step14="{Binding Step14.Value, Mode=TwoWay}"
+                                     Step15="{Binding Step15.Value, Mode=TwoWay}"
+                                     Step16="{Binding Step16.Value, Mode=TwoWay}" />
+        </StackPanel>
+    </Border>
+</UserControl>
