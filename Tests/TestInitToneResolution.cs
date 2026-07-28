@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using Integra7AuralAlchemist.Models.Services;
 
 namespace Tests;
@@ -7,7 +8,17 @@ namespace Tests;
 /// this is testable without touching the disk or Avalonia's asset loader.</summary>
 public class InitToneResolutionTests
 {
-    private const string Folder = @"C:\Library";
+    /// <summary>A folder name with no separator in it, joined to the file name the same way the code
+    /// under test joins them.
+    ///
+    /// It used to be "C:\Library" with the expected result spelled "C:\Library\My Init.json". That passed
+    /// on Windows and failed on Linux and macOS, where <see cref="Path.Combine"/> joins with '/' and
+    /// produced "C:\Library/My Init.json" -- one string with both separators in it, which is nobody's
+    /// path. The subject here is which of the two candidates wins, not how a path is spelled, so the
+    /// fixture no longer says anything about spelling.</summary>
+    private static readonly string Folder = Path.Combine("some", "library");
+
+    private static string InTheLibrary(string file) => Path.Combine(Folder, file);
 
     private static InitToneSource Resolve(IReadOnlyDictionary<string, string> marks,
         bool fileExists, bool assetExists) =>
@@ -19,7 +30,7 @@ public class InitToneResolutionTests
         var source = Resolve(new Dictionary<string, string> { ["SN-S"] = "My Init.json" },
             fileExists: true, assetExists: true);
 
-        Assert.That(source.FilePath, Is.EqualTo(@"C:\Library\My Init.json"));
+        Assert.That(source.FilePath, Is.EqualTo(InTheLibrary("My Init.json")));
         Assert.That(source.AssetUri, Is.Null);
     }
 
