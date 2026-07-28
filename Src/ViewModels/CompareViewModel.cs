@@ -157,13 +157,8 @@ public sealed partial class CompareViewModel : ViewModelBase
         comparison = Named(comparison);
 
         _text = ComparisonText.Format(comparison, Left.Source, Right.Source);
-        _allBlocks =
-        [
-            .. comparison.Blocks
-                .Where(b => b.Differences.Count > 0)
-                .Select(b => new CompareBlockViewModel(
-                    $"{b.Name}  ({b.Differences.Count})", b.Differences)),
-        ];
+        _allBlocks = [.. comparison.Blocks.Select(RowsFor).Where(b => b.Rows.Count > 0),
+            .. MissingBlockSections(comparison)];
 
         // The exported text's own summary line, not a second copy of it: they must agree, and when this
         // was written twice they did not -- the tab reported "0 differences across 0 blocks" for a
@@ -202,6 +197,64 @@ public sealed partial class CompareViewModel : ViewModelBase
             RightValue = SnapshotValueNames.Best(_parameters, difference.Path, difference.RightRaw,
                 difference.RightValue),
         };
+
+    /// <summary>What one column says for a side that does not carry the parameter at all.</summary>
+    private const string Absent = "— not in this snapshot —";
+
+    /// <summary>One block's rows: the parameters that differ, then the ones only one side carries.
+    ///
+    /// <b>The second half used to be invisible here.</b> The comparison has always computed it and the
+    /// exported text has always listed it, but the tab showed differences alone -- so a parameter present
+    /// in one snapshot and absent from the other appeared nowhere on screen, which reads as the comparison
+    /// having missed it. That is the case a comparison is most wanted for: an older file, or one from a
+    /// build that has since gained a parameter.
+    ///
+    /// The value on the side that does have it is read back out of that snapshot rather than left blank:
+    /// the comparison only carries the path for these (there is nothing to compare it against), and
+    /// "Partial1 Switch: ON against nothing" is the answer, while "Partial1 Switch: something against
+    /// nothing" is only half of it.</summary>
+    private CompareBlockViewModel RowsFor(BlockDifference block)
+    {
+        List<ValueDifference> rows = [.. block.Differences];
+
+        foreach (var path in block.PathsOnlyOnLeft)
+            rows.Add(new ValueDifference(path, ValueIn(Left.Snapshot, block, path), Absent));
+        foreach (var path in block.PathsOnlyOnRight)
+            rows.Add(new ValueDifference(path, Absent, ValueIn(Right.Snapshot, block, path)));
+
+        return new CompareBlockViewModel($"{block.Name}  ({rows.Count})", rows);
+    }
+
+    /// <summary>A whole block one side does not have, as a section of its own. Rare -- it means the two
+    /// snapshots are not even made of the same parts -- and worth saying loudly rather than leaving to the
+    /// exported text.</summary>
+    private IEnumerable<CompareBlockViewModel> MissingBlockSections(SnapshotComparison comparison)
+    {
+        if (comparison.BlocksOnlyOnLeft.Count > 0)
+            yield return new CompareBlockViewModel(
+                $"Blocks only in the left snapshot  ({comparison.BlocksOnlyOnLeft.Count})",
+                [.. comparison.BlocksOnlyOnLeft.Select(b => new ValueDifference(Strip(b), "present", Absent))]);
+
+        if (comparison.BlocksOnlyOnRight.Count > 0)
+            yield return new CompareBlockViewModel(
+                $"Blocks only in the right snapshot  ({comparison.BlocksOnlyOnRight.Count})",
+                [.. comparison.BlocksOnlyOnRight.Select(b => new ValueDifference(Strip(b), Absent, "present"))]);
+    }
+
+    /// <summary>The stored value of a path in one snapshot's block, named the way every other row is.
+    /// Empty when it cannot be found, which cannot happen for a path the comparison just reported as
+    /// belonging to that side -- but a blank cell is a better answer than a crash if it ever does.</summary>
+    private string ValueIn(Integra7Snapshot? snapshot, BlockDifference block, string path)
+    {
+        var value = snapshot?.Domains
+            .FirstOrDefault(d => d.Offset == block.Offset && d.Offset2 == block.Offset2)?.Values
+            .FirstOrDefault(v => v.Path == path);
+
+        return value is null ? "" : SnapshotValueNames.Best(_parameters, path, value.Raw, value.Value);
+    }
+
+    private static string Strip(string offset2) =>
+        offset2.StartsWith("Offset2/", StringComparison.Ordinal) ? offset2["Offset2/".Length..] : offset2;
 
     /// <summary>Narrow by parameter path across every section at once -- "cutoff" answers "what did I
     /// change about the filters" for all sixteen parts in one go. A section whose every row is filtered

@@ -74,4 +74,45 @@ public class CompareViewModelTests
         Assert.That(copied.Single(), Does.Contain("Synth Pad/Strings"));
         Assert.That(copied.Single(), Does.Contain("Synth Lead"));
     }
+
+    /// <summary>A parameter one snapshot carries and the other does not is a finding, and it has to be on
+    /// screen. It was computed and exported from the start but the tab showed differences alone, so it
+    /// appeared nowhere -- which reads as the comparison having missed it, in exactly the case a
+    /// comparison is most wanted for.</summary>
+    [Test]
+    public void A_parameter_only_one_side_carries_is_shown_with_the_value_the_side_that_has_it_holds()
+    {
+        var withSwitch = new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "a",
+            [
+                new SnapshotDomain("Temporary Tone Part 1", "Offset/Temporary SuperNATURAL Synth Tone",
+                    "Offset2/SuperNATURAL Synth Tone Common",
+                    [
+                        new SnapshotValue("SuperNATURAL Synth Tone Common/Tone Level", "100", 100),
+                        new SnapshotValue("SuperNATURAL Synth Tone Common/Partial1 Switch", "ON", 1),
+                    ]),
+            ],
+            SnapshotKinds.Tone, "SN-S");
+
+        var without = withSwitch with
+        {
+            Name = "b",
+            Domains =
+            [
+                new SnapshotDomain("Temporary Tone Part 1", "Offset/Temporary SuperNATURAL Synth Tone",
+                    "Offset2/SuperNATURAL Synth Tone Common",
+                    [new SnapshotValue("SuperNATURAL Synth Tone Common/Tone Level", "100", 100)]),
+            ],
+        };
+
+        var tab = Tab([]);
+        tab.PutInFirstFreeSlot(withSwitch, "file a");
+        tab.PutInFirstFreeSlot(without, "file b");
+
+        tab.Compare();
+
+        var row = tab.Blocks.Single().Rows
+            .Single(r => r.Path.EndsWith("Partial1 Switch"));
+        Assert.That(row.LeftValue, Is.EqualTo("ON"), "the value the side that has it holds");
+        Assert.That(row.RightValue, Does.Contain("not in this snapshot"));
+    }
 }
