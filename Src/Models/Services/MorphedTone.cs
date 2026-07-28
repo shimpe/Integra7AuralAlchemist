@@ -13,6 +13,12 @@ namespace Integra7AuralAlchemist.Models.Services;
 /// so "MFX Parameter 1" is one effect's control under one MFX Type and a different effect's under
 /// another. Both follow the winning corner; only genuinely continuous values are mixed.
 ///
+/// <b>Two kinds of parameter the database does not mark, and this does.</b> A discriminator -- a parameter
+/// other parameters are read against -- is skipped by its own flag, because an averaged one describes a
+/// context no corner had. And a wave selector is skipped by category: its raw value is a position in a
+/// table of thousands of unrelated samples, so the midpoint of two of them is a third sound related to
+/// neither. Both are numeric, and neither is a quantity.
+///
 /// Works in raw space for the reason <c>ToneRandomiser</c> records: the raw value is what the device
 /// stores, and a display string is a rendering that does not always survive a round trip through an
 /// integer formatter.
@@ -72,6 +78,21 @@ public static class MorphedTone
 
         // Labels, and anything that exists only under a particular parent value. See the class remarks.
         if (spec.Repr is not null || spec.Discrete is not null || spec.ParentCtrl.Length > 0) return value;
+
+        // A discriminator decides how everything beneath it is read, so an average of two corners' values
+        // describes a context neither corner had. ToneRandomiser skips these for the same reason and by the
+        // same flag. The check above does not cover them: PCM Synth's Wave Group ID is a discriminator with
+        // no Repr of its own.
+        if (spec.IsParent) return value;
+
+        // A wave is a position in a table of thousands of unrelated samples, not a quantity: half way
+        // between two of them is a third sound with nothing to do with either, which is not what the pad
+        // promises. Which parameters choose one is engine-specific and the category table already knows,
+        // so it is asked rather than a second list of names being kept here.
+        //
+        // SuperNATURAL Synth's Wave Number carries a Repr and was already safe; PCM Synth's Wave Number L
+        // and R carry none, and are what this line is for.
+        if (ToneParameterCategories.For(value.Path) == ToneCategory.WaveChoice) return value;
 
         var total = 0.0;
         for (var i = 0; i < corners.Count; i++)

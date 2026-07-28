@@ -121,6 +121,44 @@ public class MorphedToneTests
         Assert.That(values.Single(v => v.Path == path).Raw, Is.EqualTo(40000), "not 30000");
     }
 
+    /// <summary>PCM Synth's wave selection, which is the case the Repr test above does not catch: unlike
+    /// SuperNATURAL Synth's Wave Number, none of these three carries one. A wave number is a position in a
+    /// table of thousands of unrelated samples, so 300 is not between 100 and 500 in any sense a listener
+    /// would recognise, and Wave Group ID is besides a discriminator -- a number resolved against it is
+    /// meaningless once it names a bank neither corner used.</summary>
+    [Test]
+    public void A_pcm_synth_wave_selection_comes_from_the_winner_whole()
+    {
+        const string offset = "Offset/Temporary PCM Synth Tone";
+        const string partial = "Offset2/PCM Synth Tone Partial 1";
+        const string groupId = "PCM Synth Tone Partial/Wave Group ID";
+        const string waveL = "PCM Synth Tone Partial/Wave Number L (Mono)";
+
+        Integra7Snapshot WithWave(string name, long bank, long wave, long level) =>
+            new(Integra7Snapshot.CurrentFormatVersion, name,
+                [
+                    new SnapshotDomain("Temporary Tone Part 1", offset, partial,
+                    [
+                        new SnapshotValue(groupId, $"{bank}", bank),
+                        new SnapshotValue(waveL, $"{wave}", wave),
+                        new SnapshotValue("PCM Synth Tone Partial/Partial Level", $"{level}", level),
+                    ]),
+                ],
+                SnapshotKinds.Tone, "PCMS");
+
+        var blend = MorphedTone.Blend([WithWave("a", 0, 100, 0), WithWave("b", 1, 500, 100)],
+            [0.5, 0.5], winner: 1, _parameters);
+
+        var values = blend.Domains.Single().Values;
+        Assert.Multiple(() =>
+        {
+            Assert.That(values.Single(v => v.Path == groupId).Raw, Is.EqualTo(1), "the winner's bank");
+            Assert.That(values.Single(v => v.Path == waveL).Raw, Is.EqualTo(500), "not 300");
+            Assert.That(values.Single(v => v.Path.EndsWith("Partial Level")).Raw, Is.EqualTo(50),
+                "and the level beside it is still blended, so the guard is not simply catching everything");
+        });
+    }
+
     /// <summary>An older corner file may lack a parameter the others carry. Taking the winner's value is
     /// the only safe answer -- treating it as zero would silence or detune the blend -- and the caller is
     /// told so it can say so once.</summary>
