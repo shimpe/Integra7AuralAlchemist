@@ -15,12 +15,19 @@ public sealed record ValueDifference(string Path, string LeftValue, string Right
     long? LeftRaw = null, long? RightRaw = null);
 
 /// <summary>What differs within one block, and what exists in only one side of it.</summary>
+/// <param name="Note">Something true of this block that its own differences do not say -- at present, that
+/// the partial it holds is switched off on one side, which is what makes its twenty-three differences
+/// beside the point. Deliberately not set by <see cref="SnapshotDiff"/>: the diff knows what differs and
+/// nothing about what a block means, and keeping it that way is what makes every rule in it testable
+/// against two snapshots alone. Whoever holds both snapshots and knows the instrument fills this in;
+/// see <see cref="PartialSwitches"/>. Null when there is nothing to add, which is most blocks.</param>
 public sealed record BlockDifference(
     string Offset,
     string Offset2,
     IReadOnlyList<ValueDifference> Differences,
     IReadOnlyList<string> PathsOnlyOnLeft,
-    IReadOnlyList<string> PathsOnlyOnRight)
+    IReadOnlyList<string> PathsOnlyOnRight,
+    string? Note = null)
 {
     /// <summary>The block's name without the address prefix -- "SuperNATURAL Synth Tone Common" rather
     /// than "Offset2/SuperNATURAL Synth Tone Common". What a heading should say.</summary>
