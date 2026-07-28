@@ -11,6 +11,32 @@
     <!-- Two slots and what differs between them. The only tab in the application that never writes to
          the instrument: filling a slot from it is a read, and comparing touches nothing at all. -->
 
+    <UserControl.Styles>
+        <!-- A difference row has to fill the list's width or the three columns in its Grid collapse to
+             their content and the values stop lining up down the page — the same trap LibraryView records
+             for its own rows. The indent that used to be a margin on the Grid lives in the padding now, so
+             that the shading covers it rather than stopping short of the parameter name. -->
+        <Style Selector="ListBox.rows > ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="12,1,0,1" />
+            <Setter Property="MinHeight" Value="0" />
+        </Style>
+
+        <!-- Shading goes on the item's own ContentPresenter, which is where the theme puts its states; a
+             Background on the ListBoxItem is painted under them and would be overridden the moment the
+             pointer arrived. Both brushes are the ones the partial cards already use, so a highlighted row
+             here reads the same as a selected card elsewhere. -->
+        <Style Selector="ListBox.rows > ListBoxItem:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource SnCardHoverBackgroundBrush}" />
+        </Style>
+        <Style Selector="ListBox.rows > ListBoxItem:selected /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource SnCardSelectedBackgroundBrush}" />
+        </Style>
+        <Style Selector="ListBox.rows > ListBoxItem:selected:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource SnCardSelectedBackgroundBrush}" />
+        </Style>
+    </UserControl.Styles>
+
     <Grid RowDefinitions="Auto,Auto,Auto,*" Margin="10" RowSpacing="8">
 
         <Grid Grid.Row="0" ColumnDefinitions="*,*" ColumnSpacing="16">
@@ -59,10 +85,32 @@
                     <DataTemplate DataType="vm:CompareBlockViewModel">
                         <StackPanel Orientation="Vertical" Spacing="2" Margin="0,0,0,12">
                             <TextBlock Text="{Binding Heading}" FontWeight="Bold" />
-                            <ItemsControl ItemsSource="{Binding Rows}">
-                                <ItemsControl.ItemTemplate>
+                            <!-- A ListBox rather than an ItemsControl purely for the highlight: a row is
+                                 three columns wide, the leftmost of which can be trimmed, and following
+                                 a parameter name across to its two values is exactly what the eye loses.
+                                 Hovering shades a row and clicking keeps it shaded, so the one being read
+                                 stays marked while the eye travels.
+
+                                 Its own scrolling is off: the whole result already sits in one
+                                 ScrollViewer, and a list that scrolled inside a scrolling list would trap
+                                 the wheel. With no scrolling there is nothing to virtualise either, hence
+                                 the plain StackPanel — a virtualising panel measured at infinite height
+                                 realises every item anyway and only adds ways to be wrong. -->
+                            <ListBox Classes="rows"
+                                     ItemsSource="{Binding Rows}"
+                                     SelectionMode="Single"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                <ListBox.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Vertical" />
+                                    </ItemsPanelTemplate>
+                                </ListBox.ItemsPanel>
+                                <ListBox.ItemTemplate>
                                     <DataTemplate DataType="svc:ValueDifference">
-                                        <Grid ColumnDefinitions="3*,*,*" Margin="12,1,0,1">
+                                        <Grid ColumnDefinitions="3*,*,*">
                                             <TextBlock Grid.Column="0" Text="{Binding Path}"
                                                        TextTrimming="CharacterEllipsis" />
                                             <TextBlock Grid.Column="1" Text="{Binding LeftValue}"
@@ -70,8 +118,8 @@
                                             <TextBlock Grid.Column="2" Text="{Binding RightValue}" />
                                         </Grid>
                                     </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
                         </StackPanel>
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
