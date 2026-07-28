@@ -2274,6 +2274,7 @@ public partial class MainWindowViewModel : ViewModelBase
         // Before LibraryVm, whose "Compare this" callback reads CompareVm: a get-only property is null
         // until it is assigned, and the callback can run the moment the library's list is on screen.
         CompareVm = new CompareViewModel(
+            _i7parameters,
             OpenSnapshotForComparisonAsync,
             LibrarySelectionForComparisonAsync,
             CaptureForComparisonAsync,

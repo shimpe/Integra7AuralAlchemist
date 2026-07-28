@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
+using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Services;
 using ReactiveUI;
 using ReactiveUI.SourceGenerators;
@@ -54,6 +55,7 @@ public sealed class CompareBlockViewModel(string heading, IReadOnlyList<ValueDif
 /// function.</summary>
 public sealed partial class CompareViewModel : ViewModelBase
 {
+    private readonly Integra7Parameters _parameters;
     private readonly Func<Task<(Integra7Snapshot Snapshot, string Source)?>> _fromFile;
     private readonly Func<Task<(Integra7Snapshot Snapshot, string Source)?>> _fromLibrary;
     private readonly Func<bool, Task<(Integra7Snapshot Snapshot, string Source)?>> _fromInstrument;
@@ -61,10 +63,14 @@ public sealed partial class CompareViewModel : ViewModelBase
     private readonly Func<string, Task<string?>> _saveText;
     private readonly Action<string, bool> _report;
 
+    /// <param name="parameters">This build's parameter database, which is what names a stored value:
+    /// the file says what the value is, and the database says what it is called. See
+    /// <see cref="SnapshotValueNames"/>.</param>
     /// <param name="fromInstrument">True for the Studio Set, false for the tone in the selected part. One
     /// callback rather than two because the caller has to resolve the part either way, and the flag is
     /// what it already switches on.</param>
     public CompareViewModel(
+        Integra7Parameters parameters,
         Func<Task<(Integra7Snapshot Snapshot, string Source)?>> fromFile,
         Func<Task<(Integra7Snapshot Snapshot, string Source)?>> fromLibrary,
         Func<bool, Task<(Integra7Snapshot Snapshot, string Source)?>> fromInstrument,
@@ -72,6 +78,7 @@ public sealed partial class CompareViewModel : ViewModelBase
         Func<string, Task<string?>> saveText,
         Action<string, bool> report)
     {
+        _parameters = parameters;
         _fromFile = fromFile;
         _fromLibrary = fromLibrary;
         _fromInstrument = fromInstrument;
@@ -145,6 +152,10 @@ public sealed partial class CompareViewModel : ViewModelBase
             return;
         }
 
+        // Named before anything reads it, and once: the rows on screen and the exported text are then the
+        // same strings by construction rather than by two places agreeing.
+        comparison = Named(comparison);
+
         _text = ComparisonText.Format(comparison, Left.Source, Right.Source);
         _allBlocks =
         [
@@ -162,6 +173,35 @@ public sealed partial class CompareViewModel : ViewModelBase
         ApplyFilter();
         _report(Summary, false);
     }
+
+    /// <summary>The same comparison with every difference rendered from its raw value through this build's
+    /// parameter database.
+    ///
+    /// A snapshot's display strings are only as good as the build that wrote them: a parameter this build
+    /// has since learned to name was stored as a bare number, and two such files compared to "36" against
+    /// "36" where the answer is "Synth Pad/Strings". The comparison itself is left database-free -- what
+    /// differs is still decided on the raw values alone -- so this is a rendering step and nothing
+    /// more.</summary>
+    private SnapshotComparison Named(SnapshotComparison comparison) =>
+        comparison with
+        {
+            Blocks =
+            [
+                .. comparison.Blocks.Select(b => b with
+                {
+                    Differences = [.. b.Differences.Select(Named)],
+                }),
+            ],
+        };
+
+    private ValueDifference Named(ValueDifference difference) =>
+        difference with
+        {
+            LeftValue = SnapshotValueNames.Best(_parameters, difference.Path, difference.LeftRaw,
+                difference.LeftValue),
+            RightValue = SnapshotValueNames.Best(_parameters, difference.Path, difference.RightRaw,
+                difference.RightValue),
+        };
 
     /// <summary>Narrow by parameter path across every section at once -- "cutoff" answers "what did I
     /// change about the filters" for all sixteen parts in one go. A section whose every row is filtered
