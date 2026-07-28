@@ -189,7 +189,6 @@ public partial class MainWindowViewModel : ViewModelBase
     [Reactive] private string _compareLabel = "Compare";
 
     /// <summary>Take back the last edit the user made, from either editor.</summary>
-    [ReactiveCommand]
     public async Task UndoAsync()
     {
         if (!EditJournal.Default.TryUndo(out var pending))
@@ -211,7 +210,6 @@ public partial class MainWindowViewModel : ViewModelBase
     }
 
     /// <summary>Put back the edit the last undo took away.</summary>
-    [ReactiveCommand]
     public async Task RedoAsync()
     {
         if (!EditJournal.Default.TryRedo(out var pending))
@@ -240,7 +238,6 @@ public partial class MainWindowViewModel : ViewModelBase
     /// is a Border in the window's second grid row, the status bar is the third), so the buttons beside this
     /// one stay clickable; the status bar's Undo and Redo are additionally disabled while syncing, which is
     /// what keeps the ordinary case out of the way rather than merely detected.</summary>
-    [ReactiveCommand]
     public async Task CompareAsync()
     {
         if (!EditJournal.Default.TryBeginCompareToggle(out var toggle))
@@ -490,7 +487,6 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    [ReactiveCommand]
     public async Task SaveUserTone()
     {
         UserActionLog.Action("button: Save User Tone");
@@ -553,7 +549,6 @@ public partial class MainWindowViewModel : ViewModelBase
     /// the end of that would have paid for nothing. Everything else about the lease and the atomic write is
     /// the same as it was; the write now goes through <c>SnapshotLibrary.Create</c>, which is also where the
     /// file name comes from.</summary>
-    [ReactiveCommand]
     public async Task SaveStudioSetAsync()
     {
         UserActionLog.Action("button: Save Studio Set");
@@ -631,7 +626,6 @@ public partial class MainWindowViewModel : ViewModelBase
     /// default (see <see cref="SaveStudioSetAsync"/>) and this is how a snapshot is written somewhere else --
     /// beside a project, onto a stick, into a message. Nothing that worked before this branch stopped
     /// working; it moved one button along.</summary>
-    [ReactiveCommand]
     public async Task ExportStudioSetAsync()
     {
         UserActionLog.Action("button: Export Studio Set");
@@ -709,7 +703,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>Read a snapshot file the user picks and write it back into the instrument, replacing
     /// the Studio Set currently loaded there.</summary>
-    [ReactiveCommand]
     public async Task LoadStudioSetAsync()
     {
         UserActionLog.Action("button: Load Studio Set");
@@ -891,7 +884,6 @@ public partial class MainWindowViewModel : ViewModelBase
     /// an edited E.Piano almost never wants to be asked what kind of sound it is, and a category that is right
     /// by default is the difference between a library that is filterable and one where everything is
     /// uncategorised.</summary>
-    [ReactiveCommand]
     public async Task SaveToneAsync()
     {
         UserActionLog.Action("button: Save Tone");
@@ -945,7 +937,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>Read the tone currently loaded into the selected part and write it to a file the user picks.
     /// What Save Tone used to be, relabelled -- see <see cref="ExportStudioSetAsync"/>.</summary>
-    [ReactiveCommand]
     public async Task ExportToneAsync()
     {
         UserActionLog.Action("button: Export Tone");
@@ -1021,7 +1012,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>Read a tone snapshot the user picks and write it into the selected part, replacing the
     /// tone loaded there.</summary>
-    [ReactiveCommand]
     public async Task LoadToneAsync()
     {
         UserActionLog.Action("button: Load Tone");
@@ -1335,7 +1325,6 @@ public partial class MainWindowViewModel : ViewModelBase
     /// instrument is playing the sound from <em>before</em> the edits, so a copy taken now would hold the
     /// tone the user was working away from -- and it would look identical to one taken a moment later,
     /// with nothing on screen to tell the two apart.</summary>
-    [ReactiveCommand]
     public async Task CopyToneAsync()
     {
         UserActionLog.Action("button: Copy Tone");
@@ -1377,7 +1366,6 @@ public partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>Write the copied tone into the selected part. Refused while comparing and confirmed
     /// first, for the reasons <see cref="LoadToneAsync"/> and <see cref="InitToneAsync"/> give.</summary>
-    [ReactiveCommand]
     public async Task PasteToneAsync()
     {
         UserActionLog.Action("button: Paste Tone");
@@ -1412,7 +1400,6 @@ public partial class MainWindowViewModel : ViewModelBase
     /// A real tone snapshot rather than a table of default values, so it is complete by construction --
     /// every block, every parameter -- and so it goes through exactly the restore path (and validation)
     /// that Load Tone does.</summary>
-    [ReactiveCommand]
     public async Task InitToneAsync()
     {
         UserActionLog.Action("button: Init Tone");
@@ -1477,7 +1464,6 @@ public partial class MainWindowViewModel : ViewModelBase
     ///
     /// A drum kit is randomised one note at a time -- the note selected in its editor. Every note at once
     /// would be 88 partials and an undo step nobody could use.</summary>
-    [ReactiveCommand]
     public async Task RandomiseToneAsync()
     {
         UserActionLog.Action("button: Randomise Tone");
@@ -1583,7 +1569,6 @@ public partial class MainWindowViewModel : ViewModelBase
             await ResyncPartAsync((byte)selected.ZeroBasedPartNo);
     }
 
-    [ReactiveCommand]
     public async Task PlayNoteAsync()
     {
         UserActionLog.Action("button: Play Note");
@@ -1595,7 +1580,6 @@ public partial class MainWindowViewModel : ViewModelBase
         await Integra7?.NoteOffAsync(zeroBasedMidiChannel, 65);
     }
 
-    [ReactiveCommand]
     public async Task PlayPhraseAsync()
     {
         UserActionLog.Action("button: Play Phrase");
@@ -1606,14 +1590,12 @@ public partial class MainWindowViewModel : ViewModelBase
         await Integra7?.SendPlayPreviewPhraseMsgAsync(zeroBasedMidiChannel);
     }
 
-    [ReactiveCommand]
     public async Task StopPhraseAsync()
     {
         UserActionLog.Action("button: Stop Phrase");
         await Integra7?.SendStopPreviewPhraseMsgAsync();
     }
 
-    [ReactiveCommand]
     public async Task PanicAsync()
     {
         UserActionLog.Action("button: Panic");
@@ -1621,7 +1603,6 @@ public partial class MainWindowViewModel : ViewModelBase
         await Integra7?.SendStopPreviewPhraseMsgAsync();
     }
 
-    [ReactiveCommand]
     public async Task RescanMidiDevicesAsync()
     {
         UserActionLog.Action("button: Rescan MIDI devices");
@@ -1645,7 +1626,6 @@ public partial class MainWindowViewModel : ViewModelBase
     [Reactive] private int _srxSlot3;
     [Reactive] private int _srxSlot4;
 
-    [ReactiveCommand]
     public async Task LoadSrx()
     {
         UserActionLog.Action($"button: Load SRX (slots {_srxSlot1}, {_srxSlot2}, {_srxSlot3}, {_srxSlot4})");
