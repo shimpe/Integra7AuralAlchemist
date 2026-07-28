@@ -277,31 +277,18 @@ public static class StudioSetSnapshotService
             SnapshotKinds.Tone, toneType);
     }
 
-    /// <summary>Write a captured tone into <paramref name="zeroBasedPartNo"/>, one block at a time. The
-    /// same caveats as <see cref="RestoreAsync"/> apply: the lease is the caller's for the whole restore,
-    /// the device acknowledges nothing, and a failure partway through leaves the part holding a mix that
-    /// re-running the same restore repairs.
-    ///
-    /// The part number lives in the Start address of every block, so this re-targets rather than replaying
-    /// what the file recorded: the target triples come from
-    /// <c>ToneDomainNames.For(snapshot.ToneType, zeroBasedPartNo)</c> and each snapshot block is matched to
-    /// one by (Offset, Offset2), which carry the engine and the block identity and nothing about the part.
-    /// That is what lets a tone captured from part 3 load into part 5 -- most of the point of the feature.
-    /// The Start recorded in the file is deliberately never used, not even to check: a file hand-edited to
-    /// name a part that does not exist would resolve, via GetDomain's silent fallback, to an unrelated
-    /// block.
-    ///
-    /// <paramref name="currentToneType"/> is the engine the target part holds right now, and it must match
-    /// the snapshot's. These blocks are the *temporary tone* area, whose layout is the engine's: PCM Synth
-    /// data written into a part whose temporary tone is SuperNATURAL lands at addresses that mean something
-    /// else entirely.</summary>
     /// <summary>The three things that must be true before anything is written into a part's temporary
     /// tone, as a method of its own so that the second path into that area -- the morph pad, which writes
     /// a blend rather than a file -- refuses the same cases in the same words.
     ///
     /// It was extracted rather than copied for one reason: the engine message tells the user which preset
     /// to select before trying again, and two versions of that sentence would eventually be two different
-    /// pieces of advice. Every throw carries a message written to be shown.</summary>
+    /// pieces of advice. Every throw carries a message written to be shown.
+    ///
+    /// <paramref name="currentToneType"/> is the engine the target part holds right now, and it must match
+    /// the snapshot's. These blocks are the *temporary tone* area, whose layout is the engine's: PCM Synth
+    /// data written into a part whose temporary tone is SuperNATURAL lands at addresses that mean something
+    /// else entirely.</summary>
     public static void EnsureToneFitsPart(Integra7Snapshot snapshot, int zeroBasedPartNo,
         string currentToneType)
     {
@@ -321,11 +308,25 @@ public static class StudioSetSnapshotService
                 $"then load the snapshot again.");
     }
 
+    /// <summary>Write a captured tone into <paramref name="zeroBasedPartNo"/>, one block at a time. The
+    /// same caveats as <see cref="RestoreAsync"/> apply: the lease is the caller's for the whole restore,
+    /// the device acknowledges nothing, and a failure partway through leaves the part holding a mix that
+    /// re-running the same restore repairs.
+    ///
+    /// The part number lives in the Start address of every block, so this re-targets rather than replaying
+    /// what the file recorded: the target triples come from
+    /// <c>ToneDomainNames.For(snapshot.ToneType, zeroBasedPartNo)</c> and each snapshot block is matched to
+    /// one by (Offset, Offset2), which carry the engine and the block identity and nothing about the part.
+    /// That is what lets a tone captured from part 3 load into part 5 -- most of the point of the feature.
+    /// The Start recorded in the file is deliberately never used, not even to check: a file hand-edited to
+    /// name a part that does not exist would resolve, via GetDomain's silent fallback, to an unrelated
+    /// block.</summary>
     public static async Task RestoreToneAsync(Integra7Domain domain, Integra7Snapshot snapshot,
         int zeroBasedPartNo, string currentToneType, IMidiLease lease)
     {
         EnsureToneFitsPart(snapshot, zeroBasedPartNo, currentToneType);
 
+        // EnsureToneFitsPart has just rejected a null engine, which the compiler cannot see across a call.
         var targets = ToneDomainNames.For(snapshot.ToneType!, zeroBasedPartNo);
 
         // Matched on the two offsets alone: they name the engine and the block within it, and nothing
