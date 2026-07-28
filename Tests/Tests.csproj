@@ -10,17 +10,21 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.6.0"/>
-        <PackageReference Include="NUnit" Version="3.13.3"/>
-        <PackageReference Include="NUnit3TestAdapter" Version="4.2.1"/>
-        <PackageReference Include="NUnit.Analyzers" Version="3.6.1"/>
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1"/>
+        <!-- NUnit 4, not 3. The classic assertion model (Assert.AreEqual and friends) is gone from it,
+             which is a migration this suite did not have to make: every one of its assertions was already
+             written against the constraint model. The two CollectionAssert calls that did exist became
+             Assert.That(..., Is.EquivalentTo(...)) rather than taking a dependency on the legacy shim. -->
+        <PackageReference Include="NUnit" Version="4.6.1"/>
+        <PackageReference Include="NUnit3TestAdapter" Version="6.2.0"/>
+        <PackageReference Include="NUnit.Analyzers" Version="4.14.0"/>
         <!-- 10.0.1, not 6.0.0: that version bundled Newtonsoft.Json 9.0.1 as a loose DLL inside the
              package, which is CVE-2024-21907 (stack overflow on deeply nested JSON, fixed in 13.0.1).
              Because it was bundled rather than declared, it was not a node in the restore graph, so
              "dotnet list package" with the vulnerable and include-transitive switches reported this
              project clean. A file-scanning tool found it. -->
         <PackageReference Include="coverlet.collector" Version="10.0.1"/>
-        <PackageReference Include="Microsoft.Reactive.Testing" Version="6.0.1"/>
+        <PackageReference Include="Microsoft.Reactive.Testing" Version="7.0.0"/>
     </ItemGroup>
 
     <ItemGroup>
