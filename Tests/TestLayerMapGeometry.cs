@@ -416,7 +416,13 @@ public class LayerMapGeometryTests
     [Test]
     public void The_note_name_strip_comes_off_the_height_before_the_lanes_are_measured()
     {
+        // NUnit2007 fires on the three asserts that pin a constant, reading them as an expected and an
+        // actual that have been swapped. They have not: pinning the constant is the point, because the
+        // arithmetic in the asserts below is written around these exact numbers (336 - 16 = 320). Suppressed
+        // rather than reversed, which would put the constant where the constraint belongs and say nothing.
+#pragma warning disable NUnit2007
         Assert.That(LayerMapGeometry.AxisHeight, Is.EqualTo(16).Within(0.001));
+#pragma warning restore NUnit2007
         Assert.That(LayerMapGeometry.LaneAreaHeight(336), Is.EqualTo(320).Within(0.001));
         Assert.That(LayerMapGeometry.LaneAreaHeight(10), Is.EqualTo(0).Within(0.001), "floored, never negative");
 
@@ -432,8 +438,11 @@ public class LayerMapGeometryTests
     [Test]
     public void A_lane_is_tall_enough_that_a_zone_can_be_grabbed_as_well_as_resized()
     {
+        // Pinned on purpose, not swapped -- see the suppression above.
+#pragma warning disable NUnit2007
         Assert.That(LayerMapGeometry.MinLaneHeight, Is.EqualTo(20).Within(0.001));
         Assert.That(LayerMapGeometry.HitMargin, Is.EqualTo(4).Within(0.001));
+#pragma warning restore NUnit2007
 
         // The invariant the two constants exist in: on a zone that fills its lane -- which is the default for
         // every part -- the top and bottom velocity handles each eat HitMargin, and what is left is the only

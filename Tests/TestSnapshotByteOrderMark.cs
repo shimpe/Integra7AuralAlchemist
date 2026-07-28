@@ -54,7 +54,7 @@ public class SnapshotByteOrderMarkTests
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            TestContext.WriteLine($"Could not remove the temp directory {_folder}: {e.Message}");
+            TestContext.Out.WriteLine($"Could not remove the temp directory {_folder}: {e.Message}");
         }
     }
 

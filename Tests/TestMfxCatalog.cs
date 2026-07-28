@@ -12,7 +12,7 @@ public class TestMfxCatalog
     public void Families_cover_every_type_0_to_67_exactly_once()
     {
         var all = MfxCatalog.Families.SelectMany(f => f.TypeIndices).ToList();
-        CollectionAssert.AreEquivalent(Enumerable.Range(0, 68), all);
+        Assert.That(all, Is.EquivalentTo(Enumerable.Range(0, 68)));
         Assert.That(all.Count, Is.EqualTo(68), "no duplicates");
     }
 
