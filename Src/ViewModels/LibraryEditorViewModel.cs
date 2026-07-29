@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Threading.Tasks;
 using Integra7AuralAlchemist.Models.Services;
 using ReactiveUI;
@@ -7,7 +9,18 @@ using ReactiveUI.SourceGenerators;
 
 namespace Integra7AuralAlchemist.ViewModels;
 
-/// <summary>The panel beside the library list: what the selected snapshot says about itself, and the four
+/// <summary>One kept copy, as a row in the version list. A type rather than a formatted string because the
+/// list has to hand the file path back when one is chosen.</summary>
+public sealed class PatchVersionViewModel(PatchVersion version)
+{
+    public PatchVersion Version { get; } = version;
+
+    /// <summary>The user's own short date and time, which is what a file listing shows everywhere else on
+    /// the machine -- a fixed pattern here would be this one list disagreeing with all of them.</summary>
+    public string Written => Version.Written.ToString("g", CultureInfo.CurrentCulture);
+}
+
+/// <summary>The panel beside the library list: what the selected snapshot says about itself, and the
 /// things that can be done to it.
 ///
 /// <b>Split out of <see cref="LibraryViewModel"/></b>, which had grown to the size where an edit is harder
@@ -23,6 +36,7 @@ public sealed partial class LibraryEditorViewModel : ViewModelBase
     private readonly Func<LibraryEntryViewModel, Task> _compare;
     private readonly Func<LibraryEntryViewModel, Task> _delete;
     private readonly Action<LibraryEntryViewModel> _markAsInitTone;
+    private readonly Func<LibraryEntryViewModel, PatchVersion, Task> _restore;
 
     /// <param name="save">Write the edited metadata back. Takes the row as well as the metadata so that
     /// the caller, which owns the folder and the refresh, does not have to ask what is selected.</param>
@@ -30,22 +44,26 @@ public sealed partial class LibraryEditorViewModel : ViewModelBase
     /// <param name="compare">Hand this snapshot to the Compare tab.</param>
     /// <param name="delete">Remove it from the library, after asking.</param>
     /// <param name="markAsInitTone">Make it the tone Init starts from for its engine.</param>
+    /// <param name="restore">Put a kept copy back over the row's file, after asking.</param>
     public LibraryEditorViewModel(
         Func<LibraryEntryViewModel, SnapshotMetadata, Task> save,
         Func<LibraryEntryViewModel, Task> load,
         Func<LibraryEntryViewModel, Task> compare,
         Func<LibraryEntryViewModel, Task> delete,
-        Action<LibraryEntryViewModel> markAsInitTone)
+        Action<LibraryEntryViewModel> markAsInitTone,
+        Func<LibraryEntryViewModel, PatchVersion, Task> restore)
     {
         _save = save;
         _load = load;
         _compare = compare;
         _delete = delete;
         _markAsInitTone = markAsInitTone;
+        _restore = restore;
 
-        // The five flags the buttons and the panel bind to are not raised by the generated setters of the
-        // properties they read, so they are raised together whenever either input changes.
-        this.WhenAnyValue(x => x.Selected, x => x.EditName, (_, _) => System.Reactive.Unit.Default)
+        // The six flags the buttons and the panel bind to are not raised by the generated setters of the
+        // properties they read, so they are raised together whenever any of the inputs changes.
+        this.WhenAnyValue(x => x.Selected, x => x.EditName, x => x.SelectedVersion,
+                (_, _, _) => System.Reactive.Unit.Default)
             .Subscribe(_ =>
             {
                 this.RaisePropertyChanged(nameof(HasSelection));
@@ -53,6 +71,7 @@ public sealed partial class LibraryEditorViewModel : ViewModelBase
                 this.RaisePropertyChanged(nameof(CanSaveChanges));
                 this.RaisePropertyChanged(nameof(CanMarkAsInitTone));
                 this.RaisePropertyChanged(nameof(InitToneNote));
+                this.RaisePropertyChanged(nameof(CanRestore));
             });
 
         this.WhenAnyValue(x => x.Selected).Subscribe(_ => ShowSelected());
@@ -60,6 +79,12 @@ public sealed partial class LibraryEditorViewModel : ViewModelBase
 
     /// <summary>Which row the panel is describing, or null. Assigned by the list.</summary>
     [Reactive] private LibraryEntryViewModel? _selected;
+
+    /// <summary>The kept copies of the selected snapshot, newest first, as dates a user reads. Rebuilt when
+    /// the selection changes and after a restore, because a restore adds one.</summary>
+    public ObservableCollection<PatchVersionViewModel> Versions { get; } = [];
+
+    [Reactive] private PatchVersionViewModel? _selectedVersion;
 
     [Reactive] private string _editName = "";
     [Reactive] private string _editCategoryLabel = LibraryListing.NoCategory;
@@ -74,6 +99,10 @@ public sealed partial class LibraryEditorViewModel : ViewModelBase
     public IReadOnlyList<string> EditCategoryLabels => LibraryListing.EditCategoryLabels;
 
     public bool HasSelection => Selected is not null;
+
+    public bool HasVersions => Versions.Count > 0;
+
+    public bool CanRestore => HasSelection && SelectedVersion is not null;
 
     /// <summary>Whether the selected entry is a tone, which is the only thing that has a category. A Studio
     /// Set is sixteen parts each with one of their own, so the drop-down is disabled rather than hidden for
@@ -112,6 +141,21 @@ public sealed partial class LibraryEditorViewModel : ViewModelBase
         EditNotes = head?.Notes ?? "";
         EditRating.Value = head?.Rating ?? 0;
         EditFavourite = head?.Favourite ?? false;
+        ShowVersions();
+    }
+
+    /// <summary>Reading the history folder is a directory listing, so it is done on the selection rather
+    /// than lazily: the panel is already showing the file's own fields, and one more folder read is not
+    /// what makes this screen slow.</summary>
+    private void ShowVersions()
+    {
+        Versions.Clear();
+        if (Selected is { } row)
+            foreach (var version in PatchHistory.Versions(row.FilePath))
+                Versions.Add(new PatchVersionViewModel(version));
+
+        SelectedVersion = Versions.Count > 0 ? Versions[0] : null;
+        this.RaisePropertyChanged(nameof(HasVersions));
     }
 
     public async Task SaveChanges()
@@ -145,6 +189,15 @@ public sealed partial class LibraryEditorViewModel : ViewModelBase
     public async Task DeleteSelectedAsync()
     {
         if (Selected is { } row) await _delete(row);
+    }
+
+    /// <summary>Put the chosen version back. Confirmed by the caller, which owns the dialog: this is the
+    /// second time today the same sound is being overwritten, and the first time was the accident.</summary>
+    public async Task RestoreVersionAsync()
+    {
+        UserActionLog.Action("button: Restore version (library)");
+        if (Selected is { } row && SelectedVersion is { } version)
+            await _restore(row, version.Version);
     }
 
     public void MarkAsInitTone()

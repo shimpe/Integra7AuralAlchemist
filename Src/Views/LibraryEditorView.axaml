@@ -8,7 +8,7 @@
              x:Class="Integra7AuralAlchemist.Views.LibraryEditorView"
              x:DataType="vm:LibraryEditorViewModel">
 
-    <!-- What the selected snapshot says about itself, and the four things that can be done to it. Moved out
+    <!-- What the selected snapshot says about itself, and the things that can be done to it. Moved out
          of LibraryView unchanged: every binding path below is the same one it was, against a view model that
          now holds only these fields. The panel's ground and border stay with the list's Grid, which is what
          places this control in its column.
@@ -92,6 +92,32 @@
                            TextWrapping="Wrap"
                            Foreground="{StaticResource SnMutedTextBrush}" />
 
+                <!-- The kept copies. Collapses entirely when there are none, which is every snapshot
+                     until the first time it is written over — a caption above an empty box would read
+                     as a control that is broken rather than one that is unused.
+
+                     No tooltip on the Restore button: it sits beside a drop-down the user opens
+                     repeatedly while looking for the right date, and a tooltip is a popup that
+                     swallows the click on its own control. -->
+                <StackPanel Orientation="Vertical" Spacing="4" IsVisible="{Binding HasVersions}">
+                    <TextBlock Text="Earlier versions"
+                               Foreground="{StaticResource SnMutedTextBrush}" />
+                    <ComboBox ItemsSource="{Binding Versions}"
+                              SelectedItem="{Binding SelectedVersion, Mode=TwoWay}"
+                              HorizontalAlignment="Stretch">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:PatchVersionViewModel">
+                                <TextBlock Text="{Binding Written}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Content="Restore this version"
+                            Command="{Binding RestoreVersionAsync}"
+                            IsEnabled="{Binding CanRestore}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center" />
+                </StackPanel>
+
                 <!-- Nothing is read or written here: the Compare tab takes the file from the
                      list and fills whichever of its two slots is free. Pressed once in a
                      while, so a tooltip is safe for the same reason it is on the two buttons
@@ -103,14 +129,15 @@
                         HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Center" />
 
-                <!-- The one button in this tab that asks first, because it is the one that
-                     destroys something: the file is deleted rather than moved aside, .NET
-                     having no cross-platform recycle bin. Pressed rarely, so a tooltip is
-                     safe here for the same reason it is on the button above. -->
+                <!-- The one button in this tab that asks first, because it is the one that takes
+                     the sound out of the library: the file leaves the folder, and a copy stays in
+                     the history folder beside it, which is somewhere the user has to know about to
+                     find. Pressed rarely, so a tooltip is safe here for the same reason it is on
+                     the button above. -->
                 <Button Content="Delete from the library"
                         Command="{Binding DeleteSelectedAsync}"
                         IsEnabled="{Binding HasSelection}"
-                        ToolTip.Tip="Remove this snapshot from the library. The file is deleted for good — it does not go to the recycle bin."
+                        ToolTip.Tip="Remove this snapshot from the library. The file leaves the folder — a copy is kept in the history folder beside your library."
                         HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Center" />
             </StackPanel>

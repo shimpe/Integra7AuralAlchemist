@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reactive;
@@ -110,7 +111,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
         // Before the subscriptions and before the first Refresh, both of which reach for it: one feeds it the
         // selection, and the other tells it the init-tone marks have moved.
         Editor = new LibraryEditorViewModel(SaveChangesAsync, LoadAsync, CompareAsync, DeleteAsync,
-            MarkAsInitTone);
+            MarkAsInitTone, RestoreVersionAsync);
 
         // Every filter and both halves of the sort, in one subscription. Seven properties rather than seven
         // subscriptions because they all do the same thing and doing it once is what stops a change of two of
@@ -413,6 +414,28 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
         Refresh();
         _report($"Deleted {selected.Name} from the library.", false);
+    }
+
+    /// <summary>Put a kept copy back, after asking. The confirmation is not ceremony: restoring overwrites
+    /// the file that is there now, and the user is by definition already having a bad day.</summary>
+    private async Task RestoreVersionAsync(LibraryEntryViewModel row, PatchVersion version)
+    {
+        var when = version.Written.ToString("g", CultureInfo.CurrentCulture);
+        if (!await _confirm($"Replace \"{row.Name}\" with the copy from {when}? " +
+                            "What is there now is kept as a version, so this can be undone."))
+            return;
+
+        try
+        {
+            PatchHistory.Restore(row.FilePath, version.FilePath);
+            _report($"Restored {Path.GetFileName(row.FilePath)} from {when}.", false);
+            Refresh();
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed($"restore '{row.FilePath}' from '{version.FilePath}'", e.ToString());
+            _report($"Could not restore that version: {e.Message}", true);
+        }
     }
 
     /// <summary>Choose a different library folder, list it, and remember it.
