@@ -500,33 +500,51 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <b>A failure costs that file only.</b> A snapshot held open by a sync client must not abandon the
     /// other thirteen, so each is attempted and the failures are named at the end rather than thrown. Each
     /// write archives the previous copy through <see cref="PatchHistory"/>, so a bulk change is as
-    /// recoverable as a single one.</summary>
-    private Task ApplyBulkChangeAsync(BulkChange change)
+    /// recoverable as a single one.
+    ///
+    /// <b>The loop is off the UI thread, and at this scale it has to be.</b> Annotating one snapshot reads
+    /// the whole file, parses all ~1,500 of its parameter values, archives a copy and writes it back --
+    /// which is why <see cref="_compare"/> already says doing that for a <em>single</em> Studio Set on the
+    /// click stalls the window visibly. Doing it for everything a user has selected while tidying a library
+    /// would be a freeze with nothing on screen to explain it. The status line says what is happening
+    /// before the work starts, because the freeze it replaces is exactly the thing a user reads as a
+    /// hang.</summary>
+    private async Task ApplyBulkChangeAsync(BulkChange change)
     {
         // Copied first: the write path refreshes the list, which rebuilds the very rows being iterated.
         var rows = SelectedEntries.ToList();
-        List<string> failed = [];
+        if (rows.Count == 0) return;
 
-        foreach (var row in rows)
+        _report($"Updating {rows.Count} snapshots…", false);
+
+        // Only the file names and the heads cross the thread, and both are immutable records.
+        var failed = await Task.Run(() =>
         {
-            try
+            List<string> problems = [];
+            foreach (var row in rows)
             {
-                SnapshotLibrary.WriteMetadata(row.FilePath, BulkEdit.Apply(row.Entry.Head, change));
+                try
+                {
+                    SnapshotLibrary.WriteMetadata(row.FilePath, BulkEdit.Apply(row.Entry.Head, change));
+                }
+                catch (Exception e)
+                {
+                    UserActionLog.Failed($"bulk edit '{row.FilePath}'", e.ToString());
+                    problems.Add(row.Name);
+                }
             }
-            catch (Exception e)
-            {
-                UserActionLog.Failed($"bulk edit '{row.FilePath}'", e.ToString());
-                failed.Add(row.Name);
-            }
-        }
 
+            return problems;
+        });
+
+        // Back on the UI thread: the await above resumed on the context the command was invoked from, which
+        // is what both of these need.
         _report(failed.Count == 0
             ? $"Updated {rows.Count} snapshots."
             : $"Updated {rows.Count - failed.Count} of {rows.Count} snapshots; " +
               $"{failed.Count} could not be written: {string.Join(", ", failed)}.", failed.Count > 0);
 
         Refresh();
-        return Task.CompletedTask;
     }
 
     /// <summary>Remove every selected snapshot, after asking once for all of them. Each is archived by
@@ -542,24 +560,33 @@ public sealed partial class LibraryViewModel : ViewModelBase
                             "A copy of each is kept in the history folder beside your library.",
                             "Delete")) return;
 
-        List<string> failed = [];
-        List<string> deleted = [];
-        foreach (var row in rows)
+        _report($"Deleting {rows.Count} snapshots…", false);
+
+        // Off the UI thread, for the reason ApplyBulkChangeAsync's remarks give: each delete archives a copy
+        // of the file first, so this is a disk round trip per row rather than a flag being cleared.
+        var (failed, deleted) = await Task.Run(() =>
         {
-            try
+            List<string> problems = [];
+            List<string> gone = [];
+            foreach (var row in rows)
             {
-                SnapshotLibrary.Delete(row.FilePath);
-                deleted.Add(row.FilePath);
+                try
+                {
+                    SnapshotLibrary.Delete(row.FilePath);
+                    gone.Add(row.FilePath);
+                }
+                catch (Exception e)
+                {
+                    UserActionLog.Failed($"bulk delete '{row.FilePath}'", e.ToString());
+                    problems.Add(row.Name);
+                }
             }
-            catch (Exception e)
-            {
-                UserActionLog.Failed($"bulk delete '{row.FilePath}'", e.ToString());
-                failed.Add(row.Name);
-            }
-        }
+
+            return (problems, gone);
+        });
 
         // Only the ones that actually went: a file that could not be deleted is still there, and its mark
-        // still points at something real.
+        // still points at something real. On the UI thread, because it writes the settings the list reads.
         ForgetInitToneMarks(deleted);
 
         _report(failed.Count == 0
