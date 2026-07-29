@@ -148,6 +148,10 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// see <see cref="Refresh"/>.</summary>
     [Reactive] private LibraryEntryViewModel? _selectedEntry;
 
+    /// <summary>Every selected row. Avalonia fills this collection as the selection changes; nothing here
+    /// assigns it, which is why it is get-only and the binding is not two-way.</summary>
+    public ObservableCollection<LibraryEntryViewModel> SelectedEntries { get; } = [];
+
     /// <summary>Where the library is. Shown, and changed through <see cref="ChangeFolderAsync"/> rather than by
     /// typing: a path typed one character at a time would re-read the folder on every keystroke, and every
     /// intermediate path is a folder that does not exist.</summary>
@@ -267,6 +271,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
         var admitted = LibraryListing.Sort(filter.Apply(_all), LibraryListing.SortFromLabel(SortLabel), Descending);
 
         var selectedPath = SelectedEntry?.FilePath;
+        // Every selected path, not only the anchor's. Rebuilding the list empties the control's selection
+        // outright -- measured, not assumed: the collection reports Remove down to zero as Entries is
+        // cleared -- and a bulk edit ends in a refresh, so without this a user who had just annotated
+        // fourteen snapshots would have to select them all again to do anything else to them.
+        var selectedPaths = SelectedEntries.Select(row => row.FilePath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         Entries.Clear();
         foreach (var entry in admitted) Entries.Add(new LibraryEntryViewModel(entry));
         // Before the selection is restored, not after: the panel's init-tone note reads the selected row's own
@@ -275,6 +286,14 @@ public sealed partial class LibraryViewModel : ViewModelBase
         ApplyInitToneMarks();
         SelectedEntry = Entries.FirstOrDefault(row =>
             string.Equals(row.FilePath, selectedPath, StringComparison.OrdinalIgnoreCase));
+
+        // After the anchor, because assigning it is itself what puts the first row back into the control's
+        // selection; adding it a second time would leave a duplicate the batch loop would then write twice.
+        // A row the filter no longer admits is simply not put back, which is right: it is not on screen to
+        // be acted on.
+        foreach (var row in Entries.Where(row => selectedPaths.Contains(row.FilePath)))
+            if (!SelectedEntries.Contains(row))
+                SelectedEntries.Add(row);
 
         Summary = _all.Count == 0
             ? "Nothing in this folder yet."
