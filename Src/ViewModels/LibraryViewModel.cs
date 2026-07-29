@@ -116,9 +116,9 @@ public sealed partial class LibraryViewModel : ViewModelBase
         // and this filters a folder, which is tens or hundreds of entries of six string comparisons each. A
         // keystroke's worth of that is not measurable, and a throttle would make the box feel like it was
         // catching up.
-        this.WhenAnyValue(x => x.SearchText, x => x.KindLabel, x => x.CategoryLabel, x => x.RatingLabel,
-                x => x.FavouritesOnly, x => x.SortLabel, x => x.Descending,
-                (_, _, _, _, _, _, _) => Unit.Default)
+        this.WhenAnyValue(x => x.SearchText, x => x.KindLabel, x => x.EngineLabel, x => x.CategoryLabel,
+                x => x.RatingLabel, x => x.FavouritesOnly, x => x.SortLabel, x => x.Descending,
+                (_, _, _, _, _, _, _, _) => Unit.Default)
             .Subscribe(_ => ApplyFilter());
 
         // The editor follows the selection, and two derived flags follow the editor. HasSelection and
@@ -160,6 +160,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     [Reactive] private string _searchText = "";
     [Reactive] private string _kindLabel = LibraryListing.AnyKind;
+
+    /// <summary>Which engine, or all of them. Beside the kind rather than among the annotations because it is
+    /// the same sort of question -- what the file is, not what the user has said about it -- and because
+    /// choosing one is how a library big enough to need filtering gets down to the tones that can go in one
+    /// part.</summary>
+    [Reactive] private string _engineLabel = LibraryListing.AnyEngine;
+
     [Reactive] private string _categoryLabel = LibraryListing.AnyCategory;
     [Reactive] private string _ratingLabel = LibraryListing.AnyRating;
     [Reactive] private bool _favouritesOnly;
@@ -177,6 +184,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
     public bool HasTags => Tags.Count > 0;
 
     public IReadOnlyList<string> KindLabels => LibraryListing.KindLabels;
+    public IReadOnlyList<string> EngineLabels => LibraryListing.EngineLabels;
     public IReadOnlyList<string> CategoryLabels => LibraryListing.CategoryLabels;
     public IReadOnlyList<string> RatingLabels => LibraryListing.RatingLabels;
 
@@ -290,7 +298,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
             LibraryListing.CategoryFromLabel(CategoryLabel),
             LibraryListing.MinimumRatingFromLabel(RatingLabel),
             FavouritesOnly,
-            Tags.Where(t => t.IsSelected).Select(t => t.Name).ToList());
+            Tags.Where(t => t.IsSelected).Select(t => t.Name).ToList(),
+            LibraryListing.EngineFromLabel(EngineLabel));
 
         var admitted = LibraryListing.Sort(filter.Apply(_all), LibraryListing.SortFromLabel(SortLabel), Descending);
 
@@ -510,13 +519,15 @@ public sealed partial class LibraryViewModel : ViewModelBase
         }
     }
 
-    /// <summary>Put every filter back to "not asking". A single button because there are six of them and finding
-    /// the one that is hiding what you are looking for is the whole difficulty of a filtered list.</summary>
+    /// <summary>Put every filter back to "not asking". A single button because there are seven of them and
+    /// finding the one that is hiding what you are looking for is the whole difficulty of a filtered
+    /// list.</summary>
     public void ClearFilters()
     {
         UserActionLog.Action("button: Clear library filters");
         SearchText = "";
         KindLabel = LibraryListing.AnyKind;
+        EngineLabel = LibraryListing.AnyEngine;
         CategoryLabel = LibraryListing.AnyCategory;
         RatingLabel = LibraryListing.AnyRating;
         FavouritesOnly = false;

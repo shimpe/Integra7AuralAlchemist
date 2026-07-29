@@ -7,11 +7,11 @@ namespace Integra7AuralAlchemist.Models.Services;
 /// <summary>Which entries a browse is asking to see. Pure: it reads <see cref="LibraryEntry"/> records and
 /// answers with the ones admitted, touching no file and holding no state.
 ///
-/// <b>Six axes, and they narrow together.</b> Free text, a kind, a category, a minimum rating, a favourites
-/// toggle and a set of tags. Every one of them is a separate question about the same entry and an entry has to
-/// answer all of them, because that is what a user does with filters -- adds one to see less. Each axis has a
-/// value that means "not asking", and the default of every one is that value, so <see cref="None"/> admits the
-/// whole library and the browser can open on it.
+/// <b>Seven axes, and they narrow together.</b> Free text, a kind, an engine, a category, a minimum rating, a
+/// favourites toggle and a set of tags. Every one of them is a separate question about the same entry and an
+/// entry has to answer all of them, because that is what a user does with filters -- adds one to see less. Each
+/// axis has a value that means "not asking", and the default of every one is that value, so <see cref="None"/>
+/// admits the whole library and the browser can open on it.
 ///
 /// <b>Free text is the wide one.</b> It matches the name, the notes, the category <i>and</i> the tags, because
 /// somebody typing "rhodes" does not know or care which field they put it in -- and if they had to know, the
@@ -46,13 +46,26 @@ namespace Integra7AuralAlchemist.Models.Services;
 /// <param name="Tags">Tags an entry must carry -- <b>all</b> of them. Null or empty is no tag filter. A tag is
 /// matched whole, because it is picked from a list rather than typed, and without regard to case, because
 /// "Warm" and "warm" are one tag to anybody using this.</param>
+/// <param name="Engine">One of the engine codes <c>ToneDomainNames.IsKnownToneType</c> knows -- "SN-S",
+/// "PCMS" and the rest -- or null for any. Compared exactly, for the same reason the kind is: it is a string
+/// the format writes rather than one a user typed.
+///
+/// <b>Asking for an engine excludes every Studio Set</b>, which carries none. That is the right answer rather
+/// than a side effect: a Studio Set is sixteen parts each with an engine of its own, so "the SN-S ones" cannot
+/// mean one of them, and somebody narrowing to an engine is looking for a tone.
+///
+/// <b>Last, and not beside Kind where it reads best</b>, because this record is constructed positionally in
+/// two places and both pass strings: an axis inserted in the middle would have moved a category into an engine
+/// silently, in code that still compiled. Same trade, and the same reasoning,
+/// as <see cref="SnapshotMetadata.Name"/>.</param>
 public sealed record LibraryFilter(
     string Text = "",
     string? Kind = null,
     string? Category = null,
     int MinimumRating = 0,
     bool FavouritesOnly = false,
-    IReadOnlyList<string>? Tags = null)
+    IReadOnlyList<string>? Tags = null,
+    string? Engine = null)
 {
     /// <summary>Asking for nothing, which admits everything. What the browser opens on, and what every "clear
     /// the filters" button should assign.</summary>
@@ -85,6 +98,10 @@ public sealed record LibraryFilter(
         // most naturally an empty string, and a kind filter that took "" literally would admit nothing at all,
         // since no snapshot's kind is empty.
         if (!string.IsNullOrEmpty(Kind) && !string.Equals(head.Kind, Kind, StringComparison.Ordinal))
+            return false;
+        // A Studio Set's ToneType is null, so asking for an engine drops every one of them -- see the note on
+        // the parameter for why that is the answer wanted and not a case to be excused.
+        if (!string.IsNullOrEmpty(Engine) && !string.Equals(head.ToneType, Engine, StringComparison.Ordinal))
             return false;
         if (!string.IsNullOrEmpty(Category) && !string.Equals(head.Category, Category, StringComparison.Ordinal))
             return false;

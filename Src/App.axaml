@@ -111,6 +111,16 @@
             <SolidColorBrush x:Key="DrumKeyBorderBrush" Color="#888888"/>
             <SolidColorBrush x:Key="ToneKeyOutOfRangeWhiteBrush" Color="#9a9ea1"/>
             <SolidColorBrush x:Key="ToneKeyOutOfRangeBlackBrush" Color="#34383c"/>
+            <!-- The morph pad's corners. Seven hues evenly spaced, at a saturation and lightness that sit on
+                 this application's panels. Corner N always takes colour N, so the association between a
+                 colour and a corner number is learnable. -->
+            <SolidColorBrush x:Key="SnMorphCorner1Brush" Color="#C9724A" />
+            <SolidColorBrush x:Key="SnMorphCorner2Brush" Color="#B39A44" />
+            <SolidColorBrush x:Key="SnMorphCorner3Brush" Color="#5FAF57" />
+            <SolidColorBrush x:Key="SnMorphCorner4Brush" Color="#49AE93" />
+            <SolidColorBrush x:Key="SnMorphCorner5Brush" Color="#4E93C4" />
+            <SolidColorBrush x:Key="SnMorphCorner6Brush" Color="#8A6FC6" />
+            <SolidColorBrush x:Key="SnMorphCorner7Brush" Color="#C25E9B" />
         </ResourceDictionary>
     </Application.Resources>
 

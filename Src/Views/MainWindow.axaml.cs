@@ -20,6 +20,12 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
     private static readonly FilePickerFileType SnapshotFileType =
         new("Studio Set snapshot") { Patterns = ["*.json"] };
 
+    /// <summary>What the Morph tab's two pickers filter by. The same <c>*.json</c>, under a name that
+    /// covers a tone and a morph pad both: "Studio Set snapshot" over a pad file would simply be
+    /// wrong.</summary>
+    private static readonly FilePickerFileType JsonFileType =
+        new("Snapshot or morph pad") { Patterns = ["*.json"] };
+
     private MainWindowViewModel _viewModel;
 
     public MainWindow()
@@ -80,7 +86,49 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
             action(ViewModel!.ShowRandomiseToneDialog.RegisterHandler(DoShowRandomiseToneDialogAsync));
             action(ViewModel!.ShowSaveTextDialog.RegisterHandler(DoShowSaveTextDialogAsync));
             action(ViewModel!.ShowCopyToClipboard.RegisterHandler(DoCopyToClipboardAsync));
+            action(ViewModel!.ShowTonePickerDialog.RegisterHandler(DoShowTonePickerDialogAsync));
+            action(ViewModel!.ShowOpenJsonDialog.RegisterHandler(DoShowOpenJsonDialogAsync));
+            action(ViewModel!.ShowSaveJsonDialog.RegisterHandler(DoShowSaveJsonDialogAsync));
         });
+    }
+
+    /// <summary>Where a picker should open, or null when it should open wherever it last was. Only asked
+    /// for a folder that exists: <c>TryGetFolderFromPathAsync</c> over a path that is not there answers
+    /// null, which is the same as not asking, and skipping the call keeps this from depending on that
+    /// being true of every backend. See <see cref="DoShowPickLibraryFolderDialogAsync"/>, which does the
+    /// same for the same reason.</summary>
+    private async Task<IStorageFolder?> StartAtAsync(string folder) =>
+        Directory.Exists(folder) ? await StorageProvider.TryGetFolderFromPathAsync(folder) : null;
+
+    /// <summary>Open a JSON file, pointed somewhere and titled by the caller. What the Morph tab reaches
+    /// for a corner's tone and for a saved pad; the title is the only thing telling the user which.</summary>
+    private async Task DoShowOpenJsonDialogAsync(IInteractionContext<FilePickerRequest, string?> interaction)
+    {
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = interaction.Input.Title,
+            AllowMultiple = false,
+            SuggestedStartLocation = await StartAtAsync(interaction.Input.Folder),
+            FileTypeFilter = [JsonFileType]
+        });
+
+        // Same null-vs-"" distinction as DoShowSaveSnapshotDialogAsync.
+        interaction.SetOutput(files.Count == 0 ? null : files[0].TryGetLocalPath() ?? "");
+    }
+
+    private async Task DoShowSaveJsonDialogAsync(IInteractionContext<FilePickerRequest, string?> interaction)
+    {
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = interaction.Input.Title,
+            SuggestedFileName = interaction.Input.SuggestedName,
+            SuggestedStartLocation = await StartAtAsync(interaction.Input.Folder),
+            DefaultExtension = "json",
+            FileTypeChoices = [JsonFileType]
+        });
+
+        // Same null-vs-"" distinction as DoShowSaveSnapshotDialogAsync.
+        interaction.SetOutput(file is null ? null : file.TryGetLocalPath() ?? "");
     }
 
     private async Task DoShowDialogAsync(IInteractionContext<SaveUserToneViewModel,
@@ -162,6 +210,15 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
     {
         var dialog = new RandomiseToneDialog { DataContext = interaction.Input };
         interaction.SetOutput(await dialog.ShowDialog<bool>(this));
+    }
+
+    /// <summary>Answers null for a cancellation, which a dismissed window -- the title bar's X, Escape -- gives
+    /// for free: nothing is chosen, and the caller leaves the corner as it was.</summary>
+    private async Task DoShowTonePickerDialogAsync(
+        IInteractionContext<TonePickerViewModel, LibraryEntry?> interaction)
+    {
+        var dialog = new TonePickerDialog { DataContext = interaction.Input };
+        interaction.SetOutput(await dialog.ShowDialog<LibraryEntry?>(this));
     }
 
     private async Task DoShowPickLibraryFolderDialogAsync(IInteractionContext<string, string?> interaction)

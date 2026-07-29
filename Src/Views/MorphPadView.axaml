@@ -1,0 +1,101 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:controls="using:Integra7AuralAlchemist.Controls"
+             mc:Ignorable="d" d:DesignWidth="1200" d:DesignHeight="800"
+             x:Class="Integra7AuralAlchemist.Views.MorphPadView"
+             x:DataType="vm:MorphPadViewModel">
+
+    <!-- The disc on the left and what is on it on the right. The control draws corner numbers only; the
+         patch names belong beside them, where there is room to read one. -->
+
+    <Grid ColumnDefinitions="*,320" Margin="10" ColumnSpacing="12">
+
+        <Border Grid.Column="0"
+                Background="{StaticResource SnPanelBackgroundBrush}"
+                CornerRadius="4"
+                Padding="8">
+            <!-- The pad has no size of its own: it fills whatever it is given and draws the largest circle
+                 that fits. A stretching cell is therefore the whole of its layout. -->
+            <controls:MorphPadControl CornerCount="{Binding CornerCount}"
+                                      Point="{Binding Point, Mode=TwoWay}"
+                                      Corner1Brush="{StaticResource SnMorphCorner1Brush}"
+                                      Corner2Brush="{StaticResource SnMorphCorner2Brush}"
+                                      Corner3Brush="{StaticResource SnMorphCorner3Brush}"
+                                      Corner4Brush="{StaticResource SnMorphCorner4Brush}"
+                                      Corner5Brush="{StaticResource SnMorphCorner5Brush}"
+                                      Corner6Brush="{StaticResource SnMorphCorner6Brush}"
+                                      Corner7Brush="{StaticResource SnMorphCorner7Brush}"
+                                      RimBrush="{StaticResource SnEnvelopeAxisBrush}"
+                                      MarkerBrush="{StaticResource SnEnvelopeHandleBrush}" />
+        </Border>
+
+        <ScrollViewer Grid.Column="1">
+            <!-- The right margin is the vertical scrollbar's lane: Avalonia's bars float over the content
+                 rather than reserving space, as App.axaml records at length. -->
+            <StackPanel Orientation="Vertical" Spacing="8" Margin="0,0,16,0">
+
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="Corners" VerticalAlignment="Center" />
+                    <ComboBox ItemsSource="{Binding CornerCountOptions}"
+                              SelectedIndex="{Binding CornerCountIndex, Mode=TwoWay}"
+                              MinWidth="70" />
+                </StackPanel>
+
+                <!-- Each of these is a whole sentence on a line of its own, wrapping. They were beside
+                     their captions in a horizontal row to begin with, which a column this narrow simply
+                     clipped: a StackPanel does not wrap, so the half of the sentence that mattered was
+                     the half that went missing. -->
+                <TextBlock Text="{Binding EngineLabel}" TextWrapping="Wrap"
+                           Foreground="{StaticResource SnMutedTextBrush}" />
+                <!-- Two TextBlocks over the one string, the pattern the window's status line uses: with no
+                     part selected a drag sends nothing, and that has to look like a problem rather than
+                     like a caption. It is the one thing on this screen that stops the pad working. -->
+                <TextBlock Text="{Binding TargetPart}" TextWrapping="Wrap"
+                           IsVisible="{Binding HasTargetPart}" />
+                <TextBlock Text="{Binding TargetPart}" TextWrapping="Wrap"
+                           Foreground="{StaticResource SnErrorTextBrush}"
+                           IsVisible="{Binding !HasTargetPart}" />
+
+                <ItemsControl ItemsSource="{Binding Corners}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:MorphCornerViewModel">
+                            <Grid ColumnDefinitions="24,*,Auto" Margin="0,0,0,4" ColumnSpacing="6">
+                                <TextBlock Grid.Column="0" Text="{Binding Number}"
+                                           Foreground="{Binding Colour}"
+                                           FontWeight="Bold" FontSize="15"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center" />
+                                <!-- No ToolTip on this button: a tooltip is a popup and swallows clicks on
+                                     the control it describes, and this one is pressed repeatedly while a
+                                     pad is being arranged. -->
+                                <Button Grid.Column="2" Content="Pick…" Command="{Binding PickAsync}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <StackPanel Orientation="Vertical" Spacing="6">
+                    <Button Content="Save blend to library…" Command="{Binding SaveBlendAsync}"
+                            IsEnabled="{Binding CanMorph}" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center" />
+                    <Button Content="Save pad…" Command="{Binding SavePadAsync}"
+                            IsEnabled="{Binding CanSavePad}" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center" />
+                    <Button Content="Load pad…" Command="{Binding LoadPadAsync}"
+                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+                    <Button Content="Clear the pad" Command="{Binding ClearPad}"
+                            IsEnabled="{Binding CanSavePad}" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Center" />
+                </StackPanel>
+
+                <TextBlock Text="{Binding Summary}" TextWrapping="Wrap"
+                           Foreground="{StaticResource SnMutedTextBrush}" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

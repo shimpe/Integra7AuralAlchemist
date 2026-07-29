@@ -1,0 +1,114 @@
+using System;
+using System.IO;
+using Integra7AuralAlchemist.Models.Services;
+
+namespace Tests;
+
+/// <summary>A saved pad. Corner patches are stored as file names relative to the library folder, for the
+/// reason the init-tone marks are: the library folder is a setting the user can move.</summary>
+public class MorphPadFileTests
+{
+    private string _folder = "";
+
+    [SetUp]
+    public void CreateTempFolder()
+    {
+        _folder = Path.Combine(Path.GetTempPath(), "Integra7AuralAlchemist.Tests",
+            Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_folder);
+    }
+
+    [TearDown]
+    public void RemoveTempFolder()
+    {
+        // A deletion that fails must not fail a test that actually passed -- see LibrarySettingsTests,
+        // whose temp-directory pattern this follows.
+        try
+        {
+            if (Directory.Exists(_folder)) Directory.Delete(_folder, recursive: true);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            TestContext.Out.WriteLine($"Could not remove the temp directory {_folder}: {e.Message}");
+        }
+    }
+
+    [Test]
+    public void A_pad_round_trips()
+    {
+        var path = Path.Combine(_folder, "Pads", "Strings.json");
+        var pad = new MorphPad("SN-S", ["A.json", "B.json", "C.json"], 0.25, -0.5);
+
+        MorphPadFile.Save(path, pad);
+        var loaded = MorphPadFile.Load(path);
+
+        Assert.That(loaded.ToneType, Is.EqualTo("SN-S"));
+        Assert.That(loaded.CornerFiles, Is.EqualTo(new[] { "A.json", "B.json", "C.json" }));
+        Assert.That(loaded.X, Is.EqualTo(0.25).Within(1e-9));
+        Assert.That(loaded.Y, Is.EqualTo(-0.5).Within(1e-9));
+    }
+
+    [Test]
+    public void Saving_creates_the_folder_it_needs()
+    {
+        var path = Path.Combine(_folder, "Pads", "New.json");
+
+        MorphPadFile.Save(path, new MorphPad("PCMS", ["A.json", "B.json"], 0, 0));
+
+        Assert.That(File.Exists(path), Is.True);
+    }
+
+    /// <summary>A file that is not a pad, or not JSON at all, must say so rather than throwing something
+    /// the caller cannot show a user.</summary>
+    [Test]
+    public void An_unreadable_pad_is_refused_with_a_message()
+    {
+        var path = Path.Combine(_folder, "broken.json");
+        File.WriteAllText(path, "this is not JSON");
+
+        Assert.That(() => MorphPadFile.Load(path), Throws.TypeOf<SnapshotFormatException>());
+    }
+
+    [Test]
+    public void Pads_live_beside_the_library_rather_than_in_it()
+    {
+        var library = Path.Combine(_folder, "Integra7AuralAlchemist", "Library");
+
+        Assert.That(MorphPadFile.FolderBeside(library),
+            Is.EqualTo(Path.Combine(_folder, "Integra7AuralAlchemist", "Pads")));
+    }
+
+    /// <summary>A trailing separator is the same folder, and must not put the pads inside the library.</summary>
+    [Test]
+    public void A_trailing_separator_does_not_move_the_pads_folder()
+    {
+        var library = Path.Combine(_folder, "Library");
+
+        Assert.That(MorphPadFile.FolderBeside(library + Path.DirectorySeparatorChar),
+            Is.EqualTo(MorphPadFile.FolderBeside(library)));
+    }
+
+    [Test]
+    public void A_corner_in_the_library_is_stored_by_name_and_found_again()
+    {
+        var file = Path.Combine(_folder, "Warm Rhodes.json");
+
+        var stored = MorphPadFile.RelativeName(_folder, file);
+
+        Assert.That(stored, Is.EqualTo("Warm Rhodes.json"));
+        Assert.That(MorphPadFile.Resolve(_folder, stored), Is.EqualTo(file));
+    }
+
+    /// <summary>The picker is a file dialog, so a corner can come from anywhere. Such a corner keeps its
+    /// whole path rather than being silently forgotten.</summary>
+    [Test]
+    public void A_corner_outside_the_library_keeps_its_path()
+    {
+        var elsewhere = Path.Combine(_folder, "Elsewhere", "Warm Rhodes.json");
+
+        var stored = MorphPadFile.RelativeName(Path.Combine(_folder, "Library"), elsewhere);
+
+        Assert.That(stored, Is.EqualTo(elsewhere));
+        Assert.That(MorphPadFile.Resolve(Path.Combine(_folder, "Library"), stored), Is.EqualTo(elsewhere));
+    }
+}

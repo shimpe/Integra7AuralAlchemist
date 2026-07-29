@@ -51,6 +51,11 @@ public partial class MainWindowViewModel : ViewModelBase
     /// it is named here rather than written as a bare 4 at the call site.</summary>
     private const int CompareTabIndex = 4;
 
+    /// <summary>Where the Morph tab sits, immediately after Compare. Named for the same reason
+    /// <see cref="CompareTabIndex"/> is, and used for the same kind of thing: knowing whether the user is
+    /// looking at it.</summary>
+    private const int MorphPadTabIndex = 5;
+
     [Reactive] private bool _isSyncing = true;
     private string _syncInfo = "";
 
@@ -138,6 +143,24 @@ public partial class MainWindowViewModel : ViewModelBase
     /// clipboard belongs to the window, and this view model is not allowed to know about one.</summary>
     public Interaction<string, Unit> ShowCopyToClipboard { get; }
 
+    /// <summary>Choose one library tone, seeing its engine. The morph pad's corner picker, and the reason it is
+    /// not a file dialog: an operating system's open dialog lists file names, and a pad whose corners must all
+    /// be the same engine needs the user to be able to tell which files those are.</summary>
+    public Interaction<TonePickerViewModel, LibraryEntry?> ShowTonePickerDialog { get; }
+
+    /// <summary>Open a JSON file, starting somewhere in particular and saying what it is for. What the Morph
+    /// tab opens a saved pad with -- a pad is not a snapshot, so it is not in the library listing and there is
+    /// nothing to pick it out of -- and <see cref="ShowOpenSnapshotDialog"/> can supply neither the title nor
+    /// the folder: it opens wherever the picker last was.
+    ///
+    /// Answers the path, "" for a file with no usable local path, or null for a cancellation, which is the
+    /// three-way result every picker here gives -- see <see cref="ShowSaveSnapshotDialog"/> for why "" and
+    /// null are not the same thing.</summary>
+    public Interaction<FilePickerRequest, string?> ShowOpenJsonDialog { get; }
+
+    /// <summary>The other direction: where to write a pad. Same three-way result.</summary>
+    public Interaction<FilePickerRequest, string?> ShowSaveJsonDialog { get; }
+
     /// <summary>The tone Copy put there, waiting for Paste. One slot, this window's lifetime -- see
     /// ToneClipboard.</summary>
     private readonly ToneClipboard _toneClipboard = new();
@@ -169,6 +192,20 @@ public partial class MainWindowViewModel : ViewModelBase
     /// parameters, so a rescan has nothing to invalidate. It is also the only tab that never writes to the
     /// instrument.</summary>
     public CompareViewModel CompareVm { get; }
+
+    /// <summary>The Morph tab. Built once and never replaced, for the same reason <see cref="LibraryVm"/>
+    /// is: what it holds is snapshots read from files, not live parameters, so a rescan has nothing to
+    /// invalidate here either. Only sending a blend needs a device, and it reaches one through this object
+    /// when the moment comes rather than through anything captured at construction.</summary>
+    public MorphPadViewModel MorphPadVm { get; }
+
+    /// <summary>Whether the journal has already been cleared since the user arrived on the Morph tab.
+    ///
+    /// The first blend written clears it, for the reason <see cref="LoadToneAsync"/> does: the steps in it
+    /// name parameters of a tone that is no longer loaded. After that nothing on that screen records
+    /// anything, so this stops the clear happening again on every one of four writes a second. It is reset
+    /// by a change of tab, which is what makes "since the user arrived" true.</summary>
+    private bool _morphClearedTheJournal;
 
     /// <summary>Whether the journal has anything left to take back, and anything to put back. Mirrored
     /// onto the UI thread from <c>EditJournal.Changed</c> in the constructor, because the journal is
@@ -2244,6 +2281,14 @@ public partial class MainWindowViewModel : ViewModelBase
         ShowRandomiseToneDialog = new Interaction<RandomiseToneViewModel, bool>();
         ShowSaveTextDialog = new Interaction<string, string?>();
         ShowCopyToClipboard = new Interaction<string, Unit>();
+        ShowTonePickerDialog = new Interaction<TonePickerViewModel, LibraryEntry?>();
+        ShowOpenJsonDialog = new Interaction<FilePickerRequest, string?>();
+        ShowSaveJsonDialog = new Interaction<FilePickerRequest, string?>();
+
+        // Arriving on the Morph tab re-arms its one-off journal clear, which is what makes "the first
+        // blend after arriving" true of a second visit as well as of the first.
+        this.WhenAnyValue(x => x.TopTabIndex)
+            .Subscribe(index => { if (index == MorphPadTabIndex) _morphClearedTheJournal = false; });
 
         // Fired from whichever thread called Put -- see ToneClipboard.Changed -- and CanPasteTone is
         // bound to a button, so it is set on the UI thread. Posted the same way the journal's Changed
@@ -2308,7 +2353,180 @@ public partial class MainWindowViewModel : ViewModelBase
                 SnapshotFailed = failed;
             },
             LibrarySettings.SettingsPath);
+
+        // After LibraryVm, whose Folder it reads for both pickers and for resolving a pad's corner names.
+        // The folder arrives as a function rather than a value because the user can move the library while
+        // this tab is open, and a pad saved afterwards has to follow it.
+        MorphPadVm = new MorphPadViewModel(
+            _i7parameters,
+            PickMorphCornerAsync,
+            MorphSelectedPartAsync,
+            SaveMorphBlendAsync,
+            PickMorphPadFileAsync,
+            () => LibraryVm.Folder,
+            (message, failed) =>
+            {
+                SnapshotStatus = message;
+                SnapshotFailed = failed;
+            });
+
+        // Which part a blend would land in, shown on the pad. The Morph tab has no part selector of its
+        // own -- the target is the part tab the Parameters tab is on, the same one Save Tone and Load Tone
+        // act on -- and without this the user cannot see from that screen which sound they are replacing.
+        this.WhenAnyValue(x => x.CurrentPartSelection)
+            .Subscribe(part =>
+            {
+                // Part 0 is the Common tab, which holds no tone -- ResolveSelectedToneAsync refuses it, so a
+                // drag would send nothing. The pad says so itself rather than only failing quietly.
+                MorphPadVm.HasTargetPart = part != 0;
+                MorphPadVm.TargetPart = part == 0
+                    ? "No part is selected, so nothing can be morphed yet. Choose one on the Parameters tab."
+                    : $"Morphing the tone in part {part}.";
+            });
     }
+
+    /// <summary>Ask for a library tone to put on a morph corner, showing each candidate's engine.
+    ///
+    /// <b>The folder is listed here rather than taken from the Library tab's rows</b>, which are what its own
+    /// filters admit -- a user who has narrowed that list to their favourites would otherwise find the pad
+    /// unable to see anything else. Listing is a read of one folder's heads, off the UI thread because it is a
+    /// disk read on a click.
+    ///
+    /// The engine narrows the dialog but is not trusted by it: <c>MorphPadViewModel</c> checks the file it is
+    /// handed, in the one place a pad loaded from disk also passes through, so a hand-edited pad cannot get
+    /// past what a pick would have stopped.</summary>
+    private async Task<string?> PickMorphCornerAsync(string? engine, int cornerNumber)
+    {
+        var folder = LibraryVm.Folder;
+        IReadOnlyList<LibraryEntry> entries;
+        try
+        {
+            entries = await Task.Run(() => SnapshotLibrary.Read(folder));
+        }
+        catch (Exception e)
+        {
+            // A library on a share that has gone away, or a folder that refuses to be enumerated. Reported
+            // rather than shown as an empty picker, which would send the user looking for files that are
+            // exactly where they left them.
+            UserActionLog.Failed($"list the library '{folder}' for a morph corner", e.ToString());
+            MorphStatus($"Could not read the library folder: {e.Message}", true);
+            return null;
+        }
+
+        var chosen = await ShowTonePickerDialog.Handle(new TonePickerViewModel(entries,
+            $"Choose a tone for corner {cornerNumber}", engine));
+        return chosen?.FilePath;
+    }
+
+    /// <summary>Ask where a pad goes, or which one to open. Both start in the Pads folder beside the
+    /// library, so a pad saved in one session is in front of the user in the next.</summary>
+    private async Task<string?> PickMorphPadFileAsync(bool saving, string suggestedName)
+    {
+        var folder = MorphPadFile.FolderBeside(LibraryVm.Folder);
+        return saving
+            ? await ShowSaveJsonDialog.Handle(new FilePickerRequest("Save Morph Pad", folder, suggestedName))
+            : await ShowOpenJsonDialog.Handle(new FilePickerRequest("Open Morph Pad", folder));
+    }
+
+    /// <summary>Send one blend to the selected part.
+    ///
+    /// <b>Everything here is a decision about which existing path to take.</b> The part and the engine it
+    /// holds come from <see cref="ResolveSelectedToneAsync"/>, exactly as they do for Save Tone and Load
+    /// Tone; the engine guard is <c>StudioSetSnapshotService.EnsureToneFitsPart</c>, which is the guard a
+    /// restore applies and says the same thing; and the transmission is <c>MorphWriter</c>, which differs
+    /// from a restore in the one way that makes four writes a second affordable -- it does not read the
+    /// blocks first.
+    ///
+    /// <b>Nothing is recorded, and the journal is cleared once.</b> See
+    /// <see cref="_morphClearedTheJournal"/>.
+    ///
+    /// <b>No sync overlay.</b> Every other write to the instrument raises it, and at this rate it would be
+    /// a flicker over the pad the user is dragging rather than an indication that anything is happening.
+    ///
+    /// Called from the pad's throttle, which is not the UI thread, so the part is resolved on the one that
+    /// owns the tab strip and the status bar.</summary>
+    private async Task MorphSelectedPartAsync(Integra7Snapshot blend)
+    {
+        // Locals, not the properties: everything below runs after several awaits, and a rescan in the
+        // meantime replaces both of them.
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null)
+        {
+            // The pad arranges, saves and loads with nothing plugged in -- it is files -- so this is a real
+            // state rather than a guard against the impossible.
+            MorphStatus("Connect to your Integra-7 to hear the morph.", true);
+            return;
+        }
+
+        var selected = await Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            // Refused while Compare is playing the pre-edit sound, for the reason Load Tone is: a blend
+            // replaces one part wholesale, and the journal's buffer is the only copy of the edited values
+            // for the other fifteen.
+            if (RefuseWhileComparing("morph")) return null;
+            return await ResolveSelectedToneAsync("morph");
+        });
+
+        if (selected is null) return; // one of the two above has already said why
+
+        try
+        {
+            StudioSetSnapshotService.EnsureToneFitsPart(blend, selected.ZeroBasedPartNo, selected.ToneType);
+        }
+        catch (SnapshotFormatException e)
+        {
+            // Written for the user, and it names both engines and what to select first.
+            MorphStatus(e.Message, true);
+            return;
+        }
+
+        if (!_morphClearedTheJournal)
+        {
+            // A different tone is about to be in the part, so any step naming one of its parameters
+            // describes the tone that is being replaced. Once per arrival, not once per blend.
+            _morphClearedTheJournal = true;
+            EditJournal.Default.Clear();
+        }
+
+        // A conversation per blend rather than one held across a drag that may last minutes: the lease is
+        // what stops anything else writing partway through, and a morph is only one write long.
+        await using var lease = await api.BeginConversationAsync("morph");
+        await MorphWriter.WriteAsync(communicator, blend, selected.ZeroBasedPartNo, selected.ToneType, lease);
+    }
+
+    /// <summary>Put a blend into the library, asking what to call it first -- the same dialog and the same
+    /// write path Save Tone uses, which is why the blend is annotated rather than saved as it stands.
+    /// </summary>
+    private async Task SaveMorphBlendAsync(Integra7Snapshot blend)
+    {
+        var metadata = await ShowSaveToLibraryDialog.Handle(new SaveToLibraryViewModel(
+            "tone", blend.Name, hasCategory: true, blend.Category, LibraryVm.Folder));
+        if (metadata is null) return; // cancelled -- nothing happened, so say nothing
+
+        try
+        {
+            var path = LibraryVm.SaveIntoLibrary(blend, metadata);
+            SnapshotFailed = false;
+            SnapshotStatus = $"Saved the blend into the library as {Path.GetFileName(path)}.";
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("save a morph blend into the library", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = $"Could not save the blend into the library: {e.Message}";
+        }
+    }
+
+    /// <summary>The status bar, from the morph's own thread. Posted for the reason the journal handler in
+    /// the constructor is: these properties are bound, and a flush runs on the throttle's scheduler.
+    /// Assigning the same message twice raises nothing, which is what keeps a refusal that is true of
+    /// every flush from being reported four times a second.</summary>
+    private void MorphStatus(string message, bool failed) => Dispatcher.UIThread.Post(() =>
+    {
+        SnapshotStatus = message;
+        SnapshotFailed = failed;
+    });
 
     public async Task InitializeAsync()
     {
@@ -2514,3 +2732,14 @@ public partial class MainWindowViewModel : ViewModelBase
 #pragma warning restore CA1822 // Mark members as static
 #pragma warning restore CS8618 // nullable must be assigned in constructor
 }
+
+/// <summary>What a file picker needs to be pointed at something: what to call itself, where to start, and
+/// -- when it is saving -- what to suggest the file be called.
+///
+/// A record rather than three interactions or a tuple because the two Morph pickers differ only in these
+/// three values, and a title and a folder passed positionally as bare strings are exactly the pair that
+/// transposes silently.</summary>
+/// <param name="Folder">Where to open. Ignored when it does not exist, which is the normal state of a
+/// Pads folder until the first pad is saved -- a picker pointed at a folder that is not there answers
+/// nothing, so asking is skipped rather than depending on every backend agreeing about that.</param>
+public sealed record FilePickerRequest(string Title, string Folder, string SuggestedName = "");

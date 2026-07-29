@@ -89,6 +89,26 @@ public class LibraryListingTests
         Assert.That(LibraryListing.KindFromLabel("rhythm-set"), Is.Null, "and filters nothing out");
     }
 
+    /// <summary>The engine drop-down offers the five engine codes verbatim rather than friendly names, because
+    /// that is what the Kind column of the same list and the instrument's own screen both show.</summary>
+    [Test]
+    public void An_engine_label_is_the_engine_code_itself()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(LibraryListing.EngineLabels.First(), Is.EqualTo(LibraryListing.AnyEngine),
+                "so a browser opening on row 0 opens on the whole library");
+            Assert.That(LibraryListing.EngineLabels.Skip(1),
+                Is.EqualTo(new[] { "PCMS", "PCMD", "SN-S", "SN-A", "SN-D" }));
+            Assert.That(LibraryListing.EngineFromLabel("SN-S"), Is.EqualTo("SN-S"));
+            Assert.That(LibraryListing.EngineFromLabel(LibraryListing.AnyEngine), Is.Null);
+            Assert.That(LibraryListing.EngineFromLabel(null), Is.Null);
+            // Not merely "not the any row": a label this has not been taught filters nothing out rather than
+            // emptying the library, which is what KindFromLabel does with an unknown kind.
+            Assert.That(LibraryListing.EngineFromLabel("SN-X"), Is.Null);
+        });
+    }
+
     [Test]
     public void A_minimum_rating_is_the_row_that_was_chosen()
     {

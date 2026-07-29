@@ -46,15 +46,26 @@
                        Foreground="{StaticResource SnMutedTextBrush}" />
         </StackPanel>
 
-        <!-- The filters. Six of them, and they narrow together: each is a separate question about the same
+        <!-- The filters. Seven of them, and they narrow together: each is a separate question about the same
              entry and an entry has to answer all of them. Every drop-down's first row means "not asking", so
-             the browser opens on the whole library. -->
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+             the browser opens on the whole library.
+
+             A WrapPanel, not a StackPanel: seven filters plus the sort no longer fit one line on a window
+             somebody has made narrow, and a horizontal StackPanel does not wrap — it clips, silently, taking
+             the reverse toggle and the clear button off the right-hand edge with no scrollbar to reach them.
+             ItemWidth is left unset so each control keeps its own width. -->
+        <WrapPanel Grid.Row="1" Orientation="Horizontal" ItemSpacing="8" LineSpacing="6"
+                   VerticalAlignment="Center">
             <TextBox Text="{Binding SearchText, Mode=TwoWay}"
                      PlaceholderText="Search names, notes, categories and tags"
                      MinWidth="300" />
             <ComboBox ItemsSource="{Binding KindLabels}"
                       SelectedItem="{Binding KindLabel, Mode=TwoWay}"
+                      MinWidth="120" />
+            <!-- Beside the kind, because it is the same sort of question about the file. Choosing one leaves
+                 out every Studio Set, which carries no engine at all. -->
+            <ComboBox ItemsSource="{Binding EngineLabels}"
+                      SelectedItem="{Binding EngineLabel, Mode=TwoWay}"
                       MinWidth="120" />
             <ComboBox ItemsSource="{Binding CategoryLabels}"
                       SelectedItem="{Binding CategoryLabel, Mode=TwoWay}"
@@ -72,7 +83,7 @@
                  descending" is what anybody wants of a rating every time. -->
             <ToggleButton IsChecked="{Binding Descending, Mode=TwoWay}" Content="Reverse" Padding="8,2" />
             <Button Content="Clear filters" Command="{Binding ClearFilters}" Padding="8,2" />
-        </StackPanel>
+        </WrapPanel>
 
         <!-- The tags in the library, each with a checkbox. Gathered from the files themselves, so a tag exists
              exactly as long as something carries it. The ticks are AND-ed: two ticked tags asks for the sounds
