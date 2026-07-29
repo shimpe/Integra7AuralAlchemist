@@ -143,10 +143,15 @@ public partial class MainWindowViewModel : ViewModelBase
     /// clipboard belongs to the window, and this view model is not allowed to know about one.</summary>
     public Interaction<string, Unit> ShowCopyToClipboard { get; }
 
-    /// <summary>Open a JSON file, starting somewhere in particular and saying what it is for. The Morph
-    /// tab's two openings -- a tone for a corner, and a saved pad -- differ only in their title and their
-    /// folder, and <see cref="ShowOpenSnapshotDialog"/> can supply neither: it opens wherever the picker
-    /// last was, which for a corner means walking to the library every time.
+    /// <summary>Choose one library tone, seeing its engine. The morph pad's corner picker, and the reason it is
+    /// not a file dialog: an operating system's open dialog lists file names, and a pad whose corners must all
+    /// be the same engine needs the user to be able to tell which files those are.</summary>
+    public Interaction<TonePickerViewModel, LibraryEntry?> ShowTonePickerDialog { get; }
+
+    /// <summary>Open a JSON file, starting somewhere in particular and saying what it is for. What the Morph
+    /// tab opens a saved pad with -- a pad is not a snapshot, so it is not in the library listing and there is
+    /// nothing to pick it out of -- and <see cref="ShowOpenSnapshotDialog"/> can supply neither the title nor
+    /// the folder: it opens wherever the picker last was.
     ///
     /// Answers the path, "" for a file with no usable local path, or null for a cancellation, which is the
     /// three-way result every picker here gives -- see <see cref="ShowSaveSnapshotDialog"/> for why "" and
@@ -2276,6 +2281,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ShowRandomiseToneDialog = new Interaction<RandomiseToneViewModel, bool>();
         ShowSaveTextDialog = new Interaction<string, string?>();
         ShowCopyToClipboard = new Interaction<string, Unit>();
+        ShowTonePickerDialog = new Interaction<TonePickerViewModel, LibraryEntry?>();
         ShowOpenJsonDialog = new Interaction<FilePickerRequest, string?>();
         ShowSaveJsonDialog = new Interaction<FilePickerRequest, string?>();
 
@@ -2373,18 +2379,38 @@ public partial class MainWindowViewModel : ViewModelBase
                 : $"Morphing the tone in part {part}.");
     }
 
-    /// <summary>Ask for a library tone to put on a morph corner, starting in the library folder.
+    /// <summary>Ask for a library tone to put on a morph corner, showing each candidate's engine.
     ///
-    /// <b>A file picker rather than a library picker</b>, because this application has no dialog that
-    /// lists library entries and building one is a feature of its own. What that costs is that the choice
-    /// cannot be filtered by engine before it is made -- an operating system's file dialog filters by
-    /// extension and nothing else -- so <paramref name="engine"/> only shapes the title, and the refusal
-    /// happens after the file is read. <c>MorphPadViewModel</c> does that refusing, in one place, so that
-    /// a pad loaded from disk cannot get past what a pick would have stopped.</summary>
-    private async Task<string?> PickMorphCornerAsync(string? engine) =>
-        await ShowOpenJsonDialog.Handle(new FilePickerRequest(
-            engine is null ? "Choose a tone for this corner" : $"Choose a {engine} tone for this corner",
-            LibraryVm.Folder));
+    /// <b>The folder is listed here rather than taken from the Library tab's rows</b>, which are what its own
+    /// filters admit -- a user who has narrowed that list to their favourites would otherwise find the pad
+    /// unable to see anything else. Listing is a read of one folder's heads, off the UI thread because it is a
+    /// disk read on a click.
+    ///
+    /// The engine narrows the dialog but is not trusted by it: <c>MorphPadViewModel</c> checks the file it is
+    /// handed, in the one place a pad loaded from disk also passes through, so a hand-edited pad cannot get
+    /// past what a pick would have stopped.</summary>
+    private async Task<string?> PickMorphCornerAsync(string? engine, int cornerNumber)
+    {
+        var folder = LibraryVm.Folder;
+        IReadOnlyList<LibraryEntry> entries;
+        try
+        {
+            entries = await Task.Run(() => SnapshotLibrary.Read(folder));
+        }
+        catch (Exception e)
+        {
+            // A library on a share that has gone away, or a folder that refuses to be enumerated. Reported
+            // rather than shown as an empty picker, which would send the user looking for files that are
+            // exactly where they left them.
+            UserActionLog.Failed($"list the library '{folder}' for a morph corner", e.ToString());
+            MorphStatus($"Could not read the library folder: {e.Message}", true);
+            return null;
+        }
+
+        var chosen = await ShowTonePickerDialog.Handle(new TonePickerViewModel(entries,
+            $"Choose a tone for corner {cornerNumber}", engine));
+        return chosen?.FilePath;
+    }
 
     /// <summary>Ask where a pad goes, or which one to open. Both start in the Pads folder beside the
     /// library, so a pad saved in one session is in front of the user in the next.</summary>

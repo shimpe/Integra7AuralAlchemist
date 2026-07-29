@@ -1,0 +1,81 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="760" d:DesignHeight="520"
+        x:Class="Integra7AuralAlchemist.Views.TonePickerDialog"
+        x:DataType="vm:TonePickerViewModel"
+        Title="{Binding Title}"
+        Width="760" Height="520"
+        WindowStartupLocation="CenterOwner">
+
+    <!-- The library's own list, cut down to what choosing needs: which sound, which engine, what it is filed
+         under and how good the user thought it was. No date and no tags — this is a dialog somebody is trying
+         to get out of, and the two widest columns are the two least likely to decide a pick. -->
+
+    <Grid Margin="14" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="10">
+
+        <TextBlock Grid.Row="0" Text="{Binding EngineNote}" TextWrapping="Wrap"
+                   Foreground="{StaticResource SnMutedTextBrush}" />
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBox Text="{Binding SearchText, Mode=TwoWay}"
+                     PlaceholderText="Search names, notes, categories and tags"
+                     MinWidth="340" />
+            <!-- Hidden rather than disabled when the engine is locked: a drop-down that can only be set one
+                 way invites the user to try, and the sentence above already says which engine and why. -->
+            <ComboBox ItemsSource="{Binding EngineLabels}"
+                      SelectedItem="{Binding EngineLabel, Mode=TwoWay}"
+                      IsVisible="{Binding !EngineIsLocked}"
+                      MinWidth="120" />
+        </StackPanel>
+
+        <Grid Grid.Row="2" RowDefinitions="Auto,*">
+            <!-- The header and the rows share one column layout, so it is written twice and has to agree; the
+                 header's right margin is the lane Avalonia's vertical scrollbar floats in. -->
+            <Grid Grid.Row="0" ColumnDefinitions="28,3*,110,2*,90" Margin="4,0,16,4">
+                <TextBlock Grid.Column="0" Text="♥" Foreground="{StaticResource SnMutedTextBrush}" />
+                <TextBlock Grid.Column="1" Text="Name" FontWeight="Bold" />
+                <TextBlock Grid.Column="2" Text="Engine" FontWeight="Bold" />
+                <TextBlock Grid.Column="3" Text="Category" FontWeight="Bold" />
+                <TextBlock Grid.Column="4" Text="Rating" FontWeight="Bold" />
+            </Grid>
+
+            <ListBox Grid.Row="1" Name="Rows"
+                     ItemsSource="{Binding Entries}"
+                     SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
+                     SelectionMode="Single"
+                     DoubleTapped="OnRowDoubleTapped">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LibraryEntryViewModel">
+                        <Grid ColumnDefinitions="28,3*,110,2*,90">
+                            <TextBlock Grid.Column="0" Text="{Binding FavouriteMark}"
+                                       Foreground="{StaticResource SnRatingStarBrush}" />
+                            <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <!-- "Tone SN-S" as the library spells it, so the same sound reads the same way in
+                                 both lists. The word before the engine is redundant here and cheaper to leave
+                                 than to build a second spelling of the one fact. -->
+                            <TextBlock Grid.Column="2" Text="{Binding Kind}"
+                                       Foreground="{StaticResource SnMutedTextBrush}" />
+                            <TextBlock Grid.Column="3" Text="{Binding Category}"
+                                       Foreground="{StaticResource SnMutedTextBrush}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="4" Text="{Binding Stars}"
+                                       Foreground="{StaticResource SnRatingStarBrush}" />
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+
+        <TextBlock Grid.Row="3" Text="{Binding Summary}" TextWrapping="Wrap"
+                   Foreground="{StaticResource SnMutedTextBrush}" />
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+            <Button Content="Choose" Command="{Binding ChooseCommand}" Padding="14,3" IsDefault="True" />
+            <Button Content="Cancel" Command="{Binding CancelCommand}" Padding="14,3" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

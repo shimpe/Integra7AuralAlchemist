@@ -113,7 +113,7 @@ public sealed partial class MorphPadViewModel : ViewModelBase, IDisposable
     private const int MaxCorners = 7;
 
     private readonly Integra7Parameters _parameters;
-    private readonly Func<string?, Task<string?>> _pickCorner;
+    private readonly Func<string?, int, Task<string?>> _pickCorner;
     private readonly Func<Integra7Snapshot, Task> _writeBlend;
     private readonly Func<Integra7Snapshot, Task> _saveToLibrary;
     private readonly Func<bool, string, Task<string?>> _pickPadFile;
@@ -136,9 +136,10 @@ public sealed partial class MorphPadViewModel : ViewModelBase, IDisposable
 
     /// <param name="parameters">This build's parameter database: what says which values may be averaged
     /// and which are labels. See <see cref="MorphedTone"/>.</param>
-    /// <param name="pickCorner">Ask for a tone file, told which engine the pad is locked to, or null when
-    /// it is not locked yet. Answers the path, "" for a file with no usable local path, or null for a
-    /// cancellation -- the three-way result every picker in this application gives.</param>
+    /// <param name="pickCorner">Ask for a tone file, told which engine the pad is locked to -- or null when it
+    /// is not locked yet -- and which corner is being filled, so the dialog can say. Answers the path, "" for a
+    /// file with no usable local path, or null for a cancellation: the three-way result every picker in this
+    /// application gives.</param>
     /// <param name="writeBlend">Send one blend to the instrument. The target part is not a parameter: the
     /// window resolves it from the part tab strip at the moment of the write, and the blend carries the
     /// engine that has to match it.</param>
@@ -149,7 +150,7 @@ public sealed partial class MorphPadViewModel : ViewModelBase, IDisposable
     /// <param name="report">The window's status bar: the message, and whether it is a failure.</param>
     public MorphPadViewModel(
         Integra7Parameters parameters,
-        Func<string?, Task<string?>> pickCorner,
+        Func<string?, int, Task<string?>> pickCorner,
         Func<Integra7Snapshot, Task> writeBlend,
         Func<Integra7Snapshot, Task> saveToLibrary,
         Func<bool, string, Task<string?>> pickPadFile,
@@ -257,7 +258,7 @@ public sealed partial class MorphPadViewModel : ViewModelBase, IDisposable
     {
         UserActionLog.Action($"button: Pick corner {corner.Number} (morph)");
 
-        var path = await _pickCorner(ToneType.Length == 0 ? null : ToneType);
+        var path = await _pickCorner(ToneType.Length == 0 ? null : ToneType, corner.Number);
         if (path is null) return; // cancelled -- nothing happened, so say nothing
         if (path.Length == 0)
         {

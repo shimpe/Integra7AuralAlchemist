@@ -86,6 +86,7 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
             action(ViewModel!.ShowRandomiseToneDialog.RegisterHandler(DoShowRandomiseToneDialogAsync));
             action(ViewModel!.ShowSaveTextDialog.RegisterHandler(DoShowSaveTextDialogAsync));
             action(ViewModel!.ShowCopyToClipboard.RegisterHandler(DoCopyToClipboardAsync));
+            action(ViewModel!.ShowTonePickerDialog.RegisterHandler(DoShowTonePickerDialogAsync));
             action(ViewModel!.ShowOpenJsonDialog.RegisterHandler(DoShowOpenJsonDialogAsync));
             action(ViewModel!.ShowSaveJsonDialog.RegisterHandler(DoShowSaveJsonDialogAsync));
         });
@@ -209,6 +210,15 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
     {
         var dialog = new RandomiseToneDialog { DataContext = interaction.Input };
         interaction.SetOutput(await dialog.ShowDialog<bool>(this));
+    }
+
+    /// <summary>Answers null for a cancellation, which a dismissed window -- the title bar's X, Escape -- gives
+    /// for free: nothing is chosen, and the caller leaves the corner as it was.</summary>
+    private async Task DoShowTonePickerDialogAsync(
+        IInteractionContext<TonePickerViewModel, LibraryEntry?> interaction)
+    {
+        var dialog = new TonePickerDialog { DataContext = interaction.Input };
+        interaction.SetOutput(await dialog.ShowDialog<LibraryEntry?>(this));
     }
 
     private async Task DoShowPickLibraryFolderDialogAsync(IInteractionContext<string, string?> interaction)
