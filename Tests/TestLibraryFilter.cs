@@ -16,9 +16,9 @@ namespace Tests;
 public class LibraryFilterTests
 {
     private static LibraryEntry Tone(string name, string category = "", string[]? tags = null,
-        string notes = "", int rating = 0, bool favourite = false) =>
+        string notes = "", int rating = 0, bool favourite = false, string engine = "SN-S") =>
         new($"{name}.json",
-            new SnapshotHead(name, SnapshotKinds.Tone, "SN-S", category, tags ?? [], notes, rating, favourite),
+            new SnapshotHead(name, SnapshotKinds.Tone, engine, category, tags ?? [], notes, rating, favourite),
             new DateTime(2026, 7, 26, 19, 40, 0));
 
     /// <summary>A Studio Set: sixteen parts, each with a category of its own, so the file has none. That is a
@@ -195,6 +195,53 @@ public class LibraryFilterTests
             Is.EqualTo(new[] { "Warm Rhodes", "Bright Rhodes", "Church Organ", "Nameless Pad" }));
         Assert.That(Names(new LibraryFilter(Kind: null).Apply(Everything)), Is.EqualTo(Names(Everything)),
             "no kind chosen is both kinds");
+    }
+
+    /// <summary>The engine axis, on a list of its own rather than on the shared one, so that adding it did not
+    /// have to move every other test's expectations.
+    ///
+    /// The Studio Set in it is the case worth pinning: it carries no engine at all, so asking for one drops it.
+    /// A morph pad is the reason this axis exists and its corners must be tones, so that is the answer wanted
+    /// -- but it is also the answer somebody will one day read as a bug, which is why it is a test.</summary>
+    [Test]
+    public void The_engine_filter_picks_one_engine_and_leaves_out_what_has_none()
+    {
+        LibraryEntry[] mixed =
+        [
+            Tone("Warm Rhodes", engine: "SN-S"),
+            Tone("Concert Grand", engine: "SN-A"),
+            Tone("Old Pad", engine: "PCMS"),
+            Tone("Glass Bell", engine: "SN-S"),
+            StudioSet("World Pop Set"),
+        ];
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(Names(new LibraryFilter(Engine: "SN-S").Apply(mixed)),
+                Is.EqualTo(new[] { "Warm Rhodes", "Glass Bell" }));
+            Assert.That(Names(new LibraryFilter(Engine: "PCMS").Apply(mixed)),
+                Is.EqualTo(new[] { "Old Pad" }));
+            Assert.That(Names(new LibraryFilter(Engine: null).Apply(mixed)), Is.EqualTo(Names(mixed)),
+                "no engine chosen is every engine, and the Studio Set is back");
+            Assert.That(new LibraryFilter(Engine: "").Apply(mixed), Has.Count.EqualTo(mixed.Length),
+                "and empty means the same as null, which is what a drop-down's blank row would send");
+        });
+    }
+
+    /// <summary>Narrowing by engine and by something else at once, which is what the axis is for: the pad's
+    /// picker asks for one engine and the user types into the same search box they always do.</summary>
+    [Test]
+    public void The_engine_narrows_together_with_the_other_axes()
+    {
+        LibraryEntry[] mixed =
+        [
+            Tone("Warm Rhodes", "E.Piano", rating: 4, engine: "SN-S"),
+            Tone("Warm Pad", "Synth Pad", rating: 4, engine: "SN-S"),
+            Tone("Warm Grand", "Ac.Piano", rating: 4, engine: "SN-A"),
+        ];
+
+        Assert.That(Names(new LibraryFilter(Text: "warm", MinimumRating: 4, Engine: "SN-S").Apply(mixed)),
+            Is.EqualTo(new[] { "Warm Rhodes", "Warm Pad" }));
     }
 
     /// <summary>Category matching is exact, because the vocabulary is fixed: these are the instrument's own 34

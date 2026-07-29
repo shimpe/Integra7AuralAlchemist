@@ -39,6 +39,9 @@ public static class LibraryListing
     public const string AnyKind = "Any kind";
 
     /// <inheritdoc cref="AnyKind"/>
+    public const string AnyEngine = "Any engine";
+
+    /// <inheritdoc cref="AnyKind"/>
     public const string AnyCategory = "Any category";
 
     /// <inheritdoc cref="AnyKind"/>
@@ -70,6 +73,24 @@ public static class LibraryListing
         not null when label == KindLabel(SnapshotKinds.Tone) => SnapshotKinds.Tone,
         _ => null,
     };
+
+    /// <summary>The engine drop-down: "any", then the five engines a tone can be, in the order the instrument's
+    /// own documentation lists them.
+    ///
+    /// <b>The codes themselves, not friendly names.</b> "SN-S" rather than "SuperNATURAL Synth", because that is
+    /// what the Kind column of this same list already shows, what the part selectors show, and what the
+    /// instrument prints on its own screen. A second vocabulary for the same five things would be one more thing
+    /// to learn and one more place for the two to disagree. It also means <see cref="EngineFromLabel"/> is
+    /// nearly the identity, which is the honest shape for a mapping that is one.</summary>
+    public static IReadOnlyList<string> EngineLabels { get; } =
+        [AnyEngine, "PCMS", "PCMD", "SN-S", "SN-A", "SN-D"];
+
+    /// <summary>What a row of <see cref="EngineLabels"/> means to <see cref="LibraryFilter.Engine"/>: the code
+    /// itself, or null for "not asking". Anything unrecognised is null, matching
+    /// <see cref="KindFromLabel"/>: a filter that admitted nothing is the worse answer to a label this has not
+    /// been taught.</summary>
+    public static string? EngineFromLabel(string? label) =>
+        label is not null && label != AnyEngine && ToneDomainNames.IsKnownToneType(label) ? label : null;
 
     /// <summary>The category drop-down: "any", then the instrument's own 34, in the instrument's own order.
     ///

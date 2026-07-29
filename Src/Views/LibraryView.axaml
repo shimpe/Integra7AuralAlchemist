@@ -56,6 +56,11 @@
             <ComboBox ItemsSource="{Binding KindLabels}"
                       SelectedItem="{Binding KindLabel, Mode=TwoWay}"
                       MinWidth="120" />
+            <!-- Beside the kind, because it is the same sort of question about the file. Choosing one leaves
+                 out every Studio Set, which carries no engine at all. -->
+            <ComboBox ItemsSource="{Binding EngineLabels}"
+                      SelectedItem="{Binding EngineLabel, Mode=TwoWay}"
+                      MinWidth="120" />
             <ComboBox ItemsSource="{Binding CategoryLabels}"
                       SelectedItem="{Binding CategoryLabel, Mode=TwoWay}"
                       MinWidth="160" />
