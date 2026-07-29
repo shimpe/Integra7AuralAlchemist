@@ -47,12 +47,30 @@ need to know, and it was read off a real library file rather than inferred:
 }
 ```
 
-- **Five levels of object** inside `Blocks` before the leaves: start address, offset, offset2, block name,
-  then the parameters.
 - **A leaf is either a bare string** — a text parameter such as a tone name, which has no raw value — **or a
   two-element array** `[raw, "displayed"]`.
-- **The full parameter path** is the block name, a slash, and the leaf name:
-  `SuperNATURAL Acoustic Tone Common/Tone Level`.
+- **The nesting under a block is not one level deep.** `SnapshotJsonConverter.WriteBlockValues` nests a
+  block's values by the slashes in the parameter's own path, and a path in this database has **one slash or
+  two**. So a block's effects section looks like this, and does in every real file:
+
+```json
+"SuperNATURAL Synth Tone Common MFX": {
+  "MFX Type": [1, "Equalizer"],
+  "MFX Parameter 1": { "Modulation Delay Left (ms-note)": [32769, "Note"] }
+}
+```
+
+- **The full parameter path is every name from the block down**, joined by slashes —
+  `SuperNATURAL Synth Tone Common MFX/MFX Parameter 1/Modulation Delay Left (ms-note)`, which is exactly
+  what `SnapshotValue.Path` holds.
+
+> **This block was wrong when the plan was first written**, and it is worth knowing how. It said five levels
+> and one slash, because it was read off the shallow head of one file. Measured across the whole of a real
+> library, **346 values in 12 files sit below the first level** — every MFX parameter of every tone. A reader
+> written to the wrong shape would have searched a patch's entire effects section not at all, and silently
+> left those values out of every duplicate vector. **Track a name per level and descend; do not test for a
+> fixed depth.** Both readers now do, and the correction was verified by cross-checking them against a full
+> `Integra7Snapshot.FromJson` parse of every file in the user's library.
 
 `SnapshotHead` already walks the metadata and calls `reader.Skip()` on `Blocks`. These two readers do the
 opposite: skip nothing, interpret only the half they need, and build no objects.
