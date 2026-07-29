@@ -93,7 +93,13 @@ public static class PatchHistory
     /// <b>What is there now becomes a version in its turn</b>, so restoring the wrong one is not the single
     /// unrecoverable act in a feature built for recovery. Written through a temporary file and a rename for
     /// the reason <see cref="SnapshotLibrary"/> writes that way: a failure partway through must not leave
-    /// the patch half replaced.</summary>
+    /// the patch half replaced.
+    ///
+    /// <b>The restored file is stamped with now</b>, because copying and moving both carry the source's
+    /// timestamp over and the file has in fact just been written. Leaving the old one produces two failures
+    /// that do not look like timestamp failures: the library list's Date column jumps backwards, so a
+    /// restore reads as having done nothing, and the next write archives under a stamp already taken,
+    /// leaving two version rows the user cannot tell apart.</summary>
     public static void Restore(string filePath, string versionPath)
     {
         Archive(filePath);
@@ -103,6 +109,7 @@ public static class PatchHistory
         {
             File.Copy(versionPath, temp, overwrite: true);
             File.Move(temp, filePath, overwrite: true);
+            File.SetLastWriteTime(filePath, DateTime.Now);
         }
         catch
         {

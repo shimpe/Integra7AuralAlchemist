@@ -170,6 +170,45 @@ public class PatchHistoryTests
         });
     }
 
+    /// <summary>A restored file was written now, and has to say so.
+    ///
+    /// <b>Copying and moving both preserve the source's timestamp</b>, so without this the file would carry
+    /// the restored content's original time. Two things then go wrong, and neither looks like a timestamp
+    /// problem: the library list's Date column jumps backwards, so a restore reads as having done nothing;
+    /// and the next write archives under a stamp that has already been used, producing two version rows the
+    /// user cannot tell apart.</summary>
+    [Test]
+    public void A_restored_file_is_stamped_with_the_time_it_was_restored()
+    {
+        var path = WriteFile("Warm Pad.json", "original", new DateTime(2026, 7, 1, 9, 0, 0));
+        PatchHistory.Archive(path);
+        File.WriteAllText(path, "current");
+        File.SetLastWriteTime(path, new DateTime(2026, 7, 2, 9, 0, 0));
+
+        var before = DateTime.Now;
+        PatchHistory.Restore(path, PatchHistory.Versions(path).Single().FilePath);
+
+        Assert.That(File.GetLastWriteTime(path), Is.GreaterThanOrEqualTo(before),
+            "not the 1 July the restored content was originally written at");
+    }
+
+    /// <summary>The consequence of the rule above, from the other side: a save after a restore must produce
+    /// a version the user can tell apart from the one they restored.</summary>
+    [Test]
+    public void Archiving_after_a_restore_does_not_collide_with_the_version_it_restored()
+    {
+        var path = WriteFile("Warm Pad.json", "original", new DateTime(2026, 7, 1, 9, 0, 0));
+        PatchHistory.Archive(path);
+        File.WriteAllText(path, "current");
+        File.SetLastWriteTime(path, new DateTime(2026, 7, 2, 9, 0, 0));
+        PatchHistory.Restore(path, PatchHistory.Versions(path).Single(v => v.Written.Day == 1).FilePath);
+
+        PatchHistory.Archive(path);
+
+        Assert.That(PatchHistory.Versions(path).Select(v => v.Written).Distinct().Count(),
+            Is.EqualTo(3), "the two archived by hand and the restore's own, all distinguishable");
+    }
+
     /// <summary>A file in the history folder that this did not write -- a stray, or something a user
     /// dropped there -- is ignored rather than listed with a meaningless date.</summary>
     [Test]
