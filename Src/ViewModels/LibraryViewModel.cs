@@ -18,7 +18,7 @@ namespace Integra7AuralAlchemist.ViewModels;
 /// searching, rating and annotating are file operations, so this view model is built once in
 /// <c>MainWindowViewModel</c>'s constructor and never replaced -- unlike the mixer, the layer map and the
 /// Motional Surround editor, which wrap live parameters and are rebuilt on every rescan. Only <see
-/// cref="LoadSelectedAsync"/> needs the device, and it asks the window, which already knows whether there is one.
+/// cref="LoadAsync"/> needs the device, and it asks the window, which already knows whether there is one.
 ///
 /// <b>No filtering logic lives here.</b> Every question about which entries are admitted is
 /// <see cref="LibraryFilter"/>'s, and every question about order, labels, stars and tag text is
@@ -107,6 +107,11 @@ public sealed partial class LibraryViewModel : ViewModelBase
         _folder = preferences.Folder;
         _initTones = new Dictionary<string, string>(preferences.InitTones);
 
+        // Before the subscriptions and before the first Refresh, both of which reach for it: one feeds it the
+        // selection, and the other tells it the init-tone marks have moved.
+        Editor = new LibraryEditorViewModel(SaveChangesAsync, LoadAsync, CompareAsync, DeleteAsync,
+            MarkAsInitTone);
+
         // Every filter and both halves of the sort, in one subscription. Seven properties rather than seven
         // subscriptions because they all do the same thing and doing it once is what stops a change of two of
         // them at a time from filtering twice. WhenAnyValue fires on subscription, so this is also what performs
@@ -121,18 +126,9 @@ public sealed partial class LibraryViewModel : ViewModelBase
                 (_, _, _, _, _, _, _, _) => Unit.Default)
             .Subscribe(_ => ApplyFilter());
 
-        // The editor follows the selection, and two derived flags follow the editor. HasSelection and
-        // CanSaveChanges are what the buttons and the panel bind to, and neither is raised by the generated
-        // setters of the properties they read.
-        this.WhenAnyValue(x => x.SelectedEntry).Subscribe(_ => ShowSelected());
-        this.WhenAnyValue(x => x.EditName, x => x.SelectedEntry, (_, _) => Unit.Default).Subscribe(_ =>
-        {
-            this.RaisePropertyChanged(nameof(HasSelection));
-            this.RaisePropertyChanged(nameof(SelectedIsTone));
-            this.RaisePropertyChanged(nameof(CanSaveChanges));
-            this.RaisePropertyChanged(nameof(CanMarkAsInitTone));
-            this.RaisePropertyChanged(nameof(InitToneNote));
-        });
+        // The panel follows the selection. The flags it raises are its own; this only tells it what to
+        // describe.
+        this.WhenAnyValue(x => x.SelectedEntry).Subscribe(row => Editor.Selected = row);
 
         Refresh();
     }
@@ -201,48 +197,9 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
     // ---- the editor ---------------------------------------------------------------------------------------
 
-    [Reactive] private string _editName = "";
-    [Reactive] private string _editCategoryLabel = LibraryListing.NoCategory;
-    [Reactive] private string _editTags = "";
-    [Reactive] private string _editNotes = "";
-    [Reactive] private bool _editFavourite;
-
-    /// <summary>The stars. A type of its own because the save dialog wants the same five -- see
-    /// <see cref="RatingViewModel"/>.</summary>
-    public RatingViewModel EditRating { get; } = new();
-
-    public IReadOnlyList<string> EditCategoryLabels => LibraryListing.EditCategoryLabels;
-
-    public bool HasSelection => SelectedEntry is not null;
-
-    /// <summary>Whether the selected entry is a tone, which is the only thing that has a category. A Studio Set
-    /// is sixteen parts each with one of their own, so the drop-down is disabled rather than hidden for one: the
-    /// row still shows what the file says, which matters for a hand-edited file that has a category it should
-    /// not.</summary>
-    public bool SelectedIsTone => SelectedEntry?.Entry.Head.Kind == SnapshotKinds.Tone;
-
-    /// <summary>Whether the selected entry can be made an init tone: a tone (not a Studio Set) whose
-    /// engine this build recognises, since the mark is stored per engine.</summary>
-    public bool CanMarkAsInitTone =>
-        SelectedIsTone && SelectedEntry?.Entry.Head.ToneType is { } t &&
-        ToneDomainNames.IsKnownToneType(t);
-
-    /// <summary>What the details panel says about the selected entry's init-tone status -- empty when
-    /// there is nothing to say, which is most of the time.
-    ///
-    /// Reads the row's own mark rather than repeating the lookup <see cref="ApplyInitToneMarks"/> already
-    /// made: two places comparing the same file name against the same map is two places that can come to
-    /// disagree, and the list and the panel disagreeing about the same entry would be visible.</summary>
-    public string InitToneNote =>
-        SelectedEntry is { IsInitTone: true, Entry.Head.ToneType: { } toneType }
-            ? $"Init Tone starts from this when the part holds a {toneType} tone."
-            : "";
-
-    /// <summary>Whether Save changes can do anything. The name is the one field that cannot be cleared: an entry
-    /// with no name is a row the user cannot tell from the one above it, and the file it names may be their only
-    /// copy of that sound. <c>SnapshotLibrary</c> refuses a blank name as well -- this is the half that stops the
-    /// user reaching a refusal, and that is the half that stops it being reported as an error.</summary>
-    public bool CanSaveChanges => HasSelection && EditName.Trim().Length > 0;
+    /// <summary>The panel beside the list. Built once, and told which row is selected -- see
+    /// <see cref="LibraryEditorViewModel"/> for why the editor is not in this file.</summary>
+    public LibraryEditorViewModel Editor { get; }
 
     // ---- reading and filtering ----------------------------------------------------------------------------
 
@@ -306,9 +263,9 @@ public sealed partial class LibraryViewModel : ViewModelBase
         var selectedPath = SelectedEntry?.FilePath;
         Entries.Clear();
         foreach (var entry in admitted) Entries.Add(new LibraryEntryViewModel(entry));
-        // Before the selection is restored, not after: assigning SelectedEntry is what raises InitToneNote,
-        // and that note now reads the row's own mark -- so a row marked afterwards would leave the details
-        // panel saying nothing about a tone the list is already flagging.
+        // Before the selection is restored, not after: the panel's init-tone note reads the selected row's own
+        // mark, so a row marked afterwards would be handed to the panel unmarked and the panel would say
+        // nothing about a tone the list is already flagging.
         ApplyInitToneMarks();
         SelectedEntry = Entries.FirstOrDefault(row =>
             string.Equals(row.FilePath, selectedPath, StringComparison.OrdinalIgnoreCase));
@@ -331,26 +288,16 @@ public sealed partial class LibraryViewModel : ViewModelBase
                                _initTones.TryGetValue(toneType, out var file) &&
                                string.Equals(file, Path.GetFileName(entry.FilePath),
                                    StringComparison.OrdinalIgnoreCase);
-    }
 
-    /// <summary>Put the selected entry's metadata into the editor -- or clear it when nothing is selected. Every
-    /// field, including the empty ones: a box left holding the previous selection's notes is a box whose Save
-    /// would write them onto this sound.</summary>
-    private void ShowSelected()
-    {
-        var head = SelectedEntry?.Entry.Head;
-        EditName = head?.Name ?? "";
-        EditCategoryLabel = LibraryListing.EditLabelForCategory(head?.Category);
-        EditTags = head is null ? "" : LibraryListing.FormatTags(head.Tags);
-        EditNotes = head?.Notes ?? "";
-        EditRating.Value = head?.Rating ?? 0;
-        EditFavourite = head?.Favourite ?? false;
+        // The marks are not on the panel's own state, so nothing it holds has changed and it has no way to
+        // know its note is stale.
+        Editor.InitToneMarksChanged();
     }
 
     // ---- the commands -------------------------------------------------------------------------------------
 
-    /// <summary>Write the editor's fields back into the selected file, and re-read the folder so the list shows
-    /// what the file now says rather than what was typed.
+    /// <summary>Write the panel's fields back into the file behind the given row, and re-read the folder so the
+    /// list shows what the file now says rather than what was typed.
     ///
     /// <b>One write path.</b> Everything here goes through <c>SnapshotLibrary.WriteMetadata</c>, including the
     /// name -- which that method learned as one more field for exactly this editor. Nothing in this file opens a
@@ -359,58 +306,49 @@ public sealed partial class LibraryViewModel : ViewModelBase
     ///
     /// <b>Renaming changes the name inside the file and not the file's own name.</b> Moving a user's file under
     /// them is a bigger thing than editing a field, it breaks anything else pointing at the path, and the browser
-    /// lists what is inside the file anyway.</summary>
-    public void SaveChanges()
+    /// lists what is inside the file anyway.
+    ///
+    /// Synchronous work behind a <c>Task</c>: the callback is shaped for the panel, which awaits every one of
+    /// them, and a write of a few hundred kilobytes is not worth a thread.</summary>
+    private Task SaveChangesAsync(LibraryEntryViewModel row, SnapshotMetadata metadata)
     {
-        UserActionLog.Action("button: Save changes (library)");
-        var entry = SelectedEntry;
-        if (entry is null || !CanSaveChanges) return;
-
         try
         {
-            SnapshotLibrary.WriteMetadata(entry.FilePath, new SnapshotMetadata(
-                LibraryListing.CategoryToWrite(EditCategoryLabel),
-                LibraryListing.ParseTags(EditTags),
-                EditNotes,
-                EditRating.Value,
-                EditFavourite,
-                EditName.Trim()));
-
-            _report($"Saved the changes to {Path.GetFileName(entry.FilePath)}.", false);
+            SnapshotLibrary.WriteMetadata(row.FilePath, metadata);
+            _report($"Saved the changes to {Path.GetFileName(row.FilePath)}.", false);
             Refresh();
         }
         catch (Exception e)
         {
-            // Including SnapshotFormatException, whose message is written for the user: a file this build cannot
-            // open cannot be annotated either, and saying so names the file they are looking at.
-            UserActionLog.Failed($"save the metadata of '{entry.FilePath}'", e.ToString());
+            // Including SnapshotFormatException, whose message is written for the user, and now also an
+            // IOException from PatchHistory: a file whose previous version cannot be kept is not written.
+            UserActionLog.Failed($"save the metadata of '{row.FilePath}'", e.ToString());
             _report($"Could not save the changes: {e.Message}", true);
         }
+
+        return Task.CompletedTask;
     }
 
-    /// <summary>Send the selected snapshot to the instrument, through the window's own restore paths. A tone still
+    /// <summary>Send the given snapshot to the instrument, through the window's own restore paths. A tone still
     /// refuses to load into a part holding a different engine, with the message it already gives -- that guard is
     /// <c>StudioSetSnapshotService.RestoreToneAsync</c>'s and this does not repeat it.</summary>
-    public async Task LoadSelectedAsync()
-    {
-        UserActionLog.Action("button: Load (library)");
-        var entry = SelectedEntry?.Entry;
-        if (entry is null) return;
-        await _load(entry);
-    }
+    private Task LoadAsync(LibraryEntryViewModel row) => _load(row.Entry);
 
-    /// <summary>Make the selected entry the tone Init starts from for its engine. Stored as a file name
+    /// <summary>Send the given snapshot to the Compare tab, which fills whichever of its two slots is free. The
+    /// comparison itself is that tab's job; this is only a way in from the list.</summary>
+    private Task CompareAsync(LibraryEntryViewModel row) => _compare(row.Entry);
+
+    /// <summary>Make the given entry the tone Init starts from for its engine. Stored as a file name
     /// relative to the library folder, so it follows the library if the folder moves.</summary>
-    public void MarkAsInitTone()
+    private void MarkAsInitTone(LibraryEntryViewModel row)
     {
-        UserActionLog.Action("button: Use as the init tone (library)");
-        if (SelectedEntry?.Entry.Head.ToneType is not { } toneType) return;
+        if (row.Entry.Head.ToneType is not { } toneType) return;
 
-        _initTones[toneType] = Path.GetFileName(SelectedEntry.FilePath);
+        _initTones[toneType] = Path.GetFileName(row.FilePath);
         try
         {
             LibrarySettings.SaveAll(_settingsPath, new LibraryPreferences(Folder, _initTones));
-            _report($"Init Tone will start from {SelectedEntry.Name} for {toneType} tones.", false);
+            _report($"Init Tone will start from {row.Name} for {toneType} tones.", false);
         }
         catch (Exception e)
         {
@@ -421,31 +359,23 @@ public sealed partial class LibraryViewModel : ViewModelBase
                 true);
         }
 
-        // Before the raise below, which reads the selected row's own mark, and over every row rather than
-        // this one: the mark is per engine, so giving it to this tone takes it from whichever tone had it.
+        // Over every row rather than this one: the mark is per engine, so giving it to this tone takes it from
+        // whichever tone had it. It is also what tells the panel its note has gone stale.
         ApplyInitToneMarks();
-        this.RaisePropertyChanged(nameof(InitToneNote));
     }
 
-    /// <summary>Send the selected snapshot to the Compare tab, which fills whichever of its two slots is
-    /// free. The comparison itself is that tab's job; this is only a way in from the list.</summary>
-    public async Task CompareThisAsync()
-    {
-        UserActionLog.Action("button: Compare this");
-        if (SelectedEntry is { } entry) await _compare(entry.Entry);
-    }
-
-    /// <summary>Remove the selected snapshot from the library, after asking. It still asks, even though
+    /// <summary>Remove the given snapshot from the library, after asking. It still asks, even though
     /// <see cref="PatchHistory"/> now keeps a copy: the row leaves the library, the mark on it is cleared,
     /// and getting it back means knowing the history folder exists.
     ///
     /// A mark pointing at the file goes with it. <c>InitToneResolution</c> copes with a stale mark by falling
     /// back to the bundled tone and saying so, but a mark the user can no longer see or clear is a trap,
     /// and this is the moment it is cheapest to tidy.</summary>
-    public async Task DeleteSelectedAsync()
+    private async Task DeleteAsync(LibraryEntryViewModel selected)
     {
+        // The one action's log line that did not move to the panel with its button: this is where the file is
+        // actually removed, and where the user can still say no.
         UserActionLog.Action("button: Delete from library");
-        if (SelectedEntry is not { } selected) return;
 
         if (!await _confirm($"Delete \"{selected.Name}\" from the library? " +
                             $"The file {Path.GetFileName(selected.FilePath)} is removed, but a copy is " +
@@ -540,8 +470,9 @@ public sealed partial class LibraryViewModel : ViewModelBase
     ///
     /// Called by the window's Save Studio Set and Save Tone, which is why it takes an in-memory snapshot when
     /// nothing else here will: it is the one operation whose subject genuinely is the instrument's current state
-    /// rather than a file. Annotating an existing file is <see cref="SaveChanges"/>, which is handed no snapshot
-    /// at all -- see <c>SnapshotLibrary.WriteMetadata</c> for why that distinction is enforced by the signatures.
+    /// rather than a file. Annotating an existing file is <see cref="SaveChangesAsync"/>, which is handed no
+    /// snapshot at all -- see <c>SnapshotLibrary.WriteMetadata</c> for why that distinction is enforced by the
+    /// signatures.
     ///
     /// Throws, rather than reporting: the caller is inside a capture with its own try/catch and its own status
     /// message naming which of the two things it was saving, and two layers reporting the same failure would say
