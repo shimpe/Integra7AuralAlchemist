@@ -71,7 +71,12 @@ public sealed record SnapshotMetadata(
 /// format version, and a file that has one is listed whatever else is wrong with it -- wrong version, rating
 /// of seven, no name -- and refused, by name, when it is opened. (It was not always narrow enough. A snapshot
 /// re-saved by an editor that added a byte-order mark used to take this same silent exit; see
-/// <c>ByteOrderMark</c>.)</summary>
+/// <c>ByteOrderMark</c>.)
+///
+/// <b>Every write and every delete keeps the copy it replaced</b> -- see <see cref="PatchHistory"/>. The
+/// archive is taken before the change and is allowed to throw, which refuses the change: this class replaces
+/// a file by renaming over it, so a write that continued past a failed archive would destroy the only copy.
+/// </summary>
 public static class SnapshotLibrary
 {
     /// <summary>Snapshots are JSON, so this is what the library looks for. Named here rather than written into
@@ -192,11 +197,13 @@ public static class SnapshotLibrary
         return path;
     }
 
-    /// <summary>Remove a snapshot from the library, permanently.
+    /// <summary>Remove a snapshot from the library.
     ///
     /// <b>Not a move to the recycle bin</b>, because .NET has no cross-platform API for one and this
-    /// application runs on all three desktops. What stands between the user and a lost snapshot is the
-    /// confirmation the caller asks for, not this.
+    /// application runs on all three desktops. What stands in its place is <see cref="PatchHistory"/>: the
+    /// file is copied into the history folder first, so a deletion is recoverable by someone who knows that
+    /// folder is there. The confirmation the caller asks for is still what stops it happening by accident,
+    /// because leaving the library is what the user will notice, not the copy that remains.
     ///
     /// A file that is already gone is not an error: the listing is a picture of a folder other things can
     /// change, so by the time the user presses Delete another copy of this application, a file manager or
@@ -218,6 +225,9 @@ public static class SnapshotLibrary
             return;
         }
 
+        // The only way back: this does not use the recycle bin, because .NET has no cross-platform API for
+        // one. Allowed to throw, so a deletion that cannot be undone does not happen.
+        PatchHistory.Archive(filePath);
         File.Delete(filePath);
         Log.Information("Deleted the snapshot {Path} from the library.", filePath);
     }
@@ -322,6 +332,12 @@ public static class SnapshotLibrary
     /// listing racing this write cannot see it.</summary>
     private static void Write(string filePath, Integra7Snapshot snapshot)
     {
+        // Before anything else, and allowed to throw: this method replaces the file by renaming over it, so
+        // proceeding after a failed archive would destroy the previous version at the exact moment it has
+        // been established that no copy can be kept. A no-op when the file does not exist, which is what
+        // Create looks like.
+        PatchHistory.Archive(filePath);
+
         var json = Integra7Snapshot.ToJson(snapshot);
         var tempPath = filePath + ".saving";
         try
