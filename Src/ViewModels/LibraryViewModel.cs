@@ -50,10 +50,15 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// distinction the snapshot pickers already make.</summary>
     private readonly Func<string, Task<string?>> _pickFolder;
 
-    /// <summary>Ask the user a yes/no question. A callback for the same reason <see cref="_pickFolder"/> is one:
-    /// this view model is inside a tab, the dialog belongs to the window, and a view model that reached for a
-    /// window could not be constructed without one.</summary>
-    private readonly Func<string, Task<bool>> _confirm;
+    /// <summary>Ask the user a yes/no question: the message, and what the affirmative button says. A callback
+    /// for the same reason <see cref="_pickFolder"/> is one: this view model is inside a tab, the dialog
+    /// belongs to the window, and a view model that reached for a window could not be constructed without
+    /// one.
+    ///
+    /// <b>The label is a parameter because there are now two questions.</b> It used to be fixed at "Delete",
+    /// which was honest while deleting was the only thing here that asked -- and became a dialog inviting the
+    /// user to press Delete to confirm a restore the moment a second question existed.</summary>
+    private readonly Func<string, string, Task<bool>> _confirm;
 
     /// <summary>Hand this entry to the Compare tab. A callback for the same reason the others are: this view
     /// model knows nothing about its neighbours.
@@ -91,8 +96,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <param name="report">See <see cref="_report"/>.</param>
     /// <param name="settingsPath">See <see cref="_settingsPath"/>.</param>
     public LibraryViewModel(Func<LibraryEntry, Task> load, Func<string, Task<string?>> pickFolder,
-        Func<string, Task<bool>> confirm, Func<LibraryEntry, Task> compare, Action<string, bool> report,
-        string settingsPath)
+        Func<string, string, Task<bool>> confirm, Func<LibraryEntry, Task> compare,
+        Action<string, bool> report, string settingsPath)
     {
         _load = load;
         _pickFolder = pickFolder;
@@ -380,7 +385,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
         if (!await _confirm($"Delete \"{selected.Name}\" from the library? " +
                             $"The file {Path.GetFileName(selected.FilePath)} is removed, but a copy is " +
-                            "kept in the history folder beside your library.")) return;
+                            "kept in the history folder beside your library.", "Delete")) return;
 
         try
         {
@@ -422,7 +427,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
     {
         var when = version.Written.ToString("g", CultureInfo.CurrentCulture);
         if (!await _confirm($"Replace \"{row.Name}\" with the copy from {when}? " +
-                            "What is there now is kept as a version, so this can be undone."))
+                            "What is there now is kept as a version, so this can be undone.", "Restore"))
             return;
 
         try

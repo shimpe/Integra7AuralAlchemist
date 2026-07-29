@@ -2323,7 +2323,11 @@ public partial class MainWindowViewModel : ViewModelBase
         LibraryVm = new LibraryViewModel(
             LoadFromLibraryAsync,
             async folder => await ShowPickLibraryFolderDialog.Handle(folder),
-            async message => await ShowConfirmDialog.Handle(new ConfirmViewModel(message, "Delete")),
+            // The label comes from the caller: the library asks two different questions now, and a restore
+            // confirmed by pressing a button marked Delete is a dialog that reads as the opposite of what
+            // it does.
+            async (message, confirmLabel) =>
+                await ShowConfirmDialog.Handle(new ConfirmViewModel(message, confirmLabel)),
             async entry =>
             {
                 try
