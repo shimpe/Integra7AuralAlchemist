@@ -435,27 +435,42 @@ public sealed partial class LibraryViewModel : ViewModelBase
             return;
         }
 
-        // Clear a mark that pointed at it, before the refresh, so the row that replaces the selection is
-        // built against the marks as they now are.
-        var markedEngine = _initTones.FirstOrDefault(m =>
-            string.Equals(m.Value, Path.GetFileName(selected.FilePath), StringComparison.OrdinalIgnoreCase));
-        if (markedEngine.Key is not null)
-        {
-            _initTones.Remove(markedEngine.Key);
-            try
-            {
-                LibrarySettings.SaveAll(_settingsPath, new LibraryPreferences(Folder, _initTones));
-            }
-            catch (Exception e)
-            {
-                // The snapshot is already gone, so this cannot be undone by refusing. Say it and carry on:
-                // the mark is stale, which InitToneResolution handles, rather than wrong.
-                UserActionLog.Failed("clear the init-tone mark of a deleted snapshot", e.ToString());
-            }
-        }
+        // Before the refresh, so the row that replaces the selection is built against the marks as they now
+        // are.
+        ForgetInitToneMarks([selected.FilePath]);
 
         Refresh();
         _report($"Deleted {selected.Name} from the library.", false);
+    }
+
+    /// <summary>Drop any init-tone mark pointing at a file that has just been deleted.
+    ///
+    /// <b>Shared by both delete paths</b>, which is the whole reason it is a method: deleting one snapshot
+    /// cleared its mark and deleting fourteen did not, so the same act left the settings in two different
+    /// states depending on how many rows had been selected.
+    ///
+    /// A stale mark is survivable -- <c>InitToneResolution</c> falls back to the bundled tone and says so --
+    /// but it is a mark the user can no longer see or clear, which is a trap, and this is the moment it is
+    /// cheapest to tidy. A failure to write the settings is logged and carried past: the snapshots are
+    /// already gone, so refusing would undo nothing.</summary>
+    private void ForgetInitToneMarks(IEnumerable<string> deletedPaths)
+    {
+        var names = deletedPaths.Select(Path.GetFileName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var marked = _initTones.Where(m => names.Contains(m.Value)).Select(m => m.Key).ToList();
+        if (marked.Count == 0) return;
+
+        foreach (var engine in marked) _initTones.Remove(engine);
+
+        try
+        {
+            LibrarySettings.SaveAll(_settingsPath, new LibraryPreferences(Folder, _initTones));
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("clear the init-tone marks of deleted snapshots", e.ToString());
+        }
     }
 
     /// <summary>Put a kept copy back, after asking. The confirmation is not ceremony: restoring overwrites
@@ -528,11 +543,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
                             "Delete")) return;
 
         List<string> failed = [];
+        List<string> deleted = [];
         foreach (var row in rows)
         {
             try
             {
                 SnapshotLibrary.Delete(row.FilePath);
+                deleted.Add(row.FilePath);
             }
             catch (Exception e)
             {
@@ -540,6 +557,10 @@ public sealed partial class LibraryViewModel : ViewModelBase
                 failed.Add(row.Name);
             }
         }
+
+        // Only the ones that actually went: a file that could not be deleted is still there, and its mark
+        // still points at something real.
+        ForgetInitToneMarks(deleted);
 
         _report(failed.Count == 0
             ? $"Deleted {rows.Count} snapshots."
