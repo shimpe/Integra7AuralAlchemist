@@ -50,7 +50,14 @@
                      the half that went missing. -->
                 <TextBlock Text="{Binding EngineLabel}" TextWrapping="Wrap"
                            Foreground="{StaticResource SnMutedTextBrush}" />
-                <TextBlock Text="{Binding TargetPart}" TextWrapping="Wrap" />
+                <!-- Two TextBlocks over the one string, the pattern the window's status line uses: with no
+                     part selected a drag sends nothing, and that has to look like a problem rather than
+                     like a caption. It is the one thing on this screen that stops the pad working. -->
+                <TextBlock Text="{Binding TargetPart}" TextWrapping="Wrap"
+                           IsVisible="{Binding HasTargetPart}" />
+                <TextBlock Text="{Binding TargetPart}" TextWrapping="Wrap"
+                           Foreground="{StaticResource SnErrorTextBrush}"
+                           IsVisible="{Binding !HasTargetPart}" />
 
                 <ItemsControl ItemsSource="{Binding Corners}">
                     <ItemsControl.ItemTemplate>

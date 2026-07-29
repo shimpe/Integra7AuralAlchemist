@@ -2374,9 +2374,15 @@ public partial class MainWindowViewModel : ViewModelBase
         // own -- the target is the part tab the Parameters tab is on, the same one Save Tone and Load Tone
         // act on -- and without this the user cannot see from that screen which sound they are replacing.
         this.WhenAnyValue(x => x.CurrentPartSelection)
-            .Subscribe(part => MorphPadVm.TargetPart = part == 0
-                ? "No part chosen: the Parameters tab is on Common, which holds no tone."
-                : $"Morphing the tone in part {part}.");
+            .Subscribe(part =>
+            {
+                // Part 0 is the Common tab, which holds no tone -- ResolveSelectedToneAsync refuses it, so a
+                // drag would send nothing. The pad says so itself rather than only failing quietly.
+                MorphPadVm.HasTargetPart = part != 0;
+                MorphPadVm.TargetPart = part == 0
+                    ? "No part is selected, so nothing can be morphed yet. Choose one on the Parameters tab."
+                    : $"Morphing the tone in part {part}.";
+            });
     }
 
     /// <summary>Ask for a library tone to put on a morph corner, showing each candidate's engine.

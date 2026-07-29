@@ -222,6 +222,17 @@ public sealed partial class MorphPadViewModel : ViewModelBase, IDisposable
     /// replaces a part's sound has to say which part.</summary>
     [Reactive] private string _targetPart = "";
 
+    /// <summary>Whether there is a part for a blend to land in at all, which is false while the Parameters
+    /// tab is on Common.
+    ///
+    /// <b>This existed only as a sentence before, and that was a real fault.</b> A pad with every corner
+    /// filled, dragged with no part selected, sent nothing and said so only on the window's status line --
+    /// which sits at the far right of a bar that starts with the MIDI devices, so on a window narrow enough
+    /// it is off the edge. What the user saw was a morph pad that had stopped working. The window still
+    /// resolves the real target when it writes; this is what lets the screen say why nothing is
+    /// happening, where the dragging is.</summary>
+    [Reactive] private bool _hasTargetPart;
+
     /// <summary>A whole sentence rather than a value beside a caption, because the panel it is shown in is
     /// narrow enough to clip a row and a wrapping sentence is what survives that.</summary>
     public string EngineLabel => ToneType.Length == 0
@@ -376,6 +387,16 @@ public sealed partial class MorphPadViewModel : ViewModelBase, IDisposable
         }
 
         if (built is not { } blended) return; // nothing on the pad yet, which the summary already says
+
+        // Said here rather than left to the window, which reports it on a status line the user is not looking
+        // at while dragging a disc -- and which sits far enough right to be off a narrow window entirely. The
+        // window checks this again for itself when it writes; this is only what the screen says.
+        if (!HasTargetPart)
+        {
+            OnUiThread(() => Summary =
+                "Nothing is being sent: choose a part on the Parameters tab, and this pad will morph it.");
+            return;
+        }
 
         OnUiThread(() => Summary =
             $"Corner {blended.Winner + 1} ({blended.WinnerName}) leads, with " +
