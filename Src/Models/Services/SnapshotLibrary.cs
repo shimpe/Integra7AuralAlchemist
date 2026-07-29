@@ -197,11 +197,13 @@ public static class SnapshotLibrary
         return path;
     }
 
-    /// <summary>Remove a snapshot from the library, permanently.
+    /// <summary>Remove a snapshot from the library.
     ///
     /// <b>Not a move to the recycle bin</b>, because .NET has no cross-platform API for one and this
-    /// application runs on all three desktops. What stands between the user and a lost snapshot is the
-    /// confirmation the caller asks for, not this.
+    /// application runs on all three desktops. What stands in its place is <see cref="PatchHistory"/>: the
+    /// file is copied into the history folder first, so a deletion is recoverable by someone who knows that
+    /// folder is there. The confirmation the caller asks for is still what stops it happening by accident,
+    /// because leaving the library is what the user will notice, not the copy that remains.
     ///
     /// A file that is already gone is not an error: the listing is a picture of a folder other things can
     /// change, so by the time the user presses Delete another copy of this application, a file manager or

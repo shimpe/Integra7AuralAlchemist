@@ -109,7 +109,6 @@ public static class PatchHistory
         {
             File.Copy(versionPath, temp, overwrite: true);
             File.Move(temp, filePath, overwrite: true);
-            File.SetLastWriteTime(filePath, DateTime.Now);
         }
         catch
         {
@@ -123,6 +122,19 @@ public static class PatchHistory
             }
 
             throw;
+        }
+
+        // Outside the block above, and swallowed, because by this line the file already holds the restored
+        // content: the move is what put it there and it is atomic. A failure to stamp it is not a failure
+        // to restore it, and throwing here would tell the user their patch had not been put back when it
+        // had -- and would skip the refresh that shows them it was.
+        try
+        {
+            File.SetLastWriteTime(filePath, DateTime.Now);
+        }
+        catch (Exception e)
+        {
+            Serilog.Log.Warning(e, "Restored {Path} but could not stamp it with the current time", filePath);
         }
     }
 
@@ -140,10 +152,17 @@ public static class PatchHistory
     }
 
     /// <summary>Keep the newest <see cref="Keep"/> and delete the rest. Ordered by name, which the stamp
-    /// format makes the same as ordering by time.</summary>
+    /// format makes the same as ordering by time.
+    ///
+    /// <b>Strays are passed over here exactly as <see cref="Versions"/> passes over them</b>, and the two
+    /// must agree. A name beginning with a letter sorts above every timestamp under an ordinal comparison,
+    /// so a stray left in the ordering would hold the newest slot for ever and push a genuine version out
+    /// on every archive after that -- deleting the real one and keeping the stray, which is backwards. It
+    /// also means this never deletes a file somebody put here by hand.</summary>
     private static void Prune(string folder)
     {
         var stale = Directory.EnumerateFiles(folder, "*.json")
+            .Where(path => WrittenAt(path) is not null)
             .OrderByDescending(Path.GetFileName, StringComparer.Ordinal)
             .Skip(Keep)
             .ToList();

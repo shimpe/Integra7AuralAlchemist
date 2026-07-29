@@ -209,6 +209,39 @@ public class PatchHistoryTests
             Is.EqualTo(3), "the two archived by hand and the restore's own, all distinguishable");
     }
 
+    /// <summary>A stray must not cost a real version its place.
+    ///
+    /// Listing already passes strays over, so pruning has to as well: a name beginning with a letter sorts
+    /// above every timestamp under an ordinal comparison, so a stray left in the ordering would sit in the
+    /// newest slot for ever and push the oldest genuine version out on every archive after that. The
+    /// stray survives and a real version does not, which is precisely backwards.</summary>
+    [Test]
+    public void A_stray_file_does_not_push_a_real_version_out_of_the_history()
+    {
+        var path = WriteFile("Warm Pad.json", "v0", new DateTime(2026, 7, 1, 0, 0, 0));
+        for (var i = 1; i <= PatchHistory.Keep; i++)
+        {
+            File.WriteAllText(path, $"v{i}");
+            File.SetLastWriteTime(path, new DateTime(2026, 7, 1, 0, i, 0));
+            PatchHistory.Archive(path);
+        }
+
+        var stray = Path.Combine(HistoryFolder("Warm Pad"), "notes.json");
+        File.WriteAllText(stray, "{}");
+
+        // One more archive, which is what runs the prune.
+        File.WriteAllText(path, "newest");
+        File.SetLastWriteTime(path, new DateTime(2026, 7, 1, 1, 0, 0));
+        PatchHistory.Archive(path);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(PatchHistory.Versions(path), Has.Count.EqualTo(PatchHistory.Keep),
+                "the stray took a real version's place");
+            Assert.That(File.Exists(stray), Is.True, "and something the user put there is left alone");
+        });
+    }
+
     /// <summary>A file in the history folder that this did not write -- a stray, or something a user
     /// dropped there -- is ignored rather than listed with a meaningless date.</summary>
     [Test]
