@@ -20,21 +20,23 @@ namespace Integra7AuralAlchemist.Models.Services;
 /// that has to be one conversation.</summary>
 public static class Audition
 {
-    /// <summary>Capture what the part holds, then write <paramref name="candidate"/> over it. Answers the
-    /// capture, which the caller must hold until it stops.</summary>
-    public static async Task<Integra7Snapshot> StartAsync(Integra7Domain domain, Integra7Snapshot candidate,
+    /// <summary>Capture what the part holds, so the caller can write something else over it.
+    ///
+    /// <b>It captures and does not write, and the split is the point.</b> Doing both here meant the capture
+    /// was only handed back once the write had also succeeded -- so a device failure halfway through
+    /// writing the candidate threw the user's only copy of their own sound away, while the instrument was
+    /// left holding a part that had been partly overwritten. The caller now records the session the moment
+    /// this returns and writes the candidate afterwards, which leaves a failed write recoverable by Stop.
+    ///
+    /// The engine is checked before the read, so a candidate that could never have been written costs no
+    /// device traffic at all.</summary>
+    public static Task<Integra7Snapshot> BorrowAsync(Integra7Domain domain, Integra7Snapshot candidate,
         int zeroBasedPartNo, string currentToneType, IMidiLease lease)
     {
-        // Before the read, so a candidate that could never have been written does not cost a capture.
         StudioSetSnapshotService.EnsureToneFitsPart(candidate, zeroBasedPartNo, currentToneType);
 
-        var borrowed = await StudioSetSnapshotService.CaptureToneAsync(domain, zeroBasedPartNo,
-            currentToneType, "borrowed by audition", lease);
-
-        await StudioSetSnapshotService.RestoreToneAsync(domain, candidate, zeroBasedPartNo,
-            currentToneType, lease);
-
-        return borrowed;
+        return StudioSetSnapshotService.CaptureToneAsync(domain, zeroBasedPartNo, currentToneType,
+            "borrowed by audition", lease);
     }
 
     /// <summary>Write back what <see cref="StartAsync"/> captured. Throwing leaves the caller holding the

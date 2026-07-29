@@ -1358,8 +1358,18 @@ public partial class MainWindowViewModel : ViewModelBase
                 // a tone that is no longer loaded. Not restored at the end -- see the design document,
                 // which states that as a limitation rather than hiding it.
                 EditJournal.Default.Clear();
-                var borrowed = await Audition.StartAsync(communicator, candidate, part, toneType, lease);
+
+                var borrowed = await Audition.BorrowAsync(communicator, candidate, part, toneType, lease);
+
+                // Recorded before the candidate is written, and that order is load-bearing: if the write
+                // fails halfway, the session is already holding the capture and Stop can still put the part
+                // back. Recording it afterwards threw the user's own sound away on exactly the failure that
+                // most needed it.
                 _audition = _audition.Start(part, toneType, borrowed, entry.FilePath);
+                RefreshAuditionButton();
+
+                await StudioSetSnapshotService.RestoreToneAsync(communicator, candidate, part, toneType,
+                    lease);
             }
 
             RefreshAuditionButton();
@@ -1372,8 +1382,15 @@ public partial class MainWindowViewModel : ViewModelBase
             // Including SnapshotFormatException, whose message is written for the user and names both
             // engines when the candidate does not fit the part.
             UserActionLog.Failed($"audition '{entry.FilePath}'", e.ToString());
-            SnapshotStatus = e is SnapshotFormatException ? e.Message : $"Could not audition that: {e.Message}";
+            var reason = e is SnapshotFormatException ? e.Message : $"Could not audition that: {e.Message}";
+            // A session that got as far as capturing is still holding the part's own tone, so say the one
+            // thing that gets it back rather than leaving the user looking at a part that is half something
+            // else with no hint that Stop is still worth pressing.
+            SnapshotStatus = _audition.IsRunning
+                ? $"{reason} The part's own sound is still held -- press Stop to put it back."
+                : reason;
             SnapshotFailed = true;
+            RefreshAuditionButton();
         }
     }
 
@@ -1388,7 +1405,14 @@ public partial class MainWindowViewModel : ViewModelBase
     /// instrument.</summary>
     private async Task StopAuditionAsync()
     {
-        if (_audition is not { IsRunning: true, Borrowed: { } borrowed }) return;
+        // The whole session on the stack, not just the capture. Everything below runs after awaiting a
+        // lease, and leases are handed out one at a time -- so a second Stop queues behind the first and
+        // reaches these lines after it has already finished and set the session back to Idle. Re-reading
+        // the part and the engine from the field there would ask the guard to write an SN-S tone into
+        // "part 0, holding a  tone", which fails and then reports a failure over a restore that in fact
+        // succeeded. The start path was hardened against the same race; this is the other half of it.
+        var session = _audition;
+        if (session is not { IsRunning: true, Borrowed: { } borrowed }) return;
 
         var api = Integra7;
         var communicator = _integra7Communicator;
@@ -1404,10 +1428,11 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             await using var lease = await api.BeginConversationAsync("audition");
-            await Audition.StopAsync(communicator, borrowed, _audition.ZeroBasedPartNo,
-                _audition.ToneType, lease);
+            await Audition.StopAsync(communicator, borrowed, session.ZeroBasedPartNo, session.ToneType,
+                lease);
 
             // Only once the restore has actually happened: Stop() discards what it holds unconditionally.
+            // Idempotent if a queued second Stop gets here as well -- Idle.Stop() is Idle.
             _audition = _audition.Stop();
             RefreshAuditionButton();
             SnapshotStatus = "Put the part back as it was.";
