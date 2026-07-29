@@ -194,7 +194,24 @@
                     BorderThickness="1"
                     CornerRadius="4"
                     Padding="10">
-                <local:LibraryEditorView DataContext="{Binding Editor}" />
+                <!-- Two panels in the same place, one of them visible: selecting a second row swaps the
+                     single-snapshot editor for the bulk one. Two rather than one panel with two shapes,
+                     because they share no field — a bulk change has no name, no notes and no versions, and
+                     its buttons act on many rows.
+
+                     Each IsVisible sits on a wrapper rather than on the view itself. A DataContext set on an
+                     element is what that same element's other bindings resolve against, so IsVisible beside
+                     it would be looking for IsBulkSelection on the panel's own view model: measured, as two
+                     AVLN2000s. The wrapper keeps the flag on this view model and the DataContext on the
+                     child. -->
+                <Panel>
+                    <Panel IsVisible="{Binding !IsBulkSelection}">
+                        <local:LibraryEditorView DataContext="{Binding Editor}" />
+                    </Panel>
+                    <Panel IsVisible="{Binding IsBulkSelection}">
+                        <local:LibraryBulkEditView DataContext="{Binding BulkEditor}" />
+                    </Panel>
+                </Panel>
             </Border>
         </Grid>
     </Grid>

@@ -118,6 +118,17 @@ public sealed partial class LibraryViewModel : ViewModelBase
         Editor = new LibraryEditorViewModel(SaveChangesAsync, LoadAsync, CompareAsync, DeleteAsync,
             MarkAsInitTone, RestoreVersionAsync);
 
+        BulkEditor = new LibraryBulkEditViewModel(ApplyBulkChangeAsync, DeleteSelectionAsync);
+
+        // After BulkEditor is assigned, not before: this dereferences it, and a selection change arrives as
+        // soon as the Refresh at the end of this constructor puts rows on screen.
+        SelectedEntries.CollectionChanged += (_, _) =>
+        {
+            BulkEditor.Count = SelectedEntries.Count;
+            BulkEditor.CountChanged();
+            this.RaisePropertyChanged(nameof(IsBulkSelection));
+        };
+
         // Every filter and both halves of the sort, in one subscription. Seven properties rather than seven
         // subscriptions because they all do the same thing and doing it once is what stops a change of two of
         // them at a time from filtering twice. WhenAnyValue fires on subscription, so this is also what performs
@@ -210,6 +221,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <summary>The panel beside the list. Built once, and told which row is selected -- see
     /// <see cref="LibraryEditorViewModel"/> for why the editor is not in this file.</summary>
     public LibraryEditorViewModel Editor { get; }
+
+    /// <summary>The panel shown instead of <see cref="Editor"/> when more than one row is selected.</summary>
+    public LibraryBulkEditViewModel BulkEditor { get; }
+
+    /// <summary>Which of the two panels the view shows. More than one row is what makes a bulk change
+    /// meaningful; one row is the editor, because a bulk form cannot rename or take a note.</summary>
+    public bool IsBulkSelection => SelectedEntries.Count > 1;
 
     // ---- reading and filtering ----------------------------------------------------------------------------
 
@@ -460,6 +478,75 @@ public sealed partial class LibraryViewModel : ViewModelBase
             UserActionLog.Failed($"restore '{row.FilePath}' from '{version.FilePath}'", e.ToString());
             _report($"Could not restore that version: {e.Message}", true);
         }
+    }
+
+    /// <summary>Apply one change to every selected snapshot, one file at a time.
+    ///
+    /// <b>A failure costs that file only.</b> A snapshot held open by a sync client must not abandon the
+    /// other thirteen, so each is attempted and the failures are named at the end rather than thrown. Each
+    /// write archives the previous copy through <see cref="PatchHistory"/>, so a bulk change is as
+    /// recoverable as a single one.</summary>
+    private Task ApplyBulkChangeAsync(BulkChange change)
+    {
+        // Copied first: the write path refreshes the list, which rebuilds the very rows being iterated.
+        var rows = SelectedEntries.ToList();
+        List<string> failed = [];
+
+        foreach (var row in rows)
+        {
+            try
+            {
+                SnapshotLibrary.WriteMetadata(row.FilePath, BulkEdit.Apply(row.Entry.Head, change));
+            }
+            catch (Exception e)
+            {
+                UserActionLog.Failed($"bulk edit '{row.FilePath}'", e.ToString());
+                failed.Add(row.Name);
+            }
+        }
+
+        _report(failed.Count == 0
+            ? $"Updated {rows.Count} snapshots."
+            : $"Updated {rows.Count - failed.Count} of {rows.Count} snapshots; " +
+              $"{failed.Count} could not be written: {string.Join(", ", failed)}.", failed.Count > 0);
+
+        Refresh();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>Remove every selected snapshot, after asking once for all of them. Each is archived by
+    /// <see cref="PatchHistory"/>, which is what makes one button able to remove fourteen files.</summary>
+    private async Task DeleteSelectionAsync()
+    {
+        // Copied before the question, not only before the loop: awaiting the dialog gives the list a chance
+        // to refresh under us, and a confirmation is about the rows the user was looking at when they asked.
+        var rows = SelectedEntries.ToList();
+        if (rows.Count == 0) return;
+
+        if (!await _confirm($"Delete {rows.Count} snapshots from the library? " +
+                            "A copy of each is kept in the history folder beside your library.",
+                            "Delete")) return;
+
+        List<string> failed = [];
+        foreach (var row in rows)
+        {
+            try
+            {
+                SnapshotLibrary.Delete(row.FilePath);
+            }
+            catch (Exception e)
+            {
+                UserActionLog.Failed($"bulk delete '{row.FilePath}'", e.ToString());
+                failed.Add(row.Name);
+            }
+        }
+
+        _report(failed.Count == 0
+            ? $"Deleted {rows.Count} snapshots."
+            : $"Deleted {rows.Count - failed.Count} of {rows.Count}; " +
+              $"{failed.Count} could not be removed: {string.Join(", ", failed)}.", failed.Count > 0);
+
+        Refresh();
     }
 
     /// <summary>Choose a different library folder, list it, and remember it.

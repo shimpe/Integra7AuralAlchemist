@@ -1,0 +1,62 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             xmlns:local="clr-namespace:Integra7AuralAlchemist.Views"
+             mc:Ignorable="d" d:DesignWidth="380" d:DesignHeight="800"
+             x:Class="Integra7AuralAlchemist.Views.LibraryBulkEditView"
+             x:DataType="vm:LibraryBulkEditViewModel">
+
+    <!-- One button per field, and each says how many snapshots it acts on. Nothing is staged and there is
+         no Save: a field the user did not press a button for is simply not part of the change, which is
+         how this avoids having to tell "set to none" apart from "leave alone".
+
+         No ToolTip on any of these. They are pressed repeatedly while a library is being tidied, and a
+         tooltip is a popup that swallows the click on the control it describes. -->
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Orientation="Vertical" Spacing="10" Margin="0,0,16,0">
+
+            <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" FontWeight="Bold" />
+            <TextBlock Text="The name and the notes are not here: a rename cannot be bulk, and one note across many sounds is not something anybody wants."
+                       TextWrapping="Wrap"
+                       Foreground="{StaticResource SnMutedTextBrush}" />
+
+            <TextBlock Text="Tags to add, separated by commas"
+                       Foreground="{StaticResource SnMutedTextBrush}" />
+            <TextBox Text="{Binding TagsToAdd, Mode=TwoWay}" />
+            <Button Content="Add to all" Command="{Binding AddTagsAsync}"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+
+            <TextBlock Text="Tags to remove" Foreground="{StaticResource SnMutedTextBrush}" />
+            <TextBox Text="{Binding TagsToRemove, Mode=TwoWay}" />
+            <Button Content="Remove from all" Command="{Binding RemoveTagsAsync}"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+
+            <!-- A Studio Set among the selection keeps its blank category: it is sixteen parts each with one
+                 of their own, and BulkEdit refuses to invent a single one for it. -->
+            <TextBlock Text="Category" Foreground="{StaticResource SnMutedTextBrush}" />
+            <ComboBox ItemsSource="{Binding CategoryLabels}"
+                      SelectedItem="{Binding CategoryLabel, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch" />
+            <Button Content="Set on all" Command="{Binding SetCategoryAsync}"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+
+            <TextBlock Text="Rating" Foreground="{StaticResource SnMutedTextBrush}" />
+            <local:RatingView DataContext="{Binding Rating}" />
+            <Button Content="Set on all" Command="{Binding SetRatingAsync}"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+
+            <Button Content="Mark all as favourite" Command="{Binding MarkFavouriteAsync}"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+            <Button Content="Clear favourite on all" Command="{Binding ClearFavouriteAsync}"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+
+            <!-- The count is on the button rather than only in the dialog, because this is the one action
+                 here that takes files out of the folder. A copy of each stays in the history folder. -->
+            <Button Content="{Binding DeleteLabel}" Command="{Binding DeleteAsync}"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
