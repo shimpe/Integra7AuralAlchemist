@@ -71,7 +71,12 @@ public sealed record SnapshotMetadata(
 /// format version, and a file that has one is listed whatever else is wrong with it -- wrong version, rating
 /// of seven, no name -- and refused, by name, when it is opened. (It was not always narrow enough. A snapshot
 /// re-saved by an editor that added a byte-order mark used to take this same silent exit; see
-/// <c>ByteOrderMark</c>.)</summary>
+/// <c>ByteOrderMark</c>.)
+///
+/// <b>Every write and every delete keeps the copy it replaced</b> -- see <see cref="PatchHistory"/>. The
+/// archive is taken before the change and is allowed to throw, which refuses the change: this class replaces
+/// a file by renaming over it, so a write that continued past a failed archive would destroy the only copy.
+/// </summary>
 public static class SnapshotLibrary
 {
     /// <summary>Snapshots are JSON, so this is what the library looks for. Named here rather than written into
@@ -218,6 +223,9 @@ public static class SnapshotLibrary
             return;
         }
 
+        // The only way back: this does not use the recycle bin, because .NET has no cross-platform API for
+        // one. Allowed to throw, so a deletion that cannot be undone does not happen.
+        PatchHistory.Archive(filePath);
         File.Delete(filePath);
         Log.Information("Deleted the snapshot {Path} from the library.", filePath);
     }
@@ -322,6 +330,12 @@ public static class SnapshotLibrary
     /// listing racing this write cannot see it.</summary>
     private static void Write(string filePath, Integra7Snapshot snapshot)
     {
+        // Before anything else, and allowed to throw: this method replaces the file by renaming over it, so
+        // proceeding after a failed archive would destroy the previous version at the exact moment it has
+        // been established that no copy can be kept. A no-op when the file does not exist, which is what
+        // Create looks like.
+        PatchHistory.Archive(filePath);
+
         var json = Integra7Snapshot.ToJson(snapshot);
         var tempPath = filePath + ".saving";
         try

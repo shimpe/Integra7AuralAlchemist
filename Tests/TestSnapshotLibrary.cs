@@ -531,4 +531,76 @@ public class SnapshotLibraryTests
         // silently, so a uniqueness check made on the longer name would not see the collision.
         Assert.That(SnapshotLibrary.FileNameFor("Warm Rhodes ."), Is.EqualTo("Warm Rhodes.json"));
     }
+
+    /// <summary>Annotating rewrites the file that holds the sound, so the copy taken before it is the thing
+    /// standing between a bug in that path and a patch the user cannot get back.</summary>
+    [Test]
+    public void Annotating_a_snapshot_keeps_the_copy_it_replaced()
+    {
+        var path = SnapshotLibrary.Create(_folder, Tone("Warm Pad"), new SnapshotMetadata());
+
+        SnapshotLibrary.WriteMetadata(path, new SnapshotMetadata(Notes: "brighter"));
+
+        var versions = PatchHistory.Versions(path);
+        Assert.That(versions, Has.Count.EqualTo(1));
+        Assert.That(Integra7Snapshot.FromJson(File.ReadAllText(versions[0].FilePath)).Notes, Is.Empty,
+            "the version holds what the file said before, not after");
+    }
+
+    /// <summary>Creating a snapshot writes a file that was not there, so there is nothing to keep -- and no
+    /// empty history folder should be left behind for every new patch either.</summary>
+    [Test]
+    public void Creating_a_snapshot_archives_nothing()
+    {
+        var path = SnapshotLibrary.Create(_folder, Tone("Warm Pad"), new SnapshotMetadata());
+
+        Assert.That(PatchHistory.Versions(path), Is.Empty);
+        Assert.That(Directory.Exists(Path.Combine(_folder, PatchHistory.FolderName)), Is.False);
+    }
+
+    /// <summary>Delete does not use the recycle bin -- .NET has no cross-platform API for one -- so this
+    /// copy is the only way back from a deletion, and from the bulk delete that phase 2 adds.</summary>
+    [Test]
+    public void Deleting_a_snapshot_keeps_a_copy_of_it()
+    {
+        var path = SnapshotLibrary.Create(_folder, Tone("Warm Pad"), new SnapshotMetadata());
+
+        SnapshotLibrary.Delete(path);
+
+        Assert.That(File.Exists(path), Is.False);
+        Assert.That(PatchHistory.Versions(path), Has.Count.EqualTo(1),
+            "and the version is still findable by the path the file used to have");
+    }
+
+    /// <summary>The rule that makes the rest of it trustworthy. Write is atomic -- a temporary file and
+    /// then a rename -- so continuing after a failed archive would destroy the previous version at the
+    /// exact moment it has been established that no copy can be kept.</summary>
+    [Test]
+    public void A_write_whose_archive_fails_is_refused_and_leaves_the_file_alone()
+    {
+        var path = SnapshotLibrary.Create(_folder, Tone("Warm Pad"), new SnapshotMetadata());
+        var before = File.ReadAllText(path);
+
+        // A file where the history folder needs to be: creating the directory then fails, which is the
+        // portable way to make archiving fail on every platform this builds for.
+        var history = Path.Combine(_folder, PatchHistory.FolderName);
+        Directory.CreateDirectory(history);
+        File.WriteAllText(Path.Combine(history, "Warm Pad"), "in the way");
+
+        Assert.That(() => SnapshotLibrary.WriteMetadata(path, new SnapshotMetadata(Notes: "brighter")),
+            Throws.InstanceOf<IOException>());
+        Assert.That(File.ReadAllText(path), Is.EqualTo(before), "and the file is exactly as it was");
+    }
+
+    /// <summary>The history folder must not appear in the library. This is already true because Read is
+    /// TopDirectoryOnly, and it is pinned here as well because it is now load-bearing for a second
+    /// reason.</summary>
+    [Test]
+    public void The_history_folder_is_not_listed_as_a_snapshot()
+    {
+        var path = SnapshotLibrary.Create(_folder, Tone("Warm Pad"), new SnapshotMetadata());
+        SnapshotLibrary.WriteMetadata(path, new SnapshotMetadata(Notes: "brighter"));
+
+        Assert.That(SnapshotLibrary.Read(_folder), Has.Count.EqualTo(1));
+    }
 }

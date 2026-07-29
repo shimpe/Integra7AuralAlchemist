@@ -435,8 +435,9 @@ public sealed partial class LibraryViewModel : ViewModelBase
         if (SelectedEntry is { } entry) await _compare(entry.Entry);
     }
 
-    /// <summary>Remove the selected snapshot from the library, after asking. The file goes for good --
-    /// see <c>SnapshotLibrary.Delete</c> -- so this is the one place in the library that asks before acting.
+    /// <summary>Remove the selected snapshot from the library, after asking. It still asks, even though
+    /// <see cref="PatchHistory"/> now keeps a copy: the row leaves the library, the mark on it is cleared,
+    /// and getting it back means knowing the history folder exists.
     ///
     /// A mark pointing at the file goes with it. <c>InitToneResolution</c> copes with a stale mark by falling
     /// back to the bundled tone and saying so, but a mark the user can no longer see or clear is a trap,
@@ -447,8 +448,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
         if (SelectedEntry is not { } selected) return;
 
         if (!await _confirm($"Delete \"{selected.Name}\" from the library? " +
-                            $"The file {Path.GetFileName(selected.FilePath)} is removed for good — " +
-                            "this cannot be undone.")) return;
+                            $"The file {Path.GetFileName(selected.FilePath)} is removed, but a copy is " +
+                            "kept in the history folder beside your library.")) return;
 
         try
         {
