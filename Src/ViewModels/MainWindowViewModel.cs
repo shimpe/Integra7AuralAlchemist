@@ -46,6 +46,11 @@ public partial class MainWindowViewModel : ViewModelBase
     /// user to the Parameters tab — selecting a part is no use while the Mixer tab is still in front.</summary>
     [Reactive] private int _topTabIndex;
 
+    /// <summary>Where the Library tab sits, immediately before Compare. Named for the same reason
+    /// <see cref="CompareTabIndex"/> is, and used to tell that the user has left it -- which is one of the
+    /// three things that ends an audition.</summary>
+    private const int LibraryTabIndex = 3;
+
     /// <summary>Where the Compare tab sits in the top-level TabControl. A constant rather than a search,
     /// because the strip is fixed in MainWindow.axaml -- but it has to be changed with it, which is why
     /// it is named here rather than written as a bare 4 at the call site.</summary>
@@ -186,6 +191,11 @@ public partial class MainWindowViewModel : ViewModelBase
     /// it observable would suggest to the next reader that it might be replaced -- which is exactly the mistake
     /// that would leave the Save commands writing into a library the browser is no longer showing.</summary>
     public LibraryViewModel LibraryVm { get; }
+
+    /// <summary>The audition in progress, or <see cref="AuditionState.Idle"/>. One at a time and one part
+    /// at a time: a second borrowed part would be a second sound to give back, and nothing on screen would
+    /// say which.</summary>
+    private AuditionState _audition = AuditionState.Idle;
 
     /// <summary>The Compare tab. Built once and never replaced, for the same reason <see cref="LibraryVm"/>
     /// is: it holds two snapshots and a comparison of them, all of which are data rather than live
@@ -1076,6 +1086,11 @@ public partial class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        // A real load replaces the part for good, so the borrowed sound has nowhere to go back to. After the
+        // picker rather than before it, so a cancelled load leaves the session alone -- and before the
+        // restore, so the sound being put back cannot land on top of the tone just loaded.
+        await StopAuditionAsync();
+
         await RestoreToneFromFileAsync(api, communicator, selected, path);
     }
 
@@ -1231,12 +1246,215 @@ public partial class MainWindowViewModel : ViewModelBase
             var selected = await ResolveSelectedToneAsync("load");
             if (selected is null) return; // ResolveSelectedToneAsync has already said why
 
+            // A real load replaces the part for good, so the borrowed sound has nowhere to go back to. Here
+            // rather than at the top of the method: a load that is refused above has changed nothing, and
+            // ending a session the user did not ask to end is a surprise either way round.
+            await StopAuditionAsync();
+
             await RestoreToneFromFileAsync(api, communicator, selected, entry.FilePath);
             return;
         }
 
+        // The same reason, and it applies harder: a Studio Set replaces all sixteen parts, the borrowed one
+        // included.
+        await StopAuditionAsync();
+
         await RestoreStudioSetFromFileAsync(api, communicator, entry.FilePath);
     }
+
+    /// <summary>Hear this snapshot in the selected part, or stop hearing it.
+    ///
+    /// <b>The part is resolved once, at the start</b>, and every later step uses the part the session
+    /// remembers rather than whatever is selected now -- a user who changes the selected part mid-audition
+    /// must still get back the part that was borrowed.
+    ///
+    /// Named after <see cref="LoadFromLibraryAsync"/> rather than plain "audition", because this file
+    /// already has an <see cref="AuditionOnPartAsync"/> that sounds a single note and has nothing to do with
+    /// this.</summary>
+    private async Task AuditionFromLibraryAsync(LibraryEntry entry)
+    {
+        // Pressing the button on the row that is playing means stop; on any other row it means play that
+        // one instead. By path, not by name: two library files can hold tones of the same name.
+        if (_audition.IsPlaying(entry.FilePath))
+        {
+            await StopAuditionAsync();
+            return;
+        }
+
+        // Locals, not the properties: everything below runs after several awaits, and a rescan in the
+        // meantime replaces both of them.
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null)
+        {
+            // The library is browsable with nothing plugged in, so this is a real state rather than a guard
+            // against the impossible.
+            SnapshotStatus = "Connect to your Integra-7 to audition a tone.";
+            SnapshotFailed = true;
+            return;
+        }
+
+        // Refused for the reason a morph and a tone load are: the journal's buffer is then the only copy of
+        // the edited values, and starting a session clears it.
+        if (RefuseWhileComparing("audition")) return;
+
+        Integra7Snapshot candidate;
+        try
+        {
+            // Awaited rather than read on the click: a snapshot is large enough that parsing it
+            // synchronously stalls the window visibly, as every other file read in this feature says.
+            candidate = Integra7Snapshot.FromJson(await File.ReadAllTextAsync(entry.FilePath));
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed($"read '{entry.FilePath}' to audition it", e.ToString());
+            SnapshotStatus = e is SnapshotFormatException ? e.Message : $"Could not read that file: {e.Message}";
+            SnapshotFailed = true;
+            return;
+        }
+
+        // A session already running keeps its own part **and its own engine**. Taking the engine from the
+        // new candidate instead would make every candidate match itself, and RestoreToneAsync's guard --
+        // which compares the snapshot's engine against the one it is told the part holds -- would pass for
+        // a tone that cannot legally be written there at all.
+        int part;
+        string toneType;
+        if (_audition.IsRunning)
+        {
+            part = _audition.ZeroBasedPartNo;
+            toneType = _audition.ToneType;
+        }
+        else
+        {
+            if (await ResolveSelectedToneAsync("audition") is not { } selected) return;
+            part = selected.ZeroBasedPartNo;
+            toneType = selected.ToneType;
+        }
+
+        try
+        {
+            // One conversation for the whole of it, capture included: each of these walks every block of
+            // the tone, and anything else talking to the device in between would interleave with a capture
+            // that has to be one conversation.
+            await using var lease = await api.BeginConversationAsync("audition");
+            if (_audition is { IsRunning: true } running)
+            {
+                // Re-read here, and from the session rather than from the selection: waiting for the wire
+                // is the long part of this, so a second press can arrive while the first is still
+                // capturing and reach this line having decided it was starting one. It must write where
+                // the first one borrowed.
+                part = running.ZeroBasedPartNo;
+                toneType = running.ToneType;
+
+                // Straight to the restore, and deliberately not through Audition.StartAsync: that captures
+                // first, and what it would capture here is the candidate already playing -- which is to say
+                // it would destroy the memory of the user's own sound.
+                await StudioSetSnapshotService.RestoreToneAsync(communicator, candidate, part, toneType, lease);
+                _audition = _audition.Switch(entry.FilePath);
+            }
+            else
+            {
+                // Cleared once, for the reason LoadToneAsync clears it: the steps in it name parameters of
+                // a tone that is no longer loaded. Not restored at the end -- see the design document,
+                // which states that as a limitation rather than hiding it.
+                EditJournal.Default.Clear();
+
+                var borrowed = await Audition.BorrowAsync(communicator, candidate, part, toneType, lease);
+
+                // Recorded before the candidate is written, and that order is load-bearing: if the write
+                // fails halfway, the session is already holding the capture and Stop can still put the part
+                // back. Recording it afterwards threw the user's own sound away on exactly the failure that
+                // most needed it.
+                _audition = _audition.Start(part, toneType, borrowed, entry.FilePath);
+                RefreshAuditionButton();
+
+                await StudioSetSnapshotService.RestoreToneAsync(communicator, candidate, part, toneType,
+                    lease);
+            }
+
+            RefreshAuditionButton();
+            SnapshotStatus = $"Auditioning {entry.Head.Name} in part {part + 1}. " +
+                             "Press Stop to put the part back.";
+            SnapshotFailed = false;
+        }
+        catch (Exception e)
+        {
+            // Including SnapshotFormatException, whose message is written for the user and names both
+            // engines when the candidate does not fit the part.
+            UserActionLog.Failed($"audition '{entry.FilePath}'", e.ToString());
+            var reason = e is SnapshotFormatException ? e.Message : $"Could not audition that: {e.Message}";
+            // A session that got as far as capturing is still holding the part's own tone, so say the one
+            // thing that gets it back rather than leaving the user looking at a part that is half something
+            // else with no hint that Stop is still worth pressing.
+            SnapshotStatus = _audition.IsRunning
+                ? $"{reason} The part's own sound is still held -- press Stop to put it back."
+                : reason;
+            SnapshotFailed = true;
+            RefreshAuditionButton();
+        }
+    }
+
+    /// <summary>Give the borrowed part back. Safe to call when nothing is running, which is what lets every
+    /// trigger call it without asking first.
+    ///
+    /// <b>A failure keeps the memory</b>, so Stop can be pressed again: the instrument is still holding the
+    /// candidate, and forgetting the capture would strand it there.
+    ///
+    /// Nothing is re-read afterwards, unlike a load: the part is being put back to exactly the values the
+    /// screen has been showing all along, because an audition never wrote them anywhere but the
+    /// instrument.</summary>
+    private async Task StopAuditionAsync()
+    {
+        // The whole session on the stack, not just the capture. Everything below runs after awaiting a
+        // lease, and leases are handed out one at a time -- so a second Stop queues behind the first and
+        // reaches these lines after it has already finished and set the session back to Idle. Re-reading
+        // the part and the engine from the field there would ask the guard to write an SN-S tone into
+        // "part 0, holding a  tone", which fails and then reports a failure over a restore that in fact
+        // succeeded. The start path was hardened against the same race; this is the other half of it.
+        var session = _audition;
+        if (session is not { IsRunning: true, Borrowed: { } borrowed }) return;
+
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null)
+        {
+            // The session is kept rather than dropped: the capture is the only copy of that sound, and a
+            // connection that comes back is a Stop that can still work.
+            SnapshotStatus = "The instrument is not connected, so the part cannot be put back yet.";
+            SnapshotFailed = true;
+            return;
+        }
+
+        try
+        {
+            await using var lease = await api.BeginConversationAsync("audition");
+            await Audition.StopAsync(communicator, borrowed, session.ZeroBasedPartNo, session.ToneType,
+                lease);
+
+            // Only once the restore has actually happened: Stop() discards what it holds unconditionally.
+            // Idempotent if a queued second Stop gets here as well -- Idle.Stop() is Idle.
+            _audition = _audition.Stop();
+            RefreshAuditionButton();
+            SnapshotStatus = "Put the part back as it was.";
+            SnapshotFailed = false;
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("stop an audition", e.ToString());
+            SnapshotStatus = $"Could not put the part back: {e.Message} Press Stop again to retry.";
+            SnapshotFailed = true;
+        }
+    }
+
+    /// <summary>Tell the panel whether the row it is showing is the one being heard.
+    ///
+    /// <b>Per row, not per session.</b> While something is playing, its own row offers Stop and every other
+    /// row offers Audition -- so selecting a different tone and pressing the button plays that one instead
+    /// of stopping, which is what browsing is. Called whenever the session changes and whenever the
+    /// selection does.</summary>
+    private void RefreshAuditionButton() =>
+        LibraryVm.Editor.IsAuditioning =
+            LibraryVm.Editor.Selected is { } row && _audition.IsPlaying(row.FilePath);
 
     /// <summary>A snapshot read from a file the user picks, for one side of a comparison. Null for a
     /// cancellation or a failure -- both leave the slot as it was, and a failure has already been
@@ -2290,6 +2508,17 @@ public partial class MainWindowViewModel : ViewModelBase
         this.WhenAnyValue(x => x.TopTabIndex)
             .Subscribe(index => { if (index == MorphPadTabIndex) _morphClearedTheJournal = false; });
 
+        // Leaving the Library tab ends an audition. Auditioning is a thing done while browsing; carrying a
+        // borrowed part to another screen would leave a sound the user can no longer see the Stop button
+        // for. A subscription of its own rather than a second branch above, because it is a separate
+        // concern -- and StopAuditionAsync is harmless when nothing is running, including on the very first
+        // value, which arrives here before anything can have started.
+        this.WhenAnyValue(x => x.TopTabIndex)
+            .Subscribe(async index =>
+            {
+                if (index != LibraryTabIndex) await StopAuditionAsync();
+            });
+
         // Fired from whichever thread called Put -- see ToneClipboard.Changed -- and CanPasteTone is
         // bound to a button, so it is set on the UI thread. Posted the same way the journal's Changed
         // above is, rather than through a scheduler: this build of ReactiveUI has no RxApp.
@@ -2370,6 +2599,7 @@ public partial class MainWindowViewModel : ViewModelBase
                     SnapshotFailed = true;
                 }
             },
+            AuditionFromLibraryAsync,
             (message, failed) =>
             {
                 // The window's own status bar, not a line of the library's own: it is visible from every tab,
@@ -2379,6 +2609,13 @@ public partial class MainWindowViewModel : ViewModelBase
                 SnapshotFailed = failed;
             },
             LibrarySettings.SettingsPath);
+
+        // What the audition button says depends on the row on screen as well as on the session, so the
+        // selection has to raise it too -- see RefreshAuditionButton. Subscribed to here rather than handed
+        // to the library as one more callback: the library already publishes the selection the panel is
+        // showing, and a callback whose only job is to say "that changed" would be a second way of saying
+        // the same thing.
+        LibraryVm.Editor.WhenAnyValue(x => x.Selected).Subscribe(_ => RefreshAuditionButton());
 
         // After LibraryVm, whose Folder it reads for both pickers and for resolving a pad's corner names.
         // The folder arrives as a function rather than a value because the user can move the library while

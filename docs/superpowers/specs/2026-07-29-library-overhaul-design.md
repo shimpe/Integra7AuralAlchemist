@@ -198,11 +198,21 @@ memory and loads only the new candidate; stopping re-selects the preset and rest
 **Stopping is triggered by** the Stop button, leaving the Library tab, performing a real load, or the
 application closing.
 
-**Cross-engine auditioning works.** A tone can only be written into a part whose temporary tone is already
-the same engine — `EnsureToneFitsPart` enforces it. So when the candidate's engine differs, a preset of the
-candidate's engine is selected on the part first. Which preset does not matter sonically: the restore
-overwrites the whole temporary area, and the preset selection is only there to put the right block layout in
-it.
+**Same engine only, and this is a change of mind — 2026-07-29.** The design originally said cross-engine
+auditioning would work by selecting a preset of the candidate's engine on the part first, since
+`EnsureToneFitsPart` requires the part's temporary tone to already be that engine. Planning the phase
+established what that actually costs: selecting a preset calls `ChangePresetAndReloadAsync`, so a
+cross-engine audition needs a program change and a **full part reload** on the way in, and another of each
+on the way out to put the original preset back before restoring. Four device operations, two of them
+several seconds of SysEx, wrapped around "let me hear this patch".
+
+So audition offers itself only when the candidate's engine matches what the selected part already holds, and
+otherwise explains itself with the refusal `Load` already gives. Same-engine audition is two bulk writes and
+nothing else moving, which is what makes the restore path something worth trusting.
+
+Cross-engine remains wanted and is deliberately left out of this phase rather than dropped: it is the
+reload-and-restore choreography that needs designing with its failure modes in view, not a flag on this
+one.
 
 **Two limitations, stated rather than hidden.**
 

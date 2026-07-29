@@ -78,6 +78,19 @@
                            TextWrapping="Wrap"
                            Foreground="{StaticResource SnMutedTextBrush}" />
 
+                <!-- Beside Load, because it is the same act made temporary: the part is borrowed rather
+                     than replaced. No ToolTip — it is pressed repeatedly while browsing, and a tooltip is
+                     a popup that swallows the click on the control it describes. The line under it is
+                     where that explanation goes instead. -->
+                <Button Content="{Binding AuditionLabel}"
+                        Command="{Binding AuditionAsync}"
+                        IsEnabled="{Binding CanAudition}"
+                        HorizontalAlignment="Stretch"
+                        HorizontalContentAlignment="Center" />
+                <TextBlock Text="Hear a tone in the selected part without losing what is there: the part is put back when you press Stop, load something, or leave this tab. Unsaved edits are forgotten."
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource SnMutedTextBrush}" />
+
                 <!-- The mark is per engine, so this is offered only for a tone whose engine this
                      build recognises — a Studio Set has sixteen of them and no single one to be
                      the starting point for. A tooltip is safe here: this is pressed once in a

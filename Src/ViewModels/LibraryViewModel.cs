@@ -76,6 +76,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// selected snapshot against a stranger. Asking for two is asking for exactly those two.</summary>
     private readonly Func<LibraryEntry, LibraryEntry, Task> _compareTwo;
 
+    /// <summary>Hear this entry in the selected part, or stop hearing it. The window's job for the reason
+    /// <see cref="_load"/> is its job -- it holds the API, it knows which part is selected and what engine
+    /// that part holds -- and additionally because it is the window that owns the one session: whether a
+    /// press means start, play something else, or stop is a question about what is already playing, which
+    /// nothing in this file knows.</summary>
+    private readonly Func<LibraryEntry, Task> _audition;
+
     /// <summary>Say something on the window's status bar: the message, and whether it is a failure. Shared with
     /// the save and load commands rather than duplicated as a status line of this tab's own -- the status bar is
     /// window chrome, it is visible from every tab, and one channel means a user never has to wonder which of two
@@ -102,11 +109,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <param name="confirm">See <see cref="_confirm"/>.</param>
     /// <param name="compare">See <see cref="_compare"/>.</param>
     /// <param name="compareTwo">See <see cref="_compareTwo"/>.</param>
+    /// <param name="audition">See <see cref="_audition"/>.</param>
     /// <param name="report">See <see cref="_report"/>.</param>
     /// <param name="settingsPath">See <see cref="_settingsPath"/>.</param>
     public LibraryViewModel(Func<LibraryEntry, Task> load, Func<string, Task<string?>> pickFolder,
         Func<string, string, Task<bool>> confirm, Func<LibraryEntry, Task> compare,
-        Func<LibraryEntry, LibraryEntry, Task> compareTwo,
+        Func<LibraryEntry, LibraryEntry, Task> compareTwo, Func<LibraryEntry, Task> audition,
         Action<string, bool> report, string settingsPath)
     {
         _load = load;
@@ -114,6 +122,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
         _confirm = confirm;
         _compare = compare;
         _compareTwo = compareTwo;
+        _audition = audition;
         _report = report;
         _settingsPath = settingsPath;
 
@@ -127,7 +136,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
         // Before the subscriptions and before the first Refresh, both of which reach for it: one feeds it the
         // selection, and the other tells it the init-tone marks have moved.
         Editor = new LibraryEditorViewModel(SaveChangesAsync, LoadAsync, CompareAsync, DeleteAsync,
-            MarkAsInitTone, RestoreVersionAsync);
+            MarkAsInitTone, RestoreVersionAsync, AuditionRowAsync);
 
         BulkEditor = new LibraryBulkEditViewModel(ApplyBulkChangeAsync, DeleteSelectionAsync,
             CompareSelectionAsync);
@@ -392,6 +401,10 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <summary>Send the given snapshot to the Compare tab, which fills whichever of its two slots is free. The
     /// comparison itself is that tab's job; this is only a way in from the list.</summary>
     private Task CompareAsync(LibraryEntryViewModel row) => _compare(row.Entry);
+
+    /// <summary>Hear the given snapshot in the selected part, or stop hearing it. Nothing is decided here --
+    /// see <see cref="_audition"/> for why the choice between the two belongs to the window.</summary>
+    private Task AuditionRowAsync(LibraryEntryViewModel row) => _audition(row.Entry);
 
     /// <summary>Make the given entry the tone Init starts from for its engine. Stored as a file name
     /// relative to the library folder, so it follows the library if the folder moves.</summary>
