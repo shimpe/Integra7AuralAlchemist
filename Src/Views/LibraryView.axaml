@@ -140,10 +140,15 @@
                     <TextBlock Grid.Column="6" Text="Tags" FontWeight="Bold" />
                 </Grid>
 
+                <!-- Multiple, not Toggle: with Multiple alone a plain click replaces the selection while
+                     control- and shift-click extend it, which is what a list does everywhere else. Toggle
+                     would make every plain click add or remove a row instead. Avalonia has no "Extended"
+                     mode; that is WPF's name for this behaviour. -->
                 <ListBox Grid.Row="1"
                          ItemsSource="{Binding Entries}"
                          SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
-                         SelectionMode="Single">
+                         SelectedItems="{Binding SelectedEntries}"
+                         SelectionMode="Multiple">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:LibraryEntryViewModel">
                             <Grid ColumnDefinitions="28,2*,150,140,80,130,3*">
@@ -189,7 +194,24 @@
                     BorderThickness="1"
                     CornerRadius="4"
                     Padding="10">
-                <local:LibraryEditorView DataContext="{Binding Editor}" />
+                <!-- Two panels in the same place, one of them visible: selecting a second row swaps the
+                     single-snapshot editor for the bulk one. Two rather than one panel with two shapes,
+                     because they share no field — a bulk change has no name, no notes and no versions, and
+                     its buttons act on many rows.
+
+                     Each IsVisible sits on a wrapper rather than on the view itself. A DataContext set on an
+                     element is what that same element's other bindings resolve against, so IsVisible beside
+                     it would be looking for IsBulkSelection on the panel's own view model: measured, as two
+                     AVLN2000s. The wrapper keeps the flag on this view model and the DataContext on the
+                     child. -->
+                <Panel>
+                    <Panel IsVisible="{Binding !IsBulkSelection}">
+                        <local:LibraryEditorView DataContext="{Binding Editor}" />
+                    </Panel>
+                    <Panel IsVisible="{Binding IsBulkSelection}">
+                        <local:LibraryBulkEditView DataContext="{Binding BulkEditor}" />
+                    </Panel>
+                </Panel>
             </Border>
         </Grid>
     </Grid>

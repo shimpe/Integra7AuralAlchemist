@@ -125,6 +125,23 @@ public sealed partial class CompareViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(CanCompare));
     }
 
+    /// <summary>Fill both slots at once, replacing whatever was in them, and compare.
+    ///
+    /// <b>Not two calls to <see cref="PutInFirstFreeSlot"/></b>, which is the whole reason this exists: that
+    /// method fills what is free, so with both slots already holding something the first call would replace
+    /// the left one and the second would replace it again -- the user would have asked to compare two
+    /// snapshots and been shown one of them against a stranger. Asking for two is asking for exactly those
+    /// two.</summary>
+    public void PutBoth(Integra7Snapshot left, string leftSource, Integra7Snapshot right, string rightSource)
+    {
+        Left.Put(left, leftSource);
+        Right.Put(right, rightSource);
+        this.RaisePropertyChanged(nameof(CanCompare));
+        // Run it here rather than leaving the user to press Compare: they asked for a comparison, not for
+        // two slots to be filled.
+        Compare();
+    }
+
     private async Task FillAsync(CompareSlotViewModel slot,
         Func<Task<(Integra7Snapshot Snapshot, string Source)?>> source)
     {

@@ -68,6 +68,14 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// window visibly.</summary>
     private readonly Func<LibraryEntry, Task> _compare;
 
+    /// <summary>Hand two entries to the Compare tab, replacing whatever it holds.
+    ///
+    /// <b>Separate from <see cref="_compare"/> rather than two calls to it.</b> That one fills whichever
+    /// slot is free, which is right when the user is building a comparison one snapshot at a time -- but
+    /// with both slots already full, calling it twice would replace the left one twice and show the second
+    /// selected snapshot against a stranger. Asking for two is asking for exactly those two.</summary>
+    private readonly Func<LibraryEntry, LibraryEntry, Task> _compareTwo;
+
     /// <summary>Say something on the window's status bar: the message, and whether it is a failure. Shared with
     /// the save and load commands rather than duplicated as a status line of this tab's own -- the status bar is
     /// window chrome, it is visible from every tab, and one channel means a user never has to wonder which of two
@@ -93,16 +101,19 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <param name="pickFolder">See <see cref="_pickFolder"/>.</param>
     /// <param name="confirm">See <see cref="_confirm"/>.</param>
     /// <param name="compare">See <see cref="_compare"/>.</param>
+    /// <param name="compareTwo">See <see cref="_compareTwo"/>.</param>
     /// <param name="report">See <see cref="_report"/>.</param>
     /// <param name="settingsPath">See <see cref="_settingsPath"/>.</param>
     public LibraryViewModel(Func<LibraryEntry, Task> load, Func<string, Task<string?>> pickFolder,
         Func<string, string, Task<bool>> confirm, Func<LibraryEntry, Task> compare,
+        Func<LibraryEntry, LibraryEntry, Task> compareTwo,
         Action<string, bool> report, string settingsPath)
     {
         _load = load;
         _pickFolder = pickFolder;
         _confirm = confirm;
         _compare = compare;
+        _compareTwo = compareTwo;
         _report = report;
         _settingsPath = settingsPath;
 
@@ -117,6 +128,18 @@ public sealed partial class LibraryViewModel : ViewModelBase
         // selection, and the other tells it the init-tone marks have moved.
         Editor = new LibraryEditorViewModel(SaveChangesAsync, LoadAsync, CompareAsync, DeleteAsync,
             MarkAsInitTone, RestoreVersionAsync);
+
+        BulkEditor = new LibraryBulkEditViewModel(ApplyBulkChangeAsync, DeleteSelectionAsync,
+            CompareSelectionAsync);
+
+        // After BulkEditor is assigned, not before: this dereferences it, and a selection change arrives as
+        // soon as the Refresh at the end of this constructor puts rows on screen.
+        SelectedEntries.CollectionChanged += (_, _) =>
+        {
+            BulkEditor.Count = SelectedEntries.Count;
+            BulkEditor.CountChanged();
+            this.RaisePropertyChanged(nameof(IsBulkSelection));
+        };
 
         // Every filter and both halves of the sort, in one subscription. Seven properties rather than seven
         // subscriptions because they all do the same thing and doing it once is what stops a change of two of
@@ -147,6 +170,10 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <summary>Which row is selected, or null. Two-way from the list, and assigned from here after a refresh --
     /// see <see cref="Refresh"/>.</summary>
     [Reactive] private LibraryEntryViewModel? _selectedEntry;
+
+    /// <summary>Every selected row. Avalonia fills this collection as the selection changes; nothing here
+    /// assigns it, which is why it is get-only and the binding is not two-way.</summary>
+    public ObservableCollection<LibraryEntryViewModel> SelectedEntries { get; } = [];
 
     /// <summary>Where the library is. Shown, and changed through <see cref="ChangeFolderAsync"/> rather than by
     /// typing: a path typed one character at a time would re-read the folder on every keystroke, and every
@@ -206,6 +233,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <summary>The panel beside the list. Built once, and told which row is selected -- see
     /// <see cref="LibraryEditorViewModel"/> for why the editor is not in this file.</summary>
     public LibraryEditorViewModel Editor { get; }
+
+    /// <summary>The panel shown instead of <see cref="Editor"/> when more than one row is selected.</summary>
+    public LibraryBulkEditViewModel BulkEditor { get; }
+
+    /// <summary>Which of the two panels the view shows. More than one row is what makes a bulk change
+    /// meaningful; one row is the editor, because a bulk form cannot rename or take a note.</summary>
+    public bool IsBulkSelection => SelectedEntries.Count > 1;
 
     // ---- reading and filtering ----------------------------------------------------------------------------
 
@@ -267,6 +301,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
         var admitted = LibraryListing.Sort(filter.Apply(_all), LibraryListing.SortFromLabel(SortLabel), Descending);
 
         var selectedPath = SelectedEntry?.FilePath;
+        // Every selected path, not only the anchor's. Rebuilding the list empties the control's selection
+        // outright -- measured, not assumed: the collection reports Remove down to zero as Entries is
+        // cleared -- and a bulk edit ends in a refresh, so without this a user who had just annotated
+        // fourteen snapshots would have to select them all again to do anything else to them.
+        var selectedPaths = SelectedEntries.Select(row => row.FilePath)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         Entries.Clear();
         foreach (var entry in admitted) Entries.Add(new LibraryEntryViewModel(entry));
         // Before the selection is restored, not after: the panel's init-tone note reads the selected row's own
@@ -275,6 +316,14 @@ public sealed partial class LibraryViewModel : ViewModelBase
         ApplyInitToneMarks();
         SelectedEntry = Entries.FirstOrDefault(row =>
             string.Equals(row.FilePath, selectedPath, StringComparison.OrdinalIgnoreCase));
+
+        // After the anchor, because assigning it is itself what puts the first row back into the control's
+        // selection; adding it a second time would leave a duplicate the batch loop would then write twice.
+        // A row the filter no longer admits is simply not put back, which is right: it is not on screen to
+        // be acted on.
+        foreach (var row in Entries.Where(row => selectedPaths.Contains(row.FilePath)))
+            if (!SelectedEntries.Contains(row))
+                SelectedEntries.Add(row);
 
         Summary = _all.Count == 0
             ? "Nothing in this folder yet."
@@ -398,27 +447,42 @@ public sealed partial class LibraryViewModel : ViewModelBase
             return;
         }
 
-        // Clear a mark that pointed at it, before the refresh, so the row that replaces the selection is
-        // built against the marks as they now are.
-        var markedEngine = _initTones.FirstOrDefault(m =>
-            string.Equals(m.Value, Path.GetFileName(selected.FilePath), StringComparison.OrdinalIgnoreCase));
-        if (markedEngine.Key is not null)
-        {
-            _initTones.Remove(markedEngine.Key);
-            try
-            {
-                LibrarySettings.SaveAll(_settingsPath, new LibraryPreferences(Folder, _initTones));
-            }
-            catch (Exception e)
-            {
-                // The snapshot is already gone, so this cannot be undone by refusing. Say it and carry on:
-                // the mark is stale, which InitToneResolution handles, rather than wrong.
-                UserActionLog.Failed("clear the init-tone mark of a deleted snapshot", e.ToString());
-            }
-        }
+        // Before the refresh, so the row that replaces the selection is built against the marks as they now
+        // are.
+        ForgetInitToneMarks([selected.FilePath]);
 
         Refresh();
         _report($"Deleted {selected.Name} from the library.", false);
+    }
+
+    /// <summary>Drop any init-tone mark pointing at a file that has just been deleted.
+    ///
+    /// <b>Shared by both delete paths</b>, which is the whole reason it is a method: deleting one snapshot
+    /// cleared its mark and deleting fourteen did not, so the same act left the settings in two different
+    /// states depending on how many rows had been selected.
+    ///
+    /// A stale mark is survivable -- <c>InitToneResolution</c> falls back to the bundled tone and says so --
+    /// but it is a mark the user can no longer see or clear, which is a trap, and this is the moment it is
+    /// cheapest to tidy. A failure to write the settings is logged and carried past: the snapshots are
+    /// already gone, so refusing would undo nothing.</summary>
+    private void ForgetInitToneMarks(IEnumerable<string> deletedPaths)
+    {
+        var names = deletedPaths.Select(Path.GetFileName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var marked = _initTones.Where(m => names.Contains(m.Value)).Select(m => m.Key).ToList();
+        if (marked.Count == 0) return;
+
+        foreach (var engine in marked) _initTones.Remove(engine);
+
+        try
+        {
+            LibrarySettings.SaveAll(_settingsPath, new LibraryPreferences(Folder, _initTones));
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("clear the init-tone marks of deleted snapshots", e.ToString());
+        }
     }
 
     /// <summary>Put a kept copy back, after asking. The confirmation is not ceremony: restoring overwrites
@@ -441,6 +505,126 @@ public sealed partial class LibraryViewModel : ViewModelBase
             UserActionLog.Failed($"restore '{row.FilePath}' from '{version.FilePath}'", e.ToString());
             _report($"Could not restore that version: {e.Message}", true);
         }
+    }
+
+    /// <summary>Apply one change to every selected snapshot, one file at a time.
+    ///
+    /// <b>A failure costs that file only.</b> A snapshot held open by a sync client must not abandon the
+    /// other thirteen, so each is attempted and the failures are named at the end rather than thrown. Each
+    /// write archives the previous copy through <see cref="PatchHistory"/>, so a bulk change is as
+    /// recoverable as a single one.
+    ///
+    /// <b>The loop is off the UI thread, and at this scale it has to be.</b> Annotating one snapshot reads
+    /// the whole file, parses all ~1,500 of its parameter values, archives a copy and writes it back --
+    /// which is why <see cref="_compare"/> already says doing that for a <em>single</em> Studio Set on the
+    /// click stalls the window visibly. Doing it for everything a user has selected while tidying a library
+    /// would be a freeze with nothing on screen to explain it. The status line says what is happening
+    /// before the work starts, because the freeze it replaces is exactly the thing a user reads as a
+    /// hang.</summary>
+    private async Task ApplyBulkChangeAsync(BulkChange change)
+    {
+        // Copied first: the write path refreshes the list, which rebuilds the very rows being iterated.
+        var rows = SelectedEntries.ToList();
+        if (rows.Count == 0) return;
+
+        _report($"Updating {rows.Count} snapshots…", false);
+
+        // Only the file names and the heads cross the thread, and both are immutable records.
+        var failed = await Task.Run(() =>
+        {
+            List<string> problems = [];
+            foreach (var row in rows)
+            {
+                try
+                {
+                    SnapshotLibrary.WriteMetadata(row.FilePath, BulkEdit.Apply(row.Entry.Head, change));
+                }
+                catch (Exception e)
+                {
+                    UserActionLog.Failed($"bulk edit '{row.FilePath}'", e.ToString());
+                    problems.Add(row.Name);
+                }
+            }
+
+            return problems;
+        });
+
+        // Back on the UI thread: the await above resumed on the context the command was invoked from, which
+        // is what both of these need.
+        _report(failed.Count == 0
+            ? $"Updated {rows.Count} snapshots."
+            : $"Updated {rows.Count - failed.Count} of {rows.Count} snapshots; " +
+              $"{failed.Count} could not be written: {string.Join(", ", failed)}.", failed.Count > 0);
+
+        Refresh();
+    }
+
+    /// <summary>Show the two selected snapshots side by side on the Compare tab.
+    ///
+    /// The order is the order they are listed in, so the left-hand slot is the row nearer the top of the
+    /// list -- which is what a user pointing at two rows and asking to compare them will expect, whichever
+    /// of the two they happened to click first.</summary>
+    private async Task CompareSelectionAsync()
+    {
+        // Copied, and its order taken from the list rather than from the selection: SelectedEntries is
+        // filled in click order, so without this the left slot would depend on which row was clicked first.
+        var rows = SelectedEntries.ToList();
+        if (rows.Count != 2) return;
+
+        var inListOrder = Entries.Where(rows.Contains).ToList();
+        if (inListOrder.Count != 2) return; // both are on screen, or there is nothing to show
+
+        await _compareTwo(inListOrder[0].Entry, inListOrder[1].Entry);
+    }
+
+    /// <summary>Remove every selected snapshot, after asking once for all of them. Each is archived by
+    /// <see cref="PatchHistory"/>, which is what makes one button able to remove fourteen files.</summary>
+    private async Task DeleteSelectionAsync()
+    {
+        // Copied before the question, not only before the loop: awaiting the dialog gives the list a chance
+        // to refresh under us, and a confirmation is about the rows the user was looking at when they asked.
+        var rows = SelectedEntries.ToList();
+        if (rows.Count == 0) return;
+
+        if (!await _confirm($"Delete {rows.Count} snapshots from the library? " +
+                            "A copy of each is kept in the history folder beside your library.",
+                            "Delete")) return;
+
+        _report($"Deleting {rows.Count} snapshots…", false);
+
+        // Off the UI thread, for the reason ApplyBulkChangeAsync's remarks give: each delete archives a copy
+        // of the file first, so this is a disk round trip per row rather than a flag being cleared.
+        var (failed, deleted) = await Task.Run(() =>
+        {
+            List<string> problems = [];
+            List<string> gone = [];
+            foreach (var row in rows)
+            {
+                try
+                {
+                    SnapshotLibrary.Delete(row.FilePath);
+                    gone.Add(row.FilePath);
+                }
+                catch (Exception e)
+                {
+                    UserActionLog.Failed($"bulk delete '{row.FilePath}'", e.ToString());
+                    problems.Add(row.Name);
+                }
+            }
+
+            return (problems, gone);
+        });
+
+        // Only the ones that actually went: a file that could not be deleted is still there, and its mark
+        // still points at something real. On the UI thread, because it writes the settings the list reads.
+        ForgetInitToneMarks(deleted);
+
+        _report(failed.Count == 0
+            ? $"Deleted {rows.Count} snapshots."
+            : $"Deleted {rows.Count - failed.Count} of {rows.Count}; " +
+              $"{failed.Count} could not be removed: {string.Join(", ", failed)}.", failed.Count > 0);
+
+        Refresh();
     }
 
     /// <summary>Choose a different library folder, list it, and remember it.

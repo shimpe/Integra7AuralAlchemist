@@ -2348,6 +2348,28 @@ public partial class MainWindowViewModel : ViewModelBase
                     SnapshotFailed = true;
                 }
             },
+            async (first, second) =>
+            {
+                try
+                {
+                    // Both read before either slot is touched: a failure on the second file must not leave
+                    // the tab showing the first one against whatever happened to be there before.
+                    var left = Integra7Snapshot.FromJson(await File.ReadAllTextAsync(first.FilePath));
+                    var right = Integra7Snapshot.FromJson(await File.ReadAllTextAsync(second.FilePath));
+
+                    CompareVm.PutBoth(left, $"library file {Path.GetFileName(first.FilePath)}",
+                        right, $"library file {Path.GetFileName(second.FilePath)}");
+                    TopTabIndex = CompareTabIndex;
+                }
+                catch (Exception e)
+                {
+                    UserActionLog.Failed("compare two library snapshots", e.ToString());
+                    SnapshotStatus = e is SnapshotFormatException
+                        ? e.Message
+                        : $"Could not read those files: {e.Message}";
+                    SnapshotFailed = true;
+                }
+            },
             (message, failed) =>
             {
                 // The window's own status bar, not a line of the library's own: it is visible from every tab,
