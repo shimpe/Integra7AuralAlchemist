@@ -37,6 +37,7 @@ public sealed partial class LibraryEditorViewModel : ViewModelBase
     private readonly Func<LibraryEntryViewModel, Task> _delete;
     private readonly Action<LibraryEntryViewModel> _markAsInitTone;
     private readonly Func<LibraryEntryViewModel, PatchVersion, Task> _restore;
+    private readonly Func<LibraryEntryViewModel, Task> _audition;
 
     /// <param name="save">Write the edited metadata back. Takes the row as well as the metadata so that
     /// the caller, which owns the folder and the refresh, does not have to ask what is selected.</param>
@@ -45,13 +46,17 @@ public sealed partial class LibraryEditorViewModel : ViewModelBase
     /// <param name="delete">Remove it from the library, after asking.</param>
     /// <param name="markAsInitTone">Make it the tone Init starts from for its engine.</param>
     /// <param name="restore">Put a kept copy back over the row's file, after asking.</param>
+    /// <param name="audition">Hear this snapshot in the selected part, or stop hearing it. Which of the two
+    /// it does is the caller's decision and not this panel's: it is the caller that knows what is playing,
+    /// and this only knows what is on screen.</param>
     public LibraryEditorViewModel(
         Func<LibraryEntryViewModel, SnapshotMetadata, Task> save,
         Func<LibraryEntryViewModel, Task> load,
         Func<LibraryEntryViewModel, Task> compare,
         Func<LibraryEntryViewModel, Task> delete,
         Action<LibraryEntryViewModel> markAsInitTone,
-        Func<LibraryEntryViewModel, PatchVersion, Task> restore)
+        Func<LibraryEntryViewModel, PatchVersion, Task> restore,
+        Func<LibraryEntryViewModel, Task> audition)
     {
         _save = save;
         _load = load;
@@ -59,8 +64,9 @@ public sealed partial class LibraryEditorViewModel : ViewModelBase
         _delete = delete;
         _markAsInitTone = markAsInitTone;
         _restore = restore;
+        _audition = audition;
 
-        // The six flags the buttons and the panel bind to are not raised by the generated setters of the
+        // The seven flags the buttons and the panel bind to are not raised by the generated setters of the
         // properties they read, so they are raised together whenever any of the inputs changes.
         this.WhenAnyValue(x => x.Selected, x => x.EditName, x => x.SelectedVersion,
                 (_, _, _) => System.Reactive.Unit.Default)
@@ -72,7 +78,13 @@ public sealed partial class LibraryEditorViewModel : ViewModelBase
                 this.RaisePropertyChanged(nameof(CanMarkAsInitTone));
                 this.RaisePropertyChanged(nameof(InitToneNote));
                 this.RaisePropertyChanged(nameof(CanRestore));
+                this.RaisePropertyChanged(nameof(CanAudition));
             });
+
+        // Its own subscription rather than a fourth term above: the caller assigns this one, and it changes
+        // for a reason none of the others do -- the audition it describes started or ended somewhere else.
+        this.WhenAnyValue(x => x.IsAuditioning)
+            .Subscribe(_ => this.RaisePropertyChanged(nameof(AuditionLabel)));
 
         this.WhenAnyValue(x => x.Selected).Subscribe(_ => ShowSelected());
     }
@@ -176,6 +188,28 @@ public sealed partial class LibraryEditorViewModel : ViewModelBase
     {
         UserActionLog.Action("button: Load (library)");
         if (Selected is { } row) await _load(row);
+    }
+
+    /// <summary>Whether the row on screen is the one being heard. Assigned by the caller, which owns the
+    /// session -- <b>per row, not per session</b>: while something is playing, its own row offers Stop and
+    /// every other row offers Audition, so selecting a different tone and pressing the button plays that one
+    /// instead of stopping. That is what browsing is.</summary>
+    [Reactive] private bool _isAuditioning;
+
+    /// <summary>What the audition button says. One button rather than two, because Stop is only ever
+    /// wanted for the session this same panel started.</summary>
+    public string AuditionLabel => IsAuditioning ? "Stop auditioning" : "Audition";
+
+    /// <summary>Only for a tone. A Studio Set replaces all sixteen parts, which is not something to do to
+    /// somebody who wanted to hear a patch.</summary>
+    public bool CanAudition => SelectedIsTone;
+
+    public async Task AuditionAsync()
+    {
+        UserActionLog.Action(IsAuditioning
+            ? "button: Stop auditioning (library)"
+            : "button: Audition (library)");
+        if (Selected is { } row) await _audition(row);
     }
 
     public async Task CompareThisAsync()
