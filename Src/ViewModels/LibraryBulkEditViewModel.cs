@@ -20,13 +20,17 @@ public sealed partial class LibraryBulkEditViewModel : ViewModelBase
 {
     private readonly Func<BulkChange, Task> _apply;
     private readonly Func<Task> _delete;
+    private readonly Func<Task> _compareBoth;
 
     /// <param name="apply">Write one change across the selection.</param>
     /// <param name="delete">Remove the selection from the library, after asking.</param>
-    public LibraryBulkEditViewModel(Func<BulkChange, Task> apply, Func<Task> delete)
+    /// <param name="compareBoth">Show the two selected snapshots side by side on the Compare tab.</param>
+    public LibraryBulkEditViewModel(Func<BulkChange, Task> apply, Func<Task> delete,
+        Func<Task> compareBoth)
     {
         _apply = apply;
         _delete = delete;
+        _compareBoth = compareBoth;
     }
 
     /// <summary>How many rows the panel is acting on. Set by the list; shown on every button that acts, so
@@ -37,12 +41,18 @@ public sealed partial class LibraryBulkEditViewModel : ViewModelBase
 
     public string DeleteLabel => $"Delete {Count} snapshots…";
 
+    /// <summary>Whether the two selected snapshots can be shown side by side. <b>Exactly two</b>, because
+    /// the Compare tab has two slots: with three selected there is no answer to which pair was meant, and
+    /// choosing one silently would be worse than not offering the button.</summary>
+    public bool CanCompare => Count == 2;
+
     /// <summary>Raised by the list when the selection changes, because the two strings above are computed
     /// and the generated setter for Count does not know about them.</summary>
     public void CountChanged()
     {
         this.RaisePropertyChanged(nameof(Summary));
         this.RaisePropertyChanged(nameof(DeleteLabel));
+        this.RaisePropertyChanged(nameof(CanCompare));
     }
 
     [Reactive] private string _tagsToAdd = "";
@@ -90,6 +100,12 @@ public sealed partial class LibraryBulkEditViewModel : ViewModelBase
     {
         UserActionLog.Action("button: Clear favourite on all (library)");
         await _apply(new BulkChange(Favourite: false));
+    }
+
+    public async Task CompareBothAsync()
+    {
+        UserActionLog.Action("button: Compare the two selected (library)");
+        await _compareBoth();
     }
 
     public async Task DeleteAsync()

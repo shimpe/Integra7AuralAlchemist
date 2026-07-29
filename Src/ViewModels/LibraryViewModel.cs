@@ -68,6 +68,14 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// window visibly.</summary>
     private readonly Func<LibraryEntry, Task> _compare;
 
+    /// <summary>Hand two entries to the Compare tab, replacing whatever it holds.
+    ///
+    /// <b>Separate from <see cref="_compare"/> rather than two calls to it.</b> That one fills whichever
+    /// slot is free, which is right when the user is building a comparison one snapshot at a time -- but
+    /// with both slots already full, calling it twice would replace the left one twice and show the second
+    /// selected snapshot against a stranger. Asking for two is asking for exactly those two.</summary>
+    private readonly Func<LibraryEntry, LibraryEntry, Task> _compareTwo;
+
     /// <summary>Say something on the window's status bar: the message, and whether it is a failure. Shared with
     /// the save and load commands rather than duplicated as a status line of this tab's own -- the status bar is
     /// window chrome, it is visible from every tab, and one channel means a user never has to wonder which of two
@@ -93,16 +101,19 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <param name="pickFolder">See <see cref="_pickFolder"/>.</param>
     /// <param name="confirm">See <see cref="_confirm"/>.</param>
     /// <param name="compare">See <see cref="_compare"/>.</param>
+    /// <param name="compareTwo">See <see cref="_compareTwo"/>.</param>
     /// <param name="report">See <see cref="_report"/>.</param>
     /// <param name="settingsPath">See <see cref="_settingsPath"/>.</param>
     public LibraryViewModel(Func<LibraryEntry, Task> load, Func<string, Task<string?>> pickFolder,
         Func<string, string, Task<bool>> confirm, Func<LibraryEntry, Task> compare,
+        Func<LibraryEntry, LibraryEntry, Task> compareTwo,
         Action<string, bool> report, string settingsPath)
     {
         _load = load;
         _pickFolder = pickFolder;
         _confirm = confirm;
         _compare = compare;
+        _compareTwo = compareTwo;
         _report = report;
         _settingsPath = settingsPath;
 
@@ -118,7 +129,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
         Editor = new LibraryEditorViewModel(SaveChangesAsync, LoadAsync, CompareAsync, DeleteAsync,
             MarkAsInitTone, RestoreVersionAsync);
 
-        BulkEditor = new LibraryBulkEditViewModel(ApplyBulkChangeAsync, DeleteSelectionAsync);
+        BulkEditor = new LibraryBulkEditViewModel(ApplyBulkChangeAsync, DeleteSelectionAsync,
+            CompareSelectionAsync);
 
         // After BulkEditor is assigned, not before: this dereferences it, and a selection change arrives as
         // soon as the Refresh at the end of this constructor puts rows on screen.
@@ -545,6 +557,24 @@ public sealed partial class LibraryViewModel : ViewModelBase
               $"{failed.Count} could not be written: {string.Join(", ", failed)}.", failed.Count > 0);
 
         Refresh();
+    }
+
+    /// <summary>Show the two selected snapshots side by side on the Compare tab.
+    ///
+    /// The order is the order they are listed in, so the left-hand slot is the row nearer the top of the
+    /// list -- which is what a user pointing at two rows and asking to compare them will expect, whichever
+    /// of the two they happened to click first.</summary>
+    private async Task CompareSelectionAsync()
+    {
+        // Copied, and its order taken from the list rather than from the selection: SelectedEntries is
+        // filled in click order, so without this the left slot would depend on which row was clicked first.
+        var rows = SelectedEntries.ToList();
+        if (rows.Count != 2) return;
+
+        var inListOrder = Entries.Where(rows.Contains).ToList();
+        if (inListOrder.Count != 2) return; // both are on screen, or there is nothing to show
+
+        await _compareTwo(inListOrder[0].Entry, inListOrder[1].Entry);
     }
 
     /// <summary>Remove every selected snapshot, after asking once for all of them. Each is archived by

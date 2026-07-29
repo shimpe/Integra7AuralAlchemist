@@ -23,6 +23,15 @@
                        TextWrapping="Wrap"
                        Foreground="{StaticResource SnMutedTextBrush}" />
 
+            <!-- Above the fields that change things, because this one changes nothing: it is about which
+                 two snapshots are selected, not about editing them. Collapses unless exactly two are
+                 selected, since the Compare tab has two slots and there is no answer to which pair was
+                 meant out of three. -->
+            <Button Content="Compare the two"
+                    Command="{Binding CompareBothAsync}"
+                    IsVisible="{Binding CanCompare}"
+                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+
             <TextBlock Text="Tags to add, separated by commas"
                        Foreground="{StaticResource SnMutedTextBrush}" />
             <TextBox Text="{Binding TagsToAdd, Mode=TwoWay}" />
