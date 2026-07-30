@@ -266,5 +266,35 @@ and the cost is the user's to weigh, not this document's to decide for them.
 
 ## Open questions
 
-None. The one that was open — whether `HQ GM2 + HQ Pcm` unlocks the GM2 and ExPCM banks — was settled by
-re-test on 2026-07-30 and is recorded above.
+**Whether the 531 ExPCM rows are really uncapturable — reopened 2026-07-30, after being recorded above as
+settled.** The user watched their instrument's own display during a sweep and saw requests going out while
+it still showed the expansion slots loading. Two things followed from looking again.
+
+The first is that **the positive control does not close the question.** What made the re-test conclusive was
+a PRST tone capturing normally in the `HQ GM2 + HQ Pcm` loadout — but PRST tones are internal ROM, and an
+instrument still loading an expansion board can go on answering for its own internal sounds. The control
+proves the device was responsive; it never proved the board had finished. ExPCM tones live on precisely the
+board that was loading.
+
+The second is worse for the method and better stated generally: **the slot query reports the slot table and
+nothing else.** It cannot establish that a board's samples are usable at the instant its slots become
+readable. Every conclusion here about a board-backed bank assumes those two moments coincide, and nothing
+has measured whether they do. That is now the first thing to measure, and with a bank known to capture
+rather than with the one in dispute.
+
+Two further points make the earlier convergence unsafe rather than merely unproven: the rule it waited on
+was "poll until the reading stops changing", which fires early because immediately after a send the device
+still reports the previous loadout; and a silent read was rendered as `(0,0,0,0)`, so a *repeated* silence
+is itself a reading that does not change. Both are fixed — see `SeedSettling` — but they were in force when
+this was decided.
+
+**GM2 and ExPCM are not in the same position**, and the earlier answer treated them as one result. GM2 is
+internal — `SeedBoards.For("GM2/GM2#")` answers null, there is no board to wait for — so nothing about
+loading can explain its silence. ExPCM is on the HQ Pcm board. If load timing is the explanation, ExPCM
+returns and GM2 stays silent.
+
+This question's method has now been faulted three times: once for polling for what it sent, once for the
+convergence rule above, and once for a control that could not see what it was asked to. **Do not record a
+fourth answer without a completion signal a later reader can audit from the log.** The selection screen's
+defaults are unchanged in the meantime — unticked with the reason shown, which is the answer that costs the
+user least if this turns out to have been wrong.
