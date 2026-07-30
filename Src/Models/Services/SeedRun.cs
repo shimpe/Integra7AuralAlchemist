@@ -289,8 +289,8 @@ public static class SeedRun
                 // the sentence that says what to do about it.
                 boardTrouble.Add(
                     $"The expansion boards could not be put back ({e.Message}). They held "
-                    + $"{Slots(boardsBefore)} before the sweep and the slots may now hold anything -- load "
-                    + "that set yourself before playing a part whose tone lives on one of them.");
+                    + $"{Slots(boardsBefore)} before the sweep and the slots may now hold anything — "
+                    + "load that set yourself before playing a part whose tone lives on one of them.");
             }
         }
 
