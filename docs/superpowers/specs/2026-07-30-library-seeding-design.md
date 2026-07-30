@@ -48,11 +48,26 @@ Sustained **2.07 patches/s**. Factory sweep ≈ **54 minutes**, user slots ≈ 8
 presets and 40% of the clock**, and 137 MB of the ~320 MB a full factory sweep writes, because a kit reads all
 88 partial blocks whether or not they hold anything.
 
-**Some presets do not answer at all.** In the spike, every GM2 row (265) and every ExPCM row (531) — 796 of
-6,023, 13.2% — stored the bank and program in the Studio Set Part and then answered no read from any engine's
-temporary area. Identical via sysex and via MIDI program change, so it is the instrument rather than the write
-route. **Whether the `HQ GM2 + HQ Pcm` loadout unlocks them is an open question** (see below); the design does
-not depend on the answer.
+**796 of the 6,023 factory rows cannot be captured on this unit** — every GM2 row (265) and every ExPCM row
+(531), 13.2%. The Studio Set Part accepts and stores exactly what is written (verified by read-back, e.g.
+msb 121 / lsb 1 / pc 6 reads back as pc 5, 0-based as expected), and then **all five engines' temporary tone
+areas stay silent** — not merely the one the preset's row names. The part is left holding a bank and program
+selection that exposes no temporary tone over sysex at all. Identical via sysex and via MIDI program change,
+so it is the instrument rather than the write route.
+
+**The `HQ GM2 + HQ Pcm` loadout does not unlock them.** The user asked specifically, since that board must be
+loaded in slot 1 and then occupies all four slots — and the device confirms their model of it, rewriting
+`SendLoadSrxAsync(19, 0, 0, 0)` to `(19, 20, 21, 22)`. Tested with 20 presets spanning both banks and both
+engines that have rows in them, at three time points across 180 s past a properly detected convergence: 0
+captured. **The positive controls are what make that conclusive** — in the same loadout, with `(19,20,21,22)`
+stable, a PRST PCM Synth tone captured in 305 ms and a PRST PCM drum kit in 5,933 ms, both normal times. The
+device was fully responsive; these two banks simply are not exposed.
+
+> The first attempt at this test was unsound and its method was rejected: it polled for the values it *sent*
+> rather than the values the device settles on, so the loop never matched and became an accidental fixed wait,
+> and its control was SRX06 being evicted — which cannot distinguish "not available" from "not ready yet". The
+> conclusion survived the re-test; the reasoning behind it did not. It is the worked example of the trap
+> recorded above, walked into by the person who had just written it down.
 
 **Writing the preset:**
 
@@ -73,8 +88,9 @@ not depend on the answer.
 - Two traps: it can return `(0,0,0,0)` mid-load, so poll for the expected values rather than for any reply;
   and **the device rewrites what you send** — `SendLoadSrxAsync(19,0,0,0)` read back as `(19,20,21,22)`.
   Compare against convergence, not against the request.
-- Timings: a normal board load ≈ 5 s; unloading one ≈ 2.5 s; restoring three ≈ 14.6 s; the `HQ Pcm` load
-  > 33 s.
+- Timings: a normal board load ≈ 5 s; unloading one ≈ 2.5 s; restoring three ≈ 14.6 s, consistently; the
+  `HQ Pcm` load converges at **18.7 s** and is stable by 23.3 s. (An earlier note said "> 33 s"; that was an
+  unmeasured lower bound read off a truncated log, not a measurement.)
 
 ---
 
@@ -146,14 +162,15 @@ way.
 
 A patch whose **first block does not answer** is recorded as `unavailable` and the sweep moves to the next
 one. That single rule covers every reason a patch cannot be captured — an unloaded SRX or ExSN board, an
-engine the part cannot hold, and whatever is true of GM2 and ExPCM — and it is why the open question below
-does not block the design. If `HQ GM2` turns out to unlock those 796, they are captured; if not, they are
-reported as unavailable with everything else.
+engine the part cannot hold, and whatever is true of GM2 and ExPCM. Nothing in the design encodes *which*
+patches are unavailable, which is what kept the HQ GM2 question from ever being a blocker: the answer changed
+the selection screen's defaults and nothing else.
 
-The cost of a wrong guess is one 1.5 s reply deadline per patch. For the 796 that is ~20 minutes on a
-55-minute sweep, which is the argument for offering the known-unavailable banks **unticked by default with
-the reason shown**, rather than for hiding them: the user can tick them and find out for themselves on a unit
-that may differ from the one measured.
+The cost of trying one anyway is a single 1.5 s reply deadline. For the 796 that is ~20 minutes on a
+55-minute sweep, which is the argument for offering GM2 and ExPCM **unticked by default with the reason
+shown** rather than for hiding them. Hiding them would be the wrong call twice over: another unit may differ,
+and a user who wants to check should be able to, cheaply, without being told what their instrument can do by
+a table written on somebody else's.
 
 ---
 
@@ -198,15 +215,21 @@ turns out to be too slow in practice, the answer is a second library folder, whi
 
 ---
 
+## Selection screen defaults
+
+Settled by the measurements above, and every one of them shows its cost beside the tick so the user is
+choosing with the number in view:
+
+| banks | default | why |
+| --- | --- | --- |
+| PRST, SRX, ExSN, user slots | ticked | the sweep's purpose |
+| GM2, ExPCM | **unticked** | not capturable on the measured unit; ~20 minutes of reply deadlines to prove it again |
+| PCM drum kits | **unticked** | 22 minutes and 137 MB for 216 patches — 40% of the clock for 3.6% of the presets |
+
+PCM drum kits are unticked rather than absent for the same reason as GM2: it is a defensible thing to want,
+and the cost is the user's to weigh, not this document's to decide for them.
+
 ## Open questions
 
-1. **Do GM2 and ExPCM presets become capturable under the `HQ GM2 + HQ Pcm` loadout?** The user points out it
-   must be loaded in slot 1 and then occupies all four slots. The spike's own read-back —
-   `SendLoadSrxAsync(19,0,0,0)` → `(19,20,21,22)` — suggests that is what happened, but its control for the
-   test was SRX06 being evicted, and eviction plausibly registers as soon as the load starts, while that load
-   takes over 33 seconds. So the probes may have landed in the window where the old boards were gone and the
-   new one was not ready. **A re-test is running.** Either answer is absorbed by the availability rule; what
-   changes is whether the sweep should rotate through that loadout, and what the selection screen says beside
-   those two banks.
-2. **Should PCM drum kits be ticked by default?** 22 minutes and 137 MB for 216 patches. The measured cost
-   should be shown beside the tick either way.
+None. The one that was open — whether `HQ GM2 + HQ Pcm` unlocks the GM2 and ExPCM banks — was settled by
+re-test on 2026-07-30 and is recorded above.
