@@ -135,7 +135,12 @@ public sealed partial class SeedRunViewModel : ViewModelBase
     private readonly Action _close;
 
     /// <summary>What the library folder held when the facts were last gathered. The resume: a patch whose
-    /// file name is already in here is not captured again.</summary>
+    /// file name is already in here is not captured again.
+    ///
+    /// <b>Gathered when the panel opens, when Start is pressed, and when a run ends.</b> The first two are
+    /// what the sweep is planned from; the third is only ever for the screen, and it is needed because a run
+    /// is the one thing certain to have changed the folder. Without it the panel spent the minutes after a
+    /// sweep offering to capture patches it had just captured.</summary>
     private IReadOnlyCollection<string> _existing = [];
 
     /// <summary>What the instrument's four expansion slots hold, so that a bank whose board is already in a
@@ -549,6 +554,25 @@ public sealed partial class SeedRunViewModel : ViewModelBase
         // After a cancel as well: everything captured is already on disk, and a list that does not show it is
         // a list saying the last twenty minutes did nothing.
         _finished();
+
+        // And the panel's own picture of the library is now a whole run out of date. Nothing is decided by
+        // it -- Start gathers again before it plans anything, which is what makes a sweep started from a
+        // stale screen still correct -- but the number on screen is the one thing this panel exists to show,
+        // and after a run it was wrong in both directions: "Nothing to capture." with ten files about to be
+        // written, and "261 patches" with every one of them already on disk. A user reading either would be
+        // right to stop trusting the ones they cannot check.
+        //
+        // Guarded, because it happens after the outcome has been put on screen and must not be what replaces
+        // it: whatever went wrong listing a folder, the sentence saying what the sweep did is worth more.
+        try
+        {
+            await GatherAsync();
+            Recompute();
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("work out what a sweep would still cost, after one finished", e.ToString());
+        }
     }
 
     /// <summary>Stop after the patch in flight. Never inside one: the three parameter writes and the capture
