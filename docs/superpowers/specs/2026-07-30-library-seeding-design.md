@@ -166,11 +166,20 @@ engine the part cannot hold, and whatever is true of GM2 and ExPCM. Nothing in t
 patches are unavailable, which is what kept the HQ GM2 question from ever being a blocker: the answer changed
 the selection screen's defaults and nothing else.
 
-The cost of trying one anyway is a single 1.5 s reply deadline. For the 796 that is ~20 minutes on a
-55-minute sweep, which is the argument for offering GM2 and ExPCM **unticked by default with the reason
-shown** rather than for hiding them. Hiding them would be the wrong call twice over: another unit may differ,
-and a user who wants to check should be able to, cheaply, without being told what their instrument can do by
-a table written on somebody else's.
+The cost of trying one anyway was **timed at 3.00 s** on 2026-07-30 — nine consecutive log lines 3.000 to
+3.003 s apart. It is two waits, not one: the 1.5 s reply deadline for the tone that never arrives, and 1.5 s
+more to ask the instrument whether it holds anything at all, which is what keeps "your instrument does not
+expose these" from being reported as "these failed". For the 796 that is **~40 minutes** — GM2 ~13, ExPCM
+~27 — which is the argument for offering the two **unticked by default with the reason shown** rather than
+for hiding them. Hiding them would be the wrong call twice over: another unit may differ, and a user who
+wants to check should be able to, cheaply, without being told what their instrument can do by a table written
+on somebody else's.
+
+**The estimate does not carry that 40 minutes**, and deliberately. `SeedPlan` charges an unavailable row its
+engine's capture rate, so a sweep with both banks ticked runs about 32 minutes longer than it predicts.
+Teaching the planner which banks are unavailable is the one fix that is not allowed here — availability is
+discovered, never assumed — so the number is shown per bank on the selection screen, beside the tick, worded
+as what it cost on the unit it was measured on rather than as a property of the bank.
 
 ---
 
@@ -223,7 +232,7 @@ choosing with the number in view:
 | banks | default | why |
 | --- | --- | --- |
 | PRST, SRX, ExSN, user slots | ticked | the sweep's purpose |
-| GM2, ExPCM | **unticked** | not capturable on the measured unit; ~20 minutes of reply deadlines to prove it again |
+| GM2, ExPCM | **unticked** | not capturable on the measured unit; 3.00 s a row to prove it again, so ~13 minutes for GM2 and ~27 for ExPCM, neither of which the estimate allows for |
 | PCM drum kits | **unticked** | 22 minutes and 137 MB for 216 patches — 40% of the clock for 3.6% of the presets |
 
 PCM drum kits are unticked rather than absent for the same reason as GM2: it is a defensible thing to want,

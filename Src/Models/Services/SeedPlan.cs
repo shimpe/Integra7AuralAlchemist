@@ -169,7 +169,22 @@ public static class SeedPlan
     /// <summary>Per-engine costs measured against the user's instrument on 2026-07-30, full round trip --
     /// three parameter writes, the selection settling, and the whole capture. A drum kit is fifty times an
     /// SN-A tone because it reads 88 partial blocks whether or not they hold anything, so an average would
-    /// promise ten minutes for an hour's work.</summary>
+    /// promise ten minutes for an hour's work.
+    ///
+    /// <b>Left alone when a second measurement came in under them.</b> Sweeps that evening timed SN-A at 77
+    /// ms, SN-S at 146, PCMS at 332 and PCMD at 6,080 -- so four of these five charges run 8 to 34% high, and
+    /// the drum kit 1% low, which is thirteen seconds across every kit the instrument has. Tightening them
+    /// would buy a truer number for the run where nothing goes wrong, at the cost of the slack that pays for
+    /// the runs where something does; an estimate that comes in early is the kinder error, and the check
+    /// sweep that predicted 30.3 s and took 27.7 is where this wants to sit.
+    ///
+    /// <b>What is not modelled here is a row the instrument exposes nothing for.</b> Those cost 3.00 s each
+    /// -- a reply deadline for the tone that never comes, and the read that asks whether the unit holds
+    /// anything at all -- and they are charged their engine's capture rate instead, which on the measured
+    /// unit is 32 minutes short across the 796 of them. Correcting it here would mean a table of which banks
+    /// are unavailable, and this design discovers that rather than assuming it: another unit may answer for
+    /// rows this one does not. The number belongs where somebody is deciding, so it is on the two banks'
+    /// rows on the selection screen -- see <c>SeedRunViewModel.BankNote</c>.</summary>
     private static readonly Dictionary<string, int> MillisecondsPerPatch = new(StringComparer.Ordinal)
     {
         ["SN-A"] = 116, ["SN-S"] = 186, ["PCMS"] = 376, ["SN-D"] = 1380, ["PCMD"] = 6018,

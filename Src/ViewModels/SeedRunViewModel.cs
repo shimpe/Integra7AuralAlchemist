@@ -95,8 +95,9 @@ public sealed class SeedOptionViewModel : ViewModelBase
 ///
 /// <b>The defaults are the spike's measurements, and the three unticked ones say why on the row.</b> GM2 and
 /// ExPCM expose no temporary tone at all on the instrument this was measured against -- 796 rows, about
-/// twenty minutes of reply deadlines to establish again -- and PCM drum kits are 40% of a full sweep's clock
-/// and 137 MB of its bytes for 3.6% of its patches. They are offered unticked rather than left out because
+/// forty minutes to establish again at the 3.00 s each of them was timed at -- and PCM drum kits are 40% of
+/// a full sweep's clock and 137 MB of its bytes for 3.6% of its patches. They are offered unticked rather
+/// than left out because
 /// another unit may differ, and a user who wants to check should be able to, cheaply, rather than be told
 /// what their own instrument can do by a table written about somebody else's.
 ///
@@ -342,12 +343,34 @@ public sealed partial class SeedRunViewModel : ViewModelBase
         _ => "",
     };
 
+    /// <summary>Why these two are unticked, with what ticking them costs — which is the number the estimate
+    /// under the plan does not carry.
+    ///
+    /// <b>A row the instrument exposes nothing for costs 3.00 s</b>, timed to the millisecond over nine
+    /// consecutive rows on the unit this was measured on: a 1.5 s reply deadline for the tone that never
+    /// arrives, and 1.5 s more to ask the instrument whether it holds anything at all, which is what keeps
+    /// "your instrument does not expose these" from being reported as "these failed". <see cref="SeedPlan"/>
+    /// charges such a row its engine's capture rate instead, so the estimate is short by about 32 minutes
+    /// when both of these are ticked. The honest place for that number is here, beside the tick, where
+    /// somebody is deciding — and not in the planner, which would have to be told which banks are
+    /// unavailable, when the whole design discovers that and never assumes it.
+    ///
+    /// <b>Both sentences are about this unit rather than about the banks.</b> Another instrument may answer
+    /// for rows this one does not, and then neither the emptiness nor the 32 minutes is true of it.</summary>
     private static string BankNote(string bank) => bank switch
     {
-        "GM2/GM2#" or "ExPCM" =>
+        "GM2/GM2#" =>
             "Not capturable on the instrument this was measured on: the part accepts the selection and then "
-            + "exposes no tone at all, on any engine. Unticked because establishing that again costs a reply "
-            + "deadline per patch — tick it to find out whether yours differs.",
+            + "exposes no tone at all, on any engine. Establishing that again costs about 3 seconds a patch "
+            + "on that unit, so roughly 13 minutes for this bank — time the estimate below does not allow "
+            + "for, because it charges every row as though it captured. Tick it to find out whether yours "
+            + "differs.",
+        "ExPCM" =>
+            "Not capturable on the instrument this was measured on: the part accepts the selection and then "
+            + "exposes no tone at all, on any engine. Establishing that again costs about 3 seconds a patch "
+            + "on that unit, so roughly 27 minutes for this bank — time the estimate below does not allow "
+            + "for, because it charges every row as though it captured. Tick it to find out whether yours "
+            + "differs.",
         _ => "",
     };
 
