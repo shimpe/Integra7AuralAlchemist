@@ -41,6 +41,11 @@
                        MaxWidth="700" />
             <Button Content="Change…" Command="{Binding ChangeFolderAsync}" Padding="8,2" />
             <Button Content="Refresh" Command="{Binding Refresh}" Padding="8,2" />
+            <!-- Beside Change and Refresh because it is the same sort of thing: a question about the folder
+                 rather than about a row. It opens the panel on the right and starts looking straight away —
+                 a panel that opened and then waited to be told to find duplicates would be asking a question
+                 the user has already answered by pressing this. -->
+            <Button Content="Find duplicates…" Command="{Binding FindDuplicates}" Padding="8,2" />
             <TextBlock Text="{Binding Summary}"
                        VerticalAlignment="Center"
                        Foreground="{StaticResource SnMutedTextBrush}" />
@@ -56,9 +61,31 @@
              ItemWidth is left unset so each control keeps its own width. -->
         <WrapPanel Grid.Row="1" Orientation="Horizontal" ItemSpacing="8" LineSpacing="6"
                    VerticalAlignment="Center">
+            <!-- Enter runs the deep search: it is the one thing on this bar that is not live, because it is
+                 the one thing that reads files. The handler is code-behind rather than a KeyBinding on the
+                 box — see LibraryView.axaml.cs for why. -->
             <TextBox Text="{Binding SearchText, Mode=TwoWay}"
                      PlaceholderText="Search names, notes, categories and tags"
+                     KeyDown="OnSearchBoxKeyDown"
                      MinWidth="300" />
+            <!-- The text axis widened to what is inside a patch. It can only ever add rows: the other six
+                 axes still narrow, and the box only changes what the text axis is allowed to match.
+
+                 Ticking it is itself a request to look, and unticking it a request for those rows to go —
+                 both happen because the view model subscribes to this property, not because of anything
+                 here. The button beside it is for the second search: the box stays ticked while the user
+                 retypes, and nothing re-reads the folder until they ask again. Enter in the box does the
+                 same, and is what a typist's hands do; the button is what says the feature is there at all.
+
+                 The button is enabled only when there is a search to run — the box ticked and something
+                 typed to look for — because a button that can be pressed and answers "nothing happened" is
+                 worse than one that is visibly not offering. -->
+            <CheckBox IsChecked="{Binding SearchInsidePatches, Mode=TwoWay}"
+                      Content="Look inside patches" />
+            <Button Content="Search inside"
+                    Command="{Binding SearchInsideAsync}"
+                    IsEnabled="{Binding CanSearchInside}"
+                    Padding="8,2" />
             <ComboBox ItemsSource="{Binding KindLabels}"
                       SelectedItem="{Binding KindLabel, Mode=TwoWay}"
                       MinWidth="120" />
@@ -151,11 +178,32 @@
                          SelectionMode="Multiple">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:LibraryEntryViewModel">
-                            <Grid ColumnDefinitions="28,2*,150,140,80,130,3*">
-                                <TextBlock Grid.Column="0" Text="{Binding FavouriteMark}"
+                            <Grid ColumnDefinitions="28,2*,150,140,80,130,3*" RowDefinitions="Auto,Auto">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding FavouriteMark}"
                                            Foreground="{StaticResource SnRatingStarBrush}" />
-                                <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Name}"
                                            TextTrimming="CharacterEllipsis" />
+                                <!-- Why this row is here, when the name says nothing about what was searched
+                                     for. A second line under the columns rather than a column of its own:
+                                     it is blank on every row until somebody looks inside a patch, and a
+                                     column wide enough for a parameter path would cost the Tags column its
+                                     width permanently for something usually empty.
+
+                                     Spanning to the end of the row, and this is not cosmetic. Inside the
+                                     name column it was trimmed to "SuperNATURAL Synth To…" on a 1750px
+                                     window — the block's name and never the parameter or the value, which
+                                     is the whole of what it has to say. Measured by driving the built
+                                     application, not guessed at.
+
+                                     Collapsed when there is nothing to say, or every row would carry a
+                                     blank second line and the list would lose half its rows to
+                                     whitespace. -->
+                                <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="6"
+                                           Text="{Binding MatchedInside}"
+                                           Foreground="{StaticResource SnMutedTextBrush}"
+                                           TextTrimming="CharacterEllipsis"
+                                           IsVisible="{Binding MatchedInside,
+                                               Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 <!-- The kind and the init-tone mark share a column: the mark is set on at
                                      most five rows in the whole library, and a column of its own would be
                                      blank on every other one. The mark is accented rather than muted like
@@ -194,22 +242,31 @@
                     BorderThickness="1"
                     CornerRadius="4"
                     Padding="10">
-                <!-- Two panels in the same place, one of them visible: selecting a second row swaps the
-                     single-snapshot editor for the bulk one. Two rather than one panel with two shapes,
-                     because they share no field — a bulk change has no name, no notes and no versions, and
-                     its buttons act on many rows.
+                <!-- Three panels in the same place, one of them visible: selecting a second row swaps the
+                     single-snapshot editor for the bulk one, and Find duplicates swaps either of them for
+                     the duplicate scan. Three rather than one panel with three shapes, because they share no
+                     field — a bulk change has no name, no notes and no versions, its buttons act on many
+                     rows, and the duplicate panel is not about the selection at all.
+
+                     Each flag is a property of its own on the view model rather than a comparison here: a
+                     compiled binding cannot compare a value against a constant, so an enum would need a
+                     converter per panel and would lose the build-time check every other binding gets. The
+                     three are written so that no two can be true — see LibraryViewModel.ShowsDuplicates.
 
                      Each IsVisible sits on a wrapper rather than on the view itself. A DataContext set on an
                      element is what that same element's other bindings resolve against, so IsVisible beside
-                     it would be looking for IsBulkSelection on the panel's own view model: measured, as two
+                     it would be looking for the flag on the panel's own view model: measured, as two
                      AVLN2000s. The wrapper keeps the flag on this view model and the DataContext on the
                      child. -->
                 <Panel>
-                    <Panel IsVisible="{Binding !IsBulkSelection}">
+                    <Panel IsVisible="{Binding ShowsEditor}">
                         <local:LibraryEditorView DataContext="{Binding Editor}" />
                     </Panel>
-                    <Panel IsVisible="{Binding IsBulkSelection}">
+                    <Panel IsVisible="{Binding ShowsBulkEditor}">
                         <local:LibraryBulkEditView DataContext="{Binding BulkEditor}" />
+                    </Panel>
+                    <Panel IsVisible="{Binding ShowsDuplicates}">
+                        <local:DuplicateScanView DataContext="{Binding Duplicates}" />
                     </Panel>
                 </Panel>
             </Border>

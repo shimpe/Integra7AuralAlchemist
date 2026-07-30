@@ -257,4 +257,133 @@ public class LibraryListingTests
         Assert.That(LibraryListing.AllTags([Entry("Untagged")]), Is.Empty);
         Assert.That(LibraryListing.AllTags([]), Is.Empty);
     }
+
+    /// <summary>What the duplicate panel says a group is. It has to be said in the panel's own words rather
+    /// than left to the user, because <c>DuplicateGroups</c> is transitive: every member is near <i>some</i>
+    /// other member, and no more than that is promised.</summary>
+    [Test]
+    public void The_duplicate_summary_says_what_a_group_means()
+    {
+        Assert.That(LibraryListing.DuplicateSummary(3, 8, 5), Is.EqualTo(
+            "3 groups, 8 snapshots. Each of these differs in at most 5 parameters from at least one other " +
+            "in its group."));
+    }
+
+    /// <summary>A threshold of nothing is a different sentence, not a sentence with a nought in it: "differs
+    /// in at most 0 parameters" is a puzzle where "identical" is a fact.</summary>
+    [Test]
+    public void A_threshold_of_nothing_is_worded_as_identical()
+    {
+        Assert.That(LibraryListing.DuplicateSummary(1, 2, 0), Is.EqualTo(
+            "1 group, 2 snapshots. Each of these is identical to at least one other in its group."));
+    }
+
+    [Test]
+    public void One_group_and_one_parameter_are_singular()
+    {
+        Assert.That(LibraryListing.DuplicateSummary(1, 4, 1), Is.EqualTo(
+            "1 group, 4 snapshots. Each of these differs in at most 1 parameter from at least one other " +
+            "in its group."));
+    }
+
+    /// <summary>Nothing found says what was asked as well as what was answered: "no duplicates" alone would
+    /// leave the user unable to tell a clean library from a threshold set too tight.</summary>
+    [Test]
+    public void Finding_nothing_says_what_was_looked_for()
+    {
+        Assert.That(LibraryListing.DuplicateSummary(0, 0, 5),
+            Is.EqualTo("No two snapshots here differ in 5 parameters or fewer."));
+        Assert.That(LibraryListing.DuplicateSummary(0, 0, 1),
+            Is.EqualTo("No two snapshots here differ in 1 parameter or fewer."));
+        Assert.That(LibraryListing.DuplicateSummary(0, 0, 0),
+            Is.EqualTo("No two snapshots here are identical."));
+    }
+
+    /// <summary>The question the duplicate panel asks before it deletes. The counts are in it because this is
+    /// the one place in the library where a user is deliberately ticking many rows they mean to lose.
+    /// </summary>
+    [Test]
+    public void The_duplicate_delete_question_counts_what_goes()
+    {
+        Assert.That(LibraryListing.DuplicateDeleteQuestion(3, 0), Is.EqualTo(
+            "Delete 3 snapshots from the library? A copy of each is kept in the history folder beside your " +
+            "library."));
+        Assert.That(LibraryListing.DuplicateDeleteQuestion(1, 0), Is.EqualTo(
+            "Delete 1 snapshot from the library? A copy is kept in the history folder beside your library."));
+    }
+
+    /// <summary>The number the warning below is built from, and the reason it is here rather than in the
+    /// panel: if it were wrong the user would read "that empties 2 of the groups" while three families were
+    /// about to go, or read nothing at all while one was -- and the warning exists precisely for the
+    /// destructive case.</summary>
+    [Test]
+    public void A_group_is_emptied_only_when_every_one_of_its_rows_is_ticked()
+    {
+        // Two groups of three: the first fully ticked, the second one short of it.
+        Assert.That(LibraryListing.GroupsEmptiedBy([(3, 3), (3, 2)]), Is.EqualTo(1));
+        Assert.That(LibraryListing.GroupsEmptiedBy([(3, 3), (2, 2)]), Is.EqualTo(2));
+        Assert.That(LibraryListing.GroupsEmptiedBy([(4, 0), (4, 3)]), Is.EqualTo(0));
+        Assert.That(LibraryListing.GroupsEmptiedBy([]), Is.EqualTo(0));
+    }
+
+    /// <summary>A group with no rows in it is not a group that has been emptied by anything the user did.
+    /// <c>All</c> over an empty sequence answers true, so the obvious spelling of this counts a group that
+    /// was never there -- and the number it feeds is a warning about deletion.</summary>
+    [Test]
+    public void A_group_with_no_rows_is_not_counted_as_emptied()
+    {
+        Assert.That(LibraryListing.GroupsEmptiedBy([(0, 0)]), Is.EqualTo(0));
+    }
+
+    /// <summary>What the Delete button says before it is pressed. It carries the count for the reason the
+    /// bulk panel's does: pressing it must never be a guess about how much it does.</summary>
+    [Test]
+    public void The_duplicate_delete_label_counts_the_ticks()
+    {
+        // Nothing ticked: the button is there but disabled, so it says what it would do rather than "0".
+        Assert.That(LibraryListing.DuplicateDeleteLabel(0), Is.EqualTo("Delete the ticked snapshots…"));
+        Assert.That(LibraryListing.DuplicateDeleteLabel(1), Is.EqualTo("Delete the ticked snapshot…"));
+        Assert.That(LibraryListing.DuplicateDeleteLabel(4), Is.EqualTo("Delete the 4 ticked snapshots…"));
+    }
+
+    /// <summary>What is said afterwards. A file that was already gone must not be counted as one this
+    /// removed: "Deleted 3 snapshots" about three files nobody touched would send a user looking for copies
+    /// in the history folder that were never put there.</summary>
+    [Test]
+    public void The_duplicate_delete_outcome_separates_removed_from_already_gone()
+    {
+        Assert.That(LibraryListing.DuplicateDeleteOutcome(3, 0, []),
+            Is.EqualTo("Deleted 3 snapshots from the library."));
+        Assert.That(LibraryListing.DuplicateDeleteOutcome(1, 0, []),
+            Is.EqualTo("Deleted 1 snapshot from the library."));
+        Assert.That(LibraryListing.DuplicateDeleteOutcome(2, 1, []),
+            Is.EqualTo("Deleted 2 snapshots from the library. 1 had already gone."));
+        Assert.That(LibraryListing.DuplicateDeleteOutcome(0, 2, []),
+            Is.EqualTo("Nothing was deleted. 2 had already gone."));
+    }
+
+    [Test]
+    public void The_duplicate_delete_outcome_names_what_could_not_be_removed()
+    {
+        Assert.That(LibraryListing.DuplicateDeleteOutcome(2, 0, ["Warm Rhodes.json"]),
+            Is.EqualTo("Deleted 2 snapshots from the library. " +
+                       "1 could not be removed: Warm Rhodes.json."));
+        Assert.That(LibraryListing.DuplicateDeleteOutcome(0, 0, ["a.json", "b.json"]),
+            Is.EqualTo("Nothing was deleted. 2 could not be removed: a.json, b.json."));
+    }
+
+    /// <summary>The trap this panel invites, and the only warning against it: ticking every row of a group
+    /// deletes every copy of that sound. The history folder still has them, but the library does not, and a
+    /// user tidying duplicates is not thinking about that.</summary>
+    [Test]
+    public void The_duplicate_delete_question_warns_when_a_whole_group_would_go()
+    {
+        Assert.That(LibraryListing.DuplicateDeleteQuestion(4, 1), Is.EqualTo(
+            "Delete 4 snapshots from the library? A copy of each is kept in the history folder beside your " +
+            "library. That empties one of the groups, so nothing of that sound would be left in the library."));
+        Assert.That(LibraryListing.DuplicateDeleteQuestion(9, 2), Is.EqualTo(
+            "Delete 9 snapshots from the library? A copy of each is kept in the history folder beside your " +
+            "library. That empties 2 of the groups, so nothing of those sounds would be left in the " +
+            "library."));
+    }
 }
