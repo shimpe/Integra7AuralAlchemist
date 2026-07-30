@@ -5,14 +5,15 @@ using Integra7AuralAlchemist.Models.Services;
 
 namespace Tests;
 
-/// <summary>Searching inside patches: which files are worth opening, whether an answer still answers the
-/// question on screen, and which entries its hits admit.
+/// <summary>Searching inside patches: which files are worth opening, whether an answer is still evidence about
+/// what is being asked, and which entries its hits admit.
 ///
-/// <b>The question a deep search answers is the whole filter, not the search text.</b> That is the decision
-/// these tests exist for. The files that get opened are chosen by every axis -- only the entries the other six
-/// admit and the text does not are worth reading -- so a hit is evidence about that set and no other. Answer a
-/// <i>wider</i> question with it and rows go missing with nothing on screen to say so, which is the one failure
-/// a search must not have: the user cannot tell "there is nothing there" from "I did not look".
+/// <b>An answer is about the files it opened.</b> That is the decision these tests exist for. It is worth using
+/// again exactly when every file that would have to be read now was read then and the text has not changed --
+/// so a filter narrowed afterwards is free, while a filter widened, or a folder that has gained a snapshot,
+/// asks about files nobody opened. Answer one of those with these hits and rows go missing with nothing on
+/// screen to say so, which is the one failure a search must not have: the user cannot tell "there is nothing
+/// there" from "I did not look".
 ///
 /// The other half is that a path is not an identity over time. A restored version overwrites a file in place,
 /// and a deleted snapshot frees its name for the next save, so a hit that outlived the bytes it was found in
@@ -31,6 +32,15 @@ public class DeepSearchTests
     private static DeepSearchHit Hit(string name, string reason = "Partial 1/OSC Wave = SuperSaw",
         DateTime? modified = null) =>
         new($"{name}.json", reason, modified ?? Read);
+
+    /// <summary>An answer as the browser builds one: what was looked for, every file that was opened looking,
+    /// and what was found. The files read default to the ones the filter would have chosen, because that is
+    /// what a real search reads and the exceptions are what the tests below are about.</summary>
+    private static DeepSearchAnswer Answer(LibraryFilter asked, IEnumerable<DeepSearchHit> hits,
+        IReadOnlyList<LibraryEntry>? library = null) =>
+        new(asked.Text.Trim(),
+            DeepSearch.Candidates(asked, library ?? Everything).Select(e => e.FilePath).ToList(),
+            hits.ToList());
 
     private static IReadOnlyList<string> Names(IEnumerable<LibraryEntry> entries) =>
         entries.Select(e => e.Head.Name).ToList();
@@ -70,83 +80,140 @@ public class DeepSearchTests
             "the one SN-A tone matches \"e\" on its name, so opening it could only find a second reason");
     }
 
-    // ---- whether an answer still answers ---------------------------------------------------------------
+    // ---- whether an answer is still evidence -----------------------------------------------------------
 
-    /// <summary>The trap that would have made the whole feature look as though it found nothing: the tags are a
-    /// list, records compare lists by reference, and a browser builds a fresh one every time it filters. Order,
-    /// padding, duplicates and case are all nothing to do with what the filter admits, so they are nothing to
-    /// do with whether it is the same question.</summary>
+    /// <summary>The finding this class was written for, one axis at a time. Every one of these is a filter
+    /// being <i>widened</i> after a search, which asks about files that were never opened: the browser would
+    /// have listed the one patch it happened to have read and silently left out every other patch that says
+    /// the same thing inside.</summary>
     [Test]
-    public void Two_filters_built_separately_with_the_same_tags_are_the_same_question()
+    public void An_answer_does_not_cover_a_filter_widened_after_it()
     {
-        var asked = new LibraryFilter(Text: "saw", Tags: new List<string> { "warm", "trio gig" });
-        var asking = new LibraryFilter(Text: "saw", Tags: new List<string> { "trio gig", " WARM " });
-
-        Assert.That(asked == asking, Is.False, "record equality compares the tag list by reference");
-        Assert.That(DeepSearch.SameQuestion(asked, asking), Is.True);
-        Assert.That(DeepSearch.SameQuestion(asked, asked with { Tags = ["warm", "warm", "trio gig"] }), Is.True,
-            "a tag asked for twice is asked for once");
+        Assert.Multiple(() =>
+        {
+            AssertWidening(new LibraryFilter("saw", Engine: "SN-S"), f => f with { Engine = null },
+                "any engine");
+            AssertWidening(new LibraryFilter("saw", MinimumRating: 4), f => f with { MinimumRating = 0 },
+                "a lower minimum rating");
+            AssertWidening(new LibraryFilter("saw", FavouritesOnly: true), f => f with { FavouritesOnly = false },
+                "favourites unticked");
+            AssertWidening(new LibraryFilter("saw", Category: "E.Piano"), f => f with { Category = null },
+                "any category");
+            AssertWidening(new LibraryFilter("saw", Tags: ["warm"]), f => f with { Tags = [] },
+                "the last tag unticked");
+        });
     }
 
+    /// <summary>And the other direction is free, which is what keying on the files read rather than on the
+    /// filter buys. Narrowing after a search is what a user does with a result -- twelve found, now show me
+    /// the SN-S ones -- and a rule that re-read the folder for it would punish the gesture the feature is
+    /// for.</summary>
     [Test]
-    public void A_tag_added_or_dropped_is_another_question()
+    public void An_answer_covers_a_filter_narrowed_after_it()
     {
-        var asked = new LibraryFilter(Text: "saw", Tags: ["warm"]);
+        var asked = new LibraryFilter(Text: "saw", Engine: "SN-S");
+        var answer = Answer(asked, [Hit("Glass Bell")]);
 
         Assert.Multiple(() =>
         {
-            Assert.That(DeepSearch.SameQuestion(asked, asked with { Tags = ["warm", "gig"] }), Is.False);
-            Assert.That(DeepSearch.SameQuestion(asked, asked with { Tags = [] }), Is.False,
-                "unticking the last tag widens the question, which is exactly the case that must not slip");
-            Assert.That(DeepSearch.SameQuestion(asked, asked with { Tags = null }), Is.False);
+            Assert.That(DeepSearch.Answers(answer, asked with { MinimumRating = 4 }, Everything), Is.True,
+                "a higher minimum rating");
+            Assert.That(DeepSearch.Answers(answer, asked with { Category = "Bell" }, Everything), Is.True,
+                "a category chosen");
+            Assert.That(DeepSearch.Answers(answer, asked with { Tags = ["warm"] }, Everything), Is.True,
+                "a tag ticked");
+            Assert.That(DeepSearch.Answers(answer, asked with { FavouritesOnly = true }, Everything), Is.True,
+                "favourites only");
+            Assert.That(DeepSearch.Answers(answer, asked, Everything), Is.True, "and no change at all");
         });
+    }
+
+    /// <summary>The price of letting a narrowing keep the answer, and the reason Widen re-applies the other
+    /// axes to every hit: these hits were found under a wider filter, so some of them are for patches the
+    /// narrowed one excludes. Narrowing to one engine must not bring the other engines back through the very
+    /// hits that made narrowing worth doing.</summary>
+    [Test]
+    public void A_narrowed_filter_still_narrows_the_rows_its_own_hits_would_have_added()
+    {
+        var asked = new LibraryFilter(Text: "saw");
+        var answer = Answer(asked, [Hit("Glass Bell"), Hit("Concert Grand")]);
+
+        var listing = DeepSearch.Widen(asked with { Engine = "SN-A" }, Everything, answer);
+
+        Assert.That(listing.AnswersAnotherQuestion, Is.False, "the answer still covers the narrower filter");
+        Assert.That(Names(listing.Admitted), Is.EqualTo(new[] { "Concert Grand" }));
+        Assert.That(listing.Reasons.ContainsKey("Glass Bell.json"), Is.False,
+            "and the hit that is no longer admitted explains nothing, since there is no row to explain");
+    }
+
+    /// <summary>The rule is about files and not about labels, which is why this is allowed: every snapshot in
+    /// this folder is a tone, so clearing the kind asks about nothing that was not already read. Comparing
+    /// filters would have refused it and re-read the folder to produce the same answer.</summary>
+    [Test]
+    public void A_filter_widened_where_the_folder_has_nothing_new_to_read_is_still_covered()
+    {
+        var asked = new LibraryFilter(Text: "saw", Kind: SnapshotKinds.Tone);
+
+        Assert.That(DeepSearch.Answers(Answer(asked, []), asked with { Kind = null }, Everything), Is.True);
+    }
+
+    /// <summary>The half a filter cannot see: the folder itself changing. A snapshot saved or dropped in while
+    /// the box is ticked is a file nobody has looked inside, and the filter that asks about it is identical to
+    /// the one that did not.</summary>
+    [Test]
+    public void An_answer_does_not_cover_a_folder_that_has_gained_a_file()
+    {
+        var asked = new LibraryFilter(Text: "saw");
+        var answer = Answer(asked, [Hit("Old Pad")]);
+        LibraryEntry[] afterARefresh = [..Everything, Tone("New Arrival", "Synth Lead")];
+
+        Assert.That(DeepSearch.Answers(answer, asked, afterARefresh), Is.False);
+        Assert.That(DeepSearch.Widen(asked, afterARefresh, answer).AnswersAnotherQuestion, Is.True);
+    }
+
+    /// <summary>Losing one is not the same as gaining one: there is nothing left to read, so the answer still
+    /// covers the question. Deleting a snapshot must not throw away a search of the fifty that are left.
+    /// </summary>
+    [Test]
+    public void An_answer_still_covers_a_folder_that_has_lost_a_file()
+    {
+        var asked = new LibraryFilter(Text: "saw");
+        var answer = Answer(asked, [Hit("Old Pad")]);
+
+        Assert.That(DeepSearch.Answers(answer, asked, Everything.Where(e => e.Head.Name != "Glass Bell")
+            .ToList()), Is.True);
     }
 
     /// <summary>Text is matched trimmed and ignoring case, so it is compared that way: correcting the capitals
     /// of a word does not change which patches contain it, and a search box that had to be re-run for a
     /// capital would be a search box that felt broken.</summary>
     [Test]
-    public void Text_is_the_same_question_trimmed_and_case_folded_and_no_further()
+    public void An_answer_covers_the_same_text_trimmed_and_case_folded_and_no_other()
     {
         var asked = new LibraryFilter(Text: "saw");
+        var answer = Answer(asked, [Hit("Old Pad")]);
 
         Assert.Multiple(() =>
         {
-            Assert.That(DeepSearch.SameQuestion(asked, asked with { Text = " SAW " }), Is.True);
-            Assert.That(DeepSearch.SameQuestion(asked, asked with { Text = "sawtooth" }), Is.False);
-            Assert.That(DeepSearch.SameQuestion(asked, asked with { Text = "" }), Is.False);
+            Assert.That(DeepSearch.Answers(answer, asked with { Text = " SAW " }, Everything), Is.True);
+            Assert.That(DeepSearch.Answers(answer, asked with { Text = "sawtooth" }, Everything), Is.False,
+                "a longer word is a different search, whatever it starts with");
+            Assert.That(DeepSearch.Answers(answer, asked with { Text = "" }, Everything), Is.False);
         });
     }
 
-    [Test]
-    public void Null_and_empty_are_one_value_on_the_axes_that_are_compared_exactly()
+    /// <summary>One widening, asserted from both sides: the answer stops covering the question, and the
+    /// listing says so rather than quietly answering with what it has.</summary>
+    private static void AssertWidening(LibraryFilter asked, Func<LibraryFilter, LibraryFilter> widen,
+        string what)
     {
-        var asked = new LibraryFilter(Text: "saw", Kind: null, Category: "", Engine: null);
+        var answer = Answer(asked, [Hit("Warm Rhodes")]);
+        var wider = widen(asked);
 
-        Assert.That(DeepSearch.SameQuestion(asked, asked with { Kind = "", Category = null, Engine = "" }),
-            Is.True, "both spellings mean \"not asking\" to LibraryFilter, so both are the same question");
-    }
-
-    /// <summary>The finding this class was written for. Every one of these is a filter being <i>widened</i>
-    /// after a search, which asks about files that were never opened.</summary>
-    [Test]
-    public void Widening_any_other_axis_is_another_question()
-    {
-        var asked = new LibraryFilter("saw", SnapshotKinds.Tone, "E.Piano", 4, true, ["warm"], "SN-S");
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(DeepSearch.SameQuestion(asked, asked with { Engine = null }), Is.False, "any engine");
-            Assert.That(DeepSearch.SameQuestion(asked, asked with { MinimumRating = 0 }), Is.False,
-                "a lower minimum rating");
-            Assert.That(DeepSearch.SameQuestion(asked, asked with { FavouritesOnly = false }), Is.False,
-                "favourites unticked");
-            Assert.That(DeepSearch.SameQuestion(asked, asked with { Category = null }), Is.False,
-                "any category");
-            Assert.That(DeepSearch.SameQuestion(asked, asked with { Kind = null }), Is.False, "any kind");
-            Assert.That(DeepSearch.SameQuestion(asked, asked with { }), Is.True,
-                "and the same seven axes are the same question, however the record was built");
-        });
+        Assert.That(DeepSearch.Answers(answer, asked, Everything), Is.True, $"{what}: covered before");
+        Assert.That(DeepSearch.Answers(answer, wider, Everything), Is.False, $"{what}: not after");
+        Assert.That(DeepSearch.Widen(wider, Everything, answer).Admitted, Is.Empty,
+            $"{what}: and no row is admitted on the strength of it");
     }
 
     // ---- what the hits admit ---------------------------------------------------------------------------
@@ -155,7 +222,7 @@ public class DeepSearchTests
     public void A_hit_adds_a_row_and_carries_the_reason_it_was_found_for()
     {
         var asking = new LibraryFilter(Text: "saw");
-        var answer = new DeepSearchAnswer(asking, [Hit("Old Pad")]);
+        var answer = Answer(asking, [Hit("Old Pad")]);
 
         var listing = DeepSearch.Widen(asking, Everything, answer);
 
@@ -172,7 +239,7 @@ public class DeepSearchTests
     public void Hits_only_ever_add_rows()
     {
         var asking = new LibraryFilter(Text: "rhodes");
-        var answer = new DeepSearchAnswer(asking, [Hit("Old Pad"), Hit("Glass Bell")]);
+        var answer = Answer(asking, [Hit("Old Pad"), Hit("Glass Bell")]);
 
         var listing = DeepSearch.Widen(asking, Everything, answer);
 
@@ -187,7 +254,8 @@ public class DeepSearchTests
     public void A_hit_for_a_row_already_admitted_is_a_reason_and_not_a_duplicate()
     {
         var asking = new LibraryFilter(Text: "rhodes");
-        var answer = new DeepSearchAnswer(asking, [Hit("Warm Rhodes"), Hit("Warm Rhodes", "Tone Name = Rhodes")]);
+        var answer = Answer(asking,
+            [Hit("Warm Rhodes"), Hit("Warm Rhodes", "Tone Name = Rhodes")]);
 
         var listing = DeepSearch.Widen(asking, Everything, answer);
 
@@ -203,7 +271,7 @@ public class DeepSearchTests
     public void A_hit_found_under_a_narrower_filter_is_not_evidence_about_a_wider_one()
     {
         var narrow = new LibraryFilter(Text: "saw", Engine: "SN-S");
-        var answer = new DeepSearchAnswer(narrow, [Hit("Glass Bell")]);
+        var answer = Answer(narrow, [Hit("Glass Bell")]);
 
         var listing = DeepSearch.Widen(narrow with { Engine = null }, Everything, answer);
 
@@ -219,7 +287,7 @@ public class DeepSearchTests
     [Test]
     public void An_answer_with_no_hits_still_answers_only_its_own_question()
     {
-        var answer = new DeepSearchAnswer(new LibraryFilter(Text: "saw", Engine: "SN-S"), []);
+        var answer = Answer(new LibraryFilter(Text: "saw", Engine: "SN-S"), []);
 
         Assert.That(DeepSearch.Widen(new LibraryFilter(Text: "saw"), Everything, answer)
             .AnswersAnotherQuestion, Is.True);
@@ -234,11 +302,11 @@ public class DeepSearchTests
     public void A_hit_for_a_file_written_since_it_was_read_is_dropped_and_named()
     {
         var asking = new LibraryFilter(Text: "saw");
-        var answer = new DeepSearchAnswer(asking, [Hit("Old Pad")]);
         LibraryEntry[] rewritten =
         [
             Tone("Old Pad", "Synth Pad", engine: "PCMS", modified: Read.AddMinutes(1)),
         ];
+        var answer = Answer(asking, [Hit("Old Pad")], rewritten);
 
         var listing = DeepSearch.Widen(asking, rewritten, answer);
 
@@ -255,7 +323,7 @@ public class DeepSearchTests
     public void A_hit_for_a_file_that_has_left_the_folder_is_neither_a_row_nor_a_complaint()
     {
         var asking = new LibraryFilter(Text: "saw");
-        var answer = new DeepSearchAnswer(asking, [Hit("Deleted Pad")]);
+        var answer = Answer(asking, [Hit("Deleted Pad")]);
 
         var listing = DeepSearch.Widen(asking, Everything, answer);
 
@@ -271,7 +339,7 @@ public class DeepSearchTests
         var entries = Everything.ToList();
         var asking = new LibraryFilter(Text: "saw");
 
-        var listing = DeepSearch.Widen(asking, entries, new DeepSearchAnswer(asking, [Hit("Old Pad")]));
+        var listing = DeepSearch.Widen(asking, entries, Answer(asking, [Hit("Old Pad")]));
 
         Assert.That(entries, Has.Count.EqualTo(Everything.Length));
         Assert.That(listing.Admitted, Is.Not.SameAs(entries));

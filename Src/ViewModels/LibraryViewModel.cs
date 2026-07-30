@@ -113,10 +113,10 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// not something a filter may do. So the read is <see cref="SearchInsideAsync"/>'s, once, when the user
     /// asks, and what it found is consulted by the filter without touching a file.
     ///
-    /// <b>It is only ever used to answer the question it was asked</b> -- the whole filter, not the search text
-    /// -- and only for files that have not been written since they were read. Both rules are
-    /// <see cref="DeepSearch"/>'s, with the reasoning and the tests; what is left here is dropping the answer
-    /// and saying so when either of them fails.</summary>
+    /// <b>It is only ever used where it is evidence</b> -- for the same text, over files it actually opened,
+    /// and only while those files have not been written since. All three rules are <see cref="DeepSearch"/>'s,
+    /// with the reasoning and the tests; what is left here is dropping the answer and saying so when they
+    /// fail.</summary>
     private DeepSearchAnswer? _deepSearch;
 
     /// <summary>Whether a folder is being read right now, so that only one read can be.
@@ -372,15 +372,15 @@ public sealed partial class LibraryViewModel : ViewModelBase
         // there and stays pure over heads.
         //
         // Nothing is read from disk here. This runs on every keystroke, and what the last search found is
-        // an answer to one exact question -- see DeepSearch.SameQuestion for what "the same question" means
-        // and why it is the whole filter rather than the text.
+        // evidence about the files it opened -- see DeepSearch.Answers for when that is still evidence about
+        // what is being asked, and why the rule is the files rather than the filter that chose them.
         var listing = DeepSearch.Widen(filter, _all, SearchInsidePatches ? _deepSearch : null);
 
-        // An answer to a different question is dropped here rather than left lying about to be ignored, and
-        // it is said out loud. Widening a filter after a search -- the engine back to any, a lower minimum
-        // rating, a tag unticked -- asks about files that were never opened, and the difference between
-        // "no patch says supersaw inside" and "the ones I read did not" is the whole value of the feature.
-        // Silence there would be indistinguishable from an answer.
+        // An answer that does not cover what is being asked is dropped here rather than left lying about to
+        // be ignored, and it is said out loud. Widening a filter after a search -- the engine back to any, a
+        // lower minimum rating, a tag unticked -- asks about files that were never opened, and so does a
+        // folder that has gained one; the difference between "no patch says supersaw inside" and "the ones I
+        // read did not" is the whole value of the feature. Silence would be indistinguishable from an answer.
         if (listing.AnswersAnotherQuestion)
         {
             _deepSearch = null;
@@ -553,7 +553,6 @@ public sealed partial class LibraryViewModel : ViewModelBase
         }
 
         var filter = CurrentFilter();
-        var asked = filter with { Text = text };
         var candidates = DeepSearch.Candidates(filter, _all);
 
         if (candidates.Count == 0)
@@ -596,16 +595,22 @@ public sealed partial class LibraryViewModel : ViewModelBase
         if (!SearchInsidePatches) return;
         if (!string.Equals(folder, Folder, StringComparison.OrdinalIgnoreCase)) return;
 
-        // A filter changed while reading is worth saying, because the rows the user *is* waiting for are not
+        // A search changed while reading is worth saying, because the rows the user *is* waiting for are not
         // going to appear. Nothing newer has been adopted in the meantime -- only one read runs at a time --
         // so this cannot be contradicting a status line that is already right.
-        if (!DeepSearch.SameQuestion(asked, CurrentFilter()))
+        //
+        // Asked of the answer rather than of the filter, so that the one rule about what an answer covers is
+        // applied in one place: a filter *narrowed* while reading leaves the answer perfectly good, and
+        // refusing it here would throw a folder read away for the gesture a user is likeliest to make while
+        // waiting for one.
+        var answer = new DeepSearchAnswer(text, candidates.Select(entry => entry.FilePath).ToList(), hits);
+        if (!DeepSearch.Answers(answer, CurrentFilter(), _all))
         {
             _report("The search changed while the patches were being read; press Search inside again.", false);
             return;
         }
 
-        _deepSearch = new DeepSearchAnswer(asked, hits);
+        _deepSearch = answer;
 
         var missed = unreadable == 0 ? "" : $" {unreadable} could not be read.";
         _report(hits.Count == 0
