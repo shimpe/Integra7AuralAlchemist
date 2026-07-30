@@ -12,6 +12,13 @@ namespace Integra7AuralAlchemist.Models.Services;
 /// can carry the same stamp. The length is free -- a directory walk hands it over with the name -- and it
 /// catches the one case the clock can miss that matters here, which is a file replaced by a different one.
 ///
+/// <b>The coarseness is a reason to compare the length as well; it is never a reason to forgive a difference
+/// in the time.</b> Both halves are compared for exact equality. A cache that treated two stamps a second
+/// apart as the same file -- rounding to the coarsest clock it might be running on -- would answer a file
+/// rewritten a second after it was read out of memory, with contents that file no longer has, and would never
+/// open it again. That mistake passes every other test in this fixture, so there is one written specifically
+/// against it.
+///
 /// It carries no vector and no head. It is what a scan learns about the whole folder before deciding what to
 /// open, so it has to be cheap for a thousand files at once.</summary>
 /// <param name="Path">The file, as the listing spells it.</param>

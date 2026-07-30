@@ -68,6 +68,25 @@ public class SnapshotVectorCacheTests
         Assert.That(entries.Single().Vector.Values, Is.EqualTo(new long[] { 3, 4 }));
     }
 
+    /// <summary>The rule is exact equality, not a tolerance -- and this is the test that says so. Every other
+    /// timestamp case here is a day apart, so a cache that forgave differences under two seconds would pass
+    /// all of them: the natural "FAT32 rounds its times to two seconds, be forgiving" mistake, which this
+    /// cache's own remarks about a coarse clock could be read as inviting. Such a cache answers a file
+    /// rewritten a second later at the same length out of memory, with contents the file no longer has, and
+    /// never opens it again.</summary>
+    [Test]
+    public void A_file_rewritten_a_second_later_at_the_same_length_is_read_again()
+    {
+        var cache = new SnapshotVectorCache();
+        Scan(cache, [File("a.json", Monday, length: 100)], _ => Vector(1, 2));
+
+        var (entries, opened) = Scan(cache, [File("a.json", Monday.AddSeconds(1), length: 100)],
+            _ => Vector(3, 4));
+
+        Assert.That(opened, Is.EqualTo(new[] { "a.json" }));
+        Assert.That(entries.Single().Vector.Values, Is.EqualTo(new long[] { 3, 4 }));
+    }
+
     /// <summary>The half of the stamp that is not the clock. A file system's last-write time is coarse enough
     /// that a rewrite can land inside the same tick as the read before it, and a length is free to compare.
     /// </summary>

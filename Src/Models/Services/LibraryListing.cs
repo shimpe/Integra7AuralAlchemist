@@ -286,6 +286,65 @@ public static class LibraryListing
         return $"{groups} {(groups == 1 ? "group" : "groups")}, {patches} snapshots. {promise}";
     }
 
+    /// <summary>How many of these groups the ticks would leave with nothing in them.
+    ///
+    /// <b>Here rather than in the panel because it is the argument the warning is built from.</b>
+    /// <see cref="DuplicateDeleteQuestion"/> is here so that the words a user reads before a deletion have
+    /// tests; computing the number those words quote in a view model, where nothing can reach it, would put
+    /// the tested sentence around an untested fact. A wrong count reads as "that empties 2 of the groups"
+    /// while three families are about to go, or says nothing at all while one is.
+    ///
+    /// <b>A group with no rows is not one the ticks emptied.</b> <c>All</c> over an empty sequence answers
+    /// true, so the obvious spelling counts a group that was never there -- which is why the count is written
+    /// against the row count instead.</summary>
+    /// <param name="groups">One pair per group, in any order: how many rows it has, and how many of them are
+    /// ticked. Counts rather than the rows themselves, because the rows are view models and this has to be
+    /// somewhere a test can call it.</param>
+    public static int GroupsEmptiedBy(IEnumerable<(int Rows, int Ticked)> groups) =>
+        groups.Count(group => group.Rows > 0 && group.Ticked == group.Rows);
+
+    /// <summary>What the duplicate panel's Delete button says. The count is on the button rather than only in
+    /// the dialog, matching the bulk panel: pressing it is never a guess about how much it does.
+    ///
+    /// Nought is a real case here and not a bug -- the button is shown disabled rather than hidden, so that
+    /// ticking a box cannot move the rows underneath the pointer -- and it says what the button would do
+    /// rather than announcing that it would delete none.</summary>
+    public static string DuplicateDeleteLabel(int ticked) => ticked switch
+    {
+        0 => "Delete the ticked snapshots…",
+        1 => "Delete the ticked snapshot…",
+        _ => $"Delete the {ticked} ticked snapshots…",
+    };
+
+    /// <summary>What is said once the ticked snapshots have been dealt with.
+    ///
+    /// <b><paramref name="missing"/> is counted apart from <paramref name="removed"/> deliberately.</b>
+    /// <c>SnapshotLibrary.Delete</c> treats a file that is already gone as success, and rightly: the folder
+    /// ends in the state that was asked for. But saying "Deleted 3 snapshots" about three files this
+    /// application did not touch would send a user looking in the history folder for copies that were never
+    /// put there, which is exactly the wrong place to be misled.</summary>
+    /// <param name="removed">Files that were there and are not now.</param>
+    /// <param name="missing">Files that had already gone before this asked.</param>
+    /// <param name="failed">The names of the files that could not be removed.</param>
+    public static string DuplicateDeleteOutcome(int removed, int missing, IReadOnlyList<string> failed)
+    {
+        List<string> said =
+        [
+            removed switch
+            {
+                0 => "Nothing was deleted.",
+                1 => "Deleted 1 snapshot from the library.",
+                _ => $"Deleted {removed} snapshots from the library.",
+            },
+        ];
+
+        if (missing > 0) said.Add($"{missing} had already gone.");
+        if (failed.Count > 0)
+            said.Add($"{failed.Count} could not be removed: {string.Join(", ", failed)}.");
+
+        return string.Join(" ", said);
+    }
+
     /// <summary>What the duplicate panel asks before it removes the ticked snapshots.
     ///
     /// The history sentence is <c>LibraryViewModel</c>'s own, word for word, because it is the same promise
