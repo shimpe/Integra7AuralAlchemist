@@ -25,7 +25,13 @@ public sealed record PatchBank(int Msb, int Lsb, string Name, IReadOnlyList<Patc
 /// be said out loud.</summary>
 /// <param name="Device">What the file calls the instrument.</param>
 /// <param name="Collisions">Addresses carrying more than one patch, in words. The instrument's own data
-/// has one: MSB 121 / LSB 0 / PC 116 is both Woodblock and Castanets.</param>
+/// has exactly one: MSB 121 / LSB 0, <b>program 115</b>, is both Woodblock and Castanets.
+///
+/// <b>Program 115, not 116.</b> Roland's tone list prints that pair at PC 116 because it counts programs
+/// from 1; everything downstream of <see cref="PatchListSource"/> -- these strings, the numbers on
+/// <see cref="PatchEntry"/>, the four writers, and anything the user is shown -- speaks the wire value.
+/// Two numbers naming one address is how a status line ends up disagreeing with the file it describes, so
+/// "program" always means the wire value here and "PC" is left to the instrument's own printed list.</param>
 /// <param name="Skipped">Patches left out because their program cannot go on the wire.</param>
 public sealed record PatchList(
     string Device,
