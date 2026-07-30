@@ -601,46 +601,30 @@ public class Integra7Api : IIntegra7Api
         return names;
     }
 
+    /// <summary>Rename the tone a part is holding, in that part's temporary area.
+    ///
+    /// The block is chosen here because each engine keeps its name somewhere different and there is nothing
+    /// about that worth sharing. The parameter's <i>path</i> comes from <see cref="SeedNaming"/>, which is
+    /// the other side of the same fact: the library sweep reads a captured tone's name out of exactly these
+    /// five paths, and two lists of them would be free to disagree -- silently, and in the direction nobody
+    /// exercises by hand. An engine neither of them recognises is left alone, which is what this did before.
+    /// </summary>
     private async Task ChangePresetNameAsync(Integra7Domain i7domain, byte zeroBasedPartNo, string toneType,
         string name, IMidiLease? lease = null)
     {
-        switch (toneType)
+        DomainBase? d = toneType switch
         {
-            case "PCMD":
-            {
-                var d = i7domain.PCMDrumKitCommon(zeroBasedPartNo);
-                d.ModifySingleParameterDisplayedValue("PCM Drum Kit Common/Kit Name", name);
-                await d.WriteToIntegraAsync("PCM Drum Kit Common/Kit Name", lease);
-            }
-                break;
-            case "PCMS":
-            {
-                var d = i7domain.PCMSynthToneCommon(zeroBasedPartNo);
-                d.ModifySingleParameterDisplayedValue("PCM Synth Tone Common/PCM Synth Tone Name", name);
-                await d.WriteToIntegraAsync("PCM Synth Tone Common/PCM Synth Tone Name", lease);
-            }
-                break;
-            case "SN-A":
-            {
-                var d = i7domain.SNAcousticToneCommon(zeroBasedPartNo);
-                d.ModifySingleParameterDisplayedValue("SuperNATURAL Acoustic Tone Common/Tone Name", name);
-                await d.WriteToIntegraAsync("SuperNATURAL Acoustic Tone Common/Tone Name", lease);
-            }
-                break;
-            case "SN-S":
-            {
-                var d = i7domain.SNSynthToneCommon(zeroBasedPartNo);
-                d.ModifySingleParameterDisplayedValue("SuperNATURAL Synth Tone Common/Tone Name", name);
-                await d.WriteToIntegraAsync("SuperNATURAL Synth Tone Common/Tone Name", lease);
-            }
-                break;
-            case "SN-D":
-            {
-                var d = i7domain.SNDrumKitCommon(zeroBasedPartNo);
-                d.ModifySingleParameterDisplayedValue("SuperNATURAL Drum Kit Common/Kit Name", name);
-                await d.WriteToIntegraAsync("SuperNATURAL Drum Kit Common/Kit Name", lease);
-            }
-                break;
-        }
+            "PCMD" => i7domain.PCMDrumKitCommon(zeroBasedPartNo),
+            "PCMS" => i7domain.PCMSynthToneCommon(zeroBasedPartNo),
+            "SN-A" => i7domain.SNAcousticToneCommon(zeroBasedPartNo),
+            "SN-S" => i7domain.SNSynthToneCommon(zeroBasedPartNo),
+            "SN-D" => i7domain.SNDrumKitCommon(zeroBasedPartNo),
+            _ => null,
+        };
+
+        if (d is null || SeedNaming.NameParameterFor(toneType) is not { } path) return;
+
+        d.ModifySingleParameterDisplayedValue(path, name);
+        await d.WriteToIntegraAsync(path, lease);
     }
 }

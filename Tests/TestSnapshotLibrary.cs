@@ -442,6 +442,49 @@ public class SnapshotLibraryTests
         Assert.That(head.ToneType, Is.EqualTo("SN-S"), "and it is still the tone that was captured");
     }
 
+    /// <summary>A caller may name the file itself, and the library then writes that name rather than deriving
+    /// one. This is what the instrument sweep needs: it picked its file names before it captured anything --
+    /// that list is what it compares against the folder to know what is already done -- and it renames each
+    /// snapshot to whatever the device called it, which no planner can predict. A file landing under a name
+    /// the resume never looks for is a file captured again on every run.</summary>
+    [Test]
+    public void A_caller_that_supplies_a_file_name_gets_that_file_name()
+    {
+        var path = SnapshotLibrary.Create(_folder, Tone("Ring E.Piano"),
+            new SnapshotMetadata(Name: "Ring E.Piano"), "Ring Piano [89-64-12].json");
+
+        Assert.That(Path.GetFileName(path), Is.EqualTo("Ring Piano [89-64-12].json"));
+        Assert.That(SnapshotLibrary.Read(_folder).Single().Head.Name, Is.EqualTo("Ring E.Piano"),
+            "and what the snapshot calls itself is still its own business");
+    }
+
+    /// <summary>Saying nothing is what every caller written before the sweep says, and it still means "name
+    /// it after the snapshot" -- after the name the metadata is about to give it, not the one the file came
+    /// in with, which is the distinction a rename makes visible.</summary>
+    [Test]
+    public void A_caller_that_supplies_no_file_name_still_gets_one_from_the_snapshots_own_name()
+    {
+        var path = SnapshotLibrary.Create(_folder, Tone("Warm Rhodes"),
+            new SnapshotMetadata(Name: "Sunday Rhodes"));
+
+        Assert.That(Path.GetFileName(path), Is.EqualTo("Sunday Rhodes.json"));
+    }
+
+    /// <summary>A supplied name is made unique like any other. The sweep's names are unique by construction,
+    /// so this can only fire if the folder changed underneath a running sweep -- and one sound captured twice
+    /// is a much smaller harm than one of the user's files overwritten.</summary>
+    [Test]
+    public void A_supplied_file_name_that_is_already_taken_is_suffixed_rather_than_overwritten()
+    {
+        SnapshotLibrary.Create(_folder, Tone("Harp"), new SnapshotMetadata(Name: "Harp"),
+            "Harp [89-64-12].json");
+        var second = SnapshotLibrary.Create(_folder, Tone("Harp"), new SnapshotMetadata(Name: "Harp"),
+            "Harp [89-64-12].json");
+
+        Assert.That(Path.GetFileName(second), Is.EqualTo("Harp [89-64-12] (2).json"));
+        Assert.That(SnapshotLibrary.Read(_folder), Has.Count.EqualTo(2));
+    }
+
     /// <summary>Two captures of the same sound do not overwrite each other. A library of captures is full of
     /// "Init Tone" and "Studio Set", and silently replacing the earlier one would destroy a snapshot the user
     /// still has -- with the same button that is supposed to be keeping them.</summary>
