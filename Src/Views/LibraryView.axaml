@@ -71,12 +71,15 @@
                  here. The button beside it is for the second search: the box stays ticked while the user
                  retypes, and nothing re-reads the folder until they ask again. Enter in the box does the
                  same, and is what a typist's hands do; the button is what says the feature is there at all.
-                 It is disabled while the box is clear, because then there is nothing for it to do. -->
+
+                 The button is enabled only when there is a search to run — the box ticked and something
+                 typed to look for — because a button that can be pressed and answers "nothing happened" is
+                 worse than one that is visibly not offering. -->
             <CheckBox IsChecked="{Binding SearchInsidePatches, Mode=TwoWay}"
                       Content="Look inside patches" />
             <Button Content="Search inside"
                     Command="{Binding SearchInsideAsync}"
-                    IsEnabled="{Binding SearchInsidePatches}"
+                    IsEnabled="{Binding CanSearchInside}"
                     Padding="8,2" />
             <ComboBox ItemsSource="{Binding KindLabels}"
                       SelectedItem="{Binding KindLabel, Mode=TwoWay}"

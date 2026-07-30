@@ -26,7 +26,9 @@ public partial class LibraryView : UserControl
     ///
     /// The key is marked handled either way: a search box is single-line, so Enter has nothing else to
     /// mean, and leaving it unhandled would let it reach whatever default button a future dialog puts
-    /// around this view.</summary>
+    /// around this view. Nothing is tested here first -- whether the box is ticked, whether there is
+    /// anything to look for -- because the view model answers every one of those cases on the status bar,
+    /// which is what stops a handled key from being a dead one.</summary>
     private void OnSearchBoxKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter || DataContext is not LibraryViewModel library) return;

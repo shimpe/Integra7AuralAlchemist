@@ -105,22 +105,29 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// edits.</summary>
     private Dictionary<string, string> _initTones = [];
 
-    /// <summary>What the last deep search found: the file, and the parameter to show as the reason. Keyed by
-    /// full path, so a folder change cannot make a hit apply to the wrong file -- two files in two folders
-    /// cannot share one.
+    /// <summary>What the last deep search found, and the exact question it answers, or null for "nobody has
+    /// looked".
     ///
     /// <b>Held here because <see cref="ApplyFilter"/> has to stay synchronous.</b> It is called from the
     /// constructor, from every refresh and from every tag checkbox, and reading a folder from any of those is
     /// not something a filter may do. So the read is <see cref="SearchInsideAsync"/>'s, once, when the user
-    /// asks, and what it found is a cache the filter consults without touching a file.</summary>
-    private Dictionary<string, string> _insideMatches = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>The search text <see cref="_insideMatches"/> was found for, or "" when there are none.
+    /// asks, and what it found is consulted by the filter without touching a file.
     ///
-    /// This is what keeps a cache from answering a question it was not asked. The alternative -- clearing the
-    /// hits on every keystroke -- throws a folder read away the moment a user corrects a typo, and would still
-    /// need this comparison to cope with a scan that finishes after the text has moved on.</summary>
-    private string _insideMatchesFor = "";
+    /// <b>It is only ever used to answer the question it was asked</b> -- the whole filter, not the search text
+    /// -- and only for files that have not been written since they were read. Both rules are
+    /// <see cref="DeepSearch"/>'s, with the reasoning and the tests; what is left here is dropping the answer
+    /// and saying so when either of them fails.</summary>
+    private DeepSearchAnswer? _deepSearch;
+
+    /// <summary>Whether a folder is being read right now, so that only one read can be.
+    ///
+    /// <b>Two searches at once is not a performance question.</b> A held Enter repeats -- Avalonia raises
+    /// KeyDown on the keyboard's auto-repeat -- so without this a leant-on key starts a folder read per
+    /// repeat, each opening every candidate file; and two answers in flight would race to decide which
+    /// question <see cref="_deepSearch"/> ends up claiming to answer, settled by whichever finished last. A
+    /// plain bool is enough because all three gestures arrive on the UI thread, and nothing else in this file
+    /// serialises long operations.</summary>
+    private bool _searching;
 
     /// <param name="load">See <see cref="_load"/>.</param>
     /// <param name="pickFolder">See <see cref="_pickFolder"/>.</param>
@@ -200,6 +207,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
             .Skip(1)
             .Subscribe(ticked => _ = SearchInsideAsync());
 
+        // The Search inside button follows both halves of "is there a search to run". Its own subscription
+        // because it is the only thing either property does that is not a filter: one of them re-filters
+        // (above), the other reads a folder (also above), and this only greys out a button.
+        this.WhenAnyValue(x => x.SearchInsidePatches, x => x.SearchText, (_, _) => Unit.Default)
+            .Subscribe(_ => this.RaisePropertyChanged(nameof(CanSearchInside)));
+
         // The panel follows the selection. The flags it raises are its own; this only tells it what to
         // describe.
         this.WhenAnyValue(x => x.SelectedEntry).Subscribe(row => Editor.Selected = row);
@@ -253,6 +266,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// did that per keystroke would be a folder read per letter. It runs when the user asks -- see
     /// <see cref="SearchInsideAsync"/>, which is what the box, the button and Enter all reach.</summary>
     [Reactive] private bool _searchInsidePatches;
+
+    /// <summary>Whether there is a deep search to run: the box is ticked and there is something to look for.
+    ///
+    /// The button's <c>IsEnabled</c>. It watches both halves because a button that can be pressed and answers
+    /// "nothing happened" is worse than one that is visibly not offering -- and the empty search box is the
+    /// half that was missing while this was bound to the checkbox alone.</summary>
+    public bool CanSearchInside => SearchInsidePatches && SearchText.Trim().Length > 0;
 
     /// <summary>The tags anywhere in the library, each with a checkbox. Rebuilt on every refresh from what the
     /// files actually carry (see <see cref="LibraryListing.AllTags"/>), with the ticked ones carried across if
@@ -344,29 +364,49 @@ public sealed partial class LibraryViewModel : ViewModelBase
     private void ApplyFilter()
     {
         var filter = CurrentFilter();
-        var matched = filter.Apply(_all);
 
         // The deep pass widens the text axis and nothing else. An entry is admitted when it passes every
         // other axis AND the text matches its metadata OR any of its parameter values -- so ticking the box
         // can only ever add rows, which is what a user expects of a checkbox that says "look inside
-        // patches too". LibraryFilter is asked twice for exactly this reason and stays pure over heads.
+        // patches too". The arithmetic is DeepSearch's, where it has tests; LibraryFilter is asked twice
+        // there and stays pure over heads.
         //
-        // Nothing is read here. What SearchInsideAsync found is used only while it still answers the
-        // question the box now asks; a keystroke since makes it silently inert rather than admitting rows
-        // for a search the user has moved on from.
-        Dictionary<string, string> inside = SearchInsidePatches &&
-            string.Equals(_insideMatchesFor, SearchText.Trim(), StringComparison.OrdinalIgnoreCase)
-                ? _insideMatches
-                : [];
+        // Nothing is read from disk here. This runs on every keystroke, and what the last search found is
+        // an answer to one exact question -- see DeepSearch.SameQuestion for what "the same question" means
+        // and why it is the whole filter rather than the text.
+        var listing = DeepSearch.Widen(filter, _all, SearchInsidePatches ? _deepSearch : null);
 
-        if (inside.Count > 0)
+        // An answer to a different question is dropped here rather than left lying about to be ignored, and
+        // it is said out loud. Widening a filter after a search -- the engine back to any, a lower minimum
+        // rating, a tag unticked -- asks about files that were never opened, and the difference between
+        // "no patch says supersaw inside" and "the ones I read did not" is the whole value of the feature.
+        // Silence there would be indistinguishable from an answer.
+        if (listing.AnswersAnotherQuestion)
         {
-            var byMetadata = matched.Select(e => e.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            matched = [..matched, ..(filter with { Text = "" }).Apply(_all)
-                .Where(e => inside.ContainsKey(e.FilePath) && !byMetadata.Contains(e.FilePath))];
+            _deepSearch = null;
+            // "The search", not "the filters": the text in the box is one of the seven axes, so typing
+            // another letter lands here as well, and a message about filters would send a user who has just
+            // typed one looking at the drop-downs.
+            _report("The search has changed since you looked inside the patches; " +
+                    "press Search inside again.", false);
+        }
+        // A file written since it was read is no longer the file that was read: a version restored, a patch
+        // saved again, or a name freed by a delete and handed to the next save (SnapshotLibrary.UniquePath
+        // only avoids a name that is taken at the time). Its row loses its reason and, if that was all it
+        // had, leaves the list -- so why it left is said, and the hit is forgotten so it is said once.
+        else if (listing.Changed.Count > 0 && _deepSearch is not null)
+        {
+            _deepSearch = _deepSearch with
+            {
+                Hits = [.._deepSearch.Hits.Where(hit => !listing.Changed.Contains(hit.FilePath))],
+            };
+            _report($"{listing.Changed.Count} of the patches found inside " +
+                    $"{(listing.Changed.Count == 1 ? "has" : "have")} changed since; " +
+                    "press Search inside again to take another look.", false);
         }
 
-        var admitted = LibraryListing.Sort(matched, LibraryListing.SortFromLabel(SortLabel), Descending);
+        var admitted = LibraryListing.Sort(listing.Admitted, LibraryListing.SortFromLabel(SortLabel),
+            Descending);
 
         var selectedPath = SelectedEntry?.FilePath;
         // Every selected path, not only the anchor's. Rebuilding the list empties the control's selection
@@ -377,11 +417,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         Entries.Clear();
-        // The reason is put on every row it is known for, not only on the rows the deep pass added: a patch
-        // whose name and whose oscillator both say "supersaw" matched twice, and saying so costs nothing.
+        // Every row is asked for its reason rather than only the ones the deep pass added, because by the
+        // time it gets here there is one list and not two: the pass's job was to widen the listing, not to
+        // keep a second one beside it. A row with nothing to explain gets "".
         foreach (var entry in admitted)
             Entries.Add(new LibraryEntryViewModel(entry)
-                { MatchedInside = inside.GetValueOrDefault(entry.FilePath, "") });
+                { MatchedInside = listing.Reasons.GetValueOrDefault(entry.FilePath, "") });
         // Before the selection is restored, not after: the panel's init-tone note reads the selected row's own
         // mark, so a row marked afterwards would be handed to the panel unmarked and the panel would say
         // nothing about a tone the list is already flagging.
@@ -435,96 +476,179 @@ public sealed partial class LibraryViewModel : ViewModelBase
     ///
     /// <b>The scan is off the UI thread</b>, for the reason the bulk loops give: it opens and streams every
     /// candidate file in the folder, and doing that on the click is a freeze with nothing on screen to
-    /// explain it. Only file paths and the text cross the thread, and only a dictionary of strings comes
-    /// back.
+    /// explain it. Only the candidate entries and the text cross the thread -- both immutable records -- and
+    /// only a list of hits comes back. One read runs at a time; see <see cref="_searching"/>.
     ///
-    /// <b>A result the user has moved on from is discarded rather than shown.</b> The text can change while
-    /// the folder is being read -- and two searches can be in flight at once, in either order -- so what is
-    /// adopted is checked against what the box says now. Nothing is silently applied to a question nobody
-    /// asked.</summary>
+    /// <b>An answer nobody is waiting for is discarded rather than shown.</b> The filters, the folder and the
+    /// box itself can all change while the folder is being read, and each of them makes the answer about a
+    /// question that is no longer being asked. Only one read runs at a time, so a discard is never overwriting
+    /// a newer answer -- which is what lets it say something when the user is owed an explanation and stay
+    /// quiet when they are not.
+    ///
+    /// <b>Everything is guarded, not only the per-file read.</b> This is invoked by a command binding and by
+    /// two callers that cannot await it, none of which observes the task it gets, so an exception anywhere in
+    /// here -- building a filter, reporting, rebuilding the list -- would otherwise be silence with a
+    /// half-rebuilt list behind it. Every other method in this file that touches files reports its failures
+    /// the same way.</summary>
     public async Task SearchInsideAsync()
+    {
+        try
+        {
+            await LookInsideAsync();
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("look inside the library's patches", e.ToString());
+            _report($"Could not look inside the patches: {e.Message}", true);
+        }
+    }
+
+    /// <summary>The body of <see cref="SearchInsideAsync"/> -- a method of its own only so that the public one
+    /// can be nothing but the guard around it.</summary>
+    private async Task LookInsideAsync()
     {
         var text = SearchText.Trim();
         UserActionLog.Action($"library: look inside patches for \"{text}\" " +
                              $"({(SearchInsidePatches ? "on" : "off")})");
 
-        if (!SearchInsidePatches || text.Length == 0)
+        if (!SearchInsidePatches)
         {
-            // Nothing is being asked, so nothing may go on being answered. The early return matters as much
-            // as the clearing: this is also the path the box takes on being unticked with nothing cached,
-            // and rebuilding a list that cannot change would throw the user's selection at it for no reason.
-            if (_insideMatches.Count == 0) return;
-            _insideMatches = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            _insideMatchesFor = "";
-            ApplyFilter();
+            // Unticking the box: what the last search found stops applying, and the rows it added go. This
+            // is the reason unticking is not simply left to do nothing -- nothing re-filters on this
+            // property, so the rows would otherwise sit there contradicting the box.
+            if (_deepSearch is not null)
+            {
+                _deepSearch = null;
+                ApplyFilter();
+                return;
+            }
+
+            // Nothing to drop, so nothing moved, so something has to be said: Enter in the search box
+            // without the box ticked would otherwise be a dead key -- the handler marks it handled -- and
+            // "nothing happened" is indistinguishable from "it did not work".
+            if (text.Length > 0)
+                _report("Tick \"Look inside patches\" to search inside them as well.", false);
+            return;
+        }
+
+        if (text.Length == 0)
+        {
+            // Ticked with nothing to look for. Whatever an earlier search found does not apply either: the
+            // text it answered has been deleted.
+            if (_deepSearch is not null)
+            {
+                _deepSearch = null;
+                ApplyFilter();
+            }
+
+            _report("Type what to look for, then press Search inside.", false);
+            return;
+        }
+
+        // One read at a time -- see _searching for what a leant-on Enter key does otherwise.
+        if (_searching)
+        {
+            _report("Still looking inside the patches…", false);
             return;
         }
 
         var filter = CurrentFilter();
-        var byMetadata = filter.Apply(_all).Select(e => e.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var candidates = (filter with { Text = "" }).Apply(_all)
-            .Select(e => e.FilePath)
-            .Where(path => !byMetadata.Contains(path))
-            .ToList();
+        var asked = filter with { Text = text };
+        var candidates = DeepSearch.Candidates(filter, _all);
 
         if (candidates.Count == 0)
         {
             // Said rather than passed over in silence: the user pressed something and no file is going to be
-            // opened, and "nothing happened" is indistinguishable from "it did not work". Whatever an
-            // earlier search found is left alone -- it is either still the answer to the text in the box or
-            // already inert, and this branch has learnt nothing that would change either.
-            _report(byMetadata.Count == 0
+            // opened. Whatever an earlier search found is left alone -- it either still answers the question
+            // on screen or has already been dropped, and this branch has learnt nothing to change either.
+            _report(filter.Apply(_all).Count == 0
                 ? "The other filters admit nothing, so there is nothing to look inside."
                 : "Every patch the other filters admit already matches; nothing left to look inside.", false);
             return;
         }
 
+        // The folder is captured because it can be changed while this is reading, and an answer about
+        // another folder is not an answer at all.
+        var folder = Folder;
         _report($"Looking inside {candidates.Count} patch{(candidates.Count == 1 ? "" : "es")}…", false);
 
-        var (found, unreadable) = await Task.Run(() =>
+        _searching = true;
+        List<DeepSearchHit> hits;
+        int unreadable;
+        try
         {
-            Dictionary<string, string> hits = new(StringComparer.OrdinalIgnoreCase);
-            var problems = 0;
-            foreach (var path in candidates)
-                try
-                {
-                    using var file = File.OpenRead(path);
-                    // "Partial 1/OSC Wave = SuperSaw": the parameter and what it reads as, which is what
-                    // makes a hit explicable rather than something to be taken on trust.
-                    if (SnapshotTextScan.FirstMatch(file, text) is { } hit)
-                        hits[path] = $"{hit.Path} = {hit.Value}";
-                }
-                catch (Exception e)
-                {
-                    // One file held open by a sync client must not sink the search, for the reason the bulk
-                    // loops give -- but a file that could not be read is a file the user was not told about,
-                    // and a search that quietly missed the sound they are looking for is worse than a slow
-                    // one. So it is counted as well as logged.
-                    UserActionLog.Failed($"search inside '{path}'", e.ToString());
-                    problems++;
-                }
-
-            return (hits, problems);
-        });
-
-        // Back on the UI thread: the await resumed on the context the command was invoked from.
-        if (!string.Equals(text, SearchText.Trim(), StringComparison.OrdinalIgnoreCase))
+            // Off the UI thread. Only the entries and the text cross, and both are immutable; only a list of
+            // hits comes back.
+            (hits, unreadable) = await Task.Run(() => Scan(candidates, text));
+        }
+        finally
         {
-            _report($"The search moved on while {candidates.Count} patches were being read; " +
-                    "press Search inside again.", false);
+            // In a finally, and before the answer is adopted: an adoption that threw would otherwise leave
+            // the flag set and the feature dead for the rest of the session.
+            _searching = false;
+        }
+
+        // Back on the UI thread: the await resumed on the context the gesture arrived on. Nothing below
+        // awaits, so no other gesture can interleave with it.
+        //
+        // Quietly, both of these: the user has unticked the box or moved to another folder, so the rows this
+        // would have added are not rows they are waiting for, and there is nothing for them to do about it.
+        if (!SearchInsidePatches) return;
+        if (!string.Equals(folder, Folder, StringComparison.OrdinalIgnoreCase)) return;
+
+        // A filter changed while reading is worth saying, because the rows the user *is* waiting for are not
+        // going to appear. Nothing newer has been adopted in the meantime -- only one read runs at a time --
+        // so this cannot be contradicting a status line that is already right.
+        if (!DeepSearch.SameQuestion(asked, CurrentFilter()))
+        {
+            _report("The search changed while the patches were being read; press Search inside again.", false);
             return;
         }
 
-        _insideMatches = found;
-        _insideMatchesFor = text;
+        _deepSearch = new DeepSearchAnswer(asked, hits);
 
         var missed = unreadable == 0 ? "" : $" {unreadable} could not be read.";
-        _report(found.Count == 0
+        _report(hits.Count == 0
             ? $"Nothing inside the other {candidates.Count} patches mentions \"{text}\".{missed}"
-            : $"{found.Count} more patch{(found.Count == 1 ? "" : "es")} mention \"{text}\" inside.{missed}",
+            : $"{hits.Count} more patch{(hits.Count == 1 ? "" : "es")} mention \"{text}\" inside.{missed}",
             unreadable > 0);
 
         ApplyFilter();
+    }
+
+    /// <summary>Open each candidate and ask whether <paramref name="text"/> is anywhere inside it. Answers the
+    /// hits and how many files could not be read.
+    ///
+    /// Static, and handed everything it needs, because it runs on a thread-pool thread: nothing in here may
+    /// touch this view model's state. The last-write time recorded against a hit is the listing's rather than
+    /// the file's at this moment, which is the safe direction -- a file written between the listing and this
+    /// read is a hit that the next refresh discards rather than one that outlives what it describes.
+    ///
+    /// <b>A file that cannot be read is counted as well as logged.</b> One snapshot held open by a sync client
+    /// must not sink the search, for the reason the bulk loops give -- but a search that quietly missed the
+    /// sound the user is looking for is worse than a slow one, so the count is reported.</summary>
+    private static (List<DeepSearchHit> Hits, int Unreadable) Scan(IReadOnlyList<LibraryEntry> candidates,
+        string text)
+    {
+        List<DeepSearchHit> hits = [];
+        var unreadable = 0;
+
+        foreach (var entry in candidates)
+            try
+            {
+                using var file = File.OpenRead(entry.FilePath);
+                // "Partial 1/OSC Wave = SuperSaw": the parameter and what it reads as, which is what makes a
+                // hit explicable rather than something to be taken on trust.
+                if (SnapshotTextScan.FirstMatch(file, text) is { } hit)
+                    hits.Add(new DeepSearchHit(entry.FilePath, $"{hit.Path} = {hit.Value}", entry.Modified));
+            }
+            catch (Exception e)
+            {
+                UserActionLog.Failed($"search inside '{entry.FilePath}'", e.ToString());
+                unreadable++;
+            }
+
+        return (hits, unreadable);
     }
 
     /// <summary>Point every row at the current marks. Called after the list is rebuilt and after the user
