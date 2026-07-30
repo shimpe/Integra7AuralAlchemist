@@ -84,6 +84,16 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// nothing in this file knows.</summary>
     private readonly Func<LibraryEntry, Task> _audition;
 
+    /// <summary>Write the instrument's whole patch list as a file the user's DAW can read. The window's job
+    /// for the reason <see cref="_load"/> is its job -- it holds the presets, including the user-memory names
+    /// that arrive from the instrument in the background, and it owns the two dialogs this asks.
+    ///
+    /// <b>The library is not where the list comes from.</b> It is where the user is standing when they are
+    /// thinking about how their sounds are organised, which is what makes this the right button for the
+    /// button rather than the right owner for the work. A second place in the window to press it would earn
+    /// less than the row it costs.</summary>
+    private readonly Func<Task> _exportPatchList;
+
     /// <summary>Say something on the window's status bar: the message, and whether it is a failure. Shared with
     /// the save and load commands rather than duplicated as a status line of this tab's own -- the status bar is
     /// window chrome, it is visible from every tab, and one channel means a user never has to wonder which of two
@@ -177,12 +187,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <param name="compare">See <see cref="_compare"/>.</param>
     /// <param name="compareTwo">See <see cref="_compareTwo"/>.</param>
     /// <param name="audition">See <see cref="_audition"/>.</param>
+    /// <param name="exportPatchList">See <see cref="_exportPatchList"/>.</param>
     /// <param name="report">See <see cref="_report"/>.</param>
     /// <param name="settingsPath">See <see cref="_settingsPath"/>.</param>
     public LibraryViewModel(Func<LibraryEntry, Task> load, Func<string, Task<string?>> pickFolder,
         Func<string, string, Task<bool>> confirm, Func<LibraryEntry, Task> compare,
         Func<LibraryEntry, LibraryEntry, Task> compareTwo, Func<LibraryEntry, Task> audition,
-        Action<string, bool> report, string settingsPath)
+        Func<Task> exportPatchList, Action<string, bool> report, string settingsPath)
     {
         _load = load;
         _pickFolder = pickFolder;
@@ -190,6 +201,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
         _compare = compare;
         _compareTwo = compareTwo;
         _audition = audition;
+        _exportPatchList = exportPatchList;
         _report = report;
         _settingsPath = settingsPath;
 
@@ -1040,6 +1052,11 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
         Refresh();
     }
+
+    /// <summary>Write the instrument's patch list for a DAW. Nothing of it happens here -- see
+    /// <see cref="_exportPatchList"/> -- and the whole gesture, both dialogs and the file, is the window's,
+    /// which is also where its outcome is reported.</summary>
+    public async Task ExportPatchListAsync() => await _exportPatchList();
 
     // ---- duplicates ---------------------------------------------------------------------------------------
 

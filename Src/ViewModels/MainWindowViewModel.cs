@@ -96,6 +96,21 @@ public partial class MainWindowViewModel : ViewModelBase
     /// it pushes rows from the old list into the new parts.</summary>
     private CancellationTokenSource? _userPresetsCts;
 
+    /// <summary>Whether the sweep that reads the instrument's user-tone names has run to the end for the
+    /// preset list <see cref="PartViewModels"/> currently holds.
+    ///
+    /// <b>It describes the list, not the connection</b>, which is why it is cleared where a new sweep is
+    /// launched rather than where a connection is attempted. A rescan that fails to reconnect leaves the old
+    /// parts and their old list in place -- so if that list was complete it still is, and if the failing
+    /// rescan cancelled a sweep partway through, it stays partial for the rest of the session and every later
+    /// export writes the same half of the user's sounds. Only <see cref="ExportPatchListAsync"/> reads it, and
+    /// nothing else needs to: everywhere else a missing user name shows up as a row that is simply not there
+    /// yet, whereas an export is a file that goes away and gets used.
+    ///
+    /// Written from the loader's continuations and read from a button press, both on the UI thread, which is
+    /// the same reason <see cref="AddUserDefinedPresets"/> can touch the shared list at all.</summary>
+    private bool _userPresetNamesComplete;
+
     public ReadOnlyObservableCollection<PartViewModel> PartViewModels { get; private set; }
 
     private const string INTEGRA_CONNECTION_STRING = "INTEGRA-7";
@@ -165,6 +180,20 @@ public partial class MainWindowViewModel : ViewModelBase
 
     /// <summary>The other direction: where to write a pad. Same three-way result.</summary>
     public Interaction<FilePickerRequest, string?> ShowSaveJsonDialog { get; }
+
+    /// <summary>Ask which patch-list format to write. Answers the writer, or null for a cancellation --
+    /// the "this or nothing" shape <see cref="ShowTonePickerDialog"/> has, and read the same way.</summary>
+    public Interaction<PatchListExportViewModel, IPatchListWriter?> ShowPatchListExportDialog { get; }
+
+    /// <summary>Where to write a patch list. Answers the path, "" for a file with no usable local path, or
+    /// null for a cancellation -- see <see cref="ShowSaveSnapshotDialog"/> for why "" and null are not the
+    /// same thing.
+    ///
+    /// <b>Not <see cref="ShowSaveTextDialog"/> with a wider filter.</b> That one saves the comparison and is
+    /// <c>*.txt</c> by nature; this one is four extensions and takes the one it wants from the request,
+    /// because the format is chosen before the file is named. Widening the comparison's picker to carry an
+    /// extension it never varies would make two callers share a parameter only one of them means.</summary>
+    public Interaction<FilePickerRequest, string?> ShowSavePatchListDialog { get; }
 
     /// <summary>The tone Copy put there, waiting for Paste. One slot, this window's lifetime -- see
     /// ToneClipboard.</summary>
@@ -2018,6 +2047,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 // Fetching the user tone names costs ~10s of sysex round trips, and nothing above
                 // depends on it — the factory presets from the CSV are already in place. Let it run
                 // after the window is usable and drip the user presets into the lists as they arrive.
+                //
+                // Cleared on the statement before the launch, with no await between this and the assignment
+                // of PartViewModels above: the flag describes that list, so the two have to change together
+                // or an export in between would describe the new, empty list with the old one's answer.
+                _userPresetNamesComplete = false;
                 _ = LoadUserPresetsInBackgroundAsync(presets, PartViewModels, userPresetsToken);
             }
             else
@@ -2057,6 +2091,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 if (token.IsCancellationRequested) return;
                 await pvm.EnsurePreselectIsNotNullAsync();
             }
+
+            // The one place this is set, and only on the path where every name list was asked for and
+            // answered. A superseded loader returns above without touching it, and a failure leaves it
+            // false through the catch below -- both of which are true statements about the list: it has
+            // some of the user's tones in it and there is no way to know which are missing.
+            _userPresetNamesComplete = true;
         }
         catch (OperationCanceledException)
         {
@@ -2502,6 +2542,8 @@ public partial class MainWindowViewModel : ViewModelBase
         ShowTonePickerDialog = new Interaction<TonePickerViewModel, LibraryEntry?>();
         ShowOpenJsonDialog = new Interaction<FilePickerRequest, string?>();
         ShowSaveJsonDialog = new Interaction<FilePickerRequest, string?>();
+        ShowPatchListExportDialog = new Interaction<PatchListExportViewModel, IPatchListWriter?>();
+        ShowSavePatchListDialog = new Interaction<FilePickerRequest, string?>();
 
         // Arriving on the Morph tab re-arms its one-off journal clear, which is what makes "the first
         // blend after arriving" true of a second visit as well as of the first.
@@ -2600,6 +2642,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 }
             },
             AuditionFromLibraryAsync,
+            ExportPatchListAsync,
             (message, failed) =>
             {
                 // The window's own status bar, not a line of the library's own: it is visible from every tab,
@@ -2646,6 +2689,101 @@ public partial class MainWindowViewModel : ViewModelBase
                     ? "No part is selected, so nothing can be morphed yet. Choose one on the Parameters tab."
                     : $"Morphing the tone in part {part}.";
             });
+    }
+
+    /// <summary>Write the instrument's whole patch list where the user's DAW can find it, so that a track's
+    /// program menu says "Full Grand 1" instead of "Program 1".
+    ///
+    /// <b>The presets are read now, not captured.</b> The user banks arrive in the background after the
+    /// instrument answers, so a list taken when this view model was built would be missing every user tone --
+    /// and missing them silently, which is the failure this feature exists to prevent. <c>AllPresets</c> is
+    /// the unfiltered list; <c>Presets</c> is part 1's filtered view and would export whatever happens to be
+    /// typed in that part's search box. Every part holds the same list by reference, so any part serves --
+    /// part 1 for the reason <see cref="SaveUserToneAsync"/> uses it.
+    ///
+    /// <b>And the factory list when there are no parts at all.</b> <see cref="UpdateConnectedAsync"/> only
+    /// builds them on a successful connection, so "nothing is plugged in" looks like a null collection from
+    /// here. Reading the shipped CSV then is the honest answer rather than a fallback: the factory tones are
+    /// what the instrument can be sent to whether or not one is attached, and a user setting up their DAW
+    /// before they set up their studio is the likeliest person to press this button. What is absent is the
+    /// user memory, which is absent rather than wrong -- nobody has been able to ask for it.
+    ///
+    /// <b>The list is built on this thread.</b> The background loader appends to that same list from the UI
+    /// thread (see <see cref="AddUserDefinedPresets"/>), so enumerating it anywhere else is a read racing a
+    /// write. <see cref="PatchListSource"/> materialises everything it produces, so what comes back is a
+    /// snapshot nothing can change under the writer -- which is what makes the formatting safe to hand to a
+    /// pool thread below.
+    ///
+    /// <b>And whether that snapshot was taken too early is said out loud.</b> Reading the list at the press
+    /// is not enough on its own: pressed thirty seconds into a connection, or after a rescan that failed and
+    /// cancelled the sweep, the list is genuinely missing user tones and would otherwise be described as
+    /// complete. <see cref="_userPresetNamesComplete"/> is what turns that into a sentence.</summary>
+    public async Task ExportPatchListAsync()
+    {
+        UserActionLog.Action("button: Export patch list");
+
+        var writer = await ShowPatchListExportDialog.Handle(new PatchListExportViewModel());
+        if (writer is null) return; // cancelled -- nothing happened, so say nothing
+
+        var list = PatchListSource.From(
+            PartViewModels is { Count: > 1 } ? PartViewModels[1].AllPresets : LoadPresets());
+
+        // Deliberately not started at the library folder, which is where the button is. A patch list is not
+        // a snapshot: Reaper wants it beside its own Data folder, Ardour in its configuration directory,
+        // Cubase in its scripts folder, and none of those is anywhere near where this user keeps their
+        // sounds. Wherever the picker last was is the only guess that is not confidently wrong.
+        var path = await ShowSavePatchListDialog.Handle(new FilePickerRequest(
+            "Save patch list", "", PatchListExport.FileNameFor(list.Device, writer.Extension),
+            writer.Extension));
+        if (path is null) return; // cancelled -- nothing happened, so say nothing
+        if (path.Length == 0)
+        {
+            // A file was chosen, but it has no usable local path (a cloud or virtual location) -- see
+            // ShowSaveSnapshotDialog. Unlike a cancellation, the user needs to know this did nothing.
+            SnapshotFailed = true;
+            SnapshotStatus = "Could not write the patch list: the selected file has no accessible local path.";
+            return;
+        }
+
+        try
+        {
+            // Off the UI thread: six thousand patches through an XML document builder is long enough to be
+            // seen as a stall, and by this point the list is an immutable snapshot, so there is nothing for
+            // a pool thread to race. The byte-order mark is the writer's answer rather than a decision made
+            // here -- see PatchListExport.BytesFor, which is also why this asks for bytes and not text.
+            var bytes = await Task.Run(() => PatchListExport.BytesFor(writer, list));
+
+            // Written atomically, as ExportStudioSetAsync and ExportToneAsync are and for the same reason,
+            // even though a patch list is regenerable where a captured Studio Set is not: WriteAllBytes
+            // truncates the target before the first byte lands, so a share that drops partway through six
+            // thousand patches leaves last month's file as a short one that Reaper will still happily load
+            // as a complete bank list. A truncated file that reports failure is worse than no file, because
+            // the report is on a status line and the file is what the DAW reads next month.
+            var tempPath = path + ".tmp";
+            try
+            {
+                await File.WriteAllBytesAsync(tempPath, bytes);
+                File.Move(tempPath, path, overwrite: true);
+            }
+            catch
+            {
+                if (File.Exists(tempPath)) File.Delete(tempPath);
+                throw;
+            }
+
+            SnapshotFailed = false;
+            // What could not be represented is said here, not logged. A patch list that lost a patch, that
+            // put two at one address, or that was written before the user's own tone names had all arrived
+            // is byte-for-byte the shape of a correct one, so this sentence is the only place the user can
+            // find out -- see PatchListExport.Outcome.
+            SnapshotStatus = PatchListExport.Outcome(list, Path.GetFileName(path), _userPresetNamesComplete);
+        }
+        catch (Exception e)
+        {
+            UserActionLog.Failed("export the patch list", e.ToString());
+            SnapshotFailed = true;
+            SnapshotStatus = $"Could not write the patch list: {e.Message}";
+        }
     }
 
     /// <summary>Ask for a library tone to put on a morph corner, showing each candidate's engine.
@@ -3005,4 +3143,13 @@ public partial class MainWindowViewModel : ViewModelBase
 /// <param name="Folder">Where to open. Ignored when it does not exist, which is the normal state of a
 /// Pads folder until the first pad is saved -- a picker pointed at a folder that is not there answers
 /// nothing, so asking is skipped rather than depending on every backend agreeing about that.</param>
-public sealed record FilePickerRequest(string Title, string Folder, string SuggestedName = "");
+/// <param name="Extension">What the picker filters by and appends, without its dot.
+///
+/// <b>It defaults to the extension both original callers use rather than to nothing</b>, so that the two
+/// Morph pickers are untouched by its arrival and so that a caller who forgets it gets a filter that is
+/// wrong-looking rather than one that is empty -- an empty <c>DefaultExtension</c> produces a save dialog
+/// that suggests a file with no extension at all, which is the failure nobody notices until the DAW refuses
+/// the file. The patch-list picker is the one that has to say: it writes four formats through one
+/// handler.</param>
+public sealed record FilePickerRequest(
+    string Title, string Folder, string SuggestedName = "", string Extension = "json");
