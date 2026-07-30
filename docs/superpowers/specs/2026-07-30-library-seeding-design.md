@@ -82,15 +82,35 @@ device was fully responsive; these two banks simply are not exposed.
 - Take the engine from the preset row and hand it to `ToneDomainNames.For`. Getting it wrong costs 1.5 s per
   block and then fails.
 
-**SRX boards:**
+**SRX boards.** Re-measured on the evening of 2026-07-30 with a probe that times every read, after a
+cancelled sweep left the user's three boards evicted. What is written here replaces the earlier account,
+which said to poll until the reading stopped changing — a rule that a device which has not yet acted on the
+request satisfies immediately.
 
-- `GetLoadedSrxAsync` converging on the expected set **is** a completion signal; no fixed wait is needed.
-- Two traps: it can return `(0,0,0,0)` mid-load, so poll for the expected values rather than for any reply;
-  and **the device rewrites what you send** — `SendLoadSrxAsync(19,0,0,0)` read back as `(19,20,21,22)`.
-  Compare against convergence, not against the request.
-- Timings: a normal board load ≈ 5 s; unloading one ≈ 2.5 s; restoring three ≈ 14.6 s, consistently; the
-  `HQ Pcm` load converges at **18.7 s** and is stable by 23.3 s. (An earlier note said "> 33 s"; that was an
-  unmeasured lower bound read off a truncated log, not a measurement.)
+- **Nothing may be sent to the slots while the instrument is loading them.** A `SendLoadSrxAsync` that
+  arrives during a load is discarded in silence — no acknowledgement, no error, no effect. This is the
+  constraint everything else here serves.
+- **The instrument answering at all is the completion signal.** Idle, it answers the slot query in **2–5 ms**,
+  whatever the slots hold, *including all four Off*. Loading, it answers **nothing**: the read runs out its
+  full 1.5 s reply deadline, and `GetLoadedSrxAsync` renders that as `(0,0,0,0)` because there is nothing
+  else it can say. So all-zeros is two states wearing one face, and they are told apart by how long the read
+  took — 2 ms against 1,510, three hundred times apart.
+- **Three traps, not two.** It can read `(0,0,0,0)` mid-load; **the device rewrites what you send** —
+  `SendLoadSrxAsync(19,0,0,0)` reads back as `(19,20,21,22)` — so you cannot poll for the values you asked
+  for; and *the reading holding still proves nothing on its own*, because an instrument that has not yet
+  acted on a request holds just as still as one that has finished. What is waited for is **three agreeing
+  readings the instrument actually answered** (`SeedSettling`).
+- **A loadout the instrument already holds does nothing at all.** Sending the user's own `(2,13,6,0)` back to
+  them produced not one busy poll in 40 s. So a rule that waited for the reading to *change* would hang on
+  the case where the right answer is "already done".
+- Timings, as quiet time between the request and the first answer: one board replacing three ≈ **6–7.5 s**;
+  emptying all four ≈ under 1.5 s (it answered on the first poll); three boards from empty ≈ **13 s**;
+  `HQ Pcm` ≈ **19 s**, and it then answers `(19,20,21,22)` immediately and stays there. `HQ Pcm` is therefore
+  the same shape as a plain board, only slower — it goes quiet, then comes back — which is worth stating
+  because it is the loadout any re-test of the ExPCM question has to wait on.
+- **What the slot query cannot tell you** is whether a board's samples are usable at the instant the slots
+  become readable again; it reports the slot table, and that is all it reports. Anything that reads a board's
+  tones straight after a load is relying on those two moments coinciding, which nothing here establishes.
 
 ---
 
@@ -194,6 +214,12 @@ edits** — while comparing, the journal's buffer is the only copy of them.
 
 **On cancel or failure:** the Studio Set and the SRX slots are restored, and the restore is verified by
 reading back rather than assumed.
+
+**A cancel does not interrupt a board load.** One that has been sent is seen through to settling before
+anything else is sent, because an instrument that is loading discards what arrives — so a cancel pressed
+during a board round takes about half a minute to take effect (measured at 29 s). The panel says so when
+Cancel is pressed while the slots are moving; without that it reads as a hang, and the user's next move is
+to close the window on an instrument that has not been put back.
 
 ---
 
