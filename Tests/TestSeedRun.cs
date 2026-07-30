@@ -257,7 +257,13 @@ public class SeedRunTests
     /// <summary>Cancel stops the sweep between patches and never inside one: the three parameter writes and
     /// the capture share a lease, and stopping between them leaves the part holding one patch's bank and
     /// another's program. And the instrument still goes back -- a cancel is the user changing their mind,
-    /// not the user asking to keep whatever the sweep had got to.</summary>
+    /// not the user asking to keep whatever the sweep had got to.
+    ///
+    /// The cancel is fired from the write, which is the moment this test is about: one patch captured and on
+    /// disk, and the user pressing the button. It used to be fired from the first progress report, which was
+    /// the same moment only for as long as progress was reported after a patch -- it is now reported before
+    /// one, so a report is the start of a patch and no longer the end of the one before it. Same intent,
+    /// pinned to the thing that actually means it.</summary>
     [Test]
     public async Task Cancellation_stops_between_patches_and_still_restores()
     {
@@ -265,10 +271,36 @@ public class SeedRunTests
         var cancelling = new CancellationTokenSource();
 
         var outcome = await Sweep(instrument, [Preset("First"), Preset("Second"), Preset("Third")],
-            progress: new Reports(_ => cancelling.Cancel()), token: cancelling.Token);
+            write: (item, _) =>
+            {
+                cancelling.Cancel();
+                return item.FileName;
+            },
+            token: cancelling.Token);
 
         Assert.That(outcome.Cancelled, Is.True);
         Assert.That(outcome.Written, Is.EqualTo(new[] { "First [89-64-1].json" }));
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
+    }
+
+    /// <summary>And a cancel that arrives while a patch is in flight does not abandon that patch. Now that a
+    /// patch is announced before it is attempted, the gap between the announcement and the capture is
+    /// somewhere a token could plausibly be read a second time -- and reading it there would be reading it
+    /// inside a patch, which is the one place this loop must not: the bank write, the program write and the
+    /// capture share a single lease, and stopping between them leaves the part holding one patch's bank and
+    /// another's program. The report is the closest a test can stand to that moment.</summary>
+    [Test]
+    public async Task A_cancel_that_arrives_as_a_patch_starts_still_lets_that_patch_finish()
+    {
+        var instrument = new FakeInstrument();
+        var cancelling = new CancellationTokenSource();
+
+        var outcome = await Sweep(instrument, [Preset("First"), Preset("Second")],
+            progress: new Reports(_ => cancelling.Cancel()), token: cancelling.Token);
+
+        Assert.That(outcome.Written, Is.EqualTo(new[] { "First [89-64-1].json" }),
+            "the patch that had already been handed to the instrument was seen through");
+        Assert.That(outcome.Cancelled, Is.True);
         Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
     }
 
@@ -338,7 +370,14 @@ public class SeedRunTests
     /// <summary>Progress counts attempts, not successes. On a full sweep the unavailable rows arrive in
     /// runs of hundreds -- every GM2 row, then every ExPCM one -- so a counter that only moved when a file
     /// was written would sit still for minutes at a time, which from the outside is indistinguishable from
-    /// a hang. It is also what the panel divides by to say how much longer this will take.</summary>
+    /// a hang. It is also what the panel divides by to say how much longer this will take.
+    ///
+    /// A patch is announced before it is attempted, so a report cannot be conditioned on what the patch
+    /// turned out to be even in principle -- but the property this test exists for is unchanged by that and
+    /// is still what the names below pin: the silent one and the throwing one are both announced, in their
+    /// place in the plan. What the move does change is <c>Done</c>, which counts the patches that have
+    /// finished and is therefore one behind the patch named beside it: the first report is 0, and the last
+    /// one of three is 2. The panel adds the one back -- see <c>SeedRunViewModel.ShowProgress</c>.</summary>
     [Test]
     public async Task Progress_counts_every_attempt_and_not_only_the_ones_that_wrote_a_file()
     {
@@ -350,10 +389,43 @@ public class SeedRunTests
         await Sweep(instrument, [Preset("Not on this unit"), Preset("Broken"), Preset("Fine")],
             progress: reports);
 
-        Assert.That(reports.Seen.Select(report => report.Done), Is.EqualTo(new[] { 1, 2, 3 }));
+        Assert.That(reports.Seen.Select(report => report.Done), Is.EqualTo(new[] { 0, 1, 2 }),
+            "how many had finished when each patch was announced");
         Assert.That(reports.Seen.Select(report => report.Current.Preset.Name),
             Is.EqualTo(new[] { "Not on this unit", "Broken", "Fine" }));
         Assert.That(reports.Seen[^1].Total, Is.EqualTo(3));
+    }
+
+    /// <summary>Each patch is announced before it is captured, and once.
+    ///
+    /// This is the defect the user found, and only the order of these calls shows it: the panel has nothing
+    /// to name a patch by except the last report, so a report made after the capture named the patch that
+    /// had just finished. On SN-A, at 116 ms a patch, nobody could see it. On PCM drum kits, at 6.018 s, the
+    /// panel spent every one of those six seconds naming the previous kit while the instrument's own display
+    /// named the one it was loading -- and the user, quite reasonably, asked which of the two was lying.
+    ///
+    /// Once per patch, which the sequence below also pins from both ends: a sweep is about 6,000 patches,
+    /// and a second report after each one would say a moment early exactly what the next patch's report
+    /// says anyway. The last patch has no report after it and needs none; the panel reads the in-flight
+    /// index as <c>Done + 1</c>, so its counter is already reading 3 of 3 while the third is
+    /// captured.</summary>
+    [Test]
+    public async Task Each_patch_is_announced_before_it_is_captured_and_once()
+    {
+        var instrument = new FakeInstrument();
+        // Written into the instrument's own log, because which side of the capture a report happened on is
+        // the whole of what this test is about, and the two are only comparable in one list.
+        var reports = new Reports(report => instrument.Calls.Add($"announce {report.Current.Preset.Name}"));
+
+        await Sweep(instrument, [Preset("First"), Preset("Second")], progress: reports);
+
+        Assert.That(instrument.Calls, Is.EqualTo(new[]
+        {
+            "capture studio set",
+            "announce First", "capture First",
+            "announce Second", "capture Second",
+            "restore studio set",
+        }));
     }
 
     /// <summary>A board load that throws ends the sweep -- there is nothing useful to do with a round whose

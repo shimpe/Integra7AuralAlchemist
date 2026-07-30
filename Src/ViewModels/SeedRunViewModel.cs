@@ -174,7 +174,7 @@ public sealed partial class SeedRunViewModel : ViewModelBase
     /// slot costs no 23-second round.</summary>
     private IReadOnlyCollection<int> _boards = [];
 
-    /// <summary>The latest report from the run, and the note about whatever it is doing that is not a patch.
+    /// <summary>The patch the run is working on, and the note about whatever it is doing that is not a patch.
     ///
     /// <b>Volatile fields written by the run and read by the timer, and this is the whole of the marshalling.
     /// </b> The progress handler sits outside <see cref="SeedRun"/>'s per-patch catch on purpose -- a screen
@@ -652,11 +652,26 @@ public sealed partial class SeedRunViewModel : ViewModelBase
         try
         {
             var latest = _latest;
-            var done = latest?.Done ?? 0;
+            // Done is how many have finished and Current is the one in flight, so Done + 1 is where the
+            // patch named beside it sits in the plan -- and, in the stretches when nothing is in flight, the
+            // number that have finished. One number, true under both readings, which is what lets a single
+            // line be right while a kit is loading and still be right through the half-minute of putting the
+            // instrument back afterwards.
+            //
+            // An ordinal, not a count, and the word order is the whole of it. "3 of 216 patches" beside a
+            // name invites the reading the user actually complained about -- that the name is a patch
+            // already done -- where "Patch 3 of 216" can only be the one being worked on. A verb would
+            // say it louder and would then be wrong for a quarter of a minute at a time: "Capturing 216 of
+            // 216" under a note reading "Putting your Studio Set back" is two lines of the same panel
+            // contradicting each other, and a board round would do it again at every round of a full sweep.
+            var reached = latest is null ? 0 : latest.Done + 1;
 
-            Progress = _total == 0 ? 0 : (double)done / _total;
-            ProgressLine = $"{done:n0} of {_total:n0} patches" +
-                           (latest is null ? "." : $" — {latest.Current.Preset.Name}");
+            // The bar is filled by the same number for the same reason -- a bar resting a patch short while
+            // the panel says the last one is in hand is the same disagreement in a second place.
+            Progress = _total == 0 ? 0 : (double)reached / _total;
+            ProgressLine = latest is null
+                ? $"0 of {_total:n0} patches."
+                : $"Patch {reached:n0} of {_total:n0} — {latest.Current.Preset.Name}";
             Note = _saying;
 
             var elapsed = _clock.Elapsed;
@@ -759,9 +774,11 @@ public sealed partial class SeedRunViewModel : ViewModelBase
         public void Report(SeedProgress value)
         {
             panel._latest = value;
-            // A patch has been attempted, so whatever the panel was explaining -- a board round, the Studio
-            // Set being read -- has finished and the note would otherwise sit there contradicting the
-            // counter beside it.
+            // A patch is starting, so whatever the panel was explaining -- a board round, the Studio Set
+            // being read -- has finished and the note would otherwise sit there contradicting the counter
+            // beside it. Cleared as the patch begins rather than as it ends, which is the report having
+            // moved paying for itself twice: the first kit of a sweep used to load for six seconds under a
+            // note still saying the Studio Set was being read.
             panel._saying = "";
         }
     }

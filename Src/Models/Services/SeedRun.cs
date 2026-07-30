@@ -50,9 +50,21 @@ public interface ISeedInstrument
 /// screen's, computed from its own stopwatch and <see cref="SeedWork.Estimate"/>. A run that read a clock
 /// would be a run whose progress no test could pin, and it would have bought nothing -- the panel is holding
 /// a stopwatch either way, because it wants to keep counting between reports.</summary>
-/// <param name="Done">Patches attempted, including the ones that answered nothing.</param>
+/// <param name="Done">Patches <b>finished</b>, including the ones that answered nothing and the ones that
+/// threw. Zero in the first report, because the patch that report names has not been attempted yet.</param>
 /// <param name="Total">Patches in the whole plan.</param>
-/// <param name="Current">The one just attempted.</param>
+/// <param name="Current">The one <b>in flight</b>: reported as it is handed to the instrument, not once it
+/// has come back. So the two fields are about two different patches, and <c>Done + 1</c> is where
+/// <paramref name="Current"/> sits in the plan.
+///
+/// It reads as a fussy distinction and it is worth six seconds a time. A PCM drum kit takes 6.018 s to
+/// capture, and a report made afterwards put the name of the kit that had just finished on screen for the
+/// whole of the next one -- the panel steadily disagreeing with the instrument's own display, which is the
+/// one thing a user watching a sweep can check it against. On SN-A patches, at 116 ms, nobody could see it.
+///
+/// <b>One report per patch.</b> A full sweep is about 6,000 of them; a second report saying the same patch
+/// had finished would double that to say, a moment early, what the next patch's report says
+/// anyway.</param>
 public sealed record SeedProgress(int Done, int Total, SeedItem Current);
 
 /// <summary>What a sweep did, patch by patch.</summary>
@@ -111,9 +123,9 @@ public sealed record SeedOutcome(
 /// Set nor their boards is the worst thing this feature can do -- worse than not running at all, because
 /// they did not choose it. What can still throw out of the loop, now that the board load cannot, is the
 /// caller's own <see cref="IProgress{T}"/>: it is deliberately outside the per-patch catch, because a
-/// screen that throws is not a patch that failed and recording it against a preset would be a lie about a
-/// sound that captured perfectly. So it ends the run -- and the finally is what makes ending the run leave
-/// the instrument where the sweep found it.</summary>
+/// screen that throws is not a patch that failed -- and the report is made before the capture, so the preset
+/// it would be recorded against has not even been attempted. So it ends the run -- and the finally is what
+/// makes ending the run leave the instrument where the sweep found it.</summary>
 public static class SeedRun
 {
     /// <summary>Sweep <paramref name="work"/> into the library, one patch at a time.</summary>
@@ -124,7 +136,8 @@ public static class SeedRun
     /// rather than a folder, so that this knows nothing about files and a test can count what was written
     /// without touching a disk -- and so that each snapshot is written the moment it is captured, which is
     /// what makes an interrupted sweep resumable rather than a lost hour.</param>
-    /// <param name="progress">Told about every patch attempted, including the ones that answered nothing.</param>
+    /// <param name="progress">Told about every patch as it starts, including the ones that will answer
+    /// nothing. Once each -- see <see cref="SeedProgress"/>.</param>
     /// <param name="token">Honoured between patches, never inside one.</param>
     public static async Task<SeedOutcome> RunAsync(SeedWork work, SeedSelection selection,
         ISeedInstrument instrument, Func<SeedItem, Integra7Snapshot, string> write,
@@ -199,6 +212,25 @@ public static class SeedRun
                     cancelled |= token.IsCancellationRequested;
                     if (cancelled) break;
 
+                    // Reported before the patch is attempted rather than after, which is the only way the
+                    // name on screen can be the patch the instrument is working on. Reported afterwards it
+                    // was always the previous one, and on PCM drum kits -- 6.018 s each -- that is a panel
+                    // naming the kit that just finished for the whole six seconds the next one is loading,
+                    // contradicting the instrument's own display in front of the user. Done therefore counts
+                    // the finished ones and Current is the one starting; they are about different patches
+                    // and the record says so.
+                    //
+                    // Per attempt rather than per success, which the move does not change: progress that
+                    // only stirred when something was written would sit still for minutes at a time through
+                    // a bank this unit answers nothing for, and from the outside that is what a hang looks
+                    // like.
+                    //
+                    // Nothing re-reads the token between here and the capture, on purpose. A cancel that
+                    // arrives while a patch is in flight is seen through to the end of that patch -- the
+                    // three parameter writes and the capture share one lease -- and it is the check at the
+                    // top of the loop that stops the next one.
+                    progress?.Report(new SeedProgress(done, work.Count, item));
+
                     try
                     {
                         var snapshot = await instrument.CaptureAsync(item, selection.ZeroBasedPartNo, token);
@@ -218,11 +250,10 @@ public static class SeedRun
                         failed.Add((item.Preset, e.Message));
                     }
 
-                    // Per attempt rather than per success, so the number on screen is the number of patches
-                    // gone past. Progress that only moved when something was written would sit still for
-                    // minutes at a time through a bank this unit does not answer for, which is exactly what
-                    // a hang looks like from the outside.
-                    progress?.Report(new SeedProgress(++done, work.Count, item));
+                    // Counted here and not in the report above, because Done means finished: this patch is
+                    // one of the finished ones only from the next report onwards. A silent patch and one
+                    // that threw are both finished -- they were attempted and the sweep has moved past them.
+                    done++;
                 }
             }
         }
