@@ -7,9 +7,16 @@ namespace Tests;
 
 /// <summary>One awkward patch list, shared by every writer's tests.
 ///
-/// The names are the four things that break a text format -- an ampersand, a double quote, a comma and a
-/// non-ASCII letter -- plus a newline, which is the one that breaks a format with no escaping at all.
-/// Every writer is asked the same question so that the answers can be compared.</summary>
+/// The names are the five things that break a text format -- an ampersand, a double quote, a comma, angle
+/// brackets and a non-ASCII letter -- plus a newline, which is the one that breaks a format with no escaping
+/// at all. Every writer is asked the same question so that the answers can be compared.
+///
+/// <b>Four of the six are real factory names</b>, not invented awkwardness. "W&lt;RED&gt;-Bass" is
+/// PCMS PRST 0170; the instrument also ships "Paz &lt;==&gt; Zap", "Si&lt;n&gt;ck Bass", "Cutter&gt;ModWh",
+/// "TurnOff&gt;Rev", "Orch p&gt;f/Mod" and "Roll &gt; Klang". Angle brackets earn their place here more than
+/// any other character: they are what makes an unescaped XML document fail to parse, and the fixture went
+/// without one for three writers because nobody had looked at what the instrument actually calls its
+/// sounds.</summary>
 public static class AwkwardPatchList
 {
     public static PatchList Build() => new(
@@ -22,6 +29,7 @@ public static class AwkwardPatchList
                 new PatchEntry(2, "Strings, Warm", "SN-A", "Strings", false),
                 new PatchEntry(3, "Café Piano", "SN-A", "Ac.Piano", false),
                 new PatchEntry(4, "Split\nName", "SN-A", "FX", false),
+                new PatchEntry(5, "W<RED>-Bass", "SN-A", "Synth Bass", false),
             ]),
             new PatchBank(87, 0, "PCMS USER", [new PatchEntry(0, "Mine", "PCMS", "Synth Lead", true)]),
         ],
@@ -53,13 +61,14 @@ public class CsvPatchListWriterTests
         Assert.That(Written(), Does.Contain("\"Split\nName\""));
     }
 
-    /// <summary>An ampersand and a non-ASCII letter are ordinary characters in CSV and are left alone --
-    /// which is worth a test, because three of the four writers have to do something to them and copying
-    /// that here would be the easy mistake.</summary>
+    /// <summary>An ampersand, angle brackets and a non-ASCII letter are ordinary characters in CSV and are
+    /// left alone -- which is worth a test, because three of the four writers have to do something to them
+    /// and copying that here would be the easy mistake.</summary>
     [Test]
-    public void An_ampersand_and_an_accent_are_left_alone()
+    public void An_ampersand_angle_brackets_and_an_accent_are_left_alone()
     {
-        Assert.That(Written(), Does.Contain("Rock & Roll").And.Contain("Café Piano"));
+        Assert.That(Written(),
+            Does.Contain("Rock & Roll").And.Contain("Café Piano").And.Contain("W<RED>-Bass"));
     }
 
     /// <summary>Rows are separated by CRLF and the newline inside a name is a bare LF, so counting CRLFs
@@ -68,8 +77,8 @@ public class CsvPatchListWriterTests
     [Test]
     public void A_newline_inside_a_name_does_not_make_a_second_row()
     {
-        // One header and six patches: five in the first bank, one in the second.
-        Assert.That(Written().TrimEnd().Split("\r\n").Length, Is.EqualTo(7));
+        // One header and seven patches: six in the first bank, one in the second.
+        Assert.That(Written().TrimEnd().Split("\r\n").Length, Is.EqualTo(8));
     }
 
     [Test]
@@ -124,12 +133,28 @@ public class ReabankPatchListWriterTests
         Assert.That(Written().Split('\n').Any(line => line.Trim() == "Name"), Is.False);
     }
 
-    /// <summary>Quotes, ampersands and accents are ordinary characters here: the format has no syntax for
-    /// them to break. Sanitising more than the line ending would be mangling names for no reason.</summary>
+    /// <summary>Quotes, ampersands, angle brackets and accents are ordinary characters here: the format has
+    /// no syntax for them to break. Sanitising more than the line ending would be mangling names for no
+    /// reason -- and "W&lt;RED&gt;-Bass" is a name the instrument really ships.</summary>
     [Test]
     public void Nothing_else_is_altered()
     {
-        Assert.That(Written(), Does.Contain("1 The \"Big\" One").And.Contain("3 Café Piano"));
+        Assert.That(Written(), Does.Contain("1 The \"Big\" One").And.Contain("3 Café Piano")
+            .And.Contain("5 W<RED>-Bass"));
+    }
+
+    /// <summary>A comment is "//". REAPER's own factory Data/GM.reabank opens with one and has no
+    /// semicolon-led line anywhere; a semicolon is the comment marker in REAPER's theme and langpack files,
+    /// which is a different format, and this writer shipped one commit using it. Worth its own test rather
+    /// than left to the eye, because both parsers drop a line they do not recognise without saying so, so
+    /// the wrong marker looks exactly like the right one from outside.</summary>
+    [Test]
+    public void The_header_lines_are_comments()
+    {
+        var header = Written().Split('\n').TakeWhile(line => !line.StartsWith("Bank ")).ToList();
+
+        Assert.That(header.Where(line => line.Length > 0), Is.All.StartWith("//"));
+        Assert.That(header, Has.Some.Contains("INTEGRA-7"));
     }
 
     /// <summary>A name that sanitises away to nothing still needs a name, or the line is a program number
@@ -152,18 +177,18 @@ public class ReabankPatchListWriterTests
     [Test]
     public void Bank_lines_and_patch_lines_come_out_in_the_order_that_assigns_them()
     {
-        var lines = Written().Split('\n').Where(line => line.Length > 0 && !line.StartsWith(";")).ToList();
+        var lines = Written().Split('\n').Where(line => line.Length > 0 && !line.StartsWith("//")).ToList();
 
         Assert.That(lines, Is.EqualTo(new[]
         {
             "Bank 89 64 SN-A PRST", "0 Rock & Roll", "1 The \"Big\" One", "2 Strings, Warm", "3 Café Piano",
-            "4 Split Name", "Bank 87 0 PCMS USER", "0 Mine",
+            "4 Split Name", "5 W<RED>-Bass", "Bank 87 0 PCMS USER", "0 Mine",
         }));
     }
 
-    /// <summary>No mark, and it matters more here than anywhere else in this feature: Reaper's parser reads
-    /// a leading BOM as part of the first token, so the first line stops being a comment, and what the user
-    /// sees is a bank that is simply absent with nothing said about it.
+    /// <summary>No mark. Reaper's parser reads a leading byte-order mark as part of the first token, and
+    /// this format has no way to complain: a line it cannot parse is dropped in silence, so the cost is a
+    /// bank that is simply absent with nothing said about it.
     ///
     /// Asked through the interface because the answer is a default interface member and this writer takes
     /// the default -- which is the point of the test, and is invisible on the concrete type.</summary>
@@ -224,6 +249,7 @@ public class CubasePatchListWriterTests
         Assert.That(names, Does.Contain("The \"Big\" One"));
         Assert.That(names, Does.Contain("Café Piano"));
         Assert.That(names, Does.Contain("Split\nName"));
+        Assert.That(names, Does.Contain("W<RED>-Bass"));
     }
 
     /// <summary>A patch is a name and the messages that select it, and the messages are raw MIDI bytes:
@@ -266,10 +292,60 @@ public class CubasePatchListWriterTests
         Assert.That(Written(), Does.StartWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
     }
 
-    /// <summary>All sixteen channels reach the patches. A part on this instrument can be on any of them,
-    /// and a device whose names only exist on channel 1 looks perfectly correct to whoever exported it --
-    /// they are on channel 1 -- while showing bare program numbers to the user who moved their part.
-    /// </summary>
+    /// <summary>Each filter's mask, which is the one part of this document that was reasoned to rather than
+    /// read off a real file.
+    ///
+    /// The mask is (value, mask) byte pairs, and its third byte is the controller number: the sample has
+    /// <c>B0F000FF0080</c> against "CC: BankSelect MSB" and <c>B0F022FF0080</c> against "CC: Breath LSB",
+    /// 0x00 being CC 0 and 0x22 being CC 34, so CC 32 is <c>B0F020FF0080</c>. That step is an inference, so
+    /// it is pinned here: without this test the obvious copy-paste -- giving the LSB filter the MSB's own
+    /// mask -- changes nothing any other test can see, and Cubase would then read both bank-select messages
+    /// as the same controller.</summary>
+    [Test]
+    public void Each_filter_carries_the_mask_for_its_own_controller()
+    {
+        var filters = Parsed().Descendants("obj")
+            .Where(o => (string?)o.Attribute("class") == "MidiStandardMessageFilter")
+            .Select(o => (
+                Info: o.Elements("string").First(s => (string?)s.Attribute("name") == "Info")
+                    .Attribute("value")!.Value,
+                Mask: o.Descendants("bin").First(b => (string?)b.Attribute("name") == "Mask").Value))
+            .ToList();
+
+        Assert.That(filters, Is.EqualTo(new[]
+        {
+            ("CC: BankSelect MSB", "B0F000FF0080"),
+            ("CC: BankSelect LSB", "B0F020FF0080"),
+            ("Program Change", "C0F00080"),
+        }));
+    }
+
+    /// <summary>And each filter reads its number out of the right byte. A control change carries its value
+    /// in byte 2 and a program change carries its number in byte 1; the two filters are otherwise so alike
+    /// that reading the program out of byte 2 is a plausible slip, and it would make every program change in
+    /// the file mean nothing.</summary>
+    [Test]
+    public void Each_filter_reads_its_number_out_of_the_right_byte()
+    {
+        var positions = Parsed().Descendants("obj")
+            .Where(o => (string?)o.Attribute("class") == "MidiStandardMessageFilter")
+            .Select(o => o.Descendants("list").Where(l => (string?)l.Attribute("name") == "Pos")
+                // The first Pos belongs to the channel nibble, at byte 0; the second to the number.
+                .Skip(1).First().Elements("item").First().Attribute("value")!.Value)
+            .ToList();
+
+        Assert.That(positions, Is.EqualTo(new[] { "2", "2", "1" }));
+    }
+
+    /// <summary>All sixteen channels reach the patches, and each is told which channel it is. A part on this
+    /// instrument can be on any of them, and a device whose names only exist on channel 1 looks perfectly
+    /// correct to whoever exported it -- they are on channel 1 -- while showing bare program numbers to the
+    /// user who moved their part.
+    ///
+    /// <b>DefChannel is asserted, not just the count.</b> Sixteen nodes that all say channel 1 is the same
+    /// failure as one node, and it is the shape the failure would actually take: the channel number is the
+    /// one thing that differs between sixteen otherwise identical nodes, so it is the one thing a loop can
+    /// forget to vary.</summary>
     [Test]
     public void Every_channel_is_offered_the_patches()
     {
@@ -280,6 +356,45 @@ public class CubasePatchListWriterTests
         Assert.That(channels, Has.Count.EqualTo(16));
         Assert.That(channels.All(c => c.Elements("list").Any(l => (string?)l.Attribute("name") == "Banks")),
             Is.True);
+        Assert.That(
+            channels.Select(c => c.Elements("int").First(i => (string?)i.Attribute("name") == "DefChannel")
+                .Attribute("value")!.Value),
+            Is.EqualTo(Enumerable.Range(0, 16).Select(n => n.ToString())));
+    }
+
+    /// <summary>A patch says how many messages it carries, and the number is the number of messages it
+    /// carries. Two counts of one thing is an invitation for them to disagree, and this format asks for it;
+    /// a CountMsgs of 2 against three messages is the kind of thing a reader trusts and truncates on.
+    /// </summary>
+    [Test]
+    public void A_patch_counts_the_messages_it_actually_carries()
+    {
+        var patches = Parsed().Descendants("obj")
+            .Where(o => (string?)o.Attribute("class") == "PMidiPreset").ToList();
+
+        Assert.That(patches, Is.Not.Empty);
+        Assert.That(patches.All(p =>
+                p.Elements("int").First(i => (string?)i.Attribute("name") == "CountMsgs")
+                    .Attribute("value")!.Value ==
+                p.Descendants("obj").Count(o => (string?)o.Attribute("class") == "MidiSimpleKnownMessage")
+                    .ToString()),
+            Is.True);
+    }
+
+    /// <summary>A patch name is stored as a wide string, because it is the one string here that came from
+    /// the instrument: 84 factory names carry a curly apostrophe and a user may have typed anything. The
+    /// sample marks every string it shows the user this way and leaves the internal identifiers unmarked.
+    /// </summary>
+    [Test]
+    public void A_patch_name_is_stored_as_a_wide_string()
+    {
+        var names = Parsed().Descendants("obj")
+            .Where(o => (string?)o.Attribute("class") == "PMidiPreset")
+            .Select(o => o.Elements("string").First(s => (string?)s.Attribute("name") == "Name"))
+            .ToList();
+
+        Assert.That(names, Is.Not.Empty);
+        Assert.That(names.All(n => (string?)n.Attribute("wide") == "true"), Is.True);
     }
 
     /// <summary>A bank keeps its name and its own patches in order. Every other test here looks at one
@@ -301,7 +416,9 @@ public class CubasePatchListWriterTests
 
         Assert.That(banks.Select(b => b.Name), Is.EqualTo(new[] { "SN-A PRST", "PCMS USER" }));
         Assert.That(banks[0].Patches, Is.EqualTo(new[]
-            { "Rock & Roll", "The \"Big\" One", "Strings, Warm", "Café Piano", "Split\nName" }));
+        {
+            "Rock & Roll", "The \"Big\" One", "Strings, Warm", "Café Piano", "Split\nName", "W<RED>-Bass",
+        }));
         Assert.That(banks[1].Patches, Is.EqualTo(new[] { "Mine" }));
     }
 
@@ -395,7 +512,7 @@ public class MidnamPatchListWriterTests
         var banks = XDocument.Parse(Written()).Descendants("PatchBank").ToList();
 
         Assert.That(banks[0].Descendants("Patch").Select(p => p.Attribute("Number")!.Value),
-            Is.EqualTo(new[] { "1", "2", "3", "4", "5" }));
+            Is.EqualTo(new[] { "1", "2", "3", "4", "5", "6" }));
         Assert.That(banks[1].Descendants("Patch").Select(p => p.Attribute("Number")!.Value),
             Is.EqualTo(new[] { "1" }));
     }
@@ -415,7 +532,8 @@ public class MidnamPatchListWriterTests
         var names = XDocument.Parse(Written())
             .Descendants("Patch").Select(p => p.Attribute("Name")!.Value).ToList();
 
-        Assert.That(names, Does.Contain("Rock & Roll").And.Contain("Café Piano"));
+        Assert.That(names, Does.Contain("Rock & Roll").And.Contain("Café Piano")
+            .And.Contain("W<RED>-Bass"));
     }
 
     /// <summary>Each bank keeps its name and its own patches. Everything above looks at the first bank or at
@@ -431,7 +549,9 @@ public class MidnamPatchListWriterTests
 
         Assert.That(banks.Select(b => b.Name), Is.EqualTo(new[] { "SN-A PRST", "PCMS USER" }));
         Assert.That(banks[0].Patches, Is.EqualTo(new[]
-            { "Rock & Roll", "The \"Big\" One", "Strings, Warm", "Café Piano", "Split\nName" }));
+        {
+            "Rock & Roll", "The \"Big\" One", "Strings, Warm", "Café Piano", "Split\nName", "W<RED>-Bass",
+        }));
         Assert.That(banks[1].Patches, Is.EqualTo(new[] { "Mine" }));
     }
 

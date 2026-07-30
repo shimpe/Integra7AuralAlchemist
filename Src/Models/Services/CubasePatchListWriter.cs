@@ -19,19 +19,26 @@ namespace Integra7AuralAlchemist.Models.Services;
 /// <c>PMidiPreset</c>, <c>MidiSimpleKnownMessage</c>, <c>MidiStandardMessageFilter</c>) and the byte masks
 /// are copied from it verbatim. Steinberg's own help confirms only the outline: the MIDI Device Manager
 /// exports and imports setups as XML, and "Import Setup" is the function that reads them. The other file
-/// Cubase will take, a tab-delimited .txt patch script dropped into its Patchnames folder, is a different
-/// format for a different door and is not what this writes.
+/// Cubase will take is a .txt patch script dropped into its Patchnames folder -- a bracketed-directive
+/// format, not this one and not delimited at all: "[cubase parse file]", "[device name]Yamaha MODX",
+/// "[g1] PRE1", "[p2, 0, 63, 0] Pn:CFX + FM EP". Different format, different door, not what this writes.
 ///
-/// <b>What is inferred rather than observed, and how to check it.</b> Three things, and this file has not
+/// <b>What is inferred rather than observed, and how to check it.</b> Five things, and this file has not
 /// been fed to Cubase -- nobody here has a copy. First, the bank-select <i>LSB</i> filter: the sample
 /// carries filters for bank-select MSB (mask <c>B0F000FF0080</c>) and for breath LSB (<c>B0F022FF0080</c>),
 /// and in that mask the third byte is the controller number -- 0x00 for CC 0, 0x22 for CC 34 -- so CC 32 is
 /// <c>B0F020FF0080</c>. The pattern is unambiguous but those exact bytes were not seen. Second, the panel
 /// and class-identifier machinery is left out: the sample's device nodes cite GUIDs that index a section of
-/// encoded UI panels, and a patch list has no panels, so <c>NumberClassIDs</c> is nought here. Third, the
-/// MIDI port: the sample names the exporting machine's own port, which would be wrong on anyone else's
-/// machine, so no port is named and the user assigns one in the MIDI Device Manager as they would for any
-/// device. If Cubase imports this and shows no names, those three are where to look, in that order.
+/// encoded UI panels, and a patch list has no panels, so <c>NumberClassIDs</c> is nought here -- and with
+/// it goes <c>UniqueID</c>, which in the sample is a copy of the node's first class identifier and would
+/// therefore name something this document does not contain. Third, <c>RuntimeID</c>: every node in the
+/// sample opens with one, small sequential integers (907 to 924) quite unlike the pointer-sized object IDs
+/// beside them, which is what a handle assigned while the program is running looks like. None is written
+/// here, because a made-up one is not more honest than none. Fourth, the MIDI port: the sample names the
+/// exporting machine's own port, which would be wrong on anyone else's machine, so no port is named and the
+/// user assigns one in the MIDI Device Manager as they would for any device. Fifth, whether a device with
+/// 75 banks and 6,023 presets is one Cubase is happy to be handed; the sample has four banks and 389.
+/// If Cubase imports this and shows no names, that is the order to look in.
 ///
 /// <b>Written through XDocument, not by concatenating strings.</b> Patch names arrive from the instrument
 /// and from the user's own memory, and 84 factory names alone carry a curly apostrophe; an ampersand in one
@@ -92,11 +99,14 @@ public sealed class CubasePatchListWriter : IPatchListWriter
             Number("NumberClassIDs", 0),
             ObjectList("Banks", [Cite(banksId)]));
 
-        // The three filters go last, after the device that cites them, because that is where the sample
-        // puts them: the reader resolves citations by ID once the whole document is parsed, so it reads
-        // forwards happily. Moving them to the front would make every citation point backwards and would
-        // read better -- and would also be the one part of this file's layout that no observed file
-        // supports, which is not a trade worth making for tidiness.
+        // The filters go last, after the device that cites them, which is where the sample puts the two it
+        // has at top level: the reader resolves citations by ID once the whole document is parsed, so it
+        // reads forwards happily. (The sample's third filter, for breath LSB, is not at top level at all --
+        // it sits inline in the device's Parameters list, where the parameter that uses it is. So the
+        // format clearly permits either, and top level is the placement that suits three filters shared by
+        // every one of 6,023 presets.) Moving them to the front would make every citation point backwards
+        // and would read better; it would also be the one part of this layout no observed file supports,
+        // which is not a trade worth making for tidiness.
         var document = new XDocument(new XElement("MidiDevices",
             ObjectList("Devices", [device]), msb, lsb, program));
 

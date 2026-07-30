@@ -13,16 +13,24 @@ namespace Integra7AuralAlchemist.Models.Services;
 /// patch after it is wrong in a file that still loads. Anything that could end a line is flattened to a
 /// space.
 ///
-/// <b>And nothing else is touched.</b> Quotes, ampersands and accented letters have no meaning here, so
-/// sanitising them would be mangling a user's patch names to protect against a syntax the format does not
-/// have. The CSV writer beside this one quotes and doubles because RFC 4180 gives it somewhere to put the
-/// character; here there is nowhere, so the only honest move is to change the one character that would
-/// change the file's structure and leave the rest of the name as the instrument spells it.
+/// <b>And nothing else is touched.</b> Quotes, ampersands, angle brackets and accented letters have no
+/// meaning here, so sanitising them would be mangling a user's patch names to protect against a syntax the
+/// format does not have -- and the instrument really does ship names like "W&lt;RED&gt;-Bass" and
+/// "Roll &gt; Klang". The CSV writer beside this one quotes and doubles because RFC 4180 gives it somewhere
+/// to put the character; here there is nowhere, so the only honest move is to change the one character that
+/// would change the file's structure and leave the rest of the name as the instrument spells it.
+///
+/// <b>A comment is "//", not ";".</b> Checked against REAPER's own factory <c>Data/GM.reabank</c>, which
+/// opens "// .reabank files define MIDI bank/program (patch) information" and contains no semicolon-led
+/// line at all; Reaticulate, the most faithful third-party parser, recognises "//" and its own "//!" and
+/// nothing else. The ";" convention belongs to REAPER's theme and langpack files, and this writer used it
+/// for one commit because the plan's sketch of the format did. A line neither parser recognises is dropped
+/// silently, so the header was harmless -- it sits before the first Bank line -- but it was not a comment.
 ///
 /// <b>Order is the whole of the meaning.</b> A patch line says nothing about which bank it is in; it
-/// belongs to whichever Bank line came before it. Two banks each with a patch at program 0 -- which is
-/// every pair of banks this instrument has -- produce lines that are individually indistinguishable, so
-/// there is no repairing a file whose order went wrong, and nothing in it looks wrong either.</summary>
+/// belongs to whichever Bank line came before it. 68 of this instrument's 75 banks have a patch at program
+/// 0, so most pairs of banks produce lines that are individually indistinguishable: there is no repairing a
+/// file whose order went wrong, and nothing in it looks wrong either.</summary>
 public sealed class ReabankPatchListWriter : IPatchListWriter
 {
     public string Label => "Reaper (.reabank)";
@@ -31,8 +39,8 @@ public sealed class ReabankPatchListWriter : IPatchListWriter
     public string Write(PatchList list)
     {
         var text = new StringBuilder();
-        text.Append($"; {list.Device} patch names\n");
-        text.Append("; Written by Integra-7 Aural Alchemist\n");
+        text.Append($"// {list.Device} patch names\n");
+        text.Append("// Written by Integra-7 Aural Alchemist\n");
 
         foreach (var bank in list.Banks)
         {

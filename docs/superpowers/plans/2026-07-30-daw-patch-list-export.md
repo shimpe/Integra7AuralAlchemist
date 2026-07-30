@@ -622,11 +622,19 @@ as the one that will be got wrong.
 The format:
 
 ```
-; comment
+// comment
 Bank 89 64 SN-A PRST
 0 Rock & Roll
 1 The "Big" One
 ```
+
+**Corrected 2026-07-30, after this shipped with the wrong marker.** This sketch said `;`, task 3 copied it,
+and it took a review to catch. A comment is `//`: REAPER's own factory `Data/GM.reabank` opens
+`// .reabank files define MIDI bank/program (patch) information` and has no semicolon-led line anywhere, and
+Reaticulate — the most faithful third-party parser — recognises `//` and its own `//!` and nothing else. The
+`;` convention belongs to REAPER's theme and langpack files. Nothing was visibly broken, because both
+parsers drop an unrecognised line in silence and these two sit before the first `Bank`; that is the point.
+`ReabankPatchListWriter` now pins the marker with a test of its own.
 
 - [ ] **Step 1: The tests**
 
