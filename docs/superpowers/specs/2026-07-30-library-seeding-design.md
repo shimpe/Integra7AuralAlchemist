@@ -321,6 +321,27 @@ answers the slot query in 2 to 5 ms while a loading one answers nothing at all a
 the device actually answered cannot happen while it is still loading. Nothing else is needed, and a
 readiness poll layered on top of it would be polling for a second time for the thing it already establishes.
 
+**Measured, not only reasoned.** Four loads whose quiet times span 9× — all four slots Off (&lt;1.5 s), ExSN5
+alone (~6 s), SRX11 replacing three (~7.5 s), three boards from empty (~13.6 s) — and in every one, the
+first capture attempted after the first answered slot read succeeded. There is no lag at any load duration,
+so there is no shape to extrapolate to `HQ Pcm`. The sharpest reading caught the transition in the act: on
+the ExSN5 load the part's temporary tone area answered a read at 21:47:34.889, **eighteen milliseconds
+before** the slot query answered at 21:47:34.907. The samples were usable no later than the slot table
+became readable, and if anything marginally earlier.
+
+That also means `SeedRun` has margin it did not know it had: it begins capturing when `SeedSettling`
+returns, which is three agreeing answers at a 1.5 s cadence and therefore about 3 s *past* the first moment
+a capture would have worked. In all three measurable loads the first successful capture came before
+`SeedSettling` declared settled.
+
+**One hazard this uncovered, and it is in the code as a comment where it can do some good.** For the first
+few tens of milliseconds after a loadout is sent, the instrument answers the slot query with the loadout it
+is *leaving* — five consecutive loads, every one, between 3 and 29 ms, including answering `(19,20,21,22)`
+when it had just been asked for `(11,0,0,0)`. `SeedInstrument.SettleAsync` is safe only because it waits a
+poll interval *before* its first read; that ordering is load-bearing. A scratch harness written to take
+these very measurements read first, believed the stale answer, sent a Studio Set restore into a still-loading
+instrument, and left a part holding a tone its owner had not chosen.
+
 ## Open questions
 
 None.

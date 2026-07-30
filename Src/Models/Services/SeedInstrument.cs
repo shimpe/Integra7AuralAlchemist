@@ -158,6 +158,15 @@ public sealed class SeedInstrument(Integra7Domain domain, IIntegra7Api api) : IS
 
         while (clock.Elapsed < SettleCeiling)
         {
+            // The wait comes first, and that ordering is load-bearing rather than incidental. For the first
+            // few tens of milliseconds after a loadout is sent the instrument answers the slot query with
+            // the loadout it is *leaving* -- measured on five consecutive loads, every one of them, between
+            // 3 and 29 ms, including answering (19,20,21,22) when it had just been asked for (11,0,0,0).
+            // Reading before waiting therefore starts the settling rule on a reading of the wrong thing.
+            // A scratch harness written to measure this feature did exactly that, believed the stale
+            // answer, sent a Studio Set restore into an instrument that was still loading, and left a part
+            // holding a tone its owner had not chosen. Anyone moving this read ahead of the wait is
+            // reintroducing that.
             await Task.Delay(PollInterval, token);
             var (slots, answered) = await ReadSlotsAsync();
             polls++;
