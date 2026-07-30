@@ -580,3 +580,43 @@ public class MidnamPatchListWriterTests
         Assert.That(writer.WantsByteOrderMark, Is.False);
     }
 }
+
+/// <summary>The one list the picker, the save dialog and the byte-order-mark decision all read.
+///
+/// A writer that exists and is not in here is a format nobody can choose, and there is nothing on screen to
+/// say so -- which is why the list is pinned rather than left to be noticed.</summary>
+public class PatchListWritersTests
+{
+    [Test]
+    public void All_four_formats_are_offered()
+    {
+        Assert.That(PatchListWriters.All.Select(w => w.GetType()), Is.EqualTo(new[]
+        {
+            typeof(ReabankPatchListWriter), typeof(CubasePatchListWriter),
+            typeof(MidnamPatchListWriter), typeof(CsvPatchListWriter),
+        }));
+    }
+
+    /// <summary>Two formats sharing an extension would give the save dialog two identically filtered
+    /// choices, and the user no way to tell from the file afterwards which one they picked.</summary>
+    [Test]
+    public void Every_format_has_a_label_and_an_extension_of_its_own()
+    {
+        Assert.That(PatchListWriters.All.Select(w => w.Extension).Distinct().Count(),
+            Is.EqualTo(PatchListWriters.All.Count));
+        Assert.That(PatchListWriters.All.Where(w => w.Label.Length == 0), Is.Empty);
+        Assert.That(PatchListWriters.All.Where(w => w.Extension.StartsWith('.')), Is.Empty);
+    }
+
+    /// <summary>The spreadsheet and nothing else. Both failures are silent and opposite: Excel opening a
+    /// BOM-less UTF-8 .csv falls back to the system code page and mangles the 84 factory names carrying a
+    /// curly apostrophe, while Reaper and several midnam readers take a leading mark as part of the first
+    /// token and lose a whole bank. The command asks the writer rather than deciding, so this is where the
+    /// answer is checked.</summary>
+    [Test]
+    public void Only_the_spreadsheet_wants_a_byte_order_mark()
+    {
+        Assert.That(PatchListWriters.All.Where(w => w.WantsByteOrderMark).Select(w => w.Extension),
+            Is.EqualTo(new[] { "csv" }));
+    }
+}

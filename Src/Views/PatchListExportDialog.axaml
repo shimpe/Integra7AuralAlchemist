@@ -1,0 +1,39 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+        xmlns:svc="using:Integra7AuralAlchemist.Models.Services"
+        mc:Ignorable="d" d:DesignWidth="460" d:DesignHeight="300"
+        x:Class="Integra7AuralAlchemist.Views.PatchListExportDialog"
+        x:DataType="vm:PatchListExportViewModel"
+        Title="Export patch list"
+        Width="460"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner">
+
+    <StackPanel Orientation="Vertical" Margin="16" Spacing="12">
+
+        <!-- What the file is for, said before the list rather than after it: the four labels name applications,
+             and a user who does not use any of them needs to know the last one is the way out. -->
+        <TextBlock TextWrapping="Wrap"
+                   Text="Write every tone this instrument can be sent to, as a file your DAW can read, so a track's program menu shows tone names instead of numbers." />
+
+        <ListBox ItemsSource="{Binding Formats}"
+                 SelectedItem="{Binding Selected, Mode=TwoWay}"
+                 SelectionMode="Single"
+                 MaxHeight="180"
+                 DoubleTapped="OnFormatDoubleTapped">
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="svc:IPatchListWriter">
+                    <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+            <Button Content="Export…" Command="{Binding ExportCommand}" Padding="14,3" IsDefault="True" />
+            <Button Content="Cancel" Command="{Binding CancelCommand}" Padding="14,3" IsCancel="True" />
+        </StackPanel>
+    </StackPanel>
+</Window>

@@ -89,6 +89,8 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
             action(ViewModel!.ShowTonePickerDialog.RegisterHandler(DoShowTonePickerDialogAsync));
             action(ViewModel!.ShowOpenJsonDialog.RegisterHandler(DoShowOpenJsonDialogAsync));
             action(ViewModel!.ShowSaveJsonDialog.RegisterHandler(DoShowSaveJsonDialogAsync));
+            action(ViewModel!.ShowPatchListExportDialog.RegisterHandler(DoShowPatchListExportDialogAsync));
+            action(ViewModel!.ShowSavePatchListDialog.RegisterHandler(DoShowSavePatchListDialogAsync));
         });
     }
 
@@ -167,6 +169,45 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
             SuggestedFileName = interaction.Input,
             DefaultExtension = "txt",
             FileTypeChoices = [new FilePickerFileType("Text") { Patterns = ["*.txt"] }]
+        });
+
+        // "" for a picked file with no local path, null only for a cancellation -- see
+        // DoShowSaveSnapshotDialogAsync, which answers the same three ways for the same reason.
+        interaction.SetOutput(file is null ? null : file.TryGetLocalPath() ?? "");
+    }
+
+    /// <summary>Ask which patch-list format to write. Answers null for a cancellation, which a dismissed
+    /// window -- the title bar's X, Escape -- gives for free: nothing is chosen, and nothing is written.
+    /// </summary>
+    private async Task DoShowPatchListExportDialogAsync(
+        IInteractionContext<PatchListExportViewModel, IPatchListWriter?> interaction)
+    {
+        var dialog = new PatchListExportDialog { DataContext = interaction.Input };
+        interaction.SetOutput(await dialog.ShowDialog<IPatchListWriter?>(this));
+    }
+
+    /// <summary>Where a patch list goes.
+    ///
+    /// <b>The file type comes from the request rather than from a field up there</b>, because this one
+    /// handler saves four formats and which one it is has already been chosen by the time it opens. That is
+    /// also why it is not <see cref="DoShowSaveTextDialogAsync"/> with a wider filter: that picker saves the
+    /// comparison, it is <c>*.txt</c> by nature, and giving it a parameter it would never vary would make
+    /// two callers share a knob only one of them turns.</summary>
+    private async Task DoShowSavePatchListDialogAsync(
+        IInteractionContext<FilePickerRequest, string?> interaction)
+    {
+        var extension = interaction.Input.Extension;
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = interaction.Input.Title,
+            SuggestedFileName = interaction.Input.SuggestedName,
+            SuggestedStartLocation = await StartAtAsync(interaction.Input.Folder),
+            DefaultExtension = extension,
+            // Named for the extension itself rather than for the DAW: the picker shows this string beside a
+            // file name the user has just been offered, and "Reaper (*.reabank)" in a dialog reached from a
+            // list whose row said "Reaper (.reabank)" is the same fact twice.
+            FileTypeChoices =
+                [new FilePickerFileType($".{extension} patch list") { Patterns = [$"*.{extension}"] }]
         });
 
         // "" for a picked file with no local path, null only for a cancellation -- see

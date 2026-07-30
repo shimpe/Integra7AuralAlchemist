@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Integra7AuralAlchemist.Models.Services;
 
 /// <summary>One patch-list format.
@@ -29,4 +31,27 @@ public interface IPatchListWriter
     bool WantsByteOrderMark => false;
 
     string Write(PatchList list);
+}
+
+/// <summary>Every format offered, in the order the picker shows them.
+///
+/// <b>Reaper first, the spreadsheet last.</b> Reaper is the format this feature was asked for, and the
+/// spreadsheet is not a DAW format at all -- it is the honest fallback for the DAW nobody wrote a writer for,
+/// and the only one of the four a human reads. Putting it first would offer it as the answer to a question
+/// nobody asked.
+///
+/// <b>One list, and it is the only one.</b> The picker, the save dialog's file type and the byte-order-mark
+/// decision all read a writer out of here, so adding a fifth format is adding a line to this list and nothing
+/// else -- as opposed to a list in the dialog and a switch in the command, which is the arrangement where a
+/// new format shows up in the picker and writes the previous one's bytes.
+///
+/// The instances are stateless and shared: a writer is a pure function over a <see cref="PatchList"/>, so
+/// there is nothing for two exports to tread on.</summary>
+public static class PatchListWriters
+{
+    public static IReadOnlyList<IPatchListWriter> All { get; } =
+    [
+        new ReabankPatchListWriter(), new CubasePatchListWriter(),
+        new MidnamPatchListWriter(), new CsvPatchListWriter(),
+    ];
 }

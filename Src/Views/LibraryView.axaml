@@ -32,8 +32,14 @@
         <!-- Where the library is. Read-only text rather than an editable box: a path typed one character at a
              time would re-read the folder on every keystroke, and every intermediate path is a folder that does
              not exist. Refresh is a button because nothing watches the folder — a file another application put
-             there appears when the list is read again. -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+             there appears when the list is read again.
+
+             A WrapPanel for the reason the filter bar below is one: a path up to 700 wide and four buttons no
+             longer fit one line on a window somebody has made narrow, and a horizontal StackPanel does not
+             wrap — it clips, silently, taking the summary and then the buttons off the right-hand edge with
+             no scrollbar to reach them. -->
+        <WrapPanel Grid.Row="0" Orientation="Horizontal" ItemSpacing="8" LineSpacing="6"
+                   VerticalAlignment="Center">
             <TextBlock Text="Library folder:" VerticalAlignment="Center" />
             <TextBlock Text="{Binding Folder}"
                        VerticalAlignment="Center"
@@ -46,10 +52,16 @@
                  a panel that opened and then waited to be told to find duplicates would be asking a question
                  the user has already answered by pressing this. -->
             <Button Content="Find duplicates…" Command="{Binding FindDuplicates}" Padding="8,2" />
+            <!-- Also a question about a whole collection rather than about a row, which is what puts it in
+                 this row — though the collection is the instrument's, not the folder's. The library is not
+                 where a patch list comes from; it is where the user is standing when they are thinking about
+                 how their sounds are organised, and a second place in the window for one button would earn
+                 less than the row it costs. -->
+            <Button Content="Export patch list…" Command="{Binding ExportPatchListAsync}" Padding="8,2" />
             <TextBlock Text="{Binding Summary}"
                        VerticalAlignment="Center"
                        Foreground="{StaticResource SnMutedTextBrush}" />
-        </StackPanel>
+        </WrapPanel>
 
         <!-- The filters. Seven of them, and they narrow together: each is a separate question about the same
              entry and an entry has to answer all of them. Every drop-down's first row means "not asking", so
