@@ -21,8 +21,16 @@ public interface ISeedInstrument
     /// <summary>Load these four and wait until the instrument settles.
     ///
     /// <b>Settling is not "what was sent".</b> The device rewrites a loadout -- sending (19,0,0,0) reads
-    /// back as (19,20,21,22) -- and reports (0,0,0,0) while it works. An implementation polls until the
-    /// reported set stops changing, never until it matches the request.</summary>
+    /// back as (19,20,21,22) -- and answers nothing at all while it works, which the wire reports as
+    /// (0,0,0,0). An implementation polls until the reported set stops changing, never until it matches the
+    /// request.
+    ///
+    /// <b>The token stops this only before the request goes out.</b> An instrument that is loading discards
+    /// anything else sent to its slots without a word, so a call abandoned mid-load leaves the next caller --
+    /// in practice the restore -- talking to a device that is not listening. An implementation therefore
+    /// waits for the slots to hold still before it sends, and once it has sent, sees the load through
+    /// whatever the token says. Which makes a cancel during a board round take up to about half a minute to
+    /// be acted on, and the caller had better say so on screen.</summary>
     Task LoadBoardsAsync(int[] boards, CancellationToken token);
 
     /// <summary>Select this preset on the part and capture what the part then holds. Null when the
@@ -158,10 +166,13 @@ public static class SeedRun
                     }
                     catch (OperationCanceledException) when (token.IsCancellationRequested)
                     {
-                        // The Cancel button pressed while a 23-second load was in flight. The same event as
-                        // the check above, arriving a moment later, and it has to read the same way: "you
-                        // stopped this" rather than "your instrument refused a loadout", which would send
-                        // the user looking for a fault they do not have.
+                        // The Cancel button pressed while the adapter was waiting for the slots to hold
+                        // still, which is the only part of a board round it will abandon -- nothing has been
+                        // sent to the instrument at that point, so stopping there stops nothing. Pressed
+                        // after the loadout has gone out, the load finishes first and this call returns
+                        // normally, and the check at the top of the next loop is what notices. Either way it
+                        // has to read as "you stopped this" rather than "your instrument refused a loadout",
+                        // which would send the user looking for a fault they do not have.
                         cancelled = true;
                         break;
                     }
@@ -262,8 +273,9 @@ public static class SeedRun
     ///
     /// <b>And skipped when the load threw</b>, for the same reason it is trustworthy when the load did not.
     /// What the adapter throws on is the slots never settling, so a reading taken afterwards is a mid-flight
-    /// one -- the device reports all zeros while it works -- and comparing that against a settled set is
-    /// convergence against a device still moving, the very comparison this one is careful not to be. It
+    /// one -- the device answers nothing while it works, which reads as all zeros -- and comparing that
+    /// against a settled set is convergence against a device still moving, the very comparison this one is
+    /// careful not to be. It
     /// would add a second sentence about a failure already reported, carrying a number that need not still
     /// be true when it is read.</summary>
     private static async Task<string?> PutBackAsync(ISeedInstrument instrument, Integra7Snapshot studioSet,

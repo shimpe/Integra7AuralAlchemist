@@ -36,75 +36,153 @@ public sealed class SeedInstrument(Integra7Domain domain, IIntegra7Api api) : IS
 {
     /// <summary>How often the four slots are asked what they hold while a loadout settles.
     ///
-    /// <b>One interval carries two decisions.</b> A board load takes 5 seconds, three of them 14.6, and the
-    /// <c>HQ Pcm</c> loadout 18.7 -- so polling faster than this buys nothing but traffic on a wire the sweep
-    /// wants for captures. And two intervals is longer than the 2.5 seconds an unload was measured to take,
-    /// which matters for the one case where the settled reading and the mid-flight reading are the same three
-    /// bytes: see <see cref="LoadBoardsAsync"/> on the all-Off loadout.</summary>
+    /// A board load takes 5 seconds, three of them about 13, and the <c>HQ Pcm</c> loadout 18.7 -- so polling
+    /// faster than this buys nothing but traffic on a wire the sweep wants for captures. It is also the reply
+    /// deadline, which is what a poll costs while the instrument is loading: it answers nothing at all until
+    /// it has finished.</summary>
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1.5);
 
-    /// <summary>When to stop believing a loadout is still on its way. Four times the slowest convergence ever
+    /// <summary>How quickly a reading has to arrive to have come from the instrument.
+    ///
+    /// <b>This is how "still loading" is recognised, and it is a measurement rather than a guess.</b> On the
+    /// user's unit on 2026-07-30 an idle instrument answered the slot query in 2 to 5 milliseconds, every
+    /// time, whatever the slots held -- all four Off included. While it was loading boards it answered
+    /// nothing, and the read came back at 1,504 to 1,514 milliseconds having run out its deadline, which
+    /// <see cref="Integra7Api.GetLoadedSrxAsync"/> reports as (0,0,0,0) because there is nothing else it
+    /// could say. So the two states are three hundred times apart and this threshold sits between them with
+    /// two orders of magnitude of room on either side; it is written as half the deadline in
+    /// <c>AsyncMidiInputWrapper</c> so that raising that deadline cannot quietly turn every timed-out read
+    /// into an answer.</summary>
+    private static readonly TimeSpan AnsweredWithin = TimeSpan.FromMilliseconds(750);
+
+    /// <summary>When to stop waiting for the slots to hold still. Four times the slowest convergence ever
     /// measured (<c>HQ Pcm</c>, stable at 23.3 seconds), because the cost of being wrong in the two directions
     /// is not symmetric: waiting too long delays a round, and giving up too early sweeps a whole board's worth
     /// of patches against slots that do not hold it yet and records every one of them as unavailable.</summary>
     private static readonly TimeSpan SettleCeiling = TimeSpan.FromSeconds(90);
 
     /// <summary>The four slot values the instrument reports right now.</summary>
-    public async Task<int[]> LoadedBoardsAsync()
+    public async Task<int[]> LoadedBoardsAsync() => (await ReadSlotsAsync()).Slots;
+
+    /// <summary>One reading of the four slots, and whether it came from the instrument at all: see
+    /// <see cref="AnsweredWithin"/>. A read that ran out its deadline reads as (0,0,0,0), which is also what
+    /// an idle instrument with empty slots says, and telling those two apart is the whole of knowing whether
+    /// a load is still in flight.</summary>
+    private async Task<(int[] Slots, bool Answered)> ReadSlotsAsync()
     {
+        var clock = Stopwatch.StartNew();
         var (slot1, slot2, slot3, slot4) = await api.GetLoadedSrxAsync();
-        return [slot1, slot2, slot3, slot4];
+        return ([slot1, slot2, slot3, slot4], clock.Elapsed < AnsweredWithin);
     }
 
     /// <summary>Send a loadout and wait for the instrument to settle on one.
     ///
-    /// <b>Never compared against what was sent.</b> The device rewrites a loadout it is given -- sending
-    /// (19,0,0,0) reads back as (19,20,21,22), because that board occupies all four slots -- so a poll that
-    /// waited for the request to appear would wait for something that is never going to, become an accidental
-    /// fixed wait, and then sweep a round against whatever the slots happened to hold. That trap was walked
-    /// into once already, by the person who had just written it down. What is waited for instead is the
-    /// reading holding still: two consecutive answers that agree.
+    /// <b>Nothing is sent to the slots while the instrument is moving them, and this is the whole point of
+    /// the method.</b> A loadout that arrives during a load is discarded in silence -- measured on the user's
+    /// unit, and the reason a sweep cancelled 5.7 seconds into a board round put its restore into the void
+    /// and left three of their boards evicted. There is no acknowledgement to check and no error to catch, so
+    /// the only defence is not to send: the wait below happens twice, once to find an instrument that is not
+    /// busy and once to see the request through.
     ///
-    /// <b>All zeros is the device working, not the device finished</b> -- it reports (0,0,0,0) while a load is
-    /// in flight, so a run of identical zeros is exactly what a load in progress looks like and must not be
-    /// mistaken for one that has completed. The single exception is a loadout that asks for no board at all,
-    /// which is what the restore sends for a user who had nothing loaded when the sweep started: there all
-    /// zeros is the answer, there is no other reading it could converge on, and the wait for two of them one
-    /// <see cref="PollInterval"/> apart is what keeps the Studio Set restore from starting into an instrument
-    /// that is still emptying its slots.</summary>
+    /// <b>Which means a load, once sent, is finished.</b> <paramref name="token"/> is honoured while waiting
+    /// for the instrument to become free -- nothing has been sent yet, so stopping there stops nothing -- and
+    /// not for a moment after that. A cancel pressed during a board round therefore takes up to about half a
+    /// minute to be acted on, which is the price of the sweep's own board load being over before its restore
+    /// begins. Abandoning the wait is what the old code did, and it is exactly how the restore came to be
+    /// sent into a busy instrument.
+    ///
+    /// <b>What "settled" means is <see cref="SeedSettling"/>'s, and deliberately not decided here.</b> It is
+    /// the one piece of this adapter that could be got wrong without a device on the desk, so it is not in an
+    /// adapter that has no tests. In short: three readings the instrument actually answered, all agreeing --
+    /// never a comparison against what was sent, because the device rewrites a loadout it is given.
+    ///
+    /// <b>And it says in the log what it saw, not merely what it concluded.</b> A conclusion about a board
+    /// having finished loading is the thing other findings are built on -- whether a bank is capturable on
+    /// this unit is decided by reading its tones once the boards are supposedly in place -- and the last
+    /// version of this convinced itself with a rule that could not tell a finished load from one that had
+    /// not started. So the line it writes carries the evidence: what the slots held before the request, how
+    /// many polls the instrument spent answering nothing, what it settled on, and how long all of that took.
+    /// A load during which the instrument never once went quiet did not load anything, and a reader of the
+    /// log can see that for themselves rather than take this method's word for it.</summary>
     public async Task LoadBoardsAsync(int[] boards, CancellationToken token)
     {
+        var before = await SettleAsync("before sending a loadout", token);
         await api.SendLoadSrxAsync((byte)boards[0], (byte)boards[1], (byte)boards[2], (byte)boards[3]);
+        var after = await SettleAsync($"after asking for {Slots(boards)}", CancellationToken.None);
 
-        var asksForABoard = boards.Any(slot => slot != 0);
+        // "Quiet" rather than "loading", because that is the observation; the sentence after it is the
+        // reading of the observation and is kept separate from it on purpose.
+        Log.Information(
+            "The expansion slots settled on {Now} {Seconds:0.0} s after the instrument was asked for "
+            + "{Asked}. They held {Before} beforehand, and it answered nothing for {Quiet} of the {Polls} "
+            + "polls in between -- {Verdict}.",
+            Slots(after.Slots), after.Took.TotalSeconds, Slots(boards), Slots(before.Slots), after.Quiet,
+            after.Polls, Verdict(before.Slots, after));
+    }
+
+    /// <summary>What the evidence in the log amounts to, in one clause, and it is worth being careful here
+    /// because the interesting case looks like success.
+    ///
+    /// An instrument that never stopped answering never loaded anything -- verified by sending the user's own
+    /// (2,13,6,0) back to them, which produced not a single quiet poll. That is the right outcome when the
+    /// loadout was already in the slots, and it is a load that did not happen when it was not. The two are
+    /// told apart by whether the slots changed, which is only a legitimate comparison because both sides of
+    /// it are settled readings taken either side of the request rather than a comparison against the request
+    /// itself.</summary>
+    private static string Verdict(int[] before, Settled after) => after.Quiet switch
+    {
+        0 when before.SequenceEqual(after.Slots) =>
+            "it never went quiet and the slots did not change, so it already held what it was asked for",
+        0 => "it never went quiet, so the slots changed without a load, which nothing here can explain",
+        _ when before.SequenceEqual(after.Slots) =>
+            "it went quiet and came back holding what it started with",
+        _ => "it went quiet, then came back holding a different loadout, which is a load that has finished",
+    };
+
+    /// <summary>What a wait for the slots to hold still saw.</summary>
+    /// <param name="Slots">The reading it settled on.</param>
+    /// <param name="Quiet">How many polls the instrument answered nothing at all for -- the only direct
+    /// evidence there is that it was working, since a load is neither acknowledged nor reported.</param>
+    /// <param name="Polls">How many readings were taken altogether.</param>
+    /// <param name="Took">How long the wait was.</param>
+    private readonly record struct Settled(int[] Slots, int Quiet, int Polls, TimeSpan Took);
+
+    /// <summary>Poll until the slots hold still, and answer what was seen on the way.</summary>
+    /// <param name="what">Which of the two waits this is, for the message a user would have to act on.</param>
+    /// <param name="token">Honoured only by the wait that has sent nothing.</param>
+    private async Task<Settled> SettleAsync(string what, CancellationToken token)
+    {
+        var settling = new SeedSettling();
         var clock = Stopwatch.StartNew();
-        int[]? previous = null;
+        int quiet = 0, polls = 0;
 
         while (clock.Elapsed < SettleCeiling)
         {
             await Task.Delay(PollInterval, token);
-            var now = await LoadedBoardsAsync();
+            var (slots, answered) = await ReadSlotsAsync();
+            polls++;
+            if (!answered) quiet++;
 
-            if ((!asksForABoard || now.Any(slot => slot != 0))
-                && previous is not null && now.SequenceEqual(previous))
-            {
-                Log.Information("The expansion slots settled on {Boards} after {Seconds:0.0} s.",
-                    string.Join(", ", now), clock.Elapsed.TotalSeconds);
-                return;
-            }
+            Log.Debug("Expansion slots, {What}, t+{Seconds:0.0} s: the instrument {Answer}.", what,
+                clock.Elapsed.TotalSeconds,
+                answered ? $"answered {Slots(slots)}" : "answered nothing within its reply deadline");
 
-            previous = now;
+            if (settling.Settled(answered ? slots : null))
+                return new Settled(slots, quiet, polls, clock.Elapsed);
         }
 
         // Named, because the message is read by somebody looking at an instrument and the loadout is the
         // only part of this they can act on -- and because the sweep puts it in the outcome verbatim rather
         // than stopping with an exception nobody kept. A TimeoutException rather than one of this
-        // application's own: nothing is malformed here, the instrument simply never answered the same thing
-        // twice.
+        // application's own: nothing is malformed here, the instrument simply never stopped moving.
         throw new TimeoutException(
-            $"The instrument did not settle on the expansion boards {string.Join(", ", boards)} within "
+            $"The instrument's expansion slots did not hold still {what}, within "
             + $"{SettleCeiling.TotalSeconds:0} seconds.");
     }
+
+    /// <summary>All four values as the device reports them, zeros included: these strings are read by
+    /// somebody looking at an instrument, and which slot went empty is the useful half of it.</summary>
+    private static string Slots(int[] slots) => string.Join(", ", slots);
 
     /// <summary>Select <paramref name="item"/>'s preset on the part and capture what the part then holds.
     ///

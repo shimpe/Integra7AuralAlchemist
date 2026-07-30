@@ -155,6 +155,16 @@ public sealed partial class SeedRunViewModel : ViewModelBase
     /// <inheritdoc cref="_latest"/>
     private volatile string _saying = "";
 
+    /// <summary>Whether a board load is in flight, so that Cancel can say what stopping will actually cost.
+    ///
+    /// <b>A cancel pressed during a board round does not take effect for about half a minute</b>, because a
+    /// loadout sent to a loading instrument is discarded in silence and the adapter therefore sees a load
+    /// through before anything else is sent -- see <see cref="ISeedInstrument.LoadBoardsAsync"/>. Half a
+    /// minute of a button that has visibly been pressed and a panel still saying "waiting for the expansion
+    /// slots" is indistinguishable from a hang, and the user's next move is to close the window on an
+    /// instrument that has not been put back yet.</summary>
+    private volatile bool _movingBoards;
+
     private readonly DispatcherTimer _ticker;
     private readonly Stopwatch _clock = new();
     private CancellationTokenSource? _cancel;
@@ -247,9 +257,11 @@ public sealed partial class SeedRunViewModel : ViewModelBase
     /// <summary>What the instrument is doing that is not a patch, or "".
     ///
     /// <b>Without this the panel looks hung for a minute and a half at a time.</b> A board round polls at
-    /// 1.5 s and gives up at 90 s, and reports no progress at all while it does -- so does the Studio Set
-    /// capture before the first patch, and so does putting the instrument back at the end. The counter would
-    /// simply stop, which is exactly what a crash looks like from the outside.</summary>
+    /// 1.5 s and gives up at 90 s on each of the two waits it makes -- the one for an instrument that is not
+    /// already busy and the one for the loadout it then sends -- and reports no progress at all while it
+    /// does. So does the Studio Set capture before the first patch, and so does putting the instrument back
+    /// at the end. The counter would simply stop, which is exactly what a crash looks like from the outside.
+    /// </summary>
     [Reactive] private string _note = "";
 
     [Reactive] private string _clockLine = "";
@@ -523,7 +535,11 @@ public sealed partial class SeedRunViewModel : ViewModelBase
     {
         UserActionLog.Action("button: Cancel the library sweep");
         _cancel?.Cancel();
-        _saying = "Stopping after this patch, then putting your instrument back…";
+        _saying = _movingBoards
+            ? "Stopping — but the instrument is moving its expansion boards, and anything sent to the slots "
+              + "while it does that is thrown away, so this has to finish first. It takes about half a "
+              + "minute, and then your instrument is put back."
+            : "Stopping after this patch, then putting your instrument back…";
     }
 
     public void Close()
@@ -655,9 +671,10 @@ public sealed partial class SeedRunViewModel : ViewModelBase
 
     /// <summary>The instrument, with a word said about the three things it does that report no progress.
     ///
-    /// <b>A board round can sit for ninety seconds without a single report.</b> The adapter polls the slots
-    /// at 1.5 s and gives up at 90; the Studio Set capture before the first patch and the restore after the
-    /// last one are silent stretches of the same kind. <see cref="SeedRun"/> has nothing to say about any of
+    /// <b>A board round can sit for minutes without a single report.</b> The adapter polls the slots at 1.5 s
+    /// and gives up at 90, and it does that twice -- once waiting for an instrument that is not already
+    /// loading and once for the loadout it then sends; the Studio Set capture before the first patch and the
+    /// restore after the last one are silent stretches of the same kind. <see cref="SeedRun"/> has nothing to say about any of
     /// them -- its progress is per patch, rightly -- so the panel learns about them here, by being between
     /// the run and the device.
     ///
@@ -672,14 +689,26 @@ public sealed partial class SeedRunViewModel : ViewModelBase
     {
         public Task<int[]> LoadedBoardsAsync() => inner.LoadedBoardsAsync();
 
-        public Task LoadBoardsAsync(int[] boards, CancellationToken token)
+        public async Task LoadBoardsAsync(int[] boards, CancellationToken token)
         {
             var loaded = boards.Where(slot => slot != 0).ToList();
             panel._saying = loaded.Count == 0
                 ? "Waiting for the instrument to empty its expansion slots. This takes a few seconds."
                 : $"Waiting for the instrument's expansion slots to hold {string.Join(", ", loaded)}. " +
-                  "This takes about twenty seconds and is given a minute and a half.";
-            return inner.LoadBoardsAsync(boards, token);
+                  "This takes about half a minute and cannot be interrupted once it has started.";
+
+            // Raised around the call rather than at the start of it, because what Cancel needs to know is
+            // whether stopping will have to wait -- which is true for the whole of this, including the wait
+            // for the instrument to be free that happens before anything is sent.
+            panel._movingBoards = true;
+            try
+            {
+                await inner.LoadBoardsAsync(boards, token);
+            }
+            finally
+            {
+                panel._movingBoards = false;
+            }
         }
 
         public Task<Integra7Snapshot?> CaptureAsync(SeedItem item, int zeroBasedPartNo,

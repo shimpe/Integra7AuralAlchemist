@@ -60,11 +60,17 @@ public class SeedRunTests
         private int _reads;
 
         /// <summary>Set to have the <i>first</i> board load cancel the run and abandon itself, which is what
-        /// Cancel pressed during a 23-second load looks like from here -- the real implementation polls with
-        /// the run's token and comes out of the wait as an <see cref="OperationCanceledException"/>. Cleared
-        /// as it fires, so the restore's own load still goes through: a cancelled sweep must still put the
-        /// instrument back.</summary>
+        /// Cancel pressed while the adapter is waiting for the instrument to be free looks like from here --
+        /// nothing has been sent at that point, so it comes out of the wait as an
+        /// <see cref="OperationCanceledException"/>. Cleared as it fires, so the restore's own load still
+        /// goes through: a cancelled sweep must still put the instrument back.</summary>
         public CancellationTokenSource? CancelDuringLoad { get; set; }
+
+        /// <summary>Set to have the first board load notice the cancel and then finish anyway, which is what
+        /// Cancel pressed after the loadout has gone out looks like: an instrument that is loading discards
+        /// anything else sent to its slots, so the adapter sees the load through and returns normally.
+        /// Cleared as it fires, for <see cref="CancelDuringLoad"/>'s reason.</summary>
+        public CancellationTokenSource? CancelAsLoadFinishes { get; set; }
 
         public Task<int[]> LoadedBoardsAsync()
         {
@@ -83,6 +89,12 @@ public class SeedRunTests
                 CancelDuringLoad = null;
                 cancelling.Cancel();
                 throw new OperationCanceledException(token);
+            }
+
+            if (CancelAsLoadFinishes is { } stopping)
+            {
+                CancelAsLoadFinishes = null;
+                stopping.Cancel();
             }
 
             if (!LoadIgnores.Contains(loadout)) Boards = boards;
@@ -385,10 +397,10 @@ public class SeedRunTests
         Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
     }
 
-    /// <summary>A cancel that arrives while a 23-second load is in flight is a cancel. The run's token is
-    /// what the load was given, so it comes back out as an <c>OperationCanceledException</c> -- and reporting
-    /// that as a loadout the instrument refused would have the user checking a board that is perfectly
-    /// well.</summary>
+    /// <summary>A cancel that arrives during a board round is a cancel. The run's token is what the load was
+    /// given, and while the adapter is still waiting for a free instrument -- before it has sent anything --
+    /// it comes back out as an <c>OperationCanceledException</c>; reporting that as a loadout the instrument
+    /// refused would have the user checking a board that is perfectly well.</summary>
     [Test]
     public async Task A_cancel_during_a_board_load_is_not_a_refusal()
     {
@@ -401,6 +413,31 @@ public class SeedRunTests
         Assert.That(outcome.Cancelled, Is.True);
         Assert.That(outcome.StoppedEarly, Is.Null, "the instrument refused nothing");
         Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
+    }
+
+    /// <summary>And a cancel that arrives once the loadout has gone out is still a cancel, even though the
+    /// load then finishes and the call returns as though nothing had happened. That is the adapter's contract
+    /// now -- an instrument that is loading discards anything else sent to its slots, so a load in flight is
+    /// seen through rather than abandoned -- and it puts the round in a state no other test covers: the
+    /// boards this round wanted are in the slots, and not one of its patches may be captured. The user
+    /// pressed Cancel; arriving at the first patch with the board freshly loaded is not a reason to take one
+    /// more.</summary>
+    [Test]
+    public async Task A_cancel_that_arrives_after_the_loadout_was_sent_captures_nothing_more()
+    {
+        var cancelling = new CancellationTokenSource();
+        var instrument = new FakeInstrument { CancelAsLoadFinishes = cancelling };
+
+        var outcome = await Sweep(instrument, [Preset("On a board", bank: "SRX07")],
+            token: cancelling.Token);
+
+        Assert.That(outcome.Cancelled, Is.True);
+        Assert.That(outcome.Written, Is.Empty, "the board arrived, but the user had already stopped this");
+        Assert.That(outcome.StoppedEarly, Is.Null, "and the instrument refused nothing");
+        Assert.That(instrument.Calls, Is.EqualTo(new[]
+        {
+            "capture studio set", "load 7,0,0,0", "load 0,0,0,0", "restore studio set",
+        }), "the round's load happened, no patch did, and the slots were still put back");
     }
 
     /// <summary>This is the path the <c>finally</c> exists for, now that a refused board stops gracefully.
