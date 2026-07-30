@@ -266,8 +266,14 @@ and the cost is the user's to weigh, not this document's to decide for them.
 
 ## Why GM2 and ExPCM expose nothing
 
-**Because those tones cannot be edited at all.** Confirmed against the hardware by the instrument's owner on
-2026-07-30, and it is a property of the instrument rather than of this unit.
+**Because those tones cannot be edited at all.** Confirmed on 2026-07-30 by the instrument's owner, who
+loaded `HQ GM2 + HQ Pcm` and tried to edit an ExPCM tone from the front panel. It is a property of the
+instrument rather than of this unit.
+
+Two independent channels agree, and neither has a load in flight — which is what every earlier attempt
+lacked. The front panel refuses the edit. And over sysex, with that same board already settled and the slots
+answering in 2 ms, all five ExPCM and GM2 rows tried returned nothing while a PRST control captured in
+268 ms. No part of that reading depends on a load having finished, because there was no load.
 
 A capture reads the part's **temporary tone** area. A tone type that can never be edited has no editable
 temporary area for the device to populate, so there is nothing there to read — which is exactly the observed
