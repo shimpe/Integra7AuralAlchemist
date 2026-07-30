@@ -258,43 +258,57 @@ choosing with the number in view:
 | banks | default | why |
 | --- | --- | --- |
 | PRST, SRX, ExSN, user slots | ticked | the sweep's purpose |
-| GM2, ExPCM | **unticked** | not capturable on the measured unit; 3.00 s a row to prove it again, so ~13 minutes for GM2 and ~27 for ExPCM, neither of which the estimate allows for |
+| GM2, ExPCM | **unticked** | those tones cannot be edited, so the instrument exposes no temporary tone to capture — see below; 3.00 s a row to find that out again, ~13 minutes for GM2 and ~27 for ExPCM, neither of which the estimate allows for |
 | PCM drum kits | **unticked** | 22 minutes and 137 MB for 216 patches — 40% of the clock for 3.6% of the presets |
 
 PCM drum kits are unticked rather than absent for the same reason as GM2: it is a defensible thing to want,
 and the cost is the user's to weigh, not this document's to decide for them.
 
+## Why GM2 and ExPCM expose nothing
+
+**Because those tones cannot be edited at all.** Confirmed against the hardware by the instrument's owner on
+2026-07-30, and it is a property of the instrument rather than of this unit.
+
+A capture reads the part's **temporary tone** area. A tone type that can never be edited has no editable
+temporary area for the device to populate, so there is nothing there to read — which is exactly the observed
+behaviour, and the part of it that never had an explanation: the Studio Set Part accepts and stores the bank
+and the program (verified by read-back), and then all five engines' temporary areas stay silent. Not the one
+the row names — *all five*. That was always the shape of a tone that does not exist to be edited, rather
+than of one that failed to load.
+
+**This is worth more than the observation it replaces**, because it says why. The measured version of this
+answer could only ever be "not on the unit it was measured on", which is why the selection screen offers the
+banks unticked rather than hiding them. The mechanism does not carry that caveat.
+
+### How this was nearly got wrong three times
+
+Kept because the failures are instructive and the next person to doubt this deserves them:
+
+1. The first test **polled for the values it sent** rather than the values the device settles on, so its
+   loop never matched and it became an accidental fixed wait.
+2. The re-test waited on **"poll until the reading stops changing"**, which fires early — immediately after
+   a send the device still reports the previous loadout — and rendered a silent read as `(0,0,0,0)`, so a
+   *repeated* silence is itself a reading that does not change. Both are fixed; see `SeedSettling`. They
+   were in force when this was decided.
+3. What made the re-test look conclusive was a positive control: a PRST tone capturing normally in the same
+   loadout. **That control could not see what it was asked to.** PRST tones are internal ROM, and an
+   instrument still loading a board goes on answering for its own sounds — so it proved the device was
+   responsive, never that the board had finished. ExPCM lives on the board that was loading.
+
+The third fault is the one that reopened this, after the owner watched the front panel during a sweep and
+saw requests going out while it still showed the slots loading. **The conclusion was right and the reasoning
+could not support it**, which is not the same thing and was worth the day it took to separate. An invalid
+control is not a wrong answer; it is an answer nobody had grounds for yet.
+
+That observation was not wasted either: chasing it found that the instrument **silently discards a slot load
+sent while it is still loading**, which had been leaving a user's boards evicted whenever a sweep was
+cancelled mid-load. See `SeedSettling` and `SeedInstrument.LoadBoardsAsync`.
+
 ## Open questions
 
-**Whether the 531 ExPCM rows are really uncapturable — reopened 2026-07-30, after being recorded above as
-settled.** The user watched their instrument's own display during a sweep and saw requests going out while
-it still showed the expansion slots loading. Two things followed from looking again.
-
-The first is that **the positive control does not close the question.** What made the re-test conclusive was
-a PRST tone capturing normally in the `HQ GM2 + HQ Pcm` loadout — but PRST tones are internal ROM, and an
-instrument still loading an expansion board can go on answering for its own internal sounds. The control
-proves the device was responsive; it never proved the board had finished. ExPCM tones live on precisely the
-board that was loading.
-
-The second is worse for the method and better stated generally: **the slot query reports the slot table and
-nothing else.** It cannot establish that a board's samples are usable at the instant its slots become
-readable. Every conclusion here about a board-backed bank assumes those two moments coincide, and nothing
-has measured whether they do. That is now the first thing to measure, and with a bank known to capture
-rather than with the one in dispute.
-
-Two further points make the earlier convergence unsafe rather than merely unproven: the rule it waited on
-was "poll until the reading stops changing", which fires early because immediately after a send the device
-still reports the previous loadout; and a silent read was rendered as `(0,0,0,0)`, so a *repeated* silence
-is itself a reading that does not change. Both are fixed — see `SeedSettling` — but they were in force when
-this was decided.
-
-**GM2 and ExPCM are not in the same position**, and the earlier answer treated them as one result. GM2 is
-internal — `SeedBoards.For("GM2/GM2#")` answers null, there is no board to wait for — so nothing about
-loading can explain its silence. ExPCM is on the HQ Pcm board. If load timing is the explanation, ExPCM
-returns and GM2 stays silent.
-
-This question's method has now been faulted three times: once for polling for what it sent, once for the
-convergence rule above, and once for a control that could not see what it was asked to. **Do not record a
-fourth answer without a completion signal a later reader can audit from the log.** The selection screen's
-defaults are unchanged in the meantime — unticked with the reason shown, which is the answer that costs the
-user least if this turns out to have been wrong.
+**Whether a board's samples are usable the instant its slots become readable.** The slot query reports the
+slot table and nothing else, so nothing establishes that the two moments coincide — and every board round
+starts capturing as soon as the slots settle. If they do not coincide, patches early in a round would be
+recorded as unavailable when they are merely early. This is independent of the GM2/ExPCM question above,
+which it no longer bears on, and it is live on the SRX and ExSN banks that do work. Being measured with a
+bank known to capture.
