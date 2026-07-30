@@ -2478,31 +2478,10 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private List<Integra7Preset> LoadPresets()
-    {
-        var uri = @"avares://" + "Integra7AuralAlchemist/" + "Assets/Presets.csv";
-        var file = new StreamReader(AssetLoader.Open(new Uri(uri)));
-        var data = file.ReadLine();
-        char[] separators = [','];
-        List<Integra7Preset> Presets = [];
-        var id = 0;
-        while ((data = file.ReadLine()) != null)
-        {
-            string[] read = data.Split(separators, StringSplitOptions.None);
-            var tonetype = read[0].Trim('"');
-            var tonebank = read[1].Trim('"');
-            var number = int.Parse(read[2]);
-            var name = read[3].Trim('"');
-            var msb = int.Parse(read[4]);
-            var lsb = int.Parse(read[5]);
-            var pc = int.Parse(read[6]);
-            var category = read[7].Trim('"');
-            Presets.Add(new Integra7Preset(id, "INT", tonetype, tonebank, number, name, msb, lsb, pc, category));
-            id++;
-        }
-
-        return Presets;
-    }
+    /// <summary>The shipped preset table. The parsing itself lives in <see cref="PresetTable"/>, where it
+    /// can be tested -- this method is only the asset lookup, which cannot be.</summary>
+    private List<Integra7Preset> LoadPresets() =>
+        PresetTable.Load(AssetLoader.Open(new Uri("avares://Integra7AuralAlchemist/Assets/Presets.csv")));
 
     public MainWindowViewModel()
     {
