@@ -55,10 +55,18 @@ public static class SeedNaming
     ///
     /// The instrument pads a name out to the width of its field, so what comes back has trailing spaces on
     /// it. Left in, every single row would differ from the table and every single snapshot would carry a
-    /// note saying so.</summary>
+    /// note saying so.
+    ///
+    /// <b>And the catalogue side is padded too, for half the rows.</b> A factory row's name comes from
+    /// <c>Presets.csv</c> already trimmed, but a user slot's comes from the instrument's own name list and
+    /// arrives padded exactly like the captured one -- so trimming only what was captured left every user
+    /// slot in the library carrying a note saying the table disagreed with it about trailing spaces. That
+    /// is the same failure this trim exists to prevent, arriving from the other side, and on a full sweep
+    /// it is up to nine hundred notes that say nothing. Verified against the instrument on 2026-07-30:
+    /// five user tones swept, five spurious notes.</summary>
     public static SnapshotMetadata MetadataFor(Integra7Snapshot captured, SeedItem item)
     {
-        var listed = item.Preset.Name;
+        var listed = item.Preset.Name.TrimEnd();
         var device = ToneNameIn(captured);
         var name = string.IsNullOrWhiteSpace(device) ? listed : device;
 

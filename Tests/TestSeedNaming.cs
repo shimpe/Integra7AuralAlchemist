@@ -70,6 +70,28 @@ public class SeedNamingTests
         Assert.That(metadata.Notes, Is.Empty, "and the padding is not a disagreement worth recording");
     }
 
+    /// <summary>And the padding on the <em>catalogue's</em> side is not part of its name either, which is a
+    /// separate fact because the two names arrive from different places. A factory row's name is read from
+    /// <c>Presets.csv</c> and is already trimmed; a user slot's is read from the instrument's own name list
+    /// and comes padded to the width of the field, exactly like the captured one. Trimming only the captured
+    /// side put a note on every user slot in the library saying the table disagreed with it about trailing
+    /// spaces -- five of them in a sweep of five user tones on 2026-07-30, and up to nine hundred on a full
+    /// one. The second act is the note itself: a real disagreement must still be reported, and reported
+    /// without the padding, or the sentence a user reads ends in a run of spaces inside its quotes.</summary>
+    [Test]
+    public void The_padding_on_the_catalogues_own_name_is_not_a_disagreement_either()
+    {
+        var same = SeedNaming.MetadataFor(Tone("pinkelpaard"), Item("pinkelpaard     "));
+
+        Assert.That(same.Name, Is.EqualTo("pinkelpaard"));
+        Assert.That(same.Notes, Is.Empty);
+
+        var differs = SeedNaming.MetadataFor(Tone("PowerDrumSet"), Item("Power DrumSet   "));
+
+        Assert.That(differs.Name, Is.EqualTo("PowerDrumSet"));
+        Assert.That(differs.Notes, Is.EqualTo("Listed as \"Power DrumSet\""));
+    }
+
     /// <summary>A capture with no name in it keeps the catalogue's. Two things are being refused at once: an
     /// empty name, which is the one field the browser cannot show and which would leave a row the user
     /// cannot tell from the row above it; and a note claiming the table disagreed with nothing.</summary>
