@@ -182,24 +182,39 @@ way.
 
 A patch whose **first block does not answer** is recorded as `unavailable` and the sweep moves to the next
 one. That single rule covers every reason a patch cannot be captured — an unloaded SRX or ExSN board, an
-engine the part cannot hold, and whatever is true of GM2 and ExPCM. Nothing in the design encodes *which*
-patches are unavailable, which is what kept the HQ GM2 question from ever being a blocker: the answer changed
-the selection screen's defaults and nothing else.
+engine the part cannot hold, and anything unexpected. It is unchanged and must stay so: the user's own Studio
+Set has a part pointing at an ExSN3 patch with ExSN3 not in a slot, which produces exactly this silence.
+Nothing in the design encodes *which* patches are unavailable, which is what kept the HQ GM2 question from
+ever being a blocker: the answer changed the selection screen and nothing else.
 
 The cost of trying one anyway was **timed at 3.00 s** on 2026-07-30 — nine consecutive log lines 3.000 to
 3.003 s apart. It is two waits, not one: the 1.5 s reply deadline for the tone that never arrives, and 1.5 s
 more to ask the instrument whether it holds anything at all, which is what keeps "your instrument does not
-expose these" from being reported as "these failed". For the 796 that is **~40 minutes** — GM2 ~13, ExPCM
-~27 — which is the argument for offering the two **unticked by default with the reason shown** rather than
-for hiding them. Hiding them would be the wrong call twice over: another unit may differ, and a user who
-wants to check should be able to, cheaply, without being told what their instrument can do by a table written
-on somebody else's.
+expose these" from being reported as "these failed". For the 796 GM2 and ExPCM rows that is **~40 minutes** —
+GM2 ~13, ExPCM ~27.
 
 **The estimate does not carry that 40 minutes**, and deliberately. `SeedPlan` charges an unavailable row its
-engine's capture rate, so a sweep with both banks ticked runs about 32 minutes longer than it predicts.
-Teaching the planner which banks are unavailable is the one fix that is not allowed here — availability is
-discovered, never assumed — so the number is shown per bank on the selection screen, beside the tick, worded
-as what it cost on the unit it was measured on rather than as a property of the bank.
+engine's capture rate, so a plan containing such rows runs longer than it predicts. Teaching the planner which
+banks are unavailable is the one fix that is not allowed here — availability is discovered, never assumed —
+and `SeedPlan` stays bank-agnostic: it filters on `selection.Banks`, so a bank the screen does not offer
+simply never reaches it.
+
+### What this argued for, and what overtook it
+
+This section used to conclude that the 40 minutes was **the argument for offering GM2 and ExPCM unticked with
+the reason shown**, rather than for keeping them out of a sweep: *hiding them would be the wrong call twice
+over — another unit may differ, and a user who wants to check should be able to, cheaply, without being told
+what their instrument can do by a table written on somebody else's.*
+
+**That was right on the evidence it had**, which was one measurement on one instrument. What overtook it is
+knowing the mechanism (below): those tones **cannot be edited at all**, so no INTEGRA-7 exposes an editable
+temporary tone for them, and there is nothing left for a user to discover by ticking. A recommendation that
+rests on "another unit may differ" does not survive an explanation that says no unit does. So the tick is
+withdrawn — the two rows are shown, greyed, with the reason on the row — while the 40 minutes stays here as
+what the withdrawal is worth.
+
+**The rule at the top of this section is untouched by any of that**, and is the reason the reversal is cheap:
+the panel declining to offer two banks is a saving, and discovery is still what makes a sweep safe.
 
 ---
 
@@ -258,11 +273,19 @@ choosing with the number in view:
 | banks | default | why |
 | --- | --- | --- |
 | PRST, SRX, ExSN, user slots | ticked | the sweep's purpose |
-| GM2, ExPCM | **unticked** | those tones cannot be edited, so the instrument exposes no temporary tone to capture — see below; 3.00 s a row to find that out again, ~13 minutes for GM2 and ~27 for ExPCM, neither of which the estimate allows for |
+| GM2, ExPCM | **shown, greyed, cannot be ticked** | those tones cannot be edited, so the instrument exposes no temporary tone to capture — see below. There is nothing a sweep of them could collect, so there is no choice left to offer |
 | PCM drum kits | **unticked** | 22 minutes and 137 MB for 216 patches — 40% of the clock for 3.6% of the presets |
 
-PCM drum kits are unticked rather than absent for the same reason as GM2: it is a defensible thing to want,
-and the cost is the user's to weigh, not this document's to decide for them.
+PCM drum kits are unticked rather than greyed because that one *is* a choice: it is a defensible thing to
+want, and the cost is the user's to weigh, not this document's to decide for them. GM2 and ExPCM are not a
+choice, and a tick box that can only ever buy forty minutes of nothing is not one either.
+
+**They are shown rather than left out.** A bank that vanishes from a list built out of the preset table asks
+"where did GM2 go?" and answers it nowhere; a bank that is present, greyed and captioned answers it in place,
+in the table's own order, with the sentence attached to the thing it is about. Only the tick box is disabled —
+the note beside it stays at full legibility, because it is the whole reason the row is still there — and it is
+plain text rather than a tooltip, which would show nothing until hovered, nothing at all while the window is
+inactive, and would swallow clicks besides.
 
 ## Why GM2 and ExPCM expose nothing
 
@@ -283,8 +306,10 @@ the row names — *all five*. That was always the shape of a tone that does not 
 than of one that failed to load.
 
 **This is worth more than the observation it replaces**, because it says why. The measured version of this
-answer could only ever be "not on the unit it was measured on", which is why the selection screen offers the
-banks unticked rather than hiding them. The mechanism does not carry that caveat.
+answer could only ever be "not on the unit it was measured on", and the selection screen was built around
+that caveat: it offered the two banks unticked so that a user could check for themselves. The mechanism does
+not carry the caveat, so the screen no longer carries the tick — see *What this argued for, and what overtook
+it* above.
 
 ### How this was nearly got wrong three times
 

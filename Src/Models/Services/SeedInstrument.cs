@@ -232,20 +232,21 @@ public sealed class SeedInstrument(Integra7Domain domain, IIntegra7Api api) : IS
         catch (SnapshotFormatException)
         {
             // Two very different things arrive here as the same exception, and telling them apart is the
-            // difference between "796 of these are not available on your instrument" and "796 of these
-            // failed" -- one of which is true and the other of which has a user hunting a fault that is not
-            // there. A patch this unit does not expose answers nothing from the very first block: the Studio
-            // Set Part stores the bank and program quite happily and then all five engines' temporary areas
-            // stay silent, which is every GM2 and every ExPCM row, 13% of a factory sweep. A tone that
-            // answered and then stopped partway is a real failure and has to reach the sweep as one.
+            // difference between "these are not available on your instrument" and "these failed" -- one of
+            // which is true and the other of which has a user hunting a fault that is not there. A patch this
+            // unit does not expose answers nothing from the very first block: the Studio Set Part stores the
+            // bank and program quite happily and then all five engines' temporary areas stay silent, which is
+            // what a board that is not in a slot looks like from here, and what every GM2 and ExPCM row looks
+            // like. A tone that answered and then stopped partway is a real failure and has to reach the
+            // sweep as one.
             //
             // Which it was is asked of the device rather than read out of the exception's wording. Matching
             // on the message would make this depend on a sentence in another file that nobody would think to
             // check when they reworded it, and the way it would break is silent: every unavailable row
-            // reported as a failure. The cost is one extra read on the failing path only -- roughly 24
-            // seconds spread over a full sweep, and nothing at all on the 87% that succeed, which is what
-            // keeps SeedPlan's measured estimate honest. It is not a retry of the capture: the capture is
-            // already lost, and this only decides which of the two lists it belongs in.
+            // reported as a failure. The cost is one extra read on the failing path only -- 1.5 s apiece, and
+            // nothing at all on the patches that capture, which is what keeps SeedPlan's measured estimate
+            // honest now that a sweep's silent rows are the exception. It is not a retry of the capture: the
+            // capture is already lost, and this only decides which of the two lists it belongs in.
             var (start, offset, offset2) = ToneDomainNames.For(preset.ToneTypeStr, zeroBasedPartNo)[0];
             if (await domain.GetDomain(start, offset, offset2).ReadFromIntegraAsync(lease)) throw;
 

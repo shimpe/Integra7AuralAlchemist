@@ -15,14 +15,18 @@
          twenty-six tick boxes above it the counter would have been below the fold, which is exactly where a
          progress line is no use.
 
-         The three unticked defaults each carry their reason on their own row rather than in a note at the
-         bottom, because that is where the user is making the decision. GM2 and ExPCM expose no tone at all on
-         the instrument this was measured on, and PCM drum kits are 40% of a full sweep's clock for 3.6% of
-         its patches. They are offered rather than hidden: another unit may differ.
+         The three rows that are not ticked each carry their reason on their own row rather than in a note at
+         the bottom, because that is where the user is making the decision. PCM drum kits are 40% of a full
+         sweep's clock for 3.6% of its patches, and are offered anyway because that is a cost to weigh rather
+         than a refusal. GM2 and ExPCM are greyed and cannot be ticked at all: their tones cannot be edited,
+         so the instrument exposes no temporary tone for a capture to read. They are shown rather than left
+         out so that "where did GM2 go?" is answered in the place it is asked.
 
          No ToolTip anywhere in this file. The tick boxes are what this screen is made of and they are clicked
          in columns of twenty-one, and a tooltip is a popup that swallows the click on the control it
-         describes.
+         describes — and it would be the worst possible home for the one sentence a greyed row exists to say,
+         since a tooltip shows nothing at all until it is hovered and nothing ever while the window is
+         inactive.
 
          Every brush is a resource, per the rule this branch keeps. -->
 
@@ -111,21 +115,31 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:SeedOptionViewModel">
-                            <CheckBox IsChecked="{Binding IsTicked, Mode=TwoWay}"
-                                      HorizontalAlignment="Stretch"
-                                      HorizontalContentAlignment="Left">
-                                <StackPanel Orientation="Vertical">
+                            <!-- The note is outside the tick box here, where the Engines template above keeps
+                                 it inside. Two of these rows are disabled, a disabled CheckBox greys
+                                 everything in its content, and the whole point of leaving those rows in the
+                                 list is the sentence that says why they are greyed — which has to stay as
+                                 readable as every other row's. The name and the count are still inside, so
+                                 the cost is part of what is pressed on the rows that can be pressed, and the
+                                 margin below is what the tick box's own content is indented by, so the two
+                                 lists line up. Nothing in Engines is ever unsweepable, which is why it needs
+                                 none of this. -->
+                            <StackPanel Orientation="Vertical">
+                                <CheckBox IsChecked="{Binding IsTicked, Mode=TwoWay}"
+                                          IsEnabled="{Binding IsSweepable}"
+                                          HorizontalAlignment="Stretch"
+                                          HorizontalContentAlignment="Left">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <TextBlock Text="{Binding Name}" />
                                         <TextBlock Text="{Binding Cost}"
                                                    Foreground="{StaticResource SnMutedTextBrush}" />
                                     </StackPanel>
-                                    <TextBlock Text="{Binding Note}" TextWrapping="Wrap"
-                                               Foreground="{StaticResource SnMutedTextBrush}"
-                                               IsVisible="{Binding Note,
-                                                   Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                </StackPanel>
-                            </CheckBox>
+                                </CheckBox>
+                                <TextBlock Text="{Binding Note}" TextWrapping="Wrap" Margin="30,0,0,0"
+                                           Foreground="{StaticResource SnMutedTextBrush}"
+                                           IsVisible="{Binding Note,
+                                               Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>

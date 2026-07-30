@@ -84,12 +84,14 @@ public sealed record SeedOutcome(
 /// <summary>Walking a <see cref="SeedWork"/> across an instrument: the boards each round needs, the patches
 /// capturable under them, the file that comes out of each one, and putting the instrument back afterwards.
 ///
-/// <b>Nothing that goes wrong with one patch may end the sweep.</b> A factory sweep is ~6,000 patches and
-/// about 54 minutes, and 796 of those rows -- every GM2 and every ExPCM one -- expose no temporary tone at
-/// all on the unit this was measured against. So 13% of a full run takes the "there was nothing to capture"
-/// path; that is a normal outcome rather than an error, and neither it nor a capture that throws is allowed
-/// to cost the other 87%. Each patch is therefore its own try, and what went wrong is recorded against the
-/// preset it went wrong for.
+/// <b>Nothing that goes wrong with one patch may end the sweep.</b> A factory sweep is thousands of patches
+/// and the better part of an hour, and a patch the instrument answers nothing for is a normal outcome in one
+/// rather than an error: an expansion board that is not in a slot, an engine the part will not hold. The
+/// panel no longer offers the two banks that used to make that 13% of a full run -- GM2 and ExPCM tones
+/// cannot be edited, so the instrument exposes no temporary tone for them at all -- but that is a saving and
+/// not a guarantee, and this end of the feature discovers availability and assumes nothing. Neither a silent
+/// patch nor a capture that throws is allowed to cost the rest of the run: each patch is its own try, and
+/// what went wrong is recorded against the preset it went wrong for.
 ///
 /// <b>There is no delay anywhere in this loop, and adding one would be a mistake.</b> The device withholds
 /// the read reply until the tone has finished loading, so the capture is itself the settle check: forty

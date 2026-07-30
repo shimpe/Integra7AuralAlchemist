@@ -20,22 +20,27 @@ namespace Integra7AuralAlchemist.ViewModels;
 /// <b>The number is on the row rather than only in the total.</b> A sweep is up to an hour of somebody's
 /// instrument, and the whole reason this screen exists instead of a single Go button is that it can be aimed
 /// -- which it cannot be if the thing being aimed at is a bare name. Three of these carry a sentence as well:
-/// see <see cref="SeedRunViewModel"/> for why they are offered unticked rather than left out.
+/// one saying what ticking it costs, and two saying why they cannot be ticked at all -- see
+/// <see cref="SeedRunViewModel"/>.
 ///
 /// No ToolTip, per the rule this branch keeps for anything clicked repeatedly, and these are clicked in
-/// columns of twenty-one.</summary>
+/// columns of twenty-one. It is also the rule that decides how a row that cannot be ticked explains itself:
+/// a tooltip is invisible until hovered, shows nothing at all while the window is inactive, and swallows the
+/// click on the control it describes. The reason is plain text on the row.</summary>
 public sealed class SeedOptionViewModel : ViewModelBase
 {
     private readonly Action _changed;
     private bool _isTicked;
     private int _patches;
 
-    internal SeedOptionViewModel(string name, int patches, string note, bool isTicked, Action changed)
+    internal SeedOptionViewModel(string name, int patches, string note, bool isTicked, bool isSweepable,
+        Action changed)
     {
         Name = name;
         _patches = patches;
         Note = note;
         _isTicked = isTicked;
+        IsSweepable = isSweepable;
         _changed = changed;
     }
 
@@ -49,15 +54,25 @@ public sealed class SeedOptionViewModel : ViewModelBase
     /// panel, because they change as the other ticks move.</summary>
     public string Cost => $"{_patches:n0} patches";
 
-    /// <summary>Why this one is unticked by default, or "" for the ones that are not. Shown on the row rather
-    /// than in a note at the bottom: the user is deciding about this tick, here.</summary>
+    /// <summary>Why this one is unticked by default or cannot be ticked at all, or "" for the ones that can.
+    /// Shown on the row rather than in a note at the bottom: the user is deciding about this tick, here -- and
+    /// where the answer is "you cannot", the question is asked at this row too.</summary>
     public string Note { get; }
+
+    /// <summary>Whether ticking this could capture anything, which is what the row's tick box is enabled by.
+    /// False for the two banks whose tones cannot be edited -- see <see cref="SeedRunViewModel"/>. Never false
+    /// for an engine.</summary>
+    public bool IsSweepable { get; }
 
     public bool IsTicked
     {
         get => _isTicked;
         set
         {
+            // A row that cannot be swept cannot be ticked, and it is refused here rather than only in the
+            // view: the sweep is built from whatever this collection says is ticked, so a rule kept only in
+            // the tick box's IsEnabled would be one binding away from forty minutes of reply deadlines.
+            if (value && !IsSweepable) return;
             if (_isTicked == value) return;
             this.RaiseAndSetIfChanged(ref _isTicked, value);
             _changed();
@@ -93,13 +108,25 @@ public sealed class SeedOptionViewModel : ViewModelBase
 /// <see cref="SeedBoards"/> and <see cref="SeedRefusal"/>, all six of which a test can reach without an
 /// INTEGRA-7 on the desk. What is left in here is sequencing and words.
 ///
-/// <b>The defaults are the spike's measurements, and the three unticked ones say why on the row.</b> GM2 and
-/// ExPCM expose no temporary tone at all on the instrument this was measured against -- 796 rows, about
-/// forty minutes to establish again at the 3.00 s each of them was timed at -- and PCM drum kits are 40% of
-/// a full sweep's clock and 137 MB of its bytes for 3.6% of its patches. They are offered unticked rather
-/// than left out because
-/// another unit may differ, and a user who wants to check should be able to, cheaply, rather than be told
-/// what their own instrument can do by a table written about somebody else's.
+/// <b>The defaults are the spike's measurements, and the three rows that are not ticked say why on the row.
+/// </b> PCM drum kits are 40% of a full sweep's clock and 137 MB of its bytes for 3.6% of its patches, which
+/// is an expensive thing to want and still a defensible one, so it is offered unticked and the cost is the
+/// user's to weigh. GM2 and ExPCM cannot be ticked at all: their tones cannot be edited, so there is no
+/// editable temporary tone for a capture to read, and a sweep of those 796 rows would spend about forty
+/// minutes at the 3.00 s a silent row was timed at collecting nothing.
+///
+/// <b>Those two are shown disabled rather than left out</b>, which is the second answer this panel has given
+/// to the question and the better one. The first offered them unticked, on the argument that another unit
+/// might differ and a user should be able to check rather than be told what their instrument can do by a
+/// table written about somebody else's -- right on the evidence it had, which was one measurement. Knowing
+/// *why* they answer nothing settled it: an uneditable tone has no editable temporary area on any INTEGRA-7,
+/// so there is nothing left to discover by ticking. What a row that vanished would not do is answer "where
+/// did GM2 go?", and this list is built from the preset table the user can see elsewhere.
+///
+/// <b>None of that is a rule the sweep relies on.</b> Availability is discovered and never assumed --
+/// <see cref="SeedRun"/> records a patch whose first block does not answer as unavailable and moves on --
+/// which is what covers an unloaded SRX or ExSN board, an engine a part cannot hold, and anything unexpected.
+/// This panel declining to offer two banks is a saving, not a safety net.
 ///
 /// <b>The panel owns the clock.</b> <see cref="SeedProgress"/> carries counts and nothing else, deliberately;
 /// elapsed comes from a stopwatch here and what is left from <see cref="SeedWork.Estimate"/>.
@@ -330,15 +357,34 @@ public sealed partial class SeedRunViewModel : ViewModelBase
             var already = options.FirstOrDefault(option => option.Name == group.Key);
             if (already is null)
                 options.Add(new SeedOptionViewModel(group.Key, group.Count(), note(group.Key),
-                    TickedByDefault(group.Key), Recompute));
+                    TickedByDefault(group.Key), Sweepable(group.Key), Recompute));
             else
                 already.Recount(group.Count());
         }
     }
 
-    /// <summary>Everything is ticked except the three the spike measured a reason against -- see the class
-    /// remarks, and the note each of them carries on its own row.</summary>
-    private static bool TickedByDefault(string name) => name is not ("PCMD" or "GM2/GM2#" or "ExPCM");
+    /// <summary>Whether ticking this could capture anything at all, which is false for exactly two banks and
+    /// for no engine.
+    ///
+    /// <b>GM2 and ExPCM tones cannot be edited</b> -- confirmed from the instrument's own front panel and,
+    /// separately, over sysex with the board settled and no load in flight. A capture reads the part's
+    /// temporary tone area, and a tone that can never be edited has no editable temporary area for the device
+    /// to populate, which is why the Studio Set Part accepts the bank and the program quite happily and then
+    /// all five engines' temporary areas stay silent. That is a property of the INTEGRA-7 rather than of the
+    /// unit this was measured on, so there is nothing a user could learn by sweeping them.
+    ///
+    /// The two bank names are written once, here. Three things depend on them -- the tick box's enabled
+    /// state, its default, and the sentence explaining it -- and all three ask this rather than carrying
+    /// their own copy of the pair, because two of them quietly agreeing while the third does not is precisely
+    /// the bug that shape invites: a row that looks tickable and is not, or one that is not and looks
+    /// it.</summary>
+    private static bool Sweepable(string name) => name is not ("GM2/GM2#" or "ExPCM");
+
+    /// <summary>Everything is ticked except what the spike measured a reason against: PCM drum kits, which
+    /// cost 40% of a full sweep's clock for 3.6% of its patches, and the two banks nothing can be captured
+    /// from, which are not ticked because they cannot be. See the class remarks and each row's own
+    /// note.</summary>
+    private static bool TickedByDefault(string name) => Sweepable(name) && name is not "PCMD";
 
     private static string EngineNote(string engine) => engine switch
     {
@@ -348,36 +394,23 @@ public sealed partial class SeedRunViewModel : ViewModelBase
         _ => "",
     };
 
-    /// <summary>Why these two are unticked, with what ticking them costs — which is the number the estimate
-    /// under the plan does not carry.
+    /// <summary>Why these two rows cannot be ticked, said where somebody would otherwise be reaching for the
+    /// tick box.
     ///
-    /// <b>A row the instrument exposes nothing for costs 3.00 s</b>, timed to the millisecond over nine
-    /// consecutive rows on the unit this was measured on: a 1.5 s reply deadline for the tone that never
-    /// arrives, and 1.5 s more to ask the instrument whether it holds anything at all, which is what keeps
-    /// "your instrument does not expose these" from being reported as "these failed". <see cref="SeedPlan"/>
-    /// charges such a row its engine's capture rate instead, so the estimate is short by about 32 minutes
-    /// when both of these are ticked. The honest place for that number is here, beside the tick, where
-    /// somebody is deciding — and not in the planner, which would have to be told which banks are
-    /// unavailable, when the whole design discovers that and never assumes it.
+    /// <b>It says the mechanism and not the measurement.</b> The rows are greyed, so the only question left
+    /// is why — and "nothing was captured from these on the machine this was written about" invites a user to
+    /// wonder whether theirs differs, when the answer is that no INTEGRA-7 exposes a temporary tone for a tone
+    /// it will not let you edit. See <see cref="Sweepable"/> for how that was established.
     ///
-    /// <b>Both sentences are about this unit rather than about the banks.</b> Another instrument may answer
-    /// for rows this one does not, and then neither the emptiness nor the 32 minutes is true of it.</summary>
-    private static string BankNote(string bank) => bank switch
-    {
-        "GM2/GM2#" =>
-            "Not capturable on the instrument this was measured on: the part accepts the selection and then "
-            + "exposes no tone at all, on any engine. Establishing that again costs about 3 seconds a patch "
-            + "on that unit, so roughly 13 minutes for this bank — time the estimate below does not allow "
-            + "for, because it charges every row as though it captured. Tick it to find out whether yours "
-            + "differs.",
-        "ExPCM" =>
-            "Not capturable on the instrument this was measured on: the part accepts the selection and then "
-            + "exposes no tone at all, on any engine. Establishing that again costs about 3 seconds a patch "
-            + "on that unit, so roughly 27 minutes for this bank — time the estimate below does not allow "
-            + "for, because it charges every row as though it captured. Tick it to find out whether yours "
-            + "differs.",
-        _ => "",
-    };
+    /// <b>No cost is quoted any more.</b> It used to say what ticking these would spend — roughly 13 minutes
+    /// for GM2 and 27 for ExPCM, at the 3.00 s a silent row was timed at — because that was the number
+    /// somebody weighing the tick needed and the estimate under the plan does not carry it. Nobody is weighing
+    /// anything here now, and a price on a thing that is not for sale is only noise on a panel that already
+    /// asks a lot of its reader.</summary>
+    private static string BankNote(string bank) => Sweepable(bank)
+        ? ""
+        : "Cannot be swept: these tones cannot be edited, so the instrument exposes no temporary tone for a "
+          + "capture to read. The part accepts the selection and then answers nothing, on any engine.";
 
     /// <summary>Ask the folder what it already holds and the instrument what its slots hold. Both are what
     /// <see cref="SeedPlan.Build"/> needs and neither can be asked on a tick: one reads a directory of up to
@@ -628,9 +661,11 @@ public sealed partial class SeedRunViewModel : ViewModelBase
     ///
     /// <b>Three endings and three sentences.</b> It finished; the user stopped it; or the instrument stopped
     /// it, which is neither of the other two and names the loadout it refused. <b>Unavailable is a count and
-    /// not a failure</b> -- it is 13% of a full sweep on the measured unit and means the instrument holds no
-    /// tone for those rows, so calling it a failure would send a user hunting a fault they do not have.
-    /// </summary>
+    /// not a failure</b> -- it means the part was holding nothing for those rows to capture, so calling it a
+    /// failure would send a user hunting a fault they do not have. It also says what that usually is, because
+    /// the two commonest causes are both things the user can act on and neither is obvious from a bare count:
+    /// a board that is not in a slot, and a patch the chosen part cannot hold. (The user's own Studio Set had
+    /// a part pointing at an ExSN3 patch with no ExSN3 loaded, which is exactly this.)</summary>
     private void Say(SeedOutcome? outcome, string? unstarted)
     {
         if (outcome is null)
@@ -652,8 +687,9 @@ public sealed partial class SeedRunViewModel : ViewModelBase
                 : $"The sweep finished. {written:n0} patch{(written == 1 ? " is" : "es are")} in your library.";
 
         if (outcome.Unavailable.Count > 0)
-            head += $" {outcome.Unavailable.Count:n0} exposed no tone on your instrument, which is what the " +
-                    "GM2 and ExPCM banks do and is not a fault.";
+            head += $" {outcome.Unavailable.Count:n0} exposed no tone on your instrument — usually an " +
+                    "expansion board that is not loaded, or a patch that part cannot hold — which is not a " +
+                    "fault and stopped nothing.";
 
         if (outcome.Failed.Count > 0)
         {
