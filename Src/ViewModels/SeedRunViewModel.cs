@@ -345,7 +345,17 @@ public sealed partial class SeedRunViewModel : ViewModelBase
         var presets = _presets();
         // GroupBy keeps first-appearance order, and the table's order is already the useful one: PRST, GM2,
         // the ExSN boards, the twelve SRX boards, ExPCM -- and SN-A, SN-S, SN-D, PCMS, PCMD.
-        Sync(Engines, presets.Select(preset => preset.ToneTypeStr), EngineNote);
+        // An engine counts only the rows a tick could actually reach, which means leaving out the 796 that
+        // live in the two banks nothing can be captured from. Counting them would put a number beside PCMS
+        // that no combination of ticks on this screen can produce -- the same defect as a skip line that
+        // says "5 of them" about five patches which are not among the count above it, and it was caught the
+        // same way, by adding up what the screen claimed.
+        //
+        // The banks are counted whole, deliberately. "GM2/GM2# 265 patches" next to the sentence saying why
+        // it cannot be swept tells the user how much the instrument holds that this feature will not reach,
+        // which is worth knowing; an unsweepable bank reading zero would look like an empty bank.
+        Sync(Engines, presets.Where(preset => Sweepable(preset.ToneBankStr)).Select(preset => preset.ToneTypeStr),
+            EngineNote);
         Sync(Banks, presets.Select(preset => preset.ToneBankStr), BankNote);
     }
 
@@ -388,7 +398,11 @@ public sealed partial class SeedRunViewModel : ViewModelBase
 
     private static string EngineNote(string engine) => engine switch
     {
-        "PCMD" => "22 minutes and 137 MB for 216 kits on the instrument this was measured on — 40% of a full "
+        // 188, not the 216 the spike measured: 28 of the table's PCM drum kits are GM2 or ExPCM rows, and
+        // those cannot be swept at all. Rescaled from the measurement rather than re-measured -- 6.018 s and
+        // 137 MB per 216 kits, so 19 minutes and 119 MB for the 188 a tick can reach. The two percentages
+        // survive the rescaling because the rows leaving the numerator leave the denominator with them.
+        "PCMD" => "19 minutes and 119 MB for 188 kits on the instrument this was measured on — 40% of a full "
                   + "sweep's time for 3.6% of its patches, because a kit reads all 88 partial blocks whether "
                   + "or not they hold anything.",
         _ => "",
