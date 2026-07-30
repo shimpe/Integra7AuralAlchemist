@@ -41,6 +41,11 @@
                        MaxWidth="700" />
             <Button Content="Change…" Command="{Binding ChangeFolderAsync}" Padding="8,2" />
             <Button Content="Refresh" Command="{Binding Refresh}" Padding="8,2" />
+            <!-- Beside Change and Refresh because it is the same sort of thing: a question about the folder
+                 rather than about a row. It opens the panel on the right and starts looking straight away —
+                 a panel that opened and then waited to be told to find duplicates would be asking a question
+                 the user has already answered by pressing this. -->
+            <Button Content="Find duplicates…" Command="{Binding FindDuplicates}" Padding="8,2" />
             <TextBlock Text="{Binding Summary}"
                        VerticalAlignment="Center"
                        Foreground="{StaticResource SnMutedTextBrush}" />
@@ -230,22 +235,31 @@
                     BorderThickness="1"
                     CornerRadius="4"
                     Padding="10">
-                <!-- Two panels in the same place, one of them visible: selecting a second row swaps the
-                     single-snapshot editor for the bulk one. Two rather than one panel with two shapes,
-                     because they share no field — a bulk change has no name, no notes and no versions, and
-                     its buttons act on many rows.
+                <!-- Three panels in the same place, one of them visible: selecting a second row swaps the
+                     single-snapshot editor for the bulk one, and Find duplicates swaps either of them for
+                     the duplicate scan. Three rather than one panel with three shapes, because they share no
+                     field — a bulk change has no name, no notes and no versions, its buttons act on many
+                     rows, and the duplicate panel is not about the selection at all.
+
+                     Each flag is a property of its own on the view model rather than a comparison here: a
+                     compiled binding cannot compare a value against a constant, so an enum would need a
+                     converter per panel and would lose the build-time check every other binding gets. The
+                     three are written so that no two can be true — see LibraryViewModel.ShowsDuplicates.
 
                      Each IsVisible sits on a wrapper rather than on the view itself. A DataContext set on an
                      element is what that same element's other bindings resolve against, so IsVisible beside
-                     it would be looking for IsBulkSelection on the panel's own view model: measured, as two
+                     it would be looking for the flag on the panel's own view model: measured, as two
                      AVLN2000s. The wrapper keeps the flag on this view model and the DataContext on the
                      child. -->
                 <Panel>
-                    <Panel IsVisible="{Binding !IsBulkSelection}">
+                    <Panel IsVisible="{Binding ShowsEditor}">
                         <local:LibraryEditorView DataContext="{Binding Editor}" />
                     </Panel>
-                    <Panel IsVisible="{Binding IsBulkSelection}">
+                    <Panel IsVisible="{Binding ShowsBulkEditor}">
                         <local:LibraryBulkEditView DataContext="{Binding BulkEditor}" />
+                    </Panel>
+                    <Panel IsVisible="{Binding ShowsDuplicates}">
+                        <local:DuplicateScanView DataContext="{Binding Duplicates}" />
                     </Panel>
                 </Panel>
             </Border>
