@@ -47,7 +47,17 @@ public class SeedRunTests
         public HashSet<string> Throws { get; } = [];      // preset names whose capture throws
         public HashSet<string> LoadIgnores { get; } = []; // loadouts it accepts and then does not hold
         public HashSet<string> LoadThrows { get; } = [];  // loadouts it refuses outright
+        public bool RestoreThrows { get; set; }           // the Studio Set will not go back
         public int[] Boards { get; set; } = [0, 0, 0, 0];
+
+        /// <summary>Set to have the slots stop answering <i>after</i> the sweep, which fails the verification
+        /// read and nothing else. The reading taken before the first patch is deliberately outside the run's
+        /// try -- a sweep that cannot find out what the slots hold has not started yet and fails there, with
+        /// the instrument untouched -- so a fake that refused both readings would be exercising that path
+        /// instead of this one.</summary>
+        public bool VerificationReadThrows { get; set; }
+
+        private int _reads;
 
         /// <summary>Set to have the <i>first</i> board load cancel the run and abandon itself, which is what
         /// Cancel pressed during a 23-second load looks like from here -- the real implementation polls with
@@ -56,7 +66,12 @@ public class SeedRunTests
         /// instrument back.</summary>
         public CancellationTokenSource? CancelDuringLoad { get; set; }
 
-        public Task<int[]> LoadedBoardsAsync() => Task.FromResult(Boards);
+        public Task<int[]> LoadedBoardsAsync()
+        {
+            if (VerificationReadThrows && ++_reads > 1)
+                throw new SnapshotFormatException("the slots will not answer");
+            return Task.FromResult(Boards);
+        }
 
         public Task LoadBoardsAsync(int[] boards, CancellationToken token)
         {
@@ -93,7 +108,11 @@ public class SeedRunTests
 
         public Task RestoreStudioSetAsync(Integra7Snapshot studioSet)
         {
+            // Recorded before it throws, because the tests below are about the restore having been attempted
+            // rather than about it having worked: a restore that was never reached and one that was refused
+            // are the two states this feature has to keep apart.
             Calls.Add("restore studio set");
+            if (RestoreThrows) throw new SnapshotFormatException("the Studio Set will not load");
             return Task.CompletedTask;
         }
     }
@@ -400,5 +419,128 @@ public class SeedRunTests
             Throws.TypeOf<InvalidOperationException>());
         Assert.That(instrument.Calls[^2], Is.EqualTo("load 7,0,0,0"), "the boards are back");
         Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"), "and so is the Studio Set");
+    }
+
+    /// <summary>A board that will not go back must not also cost the user their Studio Set. The restore
+    /// order is boards first and the adapter gives up on a loadout by throwing after 90 seconds, so a board
+    /// restore left unguarded takes the Studio Set restore underneath it with it -- and the user whose slots
+    /// are stuck, who has a real fault to deal with already, silently loses the sixteen parts as well. They
+    /// are separate attempts for that reason, and the sweep's own report survives both.</summary>
+    [Test]
+    public async Task A_board_restore_that_throws_still_puts_the_studio_set_back()
+    {
+        var instrument = new FakeInstrument { Boards = [7, 0, 0, 0] };
+        instrument.LoadThrows.Add("7,0,0,0"); // the restore's loadout; the sweep's own load still works
+
+        var outcome = await Sweep(instrument, [Preset("On another board", bank: "SRX08")]);
+
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"),
+            "reached even though the load before it threw");
+        Assert.That(outcome.Written, Is.EqualTo(new[] { "On another board [89-64-1].json" }),
+            "and the report of what was swept is not thrown away by the tidying up");
+        Assert.That(outcome.RestoreWarning, Does.Contain("the slots are stuck"), "what the instrument said");
+        Assert.That(outcome.RestoreWarning, Does.Contain("7, 0, 0, 0"),
+            "and the set the user now has to load by hand");
+    }
+
+    /// <summary>And it is not then also reported as slots that disagree. What the adapter throws on is the
+    /// slots never settling, so a reading taken straight afterwards is a mid-flight one -- the device answers
+    /// all zeros while it works -- and the comparison this feature does make is only honest because both
+    /// sides of it are settled readings. Running it here would add a second sentence about a failure already
+    /// named, carrying a number that need not still be true by the time anybody reads it.</summary>
+    [Test]
+    public async Task A_board_restore_that_threw_is_not_also_read_back_and_disagreed_with()
+    {
+        var instrument = new FakeInstrument { Boards = [7, 0, 0, 0] };
+        instrument.LoadThrows.Add("7,0,0,0");
+
+        var outcome = await Sweep(instrument, [Preset("On another board", bank: "SRX08")]);
+
+        Assert.That(outcome.RestoreWarning, Does.Not.Contain("8, 0, 0, 0"),
+            "the sweep's own loadout is still in the slots, and saying so would be a reading of a device "
+            + "that never stopped moving");
+    }
+
+    /// <summary>The Studio Set failing to go back is the more serious of the two restores -- the boards cost
+    /// the parts whose tones lived on them, this costs all sixteen -- and it is still not allowed to destroy
+    /// the report. Fifty minutes of counts describe files that are already on disk, and an exception here
+    /// would be the one part of this failure that actually took something away that a second attempt could
+    /// not get back.</summary>
+    [Test]
+    public async Task A_studio_set_restore_that_throws_still_answers_with_what_was_swept()
+    {
+        var instrument = new FakeInstrument { RestoreThrows = true };
+
+        var outcome = await Sweep(instrument, [Preset("Built in"), Preset("And another")]);
+
+        Assert.That(outcome.Written, Is.EqualTo(new[]
+        {
+            "Built in [89-64-1].json", "And another [89-64-1].json",
+        }));
+        Assert.That(outcome.RestoreWarning, Does.Contain("Studio Set"),
+            "named, because a user told only that 'the restore failed' cannot tell which of the two it was");
+        Assert.That(outcome.RestoreWarning, Does.Not.Contain("expansion boards"),
+            "and named by the warning rather than by accident: the device's own words are quoted into this "
+            + "string, so 'it mentions the Studio Set' is satisfied by the exception alone. This run never "
+            + "touched a slot, so a sentence about the boards is the wrong sentence.");
+        Assert.That(outcome.RestoreWarning, Does.Contain("the Studio Set will not load"), "and what it said");
+    }
+
+    /// <summary>Both failing is still one outcome and one warning, and the Studio Set is the sentence it
+    /// opens with. This string is quite likely the only warning anybody gets before something goes silent
+    /// hours later, and a warning that leads with two lines about expansion slots buries the loss that makes
+    /// every part wrong under the one that makes some of them wrong.</summary>
+    [Test]
+    public async Task Both_restores_failing_gives_one_warning_that_names_the_studio_set_first()
+    {
+        var instrument = new FakeInstrument { Boards = [7, 0, 0, 0], RestoreThrows = true };
+        instrument.LoadThrows.Add("7,0,0,0");
+
+        var outcome = await Sweep(instrument, [Preset("On another board", bank: "SRX08")]);
+
+        Assert.That(outcome.Written, Is.Not.Empty, "one outcome, describing the sweep rather than the mess");
+        Assert.That(outcome.RestoreWarning, Does.Contain("Studio Set"));
+        Assert.That(outcome.RestoreWarning, Does.Contain("expansion boards"));
+        Assert.That(outcome.RestoreWarning!.IndexOf("Studio Set", StringComparison.Ordinal),
+            Is.LessThan(outcome.RestoreWarning!.IndexOf("expansion boards", StringComparison.Ordinal)),
+            "the more serious loss leads");
+    }
+
+    /// <summary>Slots that stop answering are a warning too, and a different one. The load itself converged,
+    /// so what could not be done is the checking -- probably the wire and not the boards -- and telling the
+    /// user their boards did not come back would send them after a fault they do not have. It cannot be an
+    /// exception either: this is read in a <c>finally</c>, where throwing would cost the report a check that
+    /// was only ever a precaution.</summary>
+    [Test]
+    public async Task Slots_that_cannot_be_read_after_the_restore_are_a_warning_and_not_an_exception()
+    {
+        var instrument = new FakeInstrument { Boards = [7, 0, 0, 0], VerificationReadThrows = true };
+
+        var outcome = await Sweep(instrument, [Preset("On another board", bank: "SRX08")]);
+
+        Assert.That(outcome.Written, Is.EqualTo(new[] { "On another board [89-64-1].json" }));
+        Assert.That(outcome.RestoreWarning, Does.Contain("could not be read"));
+        Assert.That(outcome.RestoreWarning, Does.Not.Contain("did not come back"),
+            "which is a claim about the slots, and this is a failure to look at them");
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
+    }
+
+    /// <summary>And when the run was already failing, the tidying up does not get to speak instead of it.
+    /// The progress callback throwing is what ends a sweep from outside the per-patch catch, and a restore
+    /// that threw on the way out would replace it -- leaving the user reading about their expansion slots
+    /// when what actually stopped their sweep was the screen. There is no outcome on this path and so no
+    /// warning either, which is the price of the run having failed rather than finished; what matters is
+    /// that both restores were still tried and that the exception is the one the user needs.</summary>
+    [Test]
+    public void A_failed_restore_does_not_replace_what_ended_the_run()
+    {
+        var instrument = new FakeInstrument { Boards = [7, 0, 0, 0], RestoreThrows = true };
+        instrument.LoadThrows.Add("7,0,0,0");
+
+        Assert.That(async () => await Sweep(instrument, [Preset("On another board", bank: "SRX08")],
+                progress: new Reports(_ => throw new InvalidOperationException("the panel has gone"))),
+            Throws.TypeOf<InvalidOperationException>().With.Message.EqualTo("the panel has gone"));
+        Assert.That(instrument.Calls[^2], Is.EqualTo("load 7,0,0,0"), "the boards were tried");
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"), "and so was the Studio Set");
     }
 }

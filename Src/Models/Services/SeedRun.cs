@@ -52,11 +52,12 @@ public sealed record SeedProgress(int Done, int Total, SeedItem Current);
 /// <param name="Unavailable">Presets the instrument exposed no tone for.</param>
 /// <param name="Failed">Presets whose capture or write threw, with the message.</param>
 /// <param name="Cancelled">Whether the run stopped early because it was asked to.</param>
-/// <param name="RestoreWarning">Null when the instrument came back to where it started. Otherwise what
-/// disagreed -- the spec asks for the restore to be verified by reading back rather than assumed, and a
-/// user whose boards did not come back needs to be told rather than left to find out when a part goes
-/// silent. Carried rather than thrown: it is discovered in a finally, where throwing would replace whatever
-/// the run was already reporting.</param>
+/// <param name="RestoreWarning">Null when the instrument came back to where it started. Otherwise every way
+/// in which it did not, in one string -- a restore that threw as well as one that was accepted and then
+/// disagreed with when the slots were read back, because the spec asks for the restore to be verified rather
+/// than assumed and a user whose boards did not come back needs to be told rather than left to find out when
+/// a part goes silent. Carried rather than thrown: it is discovered in a finally, where throwing would
+/// replace whatever the run was already reporting.</param>
 /// <param name="StoppedEarly">Non-null when the sweep gave up before the end of the plan for a reason that
 /// was not the user's -- in practice a loadout the instrument refused. Separate from
 /// <paramref name="Cancelled"/> because "you stopped this" and "the instrument stopped this" are different
@@ -231,6 +232,24 @@ public static class SeedRun
     /// changes anything, and a sweep of built-in banks alone never touched a slot -- so sending one anyway
     /// would be 23 seconds spent undoing nothing, on the runs that are otherwise the quickest.
     ///
+    /// <b>Nothing in here may throw, and neither restore may cancel the other's attempt.</b> This is called
+    /// from a finally, so an exception out of it destroys the <see cref="SeedOutcome"/> the run was about to
+    /// return -- fifty minutes of counts describing files that are already on disk -- and, when the run was
+    /// already failing, replaces whatever ended the sweep with a complaint about the tidying up. The third
+    /// consequence is the worst and is the reason the two steps are separately guarded rather than merely
+    /// wrapped: <see cref="ISeedInstrument.LoadBoardsAsync"/> gives up on a loadout by throwing, and an
+    /// unguarded board load takes the Studio Set restore below it with it -- so a slot that will not come
+    /// back would silently also cost the user the Studio Set they never offered up. Each step is therefore
+    /// attempted whatever the one before it did, and everything that went wrong is folded into the returned
+    /// warning. The order is unchanged: the boards are still sent first, because the reason for that order
+    /// holds whether or not the load works.
+    ///
+    /// <b>The Studio Set leads the warning.</b> Losing the boards costs the parts whose tones lived on them;
+    /// losing the Studio Set costs all sixteen, and it is the sentence that must not be skimmed past -- a
+    /// warning opening with two lines about expansion slots buries the larger loss under the smaller one.
+    /// Each sentence says what the instrument is holding now and what to do about it, because this string is
+    /// quite likely the only warning anybody gets before a part goes silent hours later.
+    ///
     /// <b>Verified by reading back, and this is the one read-back comparison that is legitimate.</b> The
     /// device rewrites a loadout it is sent -- (19,0,0,0) comes back as (19,20,21,22) -- so checking a load
     /// against the request is the trap the spike walked into, and <see cref="ISeedInstrument.LoadBoardsAsync"/>
@@ -239,23 +258,77 @@ public static class SeedRun
     /// convergence with convergence. Compared as a set of the non-zero values, which is how
     /// <see cref="SeedPlan.Build"/> decides a board is available: which slot holds a board decides nothing,
     /// and a warning that fired because the device chose a different slot is a warning that would be ignored
-    /// the second time it appeared.</summary>
+    /// the second time it appeared.
+    ///
+    /// <b>And skipped when the load threw</b>, for the same reason it is trustworthy when the load did not.
+    /// What the adapter throws on is the slots never settling, so a reading taken afterwards is a mid-flight
+    /// one -- the device reports all zeros while it works -- and comparing that against a settled set is
+    /// convergence against a device still moving, the very comparison this one is careful not to be. It
+    /// would add a second sentence about a failure already reported, carrying a number that need not still
+    /// be true when it is read.</summary>
     private static async Task<string?> PutBackAsync(ISeedInstrument instrument, Integra7Snapshot studioSet,
         int[] boardsBefore, bool loadedBoards)
     {
-        // Explicitly uncancellable: this runs on the cancel path as well, and handing it the run's token
-        // would abandon the restore at the one moment it is most needed. That is also why the Studio Set
-        // restore below takes no token at all.
-        if (loadedBoards) await instrument.LoadBoardsAsync(boardsBefore, CancellationToken.None);
-        await instrument.RestoreStudioSetAsync(studioSet);
+        List<string> boardTrouble = [];
+        var boardsSettled = false;
 
-        if (!loadedBoards) return null;
+        if (loadedBoards)
+        {
+            try
+            {
+                // Explicitly uncancellable: this runs on the cancel path as well, and handing it the run's
+                // token would abandon the restore at the one moment it is most needed. That is also why the
+                // Studio Set restore below takes no token at all.
+                await instrument.LoadBoardsAsync(boardsBefore, CancellationToken.None);
+                boardsSettled = true;
+            }
+            catch (Exception e)
+            {
+                // The device's own words are parenthesised rather than trailing, so that a message which
+                // does not end in a full stop -- and nothing here controls how they end -- cannot run into
+                // the sentence that says what to do about it.
+                boardTrouble.Add(
+                    $"The expansion boards could not be put back ({e.Message}). They held "
+                    + $"{Slots(boardsBefore)} before the sweep and the slots may now hold anything -- load "
+                    + "that set yourself before playing a part whose tone lives on one of them.");
+            }
+        }
 
-        var now = await instrument.LoadedBoardsAsync();
-        return Available(now).SetEquals(Available(boardsBefore))
-            ? null
-            : $"The expansion board slots did not come back. They held {Slots(boardsBefore)} before the "
-              + $"sweep; the instrument now reports {Slots(now)}.";
+        string? studioSetTrouble = null;
+        try
+        {
+            await instrument.RestoreStudioSetAsync(studioSet);
+        }
+        catch (Exception e)
+        {
+            studioSetTrouble =
+                $"Your Studio Set was not put back ({e.Message}). The instrument is still holding what the "
+                + "sweep left on it, so every part is wrong until you select your own Studio Set again.";
+        }
+
+        if (boardsSettled)
+        {
+            try
+            {
+                var now = await instrument.LoadedBoardsAsync();
+                if (!Available(now).SetEquals(Available(boardsBefore)))
+                    boardTrouble.Add(
+                        $"The expansion board slots did not come back. They held {Slots(boardsBefore)} "
+                        + $"before the sweep; the instrument now reports {Slots(now)}.");
+            }
+            catch (Exception e)
+            {
+                // The load itself converged, so what is reported is a check that could not be made rather
+                // than a restore that failed: on this path the slots are probably right and the wire is not,
+                // and telling the user their boards did not come back would send them after the wrong fault.
+                boardTrouble.Add(
+                    "The expansion boards were sent back, but the slots could not be read to confirm it "
+                    + $"({e.Message}). They held {Slots(boardsBefore)} before the sweep.");
+            }
+        }
+
+        List<string> problems = studioSetTrouble is null ? boardTrouble : [studioSetTrouble, .. boardTrouble];
+        return problems.Count == 0 ? null : string.Join(" ", problems);
     }
 
     /// <summary>The boards a set of slot values makes available. Off is 0, which is not a board -- the same
