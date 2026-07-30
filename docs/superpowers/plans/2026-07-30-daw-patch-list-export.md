@@ -22,7 +22,7 @@ and write the bytes.
 
 Read this before writing anything. Every number here came from the real files, and two of them are traps.
 
-`Src/Assets/Presets.csv` has **6,022 rows** and this header:
+`Src/Assets/Presets.csv` has **6,023 data rows** and this header:
 
 ```
 "Tone Type","Tone Bank","No.","Tone Name","MSB","LSB","PC","Category"
@@ -33,12 +33,18 @@ Read this before writing anything. Every number here came from the real files, a
 `SN-S`, `SN-D`, `PCMS`, `PCMD`), `ToneBankStr` (`PRST`, `GM2/GM2#`, `ExSN1`…`ExSN6`, `SRX01`…`SRX12`,
 `ExPCM`), `Name`, `Msb`, `Lsb`, `Pc`, `CategoryStr`, and `InternalUserDefinedStr` (`INT` or `USR`).
 
+(**6,023, not 6,022** — corrected 2026-07-30 after review, and the off-by-one is worth knowing because every
+later count in this plan is built on it. The file ends without a trailing newline, so `wc -l` counts 6,023
+newline characters for 6,024 lines and the header gets subtracted from the wrong number. Measured through
+the builder itself: 6,023 presets in, 6,023 patches out, 0 skipped.)
+
 **Trap 1: `Pc` is 1-based.** The CSV's range is **1 to 128**, because that is how Roland prints a tone list.
 Every DAW format wants the byte that goes on the wire, which is **0 to 127**. The conversion happens **once**,
 in the builder, and is tested there. A writer that subtracts one is a writer that will eventually be joined
 by one that forgot.
 
-**Trap 2: two patches share one address.** In the GM2 bank, MSB 121 / LSB 0 / PC 116 carries **both**
+**Trap 2: two patches share one address.** In the GM2 bank, MSB 121 / LSB 0 / PC 116 — **program 115** once
+trap 1 is applied, and that is the number everything downstream of the builder says — carries **both**
 `Woodblock` (No. 0206) and `Castanets` (No. 0207). That is why bank 121/0 has 129 rows for 128 programs. It
 is in the instrument's own data, it is not a parsing error, and every one of the four formats has a different
 way of quietly mangling it. Decided here: **the list keeps both, in document order, and reports the
@@ -46,7 +52,15 @@ collision**; the writers emit both faithfully; the export tells the user it happ
 to make a file look tidy is the one outcome that is not allowed.
 
 **Banks.** There are **75 distinct `(MSB, LSB)` pairs** in the factory data, and each maps to exactly one
-`(ToneTypeStr, ToneBankStr)` — verified across all 6,022 rows. The largest bank has 129 rows, the smallest 1.
+`(ToneTypeStr, ToneBankStr)` — verified across all 6,023 rows. The largest bank has 129 rows, the smallest 1.
+
+**Trap 3, found in review of task 1: that mapping does not go both ways.** No address carries two
+`(type, bank)` pairs, but one `(type, bank)` spans up to ten addresses. `PCMS GM2/GM2#` is ten banks
+(121/0–121/9), `SN-S PRST` nine (95/64–95/72, 1,109 presets), `PCMS PRST` seven; **51 of the 75 banks share
+a name with another**. The CSV survives it by printing MSB and LSB as columns; the other three formats show
+the user a name and nothing else. So a bank's name **ends with its address** — `SN-S PRST (95/64)` — on
+every bank, not only the ambiguous ones, so that a name never depends on which other banks were exported
+beside it. See `PatchListSource.NameOf`, which is the only place this is decided.
 
 **User memory.** `AddUserDefinedPresets` appends presets with `InternalUserDefinedStr == "USR"` at MSB 86–89
 with LSB 0 or 1, which never collides with the factory banks (factory PRST banks sit at LSB 64+). Their
@@ -114,14 +128,14 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 | --- | --- |
 | `Src/Models/Services/PatchList.cs` | The records: `PatchEntry`, `PatchBank`, `PatchList`. What a patch list *is*, with no opinion about any format. |
 | `Src/Models/Services/PatchListSource.cs` | Presets in, `PatchList` out. Owns the 1-based to 0-based conversion, the bank naming, the ordering and the collision report. The only place that knows what an `Integra7Preset` is. |
-| `Src/Models/Services/IPatchListWriter.cs` | `Label`, `Extension`, `Write(PatchList)`. Four implementations and one list of them. |
+| `Src/Models/Services/IPatchListWriter.cs` | `Label`, `Extension`, `WantsByteOrderMark`, `Write(PatchList)`. Four implementations and one list of them. |
 | `Src/Models/Services/CsvPatchListWriter.cs` | The fallback, and the one whose escaping rule is quoting and doubling. |
 | `Src/Models/Services/ReabankPatchListWriter.cs` | Reaper. The only format with **no escaping mechanism at all**, so the only one that sanitises. |
 | `Src/Models/Services/CubasePatchListWriter.cs` | Steinberg MIDI device XML. |
 | `Src/Models/Services/MidnamPatchListWriter.cs` | The MMA MIDINameDocument, read by Ardour and Mixbus. |
 | `Src/ViewModels/PatchListExportViewModel.cs` | The format choice, as a dialog view model. |
 | `Src/Views/PatchListExportDialog.axaml` (+`.axaml.cs`) | That dialog. |
-| `Tests/TestPatchListSource.cs`, `TestCsvPatchListWriter.cs`, `TestReabankPatchListWriter.cs`, `TestCubasePatchListWriter.cs`, `TestMidnamPatchListWriter.cs` | One fixture list, shared, exercising `&`, `"`, `,`, a newline and a non-ASCII name against every writer. |
+| `Tests/TestPatchListSource.cs`, `Tests/TestPatchListWriters.cs` | One fixture list, shared, exercising `&`, `"`, `,`, a newline and a non-ASCII name against every writer. All four writers' tests share the one file, as tasks 2–5 say; the five separate files this row used to name were never created. |
 
 Modified: `Src/ViewModels/MainWindowViewModel.cs` (the callback and the two interactions),
 `Src/Views/MainWindow.axaml.cs` (the save dialog's file types), `Src/ViewModels/LibraryViewModel.cs` and
@@ -134,6 +148,14 @@ Modified: `Src/ViewModels/MainWindowViewModel.cs` (the callback and the two inte
 **Files:**
 - Create: `Src/Models/Services/PatchList.cs`, `Src/Models/Services/PatchListSource.cs`
 - Test: `Tests/TestPatchListSource.cs`
+
+> **Shipped, then amended after review (2026-07-30). Two things below are superseded; the source is the
+> record.** Bank names now end with their address (trap 3 above), so `NameOf` returns `SN-A ExSN1 (89/96)`
+> and `PCMS USER (87/0)`, not the bare strings the listings in steps 1 and 4 show. And three tests were
+> added that the listing does not have: the two range boundaries (`Pc` 128 kept at program 127, `Pc` 0 and
+> 129 left out) and one that two banks of the same engine and bank are told apart. The boundaries earn
+> their place — with only the tests below, changing the range check to read `Pc` instead of `Pc - 1` drops
+> one patch from each of the 41 banks that end on PC 128 and every test still passes.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -298,7 +320,7 @@ public sealed record PatchBank(int Msb, int Lsb, string Name, IReadOnlyList<Patc
 /// be said out loud.</summary>
 /// <param name="Device">What the file calls the instrument.</param>
 /// <param name="Collisions">Addresses carrying more than one patch, in words. The instrument's own data
-/// has one: MSB 121 / LSB 0 / PC 116 is both Woodblock and Castanets.</param>
+/// has one: MSB 121 / LSB 0, program 115, is both Woodblock and Castanets.</param>
 /// <param name="Skipped">Patches left out because their program cannot go on the wire.</param>
 public sealed record PatchList(
     string Device,
@@ -377,7 +399,8 @@ public static class PatchListSource
     }
 
     /// <summary>What to call a bank, taken from any one of its members because an address is one engine's
-    /// one bank -- verified across all 6,022 rows of the factory data.
+    /// one bank -- verified across all 6,023 rows of the factory data. (Superseded: see the note at the
+    /// top of this task. The converse does not hold and the address is now part of the name.)
     ///
     /// <b>User memory is asked about first.</b> The presets built from the instrument's user-tone names
     /// carry a <c>ToneBankStr</c> of "PRST", which the source that builds them marks as wrong and is: they
@@ -996,17 +1019,23 @@ On `MainWindowViewModel`:
         if (writer is null) return;
 
         var list = PatchListSource.From(PartViewModels[1].AllPresets);
-        // ... save dialog, File.WriteAllText with new UTF8Encoding(false), status line
+        // ... save dialog, File.WriteAllText with new UTF8Encoding(writer.WantsByteOrderMark), status line
     }
 ```
 
-Write the file with `new UTF8Encoding(false)` — **no byte-order mark**. Reaper's parser and several midnam
-readers treat a leading BOM as part of the first token, and the failure is a bank that does not appear.
+**Ask the writer about the byte-order mark; do not decide it here.** `new UTF8Encoding(writer
+.WantsByteOrderMark)` — the flag was added to `IPatchListWriter` in task 2 for this line. The four formats
+disagree and both failures are silent: Reaper's parser and several midnam readers treat a leading BOM as
+part of the first token, and the symptom is a bank that does not appear; Excel opening a BOM-less UTF-8
+`.csv` by double-click falls back to the system code page and mangles the 84 factory names that carry a
+curly apostrophe. Only `CsvPatchListWriter` answers `true`.
 
 **Say what could not be represented.** If `list.Collisions` or `list.Skipped` is non-empty, the status line
-must say so — something the user can act on, naming the first: *"Exported 6,022 patches. 1 address carries
-two patches (MSB 121 LSB 0 program 116: Woodblock, Castanets); your DAW will show one of them."* This is the
-whole reason `PatchList` carries those lists.
+must say so — something the user can act on, naming the first: *"Exported 6,023 patches. 1 address carries
+two patches (MSB 121 LSB 0 program 115: Woodblock, Castanets); your DAW will show one of them."* This is the
+whole reason `PatchList` carries those lists. **Program 115, not 116**: the builder's collision strings are
+in wire numbering like everything else it produces, and a status line that says 116 disagrees with the file
+it is describing.
 
 - [ ] **Step 5: The button**
 
@@ -1037,16 +1066,21 @@ recent example). Write the exports to the scratchpad, never beside the user's li
 
 - [ ] **Step 2: Check the files, not the dialog**
 
-1. Every file exists, is UTF-8 **without** a BOM, and is non-empty.
-2. The `.reabank` has 75 `Bank` lines and 6,022 patch lines; no line is a bare word; the first bank is
-   `Bank 86 64 PCMD PRST` (lowest address in the factory data).
+1. Every file exists and is non-empty. The `.reabank`, the Cubase XML and the `.midnam` are UTF-8
+   **without** a BOM; the `.csv` is UTF-8 **with** one (first three bytes `EF BB BF`), which is
+   `WantsByteOrderMark` doing its job and not a defect.
+2. The `.reabank` has 75 `Bank` lines and 6,023 patch lines; no line is a bare word; the first bank is
+   `Bank 86 64 PCMD PRST (86/64)` (lowest address in the factory data — the parenthesised address is part
+   of the bank's name, see trap 3).
 3. The XML files parse — `[xml](Get-Content …)` in PowerShell, which is a real parser and will reject an
    unescaped `&`.
-4. The `.csv` opens with 6,023 lines counting the header, and every quoted field closes.
+4. The `.csv` opens with 6,024 lines counting the header, and every quoted field closes.
 5. The program numbers start at **0**, not 1: grep the `.reabank` for `^0 Full Grand 1` in bank `89 64`.
-6. `Woodblock` and `Castanets` both appear in every file, and the status line said so.
-7. A name with a non-ASCII character survives the round trip — find one in the CSV first, then look for it
-   in the other three.
+6. `Woodblock` and `Castanets` both appear in every file, and the status line said so — naming
+   **program 115**, which is the same number the files carry.
+7. A name with a non-ASCII character survives the round trip — one of the 84 carrying a curly apostrophe
+   (`‘76 Pure`, `‘73 Tine`) is the case to pick, since those are the names the CSV's byte-order mark exists
+   for. Find it in the CSV first, then look for it in the other three.
 
 - [ ] **Step 3: The dialog itself** — cancelling the format picker writes nothing; cancelling the save dialog
 writes nothing and says nothing alarming; picking each format suggests a file name with the right extension.
