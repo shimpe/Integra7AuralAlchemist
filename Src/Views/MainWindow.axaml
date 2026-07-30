@@ -767,20 +767,26 @@
                 BorderBrush="{StaticResource SnStatusBarBorderBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="10,4,10,10">
-            <!-- Two columns, and this is not cosmetic. Everything here used to sit in one horizontal
+            <!-- A WrapPanel, and this is not cosmetic. Everything here used to sit in one horizontal
                  StackPanel, which does not shrink its children and does not scroll: it lays them out at
                  their full width and the row simply clips whatever runs past the edge, with no ellipsis
                  and no indication that anything was lost. The status line is the long child, so it was
                  the one cut — measured at 63 of 309 characters on a 1750px window, mid-word, so an
-                 export's collision warning was never delivered at all. That is the same silent-clipping
-                 failure the library's filter bar and folder row are WrapPanels to escape.
+                 export's collision warning was never delivered to anybody.
 
-                 A star column instead: the controls keep their natural width, the status gets what is
-                 left, and it trims with an ellipsis so a cut reads as "there is more" rather than as a
-                 rendering fault. What was cut is on the tooltip. -->
-            <Grid ColumnDefinitions="Auto,*">
-                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12"
-                            VerticalAlignment="Center">
+                 A star column was tried first and was not enough. The buttons, the rule and the device
+                 string need about 1099px between them, so the column that was left held 37 characters at
+                 1400px, 10 at 1200px — and at 1100px, the width this project treats as an ordinary narrow
+                 window, it was laid out to nothing at all. A control laid out to nothing has no tooltip
+                 either, so the message stopped being merely truncated and became undeliverable.
+
+                 So the row wraps, which is the answer the library's filter bar and folder row already
+                 reached: when the status no longer fits beside the buttons it takes a line of its own and
+                 gets the whole width, and if the buttons themselves stop fitting they wrap too instead of
+                 being clipped off the edge. The bar is taller while a long message is up, which is the
+                 trade — a status bar that grows by a line beats one that cannot be read. -->
+            <WrapPanel Orientation="Horizontal" ItemSpacing="12" LineSpacing="6"
+                       VerticalAlignment="Center">
                 <!-- Undo lives here, in window chrome, and not in the Parameters tab's toolbar where it
                      started: there is one journal for the whole application, but Parameters, SRX Loader
                      and Motional Surround are sibling tabs, so a button inside one of them is missing
@@ -928,32 +934,40 @@
                     Panic!
                 </Button>
 
-                    <TextBlock Text="{Binding MidiDevices}" VerticalAlignment="Center" />
-                    <!-- Progress of the user tone names, which load after the window is usable.
-                         Collapses to nothing once they are in. -->
-                    <TextBlock Text="{Binding BackgroundInfo}" VerticalAlignment="Center"
-                               Foreground="{StaticResource SnMutedTextBrush}"
-                               IsVisible="{Binding BackgroundInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                </StackPanel>
+                <TextBlock Text="{Binding MidiDevices}" VerticalAlignment="Center" />
+                <!-- Progress of the user tone names, which load after the window is usable.
+                     Collapses to nothing once they are in. -->
+                <TextBlock Text="{Binding BackgroundInfo}" VerticalAlignment="Center"
+                           Foreground="{StaticResource SnMutedTextBrush}"
+                           IsVisible="{Binding BackgroundInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
 
                 <!-- The status channel, and the whole window's: every tab writes here — the Studio Set and
-                     tone exports, the library, the compare tab, the morph pad, auditioning. It is last and
-                     it is the star column because it is the only child whose length is not known in
-                     advance; the messages run from "Put the part back as it was." to three sentences about
-                     an export.
+                     tone exports, the library, the compare tab, the morph pad, auditioning. It is last
+                     because it is the only child whose length is not known in advance; the messages run
+                     from "Put the part back as it was." to two sentences about an export.
 
                      Two TextBlocks over the same string rather than one: a failure has to be visibly wrong,
-                     and a success shown in the same red would read as one. They share this cell because
-                     only one of them is ever visible.
+                     and a success shown in the same red would read as one. They share this Panel because
+                     only one of them is ever visible, so the pair takes one slot in the row.
 
-                     A ToolTip here does not break the rule the three buttons above obey, which is against
-                     tooltips on controls a user clicks repeatedly — nobody clicks a status line. It is
-                     wrapped and width-limited rather than left as one long strip, both so that it is
-                     readable and so that a wide tip anchored at the right of the row cannot be pushed back
-                     across the Undo and Compare buttons at the left of it. -->
-                <Panel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                     Wrapping to at most two lines, then trimming. A long message asks for more width than
+                     is left beside the buttons, so it takes a line of its own and then uses the whole of
+                     it: two lines of a 1100px-wide row is around 260 characters, which is longer than
+                     anything this application says. MaxLines is what stops an exception message from
+                     growing the status bar without limit, and the ellipsis at the end of the second line
+                     is what says there is more.
+
+                     A ToolTip carries the rest. It does not break the rule the three buttons above obey,
+                     which is against tooltips on controls a user clicks repeatedly — nobody clicks a
+                     status line, and reaching a button from here means moving the pointer off this text,
+                     which dismisses the tip before the click. It is wrapped and width-limited rather than
+                     left as one long strip, so that it renders as a small block near the pointer instead
+                     of a full-width bar that the screen edge would push back across the buttons. It is
+                     also now the fallback rather than the delivery: at every width down to about 950px
+                     the whole message is on screen without hovering at all. -->
+                <Panel VerticalAlignment="Center">
                     <TextBlock Text="{Binding SnapshotStatus}" VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
                                Foreground="{StaticResource SnMutedTextBrush}">
                         <ToolTip.Tip>
                             <TextBlock Text="{Binding SnapshotStatus}" TextWrapping="Wrap" MaxWidth="520" />
@@ -969,7 +983,7 @@
                         </TextBlock.IsVisible>
                     </TextBlock>
                     <TextBlock Text="{Binding SnapshotStatus}" VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"
                                Foreground="{StaticResource SnErrorTextBrush}">
                         <ToolTip.Tip>
                             <TextBlock Text="{Binding SnapshotStatus}" TextWrapping="Wrap" MaxWidth="520" />
@@ -985,7 +999,7 @@
                         </TextBlock.IsVisible>
                     </TextBlock>
                 </Panel>
-            </Grid>
+            </WrapPanel>
         </Border>
     </Grid>
 </Window>
