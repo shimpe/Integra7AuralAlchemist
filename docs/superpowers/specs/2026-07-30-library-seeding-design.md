@@ -304,11 +304,23 @@ That observation was not wasted either: chasing it found that the instrument **s
 sent while it is still loading**, which had been leaving a user's boards evicted whenever a sweep was
 cancelled mid-load. See `SeedSettling` and `SeedInstrument.LoadBoardsAsync`.
 
+## Responding normally is the readiness signal
+
+**A board's samples are usable the moment the instrument starts responding normally** — confirmed by the
+owner on 2026-07-30. So there is no wait to add after the slots settle, and a board round may begin
+capturing as soon as they do, which is what it does.
+
+This is one fact about the instrument rather than three, and it is worth stating that way because the whole
+design already rests on it in two other places without having said so. **The INTEGRA-7 withholds replies
+while it is working.** That is why `CaptureToneAsync` is its own settle check — during a tone load the
+device withholds the read rather than answering with the outgoing tone — and it is why an idle instrument
+answers the slot query in 2 to 5 ms while a loading one answers nothing at all and the read runs out its
+1.5-second deadline. Silence means busy, everywhere; a normal answer means ready, everywhere.
+
+`SeedSettling` is therefore a readiness signal and not merely a slot-table one: three consecutive readings
+the device actually answered cannot happen while it is still loading. Nothing else is needed, and a
+readiness poll layered on top of it would be polling for a second time for the thing it already establishes.
+
 ## Open questions
 
-**Whether a board's samples are usable the instant its slots become readable.** The slot query reports the
-slot table and nothing else, so nothing establishes that the two moments coincide — and every board round
-starts capturing as soon as the slots settle. If they do not coincide, patches early in a round would be
-recorded as unavailable when they are merely early. This is independent of the GM2/ExPCM question above,
-which it no longer bears on, and it is live on the SRX and ExSN banks that do work. Being measured with a
-bank known to capture.
+None.
