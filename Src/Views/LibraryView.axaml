@@ -56,9 +56,28 @@
              ItemWidth is left unset so each control keeps its own width. -->
         <WrapPanel Grid.Row="1" Orientation="Horizontal" ItemSpacing="8" LineSpacing="6"
                    VerticalAlignment="Center">
+            <!-- Enter runs the deep search: it is the one thing on this bar that is not live, because it is
+                 the one thing that reads files. The handler is code-behind rather than a KeyBinding on the
+                 box — see LibraryView.axaml.cs for why. -->
             <TextBox Text="{Binding SearchText, Mode=TwoWay}"
                      PlaceholderText="Search names, notes, categories and tags"
+                     KeyDown="OnSearchBoxKeyDown"
                      MinWidth="300" />
+            <!-- The text axis widened to what is inside a patch. It can only ever add rows: the other six
+                 axes still narrow, and the box only changes what the text axis is allowed to match.
+
+                 Ticking it is itself a request to look, and unticking it a request for those rows to go —
+                 both happen because the view model subscribes to this property, not because of anything
+                 here. The button beside it is for the second search: the box stays ticked while the user
+                 retypes, and nothing re-reads the folder until they ask again. Enter in the box does the
+                 same, and is what a typist's hands do; the button is what says the feature is there at all.
+                 It is disabled while the box is clear, because then there is nothing for it to do. -->
+            <CheckBox IsChecked="{Binding SearchInsidePatches, Mode=TwoWay}"
+                      Content="Look inside patches" />
+            <Button Content="Search inside"
+                    Command="{Binding SearchInsideAsync}"
+                    IsEnabled="{Binding SearchInsidePatches}"
+                    Padding="8,2" />
             <ComboBox ItemsSource="{Binding KindLabels}"
                       SelectedItem="{Binding KindLabel, Mode=TwoWay}"
                       MinWidth="120" />
@@ -154,8 +173,22 @@
                             <Grid ColumnDefinitions="28,2*,150,140,80,130,3*">
                                 <TextBlock Grid.Column="0" Text="{Binding FavouriteMark}"
                                            Foreground="{StaticResource SnRatingStarBrush}" />
-                                <TextBlock Grid.Column="1" Text="{Binding Name}"
-                                           TextTrimming="CharacterEllipsis" />
+                                <!-- The name, and under it why this row is here when the name says nothing
+                                     about what was searched for. Under the name rather than in a column of
+                                     its own: it is blank on every row until somebody looks inside a patch,
+                                     and a column wide enough for a parameter path would cost the Tags
+                                     column its width permanently for something usually empty. Collapsed
+                                     when there is nothing to say, or every row would carry a blank second
+                                     line and the list would lose half its rows to whitespace. -->
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="{Binding Name}"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding MatchedInside}"
+                                               Foreground="{StaticResource SnMutedTextBrush}"
+                                               TextTrimming="CharacterEllipsis"
+                                               IsVisible="{Binding MatchedInside,
+                                                   Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
                                 <!-- The kind and the init-tone mark share a column: the mark is set on at
                                      most five rows in the whole library, and a column of its own would be
                                      blank on every other one. The mark is accented rather than muted like

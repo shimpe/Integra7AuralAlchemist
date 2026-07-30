@@ -14,9 +14,11 @@ namespace Integra7AuralAlchemist.ViewModels;
 /// <c>LibraryViewModel.Refresh</c> does after every write. A row that could update itself would be a row that can
 /// disagree with the file, and there is nothing here worth that: the whole list is a few dozen small objects.
 ///
-/// <b>One property is not a projection of the file, and it is the only <c>PropertyChanged</c> plumbing here.</b>
-/// The init-tone mark is not in the snapshot -- it is in the settings -- so it cannot be read off the entry, and
-/// it moves between two rows without either file changing (see <see cref="IsInitTone"/>).
+/// <b>Two properties are not projections of the file, and they are the only <c>PropertyChanged</c> plumbing
+/// here.</b> The init-tone mark is not in the snapshot -- it is in the settings -- so it cannot be read off the
+/// entry, and it moves between two rows without either file changing (see <see cref="IsInitTone"/>). The
+/// deep-search reason is not in the snapshot's head either: it is what a search found <i>inside</i> the file, so
+/// it is knowable only to whoever ran the search (see <see cref="MatchedInside"/>).
 ///
 /// <b>It carries the <see cref="Entry"/> itself</b>, not just its path, because loading a snapshot needs its kind
 /// to know which of the two restore paths to take and the head is where that already is. Reading the file a
@@ -63,6 +65,15 @@ public sealed partial class LibraryEntryViewModel : ViewModelBase
     /// glyphs this list already uses mean favourite and rating, and a third would be one more thing to
     /// learn for a flag at most five rows in the library carry.</summary>
     public string InitMark => IsInitTone ? "init" : "";
+
+    /// <summary>Why this row is on screen when nothing a user can see says why: the parameter inside the patch
+    /// whose value matched the search, as "path = value", or blank for the rows the metadata matched.
+    ///
+    /// Set by the deep search rather than read from the entry, because the head this row is built from is
+    /// exactly the part of the file that does <i>not</i> contain it -- see <c>SnapshotTextScan</c>. Blank on
+    /// every row until somebody ticks "look inside patches", which is why the view collapses it rather than
+    /// leaving a second line on every row of a list that mostly has nothing to say there.</summary>
+    [Reactive] private string _matchedInside = "";
 
     /// <summary>Blank for a Studio Set, which is sixteen parts each with a category of its own and has none.
     /// </summary>
