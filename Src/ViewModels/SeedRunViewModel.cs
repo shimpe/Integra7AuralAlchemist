@@ -393,14 +393,16 @@ public sealed partial class SeedRunViewModel : ViewModelBase
 
         Plan = work.Count == 0
             ? "Nothing to capture."
-            : $"{work.Count:n0} patches, about {About(work.Estimate)}.";
+            : $"{work.Count:n0} patches, {Roughly(work.Estimate)}.";
 
         var already = work.Skipped.Count(skip => skip.Why == SeedSkip.AlreadyInLibrary);
         var empty = work.Skipped.Count(skip => skip.Why == SeedSkip.EmptySlot);
 
         List<string> notes = [];
+        // "Another", because these are not among the count above -- they are the ones it has already had
+        // taken out of it, which is the whole news in this sentence.
         if (already > 0)
-            notes.Add($"{already:n0} of them {(already == 1 ? "is" : "are")} already in your library and " +
+            notes.Add($"Another {already:n0} {(already == 1 ? "is" : "are")} already in your library and " +
                       "will be left alone.");
         if (empty > 0)
             notes.Add($"{empty:n0} user slot{(empty == 1 ? " is" : "s are")} still named INIT and will be " +
@@ -465,8 +467,8 @@ public sealed partial class SeedRunViewModel : ViewModelBase
         string folder)
     {
         UserActionLog.Begin($"sweep {work.Count} patches into '{folder}' on part {PartIndex + 1}");
-        _report($"Sweeping {work.Count:n0} patches into your library. This should take about " +
-                $"{About(work.Estimate)}.", false);
+        _report($"Sweeping {work.Count:n0} patches into your library. This should take " +
+                $"{Roughly(work.Estimate)}.", false);
 
         _cancel = new CancellationTokenSource();
         _latest = null;
@@ -550,7 +552,7 @@ public sealed partial class SeedRunViewModel : ViewModelBase
             var elapsed = _clock.Elapsed;
             var left = _estimate - elapsed;
             ClockLine = left > TimeSpan.Zero
-                ? $"{Clock(elapsed)} gone, about {About(left)} left."
+                ? $"{Clock(elapsed)} gone, {Roughly(left)} left."
                 : $"{Clock(elapsed)} gone, past the estimate of {About(_estimate)}.";
         }
         catch (Exception e)
@@ -603,6 +605,12 @@ public sealed partial class SeedRunViewModel : ViewModelBase
     }
 
     // ---- words --------------------------------------------------------------------------------------------
+
+    /// <summary>A length as a guess, which is what every one of these numbers is. Separate from
+    /// <see cref="About"/> only because "about under a minute" is not a sentence, and the short case is the
+    /// one a user trying a single bank sees first.</summary>
+    private static string Roughly(TimeSpan span) =>
+        span < TimeSpan.FromMinutes(1) ? "under a minute" : $"about {About(span)}";
 
     /// <summary>A length in the units somebody planning an hour of their evening thinks in.</summary>
     private static string About(TimeSpan span)

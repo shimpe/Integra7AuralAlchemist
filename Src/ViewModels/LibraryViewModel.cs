@@ -171,6 +171,10 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// closed by one.</summary>
     private bool _findingDuplicates;
 
+    /// <summary>Whether the seeding panel is up. The same kind of flag as <see cref="_findingDuplicates"/>
+    /// and for the same reason: a question about the whole folder, opened and closed by a button.</summary>
+    private bool _seeding;
+
     /// <summary>Whether a folder is being read right now, so that only one read can be.
     ///
     /// <b>Two searches at once is not a performance question.</b> A held Enter repeats -- Avalonia raises
@@ -188,13 +192,16 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <param name="compareTwo">See <see cref="_compareTwo"/>.</param>
     /// <param name="audition">See <see cref="_audition"/>.</param>
     /// <param name="exportPatchList">See <see cref="_exportPatchList"/>.</param>
+    /// <param name="seeding">See <see cref="Seeding"/>.</param>
     /// <param name="report">See <see cref="_report"/>.</param>
     /// <param name="settingsPath">See <see cref="_settingsPath"/>.</param>
     public LibraryViewModel(Func<LibraryEntry, Task> load, Func<string, Task<string?>> pickFolder,
         Func<string, string, Task<bool>> confirm, Func<LibraryEntry, Task> compare,
         Func<LibraryEntry, LibraryEntry, Task> compareTwo, Func<LibraryEntry, Task> audition,
-        Func<Task> exportPatchList, Action<string, bool> report, string settingsPath)
+        Func<Task> exportPatchList, SeedRunViewModel seeding, Action<string, bool> report,
+        string settingsPath)
     {
+        Seeding = seeding;
         _load = load;
         _pickFolder = pickFolder;
         _confirm = confirm;
@@ -375,34 +382,48 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// </summary>
     public DuplicateScanViewModel Duplicates { get; }
 
-    /// <summary>Which of the three panels the view shows -- one flag each, rather than one value the view
+    /// <summary>The panel that fills this folder from the instrument.
+    ///
+    /// <b>Built by the window and only displayed here.</b> Everything else on this screen is a file
+    /// operation, which is what makes this view model valid with nothing plugged in; a sweep needs the API,
+    /// the domain and the preset list, none of which this object has or should acquire for one button. So it
+    /// arrives whole, the way <c>MainWindowViewModel</c> already hands over every other thing that touches
+    /// the device.</summary>
+    public SeedRunViewModel Seeding { get; }
+
+    /// <summary>Which of the four panels the view shows -- one flag each, rather than one value the view
     /// compares against.
     ///
-    /// <b>Three booleans because there are now three panels, and a boolean can only choose between two.</b>
+    /// <b>Four booleans because there are now four panels, and a boolean can only choose between two.</b>
     /// This was <c>IsBulkSelection</c>, and the view showed the editor on <c>!IsBulkSelection</c>. An enum
     /// would be the tidier model and is unusable here: a compiled binding cannot compare a value against a
     /// constant, so it would need a converter per panel and the check the build performs on every other
-    /// binding in this application would be lost on exactly the three that decide what is on screen.
+    /// binding in this application would be lost on exactly the four that decide what is on screen.
     ///
-    /// <b>Each is written so that no two can be true.</b> The duplicate panel wins outright -- it was asked
-    /// for by name and is about the whole folder, so a click in the list behind it must not take it away
-    /// mid-scan -- and the other two split what is left on the count that used to decide everything. Three
-    /// positive expressions rather than a negation in the view, so that the one place the rule lives is
-    /// here.</summary>
-    public bool ShowsDuplicates => _findingDuplicates;
+    /// <b>Each is written so that no two can be true.</b> The seeding panel wins outright and the duplicate
+    /// panel wins over what is left: both were asked for by name and both are about the whole folder rather
+    /// than about a row, so a click in the list behind either must not take it away mid-run. Seeding outranks
+    /// duplicates because it is the one that can be an hour into writing files, and the other two split what
+    /// remains on the count that used to decide everything. Four positive expressions rather than a negation
+    /// in the view, so that the one place the rule lives is here.</summary>
+    public bool ShowsSeeding => _seeding;
 
-    /// <inheritdoc cref="ShowsDuplicates"/>
-    public bool ShowsBulkEditor => !_findingDuplicates && SelectedEntries.Count > 1;
+    /// <inheritdoc cref="ShowsSeeding"/>
+    public bool ShowsDuplicates => !_seeding && _findingDuplicates;
 
-    /// <inheritdoc cref="ShowsDuplicates"/>
-    public bool ShowsEditor => !_findingDuplicates && SelectedEntries.Count <= 1;
+    /// <inheritdoc cref="ShowsSeeding"/>
+    public bool ShowsBulkEditor => !_seeding && !_findingDuplicates && SelectedEntries.Count > 1;
 
-    /// <summary>Say that which panel is up may have changed. Called from the two things that can move it: the
-    /// selection, and the duplicate panel being opened or closed. All three are raised together every time,
-    /// because working out which of them actually moved would be three conditions that have to agree with the
-    /// three expressions above.</summary>
+    /// <inheritdoc cref="ShowsSeeding"/>
+    public bool ShowsEditor => !_seeding && !_findingDuplicates && SelectedEntries.Count <= 1;
+
+    /// <summary>Say that which panel is up may have changed. Called from the three things that can move it:
+    /// the selection, the duplicate panel being opened or closed, and the seeding panel likewise. All four
+    /// are raised together every time, because working out which of them actually moved would be four
+    /// conditions that have to agree with the four expressions above.</summary>
     private void PanelChanged()
     {
+        this.RaisePropertyChanged(nameof(ShowsSeeding));
         this.RaisePropertyChanged(nameof(ShowsDuplicates));
         this.RaisePropertyChanged(nameof(ShowsBulkEditor));
         this.RaisePropertyChanged(nameof(ShowsEditor));
@@ -1057,6 +1078,33 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <see cref="_exportPatchList"/> -- and the whole gesture, both dialogs and the file, is the window's,
     /// which is also where its outcome is reported.</summary>
     public async Task ExportPatchListAsync() => await _exportPatchList();
+
+    // ---- seeding ------------------------------------------------------------------------------------------
+
+    /// <summary>Open the panel that fills this folder from the instrument, and let it work out what a sweep
+    /// would cost. One gesture rather than two, for the reason <see cref="FindDuplicates"/> is one: the
+    /// button says "seed from instrument", and a panel that then sat there waiting to be told to look at the
+    /// folder and the expansion slots would be withholding the count the user opened it to see.
+    ///
+    /// Nothing awaits it: a button binding cannot, and there is nothing to wait for -- the panel reports its
+    /// own outcome and logs its own failures, exactly as the duplicate scan does.</summary>
+    public void SeedFromInstrument()
+    {
+        UserActionLog.Action("button: Seed the library from the instrument (open)");
+        _seeding = true;
+        PanelChanged();
+
+        _ = Seeding.OpenAsync();
+    }
+
+    /// <summary>Put back whatever was there before. The selection was never touched, so an editor or a
+    /// duplicate report that was up before the panel opened is up again, still describing the same
+    /// thing.</summary>
+    public void CloseSeeding()
+    {
+        _seeding = false;
+        PanelChanged();
+    }
 
     // ---- duplicates ---------------------------------------------------------------------------------------
 
