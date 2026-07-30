@@ -143,6 +143,26 @@ support, printable patch sheets, `.syx` import/export for interchange.
 The DAW plugin is deliberately **not** in this list — see `docs/PLUGIN_FEASIBILITY.md` for why it is
 a different kind of project.
 
+## Not a stage — a startup that cannot hang
+
+**Depends on nothing, and it is not part of Stage 7**, which was set aside. It shares one sentence with
+Stage 7's offline mode and none of its cost.
+
+`Integra7Api.CheckIdentityAsync` is awaited on the startup path with nothing bounding it, and
+`MainWindow` is not shown until it returns. A device that is half present — enumerating, but blocking on
+open — therefore hangs the application indefinitely on a blank screen, with a log that stops at
+`Opening the MIDI ports.` and says nothing further. Hit for real on 2026-07-30, three launches, no window
+within 90 seconds each time; a power cycle of the instrument cleared it.
+
+What it wants: a timeout around the identity check, and a path that **still opens the window** when the
+instrument does not answer. The application is deliberately usable with nothing connected — every editor
+tolerates it, the library and the patch-list export work without a device — so this is the one case where
+a missing instrument is worse than no instrument at all.
+
+The reason this is not Stage 7's offline mode: that item is about editing a snapshot with no instrument
+and pushing it later, which touches far more of the UI. This is about not blocking on a socket, and it
+is a timeout plus one message.
+
 ---
 
 ## What could change this order
