@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Linq;
+using System.Xml.Linq;
 using Integra7AuralAlchemist.Models.Services;
 
 namespace Tests;
@@ -169,6 +171,172 @@ public class ReabankPatchListWriterTests
     public void It_asks_for_no_byte_order_mark()
     {
         IPatchListWriter writer = new ReabankPatchListWriter();
+
+        Assert.That(writer.WantsByteOrderMark, Is.False);
+    }
+}
+
+/// <summary>Steinberg's exported MIDI device setup, which is a generic object graph rather than a schema
+/// about patches: everything is an &lt;obj class="..." ID="..."&gt; carrying &lt;string&gt;, &lt;int&gt;,
+/// &lt;list&gt; and &lt;bin&gt; members, and the patch list is what you get by nesting the right classes.
+/// These tests are written against a real exported file -- see <c>CubasePatchListWriter</c> for which one
+/// and where it came from -- so they pin the shape as Cubase itself writes it, not a shape that reads
+/// nicely.</summary>
+public class CubasePatchListWriterTests
+{
+    private static string Written() => new CubasePatchListWriter().Write(AwkwardPatchList.Build());
+
+    private static XDocument Parsed() => XDocument.Parse(Written());
+
+    /// <summary>The values of one named &lt;string&gt; member, in document order. Every user-visible name in
+    /// this format is one of these, so this is how a test asks what the user will be shown.</summary>
+    private static List<string> Strings(XDocument document, string member) =>
+        document.Descendants("string")
+            .Where(s => (string?)s.Attribute("name") == member)
+            .Select(s => s.Attribute("value")!.Value)
+            .ToList();
+
+    [Test]
+    public void It_is_well_formed_xml()
+    {
+        Assert.DoesNotThrow(() => XDocument.Parse(Written()));
+    }
+
+    /// <summary>The five characters XML reserves, in a patch name. An ampersand alone is what makes an
+    /// unescaped document fail to parse at all, which is the failure a user sees as "the import did
+    /// nothing".</summary>
+    [Test]
+    public void Xml_entities_are_escaped()
+    {
+        Assert.That(Written(), Does.Contain("Rock &amp; Roll"));
+        Assert.That(Written(), Does.Not.Contain("Rock & Roll"));
+    }
+
+    /// <summary>Read back rather than matched as text: what matters is that a parser sees the original
+    /// name, not which of the legal escapes was used to write it. The newline is the interesting one -- an
+    /// attribute value is normalised on the way in, so a literal newline would come back as a space, and
+    /// only the numeric escape survives.</summary>
+    [Test]
+    public void A_parser_reads_the_names_back_unchanged()
+    {
+        var names = Strings(Parsed(), "Name");
+
+        Assert.That(names, Does.Contain("The \"Big\" One"));
+        Assert.That(names, Does.Contain("Café Piano"));
+        Assert.That(names, Does.Contain("Split\nName"));
+    }
+
+    /// <summary>A patch is a name and the messages that select it, and the messages are raw MIDI bytes:
+    /// bank select MSB, bank select LSB, program change. 89 is 0x59 and 64 is 0x40, and the program is the
+    /// wire value, so the first patch of the fixture's first bank is B0 00 59, B0 20 40, C0 00.
+    ///
+    /// <b>The Creator each message cites is asserted too, because the bytes alone do not say what they
+    /// are.</b> Cubase resolves a message against the filter its Creator points at; a message whose bytes
+    /// are a bank select and whose Creator says "Program Change" is a document that parses, imports, and
+    /// selects the wrong sound -- and swapping the two control changes is invisible in the bytes unless
+    /// something says which is which.</summary>
+    [Test]
+    public void Every_patch_carries_its_two_control_changes_and_its_program()
+    {
+        var document = Parsed();
+        var patch = document.Descendants("obj").First(o => (string?)o.Attribute("class") == "PMidiPreset");
+        var filters = document.Descendants("obj")
+            .Where(o => (string?)o.Attribute("class") == "MidiStandardMessageFilter")
+            .ToDictionary(o => o.Attribute("ID")!.Value,
+                o => o.Elements("string").First(s => (string?)s.Attribute("name") == "Info")
+                    .Attribute("value")!.Value);
+
+        var messages = patch.Descendants("obj")
+            .Where(o => (string?)o.Attribute("class") == "MidiSimpleKnownMessage")
+            .Select(o => (
+                Creator: filters[o.Elements("obj").First(c => (string?)c.Attribute("name") == "Creator")
+                    .Attribute("ID")!.Value],
+                Bytes: o.Elements("bin").First(b => (string?)b.Attribute("name") == "Message").Value))
+            .ToList();
+
+        Assert.That(messages, Is.EqualTo(new[]
+        {
+            ("CC: BankSelect MSB", "B00059"), ("CC: BankSelect LSB", "B02040"), ("Program Change", "C000"),
+        }));
+    }
+
+    [Test]
+    public void The_document_declares_utf8()
+    {
+        Assert.That(Written(), Does.StartWith("<?xml version=\"1.0\" encoding=\"UTF-8\"?>"));
+    }
+
+    /// <summary>All sixteen channels reach the patches. A part on this instrument can be on any of them,
+    /// and a device whose names only exist on channel 1 looks perfectly correct to whoever exported it --
+    /// they are on channel 1 -- while showing bare program numbers to the user who moved their part.
+    /// </summary>
+    [Test]
+    public void Every_channel_is_offered_the_patches()
+    {
+        var channels = Parsed().Descendants("obj")
+            .Where(o => o.Elements("int").Any(i => (string?)i.Attribute("name") == "IsChannelNode"))
+            .ToList();
+
+        Assert.That(channels, Has.Count.EqualTo(16));
+        Assert.That(channels.All(c => c.Elements("list").Any(l => (string?)l.Attribute("name") == "Banks")),
+            Is.True);
+    }
+
+    /// <summary>A bank keeps its name and its own patches in order. Every other test here looks at one
+    /// patch or at the document as a whole, and a writer that put every patch in the first bank, or lost
+    /// all but the first of each bank, would satisfy all of them.</summary>
+    [Test]
+    public void Each_bank_keeps_its_name_and_its_own_patches()
+    {
+        var banks = Parsed().Descendants("obj")
+            .Where(o => (string?)o.Attribute("class") == "PSoundscriptBank"
+                        && o.Elements("list").Any(l => (string?)l.Attribute("name") == "Presets"))
+            .Select(o => (
+                Name: o.Elements("string").First(s => (string?)s.Attribute("name") == "PresetBankName")
+                    .Attribute("value")!.Value,
+                Patches: o.Descendants("obj").Where(p => (string?)p.Attribute("class") == "PMidiPreset")
+                    .Select(p => p.Elements("string").First(s => (string?)s.Attribute("name") == "Name")
+                        .Attribute("value")!.Value).ToList()))
+            .ToList();
+
+        Assert.That(banks.Select(b => b.Name), Is.EqualTo(new[] { "SN-A PRST", "PCMS USER" }));
+        Assert.That(banks[0].Patches, Is.EqualTo(new[]
+            { "Rock & Roll", "The \"Big\" One", "Strings, Warm", "Café Piano", "Split\nName" }));
+        Assert.That(banks[1].Patches, Is.EqualTo(new[] { "Mine" }));
+    }
+
+    /// <summary>Nothing points at an object that is not there. This format is an object graph written flat:
+    /// a bank the other fifteen channels share is written once and cited by ID, and every message cites the
+    /// filter that says what its bytes mean. A citation that resolves to nothing is the characteristic
+    /// failure of writing a graph by hand, and Cubase's answer to it is to import the document and show
+    /// nothing rather than to complain.</summary>
+    [Test]
+    public void Every_object_reference_resolves()
+    {
+        var document = Parsed();
+        var defined = document.Descendants("obj")
+            .Where(o => o.Attribute("class") is not null && o.Attribute("ID") is not null)
+            .Select(o => o.Attribute("ID")!.Value).ToHashSet();
+
+        var cited = document.Descendants("obj")
+            .Where(o => o.Attribute("class") is null && o.Attribute("ID") is not null)
+            .Select(o => o.Attribute("ID")!.Value)
+            .Concat(document.Descendants("item")
+                .Where(i => (string?)i.Parent!.Attribute("type") == "obj" && i.Attribute("value") is not null)
+                .Select(i => i.Attribute("value")!.Value))
+            .ToList();
+
+        Assert.That(cited, Is.Not.Empty);
+        Assert.That(cited.Where(id => !defined.Contains(id)), Is.Empty);
+    }
+
+    /// <summary>No mark. The document declares its own encoding, which is what an XML parser is required to
+    /// believe, and a byte-order mark in front of the declaration is a token some readers hand to the
+    /// parser rather than eat.</summary>
+    [Test]
+    public void It_asks_for_no_byte_order_mark()
+    {
+        IPatchListWriter writer = new CubasePatchListWriter();
 
         Assert.That(writer.WantsByteOrderMark, Is.False);
     }
