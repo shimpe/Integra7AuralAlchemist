@@ -135,6 +135,27 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// answering for.</summary>
     private bool _scanning;
 
+    /// <summary>Whether something asked for a duplicate scan while one was already running.
+    ///
+    /// <b>A declined request used to be a dropped one</b>, and that was how the panel came to hold an answer
+    /// about a folder nobody was looking at: changing folder mid-scan refreshed the list, asked for a scan,
+    /// was told "still looking", and nothing ever asked again -- so the groups from the old folder stayed on
+    /// screen with a live Delete button. The rows are now cleared when a scan starts, so there is nothing
+    /// stale to act on either way; this is what makes the panel fill up again afterwards instead of sitting
+    /// empty. A plain bool because all of these gestures arrive on the UI thread, and because two requests
+    /// during one scan want the same thing.</summary>
+    private bool _rescanWanted;
+
+    /// <summary>How many times the folder has been re-listed. Nothing reads the number; a scan captures it
+    /// and compares it afterwards, and any difference means the folder is not what it was.
+    ///
+    /// <b>It counts refreshes rather than writes because every write here ends in one</b> -- annotating,
+    /// renaming, restoring a version, a bulk change, a delete, a capture saved from another tab -- so
+    /// <see cref="Refresh"/> is the single place that already knows the library has moved on. The Refresh
+    /// button counts too, which is right: it means "the folder may have changed" and a scan reading through
+    /// one that has cannot answer for it.</summary>
+    private int _libraryVersion;
+
     /// <summary>Whether the duplicate panel is up. Not a filter and not a selection -- it is the one panel
     /// that is about the whole folder rather than about what is selected, so it is opened by a button and
     /// closed by one.</summary>
@@ -190,7 +211,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
         // The pair compare is handed over as it stands: two snapshots is two snapshots whether they were
         // picked out of the list or out of a duplicate group, and the ordering rule CompareSelectionAsync
         // needs does not apply to tick boxes -- see DuplicateScanViewModel.Ticked.
-        Duplicates = new DuplicateScanViewModel(ScanForDuplicatesAsync, DeleteDuplicatesAsync, _compareTwo,
+        Duplicates = new DuplicateScanViewModel(RefreshAndScanAsync, DeleteDuplicatesAsync, _compareTwo,
             CloseDuplicates);
 
         // After BulkEditor is assigned, not before: this dereferences it, and a selection change arrives as
@@ -397,6 +418,11 @@ public sealed partial class LibraryViewModel : ViewModelBase
             _all = [];
             _report($"Could not read the library folder: {e.Message}", true);
         }
+
+        // After the read, so that a scan capturing this has a listing at least as new as the number. See
+        // _libraryVersion: this is the one place that knows the folder has been looked at again, and every
+        // write in this file ends here.
+        _libraryVersion++;
 
         RebuildTags();
         ApplyFilter();
@@ -1028,7 +1054,20 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
         // Nothing awaits it: a button binding cannot, and there is nothing to wait for -- the scan reports
         // its own outcome and logs its own failures, exactly as the deep search does.
-        _ = ScanForDuplicatesAsync(Duplicates.Threshold);
+        _ = RefreshAndScanAsync(Duplicates.Threshold);
+    }
+
+    /// <summary>Re-read the folder, then look through it for duplicates.
+    ///
+    /// <b>The two gestures that mean "tell me about the library as it is now" go through here</b> -- opening
+    /// the panel and pressing Scan -- and they are the only two that pay for a listing. The other two callers
+    /// refresh as part of what they were already doing: a delete has just changed the folder, and a folder
+    /// change has just read the new one. The scan used to refresh for itself, which meant those two paid for
+    /// two listings and got nothing for the second.</summary>
+    private async Task RefreshAndScanAsync(int threshold)
+    {
+        Refresh();
+        await ScanForDuplicatesAsync(threshold);
     }
 
     /// <summary>Put the editor back. The selection was never touched, so whatever was selected before is
@@ -1049,10 +1088,13 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// What makes that affordable is <see cref="_vectors"/> -- a second scan reads only what has been
     /// written since the first.
     ///
-    /// <b>The listing is refreshed first, on the UI thread.</b> The panel names its rows from the listing, so
-    /// the two have to be talking about the same folder; and refreshing means a file added since the tab was
-    /// opened is in both rather than in one. It costs a head read per file, which is what the Refresh button
-    /// beside this one already costs.
+    /// <b>The panel is emptied before a byte is read</b>, not when an answer arrives -- see
+    /// <see cref="DuplicateScanViewModel.ScanStarted"/> for the deletion this prevents. Everything after that
+    /// is about filling it again: an answer that turns out to be about the wrong folder is dropped, and
+    /// whatever asked for it is served by the loop in <see cref="ScanForDuplicatesAsync"/>.
+    ///
+    /// <b>The listing is not refreshed here.</b> It is the caller's, because two of the four callers have
+    /// just refreshed for their own reasons -- see <see cref="RefreshAndScanAsync"/>.
     ///
     /// <b>The walk, the reads and the grouping are all inside the <c>Task.Run</c></b>, for the reason the
     /// bulk loops give: this opens and parses every file in the library that has changed, and doing that on
@@ -1064,15 +1106,27 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// otherwise be silence.</summary>
     public async Task ScanForDuplicatesAsync(int threshold)
     {
-        try
+        // Once, and then again for anything that asked while this was reading -- see _rescanWanted for the
+        // stale panel a dropped request used to leave behind. Only the call that is doing the reading ever
+        // loops: a declined one leaves _scanning set and falls straight out, having put its request in the
+        // flag for this loop to find. Each pass clears the flag before it starts, so the loop ends unless
+        // somebody is asking again during every scan.
+        do
         {
-            await LookForDuplicatesAsync(threshold);
-        }
-        catch (Exception e)
-        {
-            UserActionLog.Failed("look for duplicates in the library", e.ToString());
-            _report($"Could not look for duplicates: {e.Message}", true);
-        }
+            try
+            {
+                await LookForDuplicatesAsync(threshold);
+            }
+            catch (Exception e)
+            {
+                UserActionLog.Failed("look for duplicates in the library", e.ToString());
+                _report($"Could not look for duplicates: {e.Message}", true);
+            }
+
+            // The threshold of the request being served now, which is not necessarily the one this call was
+            // made with: the user may have changed the box while waiting, and pressing Scan is what asked.
+            threshold = Duplicates.Threshold;
+        } while (_rescanWanted && !_scanning);
     }
 
     /// <summary>The body of <see cref="ScanForDuplicatesAsync"/> -- a method of its own only so that the
@@ -1080,22 +1134,29 @@ public sealed partial class LibraryViewModel : ViewModelBase
     private async Task LookForDuplicatesAsync(int threshold)
     {
         // One scan at a time. The threshold box and the Scan button are both live while one is running, and
-        // two scans would be two writers of one cache.
+        // two scans would be two writers of one cache. The request is remembered rather than dropped: the
+        // caller may have just changed the folder or deleted files, and the answer in flight cannot be about
+        // either.
         if (_scanning)
         {
+            _rescanWanted = true;
             _report("Still looking for duplicates…", false);
             return;
         }
 
+        // Everything asked up to this moment is what the scan below is about to answer.
+        _rescanWanted = false;
+
         UserActionLog.Action($"library: scan for duplicates within {threshold} parameters");
 
-        // Before the folder is captured, so that what the panel names its rows from is what the walk below
-        // is about to find.
-        Refresh();
+        // Before anything is read, and this is the line that stops the panel acting on an answer about
+        // another folder -- see DuplicateScanViewModel.ScanStarted.
+        Duplicates.ScanStarted();
 
-        // Captured because it can be changed while this is reading, and an answer about another folder is
-        // not an answer at all.
+        // Both captured because both can move while this is reading, and an answer about another folder --
+        // or about a folder that has been written to since -- is not an answer at all.
         var folder = Folder;
+        var version = _libraryVersion;
         _report("Looking through the library for duplicates…", false);
 
         _scanning = true;
@@ -1112,16 +1173,33 @@ public sealed partial class LibraryViewModel : ViewModelBase
             _scanning = false;
         }
 
-        // Back on the UI thread. Quietly, both of these: the user has moved to another folder or closed the
-        // panel, so these are not rows they are waiting for.
-        if (!string.Equals(folder, Folder, StringComparison.OrdinalIgnoreCase)) return;
+        // Back on the UI thread, and this is an answer about a folder that has moved on. The folder itself
+        // changed, or something wrote to it -- a delete from this very panel, a capture saved on another
+        // tab. Either way the groups would name files by a state of the folder that no longer holds, so
+        // they are dropped. The panel is already empty; all that is left is to take "Looking…" down, and
+        // only when nothing is on its way to replace it.
+        if (!string.Equals(folder, Folder, StringComparison.OrdinalIgnoreCase) ||
+            version != _libraryVersion)
+        {
+            if (!_rescanWanted) Duplicates.ScanAbandoned();
+            return;
+        }
+
+        // The panel is not on screen, so there is nothing to correct and nothing to say. Reopening it scans
+        // again.
         if (!_findingDuplicates) return;
 
         // Built once per scan rather than searched per row: a group of four in a folder of a thousand would
         // otherwise be four walks of the listing. A folder cannot hold two files at one path, so nothing can
         // be lost to a later entry overwriting an earlier one.
+        //
+        // Keyed on the full path, and the walk produces full paths too, so that the two cannot spell one
+        // file two ways. They are built from the same folder string but not by the same code, and a Folder
+        // holding forward slashes -- which only a hand-edited settings file produces, but nothing rejects --
+        // would otherwise give "C:/lib/a.json" here and "C:/lib\a.json" there, and every row would lose its
+        // name, its date, its rating and its Compare button with nothing anywhere saying why.
         Dictionary<string, LibraryEntry> byPath = new(StringComparer.OrdinalIgnoreCase);
-        foreach (var entry in _all) byPath[entry.FilePath] = entry;
+        foreach (var entry in _all) byPath[Path.GetFullPath(entry.FilePath)] = entry;
 
         Duplicates.Show(groups, threshold, byPath);
 
@@ -1142,10 +1220,9 @@ public sealed partial class LibraryViewModel : ViewModelBase
     /// <b>One walk, and it is <c>DirectoryInfo</c>'s.</b> The staleness rule needs a last-write time and a
     /// length per file, and enumerating <c>FileInfo</c> hands both over with the name -- so asking is free,
     /// where <c>Directory.EnumerateFiles</c> followed by a <c>FileInfo</c> each would be a second question to
-    /// the file system per file. The path is rebuilt with <see cref="Path.Combine"/> rather than taken from
-    /// <c>FullName</c> so that it is spelt exactly as <c>SnapshotLibrary.Read</c> spells it: the panel looks
-    /// its rows up in the listing by path, and two spellings of one file would be a row that could not be
-    /// named or compared.
+    /// the file system per file. <c>FullName</c> is taken rather than the folder string joined to the name,
+    /// and the caller normalises the listing's paths the same way, so that the two cannot spell one file two
+    /// ways -- a row's name, date, rating and Compare button all hang off that lookup.
     ///
     /// <b>A folder that is not there scans as empty</b>, matching <c>SnapshotLibrary.Read</c> -- that is the
     /// normal state of the default library folder until the first save. A folder that refuses to be
@@ -1161,8 +1238,7 @@ public sealed partial class LibraryViewModel : ViewModelBase
         if (Directory.Exists(folder))
             foreach (var file in new DirectoryInfo(folder)
                          .EnumerateFiles(SnapshotLibrary.FilePattern, SearchOption.TopDirectoryOnly))
-                files.Add(new SnapshotFileStamp(Path.Combine(folder, file.Name), file.LastWriteTime,
-                    file.Length));
+                files.Add(new SnapshotFileStamp(file.FullName, file.LastWriteTime, file.Length));
 
         List<(string Path, RawVector? Vector)> read = [];
         var unreadable = 0;
@@ -1209,16 +1285,26 @@ public sealed partial class LibraryViewModel : ViewModelBase
 
         // Off the UI thread, for the reason DeleteSelectionAsync gives: each delete archives a copy of the
         // file first, so this is a disk round trip per row rather than a flag being cleared.
-        var (failed, deleted) = await Task.Run(() =>
+        var (failed, deleted, missing) = await Task.Run(() =>
         {
             List<string> problems = [];
             List<string> gone = [];
+            var alreadyGone = 0;
+
             foreach (var path in paths)
             {
                 try
                 {
+                    // Asked before the delete rather than worked out from it. SnapshotLibrary.Delete treats
+                    // a file that is not there as success, and rightly -- the folder ends in the state that
+                    // was asked for -- but it means a count of the calls that returned is not a count of the
+                    // files this removed. See LibraryListing.DuplicateDeleteOutcome for why saying it
+                    // removed one it did not is worse here than anywhere else.
+                    var wasThere = File.Exists(path);
                     SnapshotLibrary.Delete(path);
+                    // Either way it is gone, so either way a mark pointing at it is stale.
                     gone.Add(path);
+                    if (!wasThere) alreadyGone++;
                 }
                 catch (Exception e)
                 {
@@ -1227,27 +1313,25 @@ public sealed partial class LibraryViewModel : ViewModelBase
                 }
             }
 
-            return (problems, gone);
+            return (problems, gone, alreadyGone);
         });
 
         // Only the ones that actually went: a file that could not be deleted is still there, and its mark
         // still points at something real. On the UI thread, because it writes the settings the list reads.
         ForgetInitToneMarks(deleted);
 
-        // Here rather than left to the rescan below, which refreshes as its first step but is allowed to
-        // decline: a scan started from the panel while these files were being deleted would still be running,
-        // and the rescan would report "still looking" and return. The list would then go on showing rows for
-        // files that are gone, which is the one thing a delete must not leave behind.
+        // The delete's own refresh, and the scan below does not repeat it. It also moves _libraryVersion,
+        // which is what makes a scan that was already running when these files went discard its answer
+        // instead of refilling the panel with rows for them.
         Refresh();
 
         // Rebuilds the panel too, so nothing on either side names a file that has gone. Warm: what is left
-        // was read minutes ago and has not been written since.
+        // was read minutes ago and has not been written since. If a scan is still running this is remembered
+        // rather than dropped, and runs the moment that one finishes -- see _rescanWanted.
         await ScanForDuplicatesAsync(Duplicates.Threshold);
 
-        _report(failed.Count == 0
-            ? $"Deleted {deleted.Count} snapshot{(deleted.Count == 1 ? "" : "s")} from the library."
-            : $"Deleted {deleted.Count} of {paths.Count}; " +
-              $"{failed.Count} could not be removed: {string.Join(", ", failed)}.", failed.Count > 0);
+        _report(LibraryListing.DuplicateDeleteOutcome(deleted.Count - missing, missing, failed),
+            failed.Count > 0);
     }
 
     /// <summary>Choose a different library folder, list it, and remember it.

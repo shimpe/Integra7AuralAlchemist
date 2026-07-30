@@ -20,13 +20,14 @@ namespace Integra7AuralAlchemist.ViewModels;
 /// not at all, which is right there and useless here.
 ///
 /// <b>The entry can be missing, and the row still exists.</b> A scan reads the folder itself rather than
-/// taking the listing's word for it, so the two can disagree: a file that arrived between them (microseconds,
-/// since the scan refreshes the listing first, but not never), or one that was locked for the listing's read
-/// and free for the scan's -- <c>SnapshotLibrary.Read</c> leaves a file it cannot open out of the listing
-/// entirely. Dropping such a row would shrink a group without saying so, and a group that quietly lost a
-/// member is the one failure a duplicate report must not have. So it is shown, named after its file, and it
-/// is the one row that cannot be sent to the Compare tab -- which needs the head to know which of the two
-/// restore paths a snapshot takes.
+/// taking the listing's word for it, and the two are taken at different moments: the listing is read before
+/// the walk starts and the walk runs for as long as the reading takes, so a file saved during a scan is in
+/// the walk and not in the listing. So is one that was locked when the listing was read and free when the
+/// scan reached it -- <c>SnapshotLibrary.Read</c> leaves a file it cannot open out of the listing entirely.
+/// Dropping such a row would shrink a group without saying so, and a group that quietly lost a member is the
+/// one failure a duplicate report must not have. So it is shown, named after its file, it says on itself
+/// that it is not in the list (see <see cref="Note"/>), and it is the one row that cannot be sent to the
+/// Compare tab -- which needs the head to know which of the two restore paths a snapshot takes.
 ///
 /// No ToolTip, per the rule this branch keeps for anything clicked repeatedly.</summary>
 public sealed class DuplicateRowViewModel : ViewModelBase
@@ -47,14 +48,33 @@ public sealed class DuplicateRowViewModel : ViewModelBase
     /// above.</summary>
     public LibraryEntry? Entry { get; }
 
-    /// <summary>What the snapshot calls itself, or -- for a file the listing does not know -- what the file is
-    /// called. Never blank, because a blank row is one the user cannot tell from the one above it, and this is
-    /// a panel whose whole job is telling near-identical rows apart.</summary>
-    public string Name => Entry?.Head.Name ?? Path.GetFileNameWithoutExtension(FilePath);
+    /// <summary>What the snapshot calls itself, or what the file is called when it does not say.
+    ///
+    /// <b>Never blank</b>, because a blank row is one the user cannot tell from the one above it, and this is
+    /// a panel whose whole job is telling near-identical rows apart. Two things reach the fallback, not one:
+    /// a file the listing does not know at all, and one whose head carries no name -- <c>SnapshotHead</c>
+    /// reads a missing or null name as "" on purpose, so that such a file is listed rather than hidden, and
+    /// testing the entry alone would let that "" through.</summary>
+    public string Name => Entry?.Head.Name is { Length: > 0 } named
+        ? named
+        : Path.GetFileNameWithoutExtension(FilePath);
 
     /// <summary>The file's own name, which is the thing that actually differs between four saves of one
-    /// sound: "Warm Rhodes.json", "Warm Rhodes (2).json", "Warm Rhodes (3).json".</summary>
-    public string FileName => Path.GetFileName(FilePath);
+    /// sound: "Warm Rhodes.json", "Warm Rhodes (2).json", "Warm Rhodes (3).json".
+    ///
+    /// Blank, and collapsed by the view, for a row the listing does not know: there <see cref="Name"/> is
+    /// already the file's own name, and the two lines would be the same word twice with ".json" added.
+    /// </summary>
+    public string FileName => Entry is null ? "" : Path.GetFileName(FilePath);
+
+    /// <summary>Why this row shows less than the ones around it, or "" when it shows everything.
+    ///
+    /// Said on the row rather than beside the Compare button, and for two reasons. It is constant for the
+    /// life of the row, so it cannot move anything while the user is working down a column of tick boxes --
+    /// which is the whole reason the buttons above are disabled rather than hidden. And it explains the blank
+    /// date and rating in the same breath as the disabled button, which is what a user looking at this row is
+    /// actually puzzled by.</summary>
+    public string Note => Entry is null ? "Not in the list; cannot be compared." : "";
 
     /// <summary>When it was written, in the user's own format -- <see cref="LibraryEntryViewModel.Modified"/>'s
     /// format and for its reason. Blank for a file the listing does not know, since its time was not read.
@@ -98,6 +118,11 @@ public sealed class DuplicateGroupViewModel
     /// scans of one folder. Nothing here re-orders them: the order the user sees is the order "Compare these
     /// two" takes its left and right slots from.</summary>
     public IReadOnlyList<DuplicateRowViewModel> Rows { get; }
+
+    /// <summary>How many of the rows are ticked. Half of what <see cref="LibraryListing.GroupsEmptiedBy"/>
+    /// is asked, and it is a count rather than the rows themselves because that method has to live where a
+    /// test can call it -- see its remarks for what is at stake in the number it produces.</summary>
+    public int TickedRows => Rows.Count(row => row.IsTicked);
 
     /// <summary>The count and nothing else. Saying what the group <i>is</i> belongs to the summary at the top
     /// of the panel, once, where it is written by a tested method and quotes the threshold -- and "nearly the
@@ -191,15 +216,10 @@ public sealed partial class DuplicateScanViewModel : ViewModelBase
     public bool CanDelete => Ticked().Count > 0;
 
     /// <summary>The count is on the button rather than only in the dialog, because this is the action that
-    /// takes files out of the folder -- <see cref="LibraryBulkEditViewModel.DeleteLabel"/>'s rule.</summary>
-    public string DeleteLabel
-    {
-        get
-        {
-            var ticked = Ticked().Count;
-            return ticked == 1 ? "Delete the ticked snapshot…" : $"Delete the {ticked} ticked snapshots…";
-        }
-    }
+    /// takes files out of the folder -- <see cref="LibraryBulkEditViewModel.DeleteLabel"/>'s rule. The words
+    /// are <see cref="LibraryListing.DuplicateDeleteLabel"/>'s, because they are the last thing a user reads
+    /// before a deletion and belong where a test can check them.</summary>
+    public string DeleteLabel => LibraryListing.DuplicateDeleteLabel(Ticked().Count);
 
     /// <summary>Raised by a row when its tick box moves, because the three members above are computed and
     /// nothing else knows they depend on it. The rows' own callback, handed to them when they are built.
@@ -211,6 +231,38 @@ public sealed partial class DuplicateScanViewModel : ViewModelBase
         this.RaisePropertyChanged(nameof(DeleteLabel));
     }
 
+    /// <summary>A scan has begun: forget what the last one found.
+    ///
+    /// <b>This is what stops the panel deleting from a folder nobody is looking at.</b> Rows used to survive
+    /// from one scan to the next, because only <see cref="Show"/> touched them and that runs when a scan
+    /// <i>finishes</i> -- so a scan that was discarded, or one still running, left the previous answer on
+    /// screen with a live Delete button under it. Change the library folder while a cold scan is reading and
+    /// the list on the left is the new folder while the groups on the right are the old one; the
+    /// confirmation counts files and never names them, so nothing in the dialog would give it away. The same
+    /// shape without a folder change: a twin deleted through the editor leaves the group still promising a
+    /// spare copy, and deleting on that promise takes the last one.
+    ///
+    /// Emptying at the start rather than trying to keep the rows valid is the only version of this that
+    /// cannot be got wrong: while a scan is running there is no answer, and a panel with no answer must not
+    /// offer to act on one.</summary>
+    public void ScanStarted() => Reset("Looking through the library for duplicates…");
+
+    /// <summary>A scan ended with nothing to show -- the folder moved, or the library was written to while
+    /// it was being read. Usually another scan is already on its way and this is never seen; when none is,
+    /// it is what stops the panel saying "Looking…" for the rest of the session.</summary>
+    public void ScanAbandoned() =>
+        Reset("The library changed while it was being read. Press Scan to look again.");
+
+    /// <summary>Empty the panel and say why. Every tick goes with the rows, which is the point: a tick is a
+    /// decision about a file in a family, and there is no family on screen any more.</summary>
+    private void Reset(string summary)
+    {
+        Groups.Clear();
+        Summary = summary;
+        this.RaisePropertyChanged(nameof(HasGroups));
+        TicksChanged();
+    }
+
     /// <summary>Show what a scan found: the groups as paths, the threshold they were found at, and the
     /// listing to name them from.
     ///
@@ -219,6 +271,11 @@ public sealed partial class DuplicateScanViewModel : ViewModelBase
     /// particular family, and a scan that has just re-read the folder may have put that file in another
     /// family or found it gone. Carrying ticks across would mean a Delete button acting on a decision the
     /// user made about a list they are no longer looking at.</summary>
+    /// <param name="groups">The families, as paths, in <see cref="DuplicateGroups"/>' order.</param>
+    /// <param name="threshold">What they were found at, which is what the summary quotes.</param>
+    /// <param name="byPath">The listing, keyed the way <paramref name="groups"/> spells its paths -- both
+    /// full paths, normalised by the caller, so that one file cannot be spelt two ways between them. A path
+    /// that is not in here gets a row all the same; see <see cref="DuplicateRowViewModel"/>.</param>
     public void Show(IReadOnlyList<IReadOnlyList<string>> groups, int threshold,
         IReadOnlyDictionary<string, LibraryEntry> byPath)
     {
@@ -265,7 +322,8 @@ public sealed partial class DuplicateScanViewModel : ViewModelBase
         var ticked = Ticked();
         if (ticked.Count == 0) return;
 
-        var emptied = Groups.Count(group => group.Rows.All(row => row.IsTicked));
+        var emptied = LibraryListing.GroupsEmptiedBy(
+            Groups.Select(group => (group.Rows.Count, group.TickedRows)));
         await _delete([.. ticked.Select(row => row.FilePath)], emptied);
     }
 
