@@ -168,6 +168,24 @@ public class ReabankPatchListWriterTests
         Assert.That(new ReabankPatchListWriter().Write(list), Does.Contain("0 (unnamed)"));
     }
 
+    /// <summary>Two spaces inside a name are the instrument's, and they survive.
+    ///
+    /// This writer used to collapse runs of space. The preset table was audited against the device on
+    /// 2026-07-30 and 27 names turned out to have two spaces that are real -- the device reports
+    /// "2  0  8  0" and "Kick n  Menu", and the table had been the side quietly collapsing them. Once those
+    /// were corrected, collapsing here would have undone the correction in this format alone while the other
+    /// three wrote the names through. A name runs to the end of its line, so nothing in the format is at
+    /// risk. Trailing padding still goes: the instrument pads a name to twelve bytes with spaces.</summary>
+    [Test]
+    public void Two_spaces_inside_a_name_are_the_instruments_and_survive()
+    {
+        var list = new PatchList("INTEGRA-7",
+            [new PatchBank(87, 64, "PCMS PRST", [new PatchEntry(0, "2  0  8  0   ", "PCMS", "FX", false)])],
+            [], []);
+
+        Assert.That(new ReabankPatchListWriter().Write(list), Does.Contain("0 2  0  8  0\n"));
+    }
+
     /// <summary>The whole body of the file, in order, because in this format order is the whole of the
     /// meaning: a patch line carries no back-reference to its bank, it belongs to whichever Bank line came
     /// before it. Every other test here asks whether one line is present somewhere, and a writer that
