@@ -58,6 +58,11 @@
                  how their sounds are organised, and a second place in the window for one button would earn
                  less than the row it costs. -->
             <Button Content="Export patch list…" Command="{Binding ExportPatchListAsync}" Padding="8,2" />
+            <!-- And the other direction: the instrument's whole collection into this folder. In this row for
+                 the same reason as the two above it, and it is why the row is a WrapPanel — a fifth button
+                 wraps onto a second line rather than being clipped off the right-hand edge with no scrollbar
+                 to reach it. -->
+            <Button Content="Seed from instrument…" Command="{Binding SeedFromInstrument}" Padding="8,2" />
             <TextBlock Text="{Binding Summary}"
                        VerticalAlignment="Center"
                        Foreground="{StaticResource SnMutedTextBrush}" />
@@ -254,16 +259,17 @@
                     BorderThickness="1"
                     CornerRadius="4"
                     Padding="10">
-                <!-- Three panels in the same place, one of them visible: selecting a second row swaps the
-                     single-snapshot editor for the bulk one, and Find duplicates swaps either of them for
-                     the duplicate scan. Three rather than one panel with three shapes, because they share no
-                     field — a bulk change has no name, no notes and no versions, its buttons act on many
-                     rows, and the duplicate panel is not about the selection at all.
+                <!-- Four panels in the same place, one of them visible: selecting a second row swaps the
+                     single-snapshot editor for the bulk one, Find duplicates swaps either of them for the
+                     duplicate scan, and Seed from instrument swaps any of the three for the sweep. Four
+                     rather than one panel with four shapes, because they share no field — a bulk change has
+                     no name, no notes and no versions, its buttons act on many rows, and neither the
+                     duplicate panel nor the sweep is about the selection at all.
 
                      Each flag is a property of its own on the view model rather than a comparison here: a
                      compiled binding cannot compare a value against a constant, so an enum would need a
                      converter per panel and would lose the build-time check every other binding gets. The
-                     three are written so that no two can be true — see LibraryViewModel.ShowsDuplicates.
+                     four are written so that no two can be true — see LibraryViewModel.ShowsSeeding.
 
                      Each IsVisible sits on a wrapper rather than on the view itself. A DataContext set on an
                      element is what that same element's other bindings resolve against, so IsVisible beside
@@ -279,6 +285,9 @@
                     </Panel>
                     <Panel IsVisible="{Binding ShowsDuplicates}">
                         <local:DuplicateScanView DataContext="{Binding Duplicates}" />
+                    </Panel>
+                    <Panel IsVisible="{Binding ShowsSeeding}">
+                        <local:SeedRunView DataContext="{Binding Seeding}" />
                     </Panel>
                 </Panel>
             </Border>

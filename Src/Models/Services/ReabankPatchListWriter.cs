@@ -52,8 +52,15 @@ public sealed class ReabankPatchListWriter : IPatchListWriter
         return text.ToString();
     }
 
-    /// <summary>Everything that could end a line, flattened; runs of space collapsed, because two names
-    /// that differed only by a tab would otherwise read as the same name with a gap in it.
+    /// <summary>Everything that could end a line, flattened to a space; nothing else touched.
+    ///
+    /// <b>Runs of space are kept, and that was a correction.</b> This used to collapse them, on the
+    /// reasoning that two names differing only by a tab would otherwise read as one name with a gap in it.
+    /// That reasoning was written before the preset table was audited against the instrument, and the audit
+    /// found 27 names whose two spaces are real -- the device itself reports "2  0  8  0" and "Kick n  Menu",
+    /// and the table had been the one silently collapsing them. Collapsing here would have undone that
+    /// correction in this format alone, while the other three wrote the names through. Nothing in the format
+    /// cares: a name runs to the end of its line, so two spaces cost nothing and mean something.
     ///
     /// <b>The empty answer is replaced rather than allowed through.</b> A name that flattens away to
     /// nothing -- the instrument will hand back a user slot padded with spaces -- would leave a line that is
@@ -62,7 +69,6 @@ public sealed class ReabankPatchListWriter : IPatchListWriter
     private static string OneLine(string value)
     {
         var flattened = new string(value.Select(c => char.IsControl(c) ? ' ' : c).ToArray());
-        var collapsed = string.Join(' ', flattened.Split(' ', StringSplitOptions.RemoveEmptyEntries));
-        return collapsed.Length == 0 ? "(unnamed)" : collapsed;
+        return flattened.Trim().Length == 0 ? "(unnamed)" : flattened.Trim();
     }
 }

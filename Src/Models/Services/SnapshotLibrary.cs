@@ -188,11 +188,27 @@ public static class SnapshotLibrary
     /// The file name is <see cref="FileNameFor"/>'s, made unique against what is already there. A name that
     /// collides gets " (2)", " (3)" and so on: the alternative is overwriting a snapshot the user still has, and
     /// two sounds called "Init Tone" is exactly what a library of captures looks like.</summary>
-    public static string Create(string folder, Integra7Snapshot snapshot, SnapshotMetadata metadata)
+    /// <param name="fileName">What to call the file, or null to derive it from the snapshot's own name as
+    /// every caller written before the library could be filled from the instrument does.
+    ///
+    /// <b>It exists for the sweep</b>, which cannot use the derived name for two reasons at once. It chose its
+    /// file names <i>before</i> it captured anything -- that list is what it compares against the folder to
+    /// decide what is already done -- and it is about to rename each snapshot to whatever the device called
+    /// it, which is a name no planner can predict. <c>SeedPlan.FileNameFor</c> carries the arithmetic: 405 of
+    /// the 6,022 catalogue rows share a name with another row, so it builds "&lt;name&gt; [msb-lsb-pc]", and
+    /// letting this method name those files instead would put ~208 of them under names the resume never looks
+    /// for -- captured again on every run, the folder growing by 208 files each time while the resume appeared
+    /// to be working.
+    ///
+    /// <b>The uniqueness suffix still applies to it.</b> With the sweep's names unique by construction it can
+    /// now only fire if the folder changed underneath a running sweep, and one file swept twice is a far
+    /// smaller harm than one file of the user's overwritten.</param>
+    public static string Create(string folder, Integra7Snapshot snapshot, SnapshotMetadata metadata,
+        string? fileName = null)
     {
         var annotated = Annotated(snapshot, metadata);
         Directory.CreateDirectory(folder);
-        var path = UniquePath(folder, FileNameFor(annotated.Name));
+        var path = UniquePath(folder, fileName ?? FileNameFor(annotated.Name));
         Write(path, annotated);
         return path;
     }

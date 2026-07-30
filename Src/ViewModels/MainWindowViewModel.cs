@@ -2478,31 +2478,10 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
-    private List<Integra7Preset> LoadPresets()
-    {
-        var uri = @"avares://" + "Integra7AuralAlchemist/" + "Assets/Presets.csv";
-        var file = new StreamReader(AssetLoader.Open(new Uri(uri)));
-        var data = file.ReadLine();
-        char[] separators = [','];
-        List<Integra7Preset> Presets = [];
-        var id = 0;
-        while ((data = file.ReadLine()) != null)
-        {
-            string[] read = data.Split(separators, StringSplitOptions.None);
-            var tonetype = read[0].Trim('"');
-            var tonebank = read[1].Trim('"');
-            var number = int.Parse(read[2]);
-            var name = read[3].Trim('"');
-            var msb = int.Parse(read[4]);
-            var lsb = int.Parse(read[5]);
-            var pc = int.Parse(read[6]);
-            var category = read[7].Trim('"');
-            Presets.Add(new Integra7Preset(id, "INT", tonetype, tonebank, number, name, msb, lsb, pc, category));
-            id++;
-        }
-
-        return Presets;
-    }
+    /// <summary>The shipped preset table. The parsing itself lives in <see cref="PresetTable"/>, where it
+    /// can be tested -- this method is only the asset lookup, which cannot be.</summary>
+    private List<Integra7Preset> LoadPresets() =>
+        PresetTable.Load(AssetLoader.Open(new Uri("avares://Integra7AuralAlchemist/Assets/Presets.csv")));
 
     public MainWindowViewModel()
     {
@@ -2584,6 +2563,50 @@ public partial class MainWindowViewModel : ViewModelBase
                 SnapshotFailed = failed;
             });
 
+        // Before LibraryVm, which only displays it. The library takes callbacks and deliberately holds no
+        // device, no domain and no preset list; a sweep needs all three, and they are this object's -- so it
+        // is built here and handed over whole, the way CompareVm above is.
+        //
+        // Every one of its inputs is a function, for the reason the library's own callbacks are closures over
+        // this object rather than over anything captured now: a MIDI rescan replaces both the API and the
+        // domain, the user's own tone names arrive in the preset list minutes after the window opens, and the
+        // library folder can be moved while the panel is on screen. A sweep started an hour from now must use
+        // whichever of those exist when the button is pressed.
+        //
+        // The factory list is built at most once. It is the answer when nothing is plugged in -- see
+        // ExportPatchListAsync, which reads the shipped CSV for the same reason -- and unlike that one press,
+        // this function is called on every tick box the user moves, so parsing six thousand rows per click
+        // would be a selection screen that got slower the more it was used.
+        List<Integra7Preset>? factoryOnly = null;
+        var seeding = new SeedRunViewModel(
+            // Null when there is nothing to sweep, which SeedRefusal turns into the first sentence a user
+            // reads. Built fresh per press: the pair is what a rescan replaces.
+            () => Integra7 is { } api && _integra7Communicator is { } communicator
+                ? new SeedInstrument(communicator, api)
+                : null,
+            // Part 1's unfiltered list, as the patch-list export takes it: every part holds the same list by
+            // reference, and AllPresets is the one that is not narrowed by whatever is typed in that part's
+            // search box.
+            () => PartViewModels is { Count: > 1 } ? PartViewModels[1].AllPresets
+                : factoryOnly ??= LoadPresets(),
+            // The three that point back at the library are forgiven their nullability rather than reordered
+            // around it. LibraryVm is assigned four lines below -- it cannot be assigned first, because its
+            // own constructor takes this object -- so inside the constructor the compiler is right that it is
+            // still null. None of these closures can run before the window exists, let alone before the panel
+            // has been opened by a button on it.
+            () => LibraryVm!.Folder,
+            // The list has to show what the sweep wrote, and after a cancel as much as after a finish: those
+            // files are on disk either way.
+            () => LibraryVm!.Refresh(),
+            (message, failed) =>
+            {
+                // The window's status bar, as everything else on this tab reports to: one channel, visible
+                // from every tab.
+                SnapshotStatus = message;
+                SnapshotFailed = failed;
+            },
+            () => LibraryVm!.CloseSeeding());
+
         // After the interactions it reaches through, since it lists its folder while being constructed and
         // reporting a folder that cannot be read needs the status properties -- which are fields on this object
         // and therefore already there, unlike the interactions, which are not until the lines above have run.
@@ -2643,6 +2666,7 @@ public partial class MainWindowViewModel : ViewModelBase
             },
             AuditionFromLibraryAsync,
             ExportPatchListAsync,
+            seeding,
             (message, failed) =>
             {
                 // The window's own status bar, not a line of the library's own: it is visible from every tab,

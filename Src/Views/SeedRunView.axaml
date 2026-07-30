@@ -1,0 +1,183 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="using:Integra7AuralAlchemist.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="380" d:DesignHeight="900"
+             x:Class="Integra7AuralAlchemist.Views.SeedRunView"
+             x:DataType="vm:SeedRunViewModel">
+
+    <!-- Filling the library from the instrument: what to sweep, how far it has got, and what it did.
+
+         Two screens in one panel, and never both at once. Idle, it is a selection screen: a tick per engine
+         and per bank with the number of patches beside it, and a running total that moves as the ticks do.
+         Running, the selection is put away entirely and the progress takes its place at the top — with
+         twenty-six tick boxes above it the counter would have been below the fold, which is exactly where a
+         progress line is no use.
+
+         The three rows that are not ticked each carry their reason on their own row rather than in a note at
+         the bottom, because that is where the user is making the decision. PCM drum kits are 40% of a full
+         sweep's clock for 3.6% of its patches, and are offered anyway because that is a cost to weigh rather
+         than a refusal. GM2 and ExPCM are greyed and cannot be ticked at all: their tones cannot be edited,
+         so the instrument exposes no temporary tone for a capture to read. They are shown rather than left
+         out so that "where did GM2 go?" is answered in the place it is asked.
+
+         No ToolTip anywhere in this file. The tick boxes are what this screen is made of and they are clicked
+         in columns of twenty-one, and a tooltip is a popup that swallows the click on the control it
+         describes — and it would be the worst possible home for the one sentence a greyed row exists to say,
+         since a tooltip shows nothing at all until it is hovered and nothing ever while the window is
+         inactive.
+
+         Every brush is a resource, per the rule this branch keeps. -->
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <!-- The right margin is the vertical scrollbar's lane: Avalonia's bars float over the content, so
+             without it the bar would lie across the tick boxes and swallow the clicks that tick them. -->
+        <StackPanel Orientation="Vertical" Spacing="10" Margin="0,0,16,0">
+
+            <TextBlock Text="Seed from instrument" FontWeight="Bold" />
+            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource SnMutedTextBrush}"
+                       Text="Selects each chosen patch on one part, captures the tone the instrument puts there, and writes it into your library. Your Studio Set and your expansion slots are read first and put back at the end, including if you stop it." />
+
+            <!-- Running. Shown in the selection's place rather than under it, and the Cancel button is the
+                 only control here: everything the selection screen offers would be a choice about a sweep
+                 that is already running. -->
+            <StackPanel Orientation="Vertical" Spacing="8" IsVisible="{Binding IsRunning}">
+                <ProgressBar Minimum="0" Maximum="1" Value="{Binding Progress}" />
+                <TextBlock Text="{Binding ProgressLine}" TextWrapping="Wrap" />
+                <!-- What the instrument is doing when it is not capturing a patch. Without it the panel sits
+                     still for up to a minute and a half at a time: a board round polls the slots at 1.5 s and
+                     is given 90, and neither reading the Studio Set at the start nor putting it back at the
+                     end reports any progress either. A counter that stops is what a crash looks like. -->
+                <TextBlock Text="{Binding Note}" TextWrapping="Wrap"
+                           Foreground="{StaticResource SnMutedTextBrush}"
+                           IsVisible="{Binding Note,
+                               Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <TextBlock Text="{Binding ClockLine}" Foreground="{StaticResource SnMutedTextBrush}" />
+                <Button Content="Cancel" Command="{Binding Cancel}"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+            </StackPanel>
+
+            <!-- What the last sweep did, kept on screen under the selection screen it hands back to, so that
+                 a second run can be aimed with the first one's answer still in view. -->
+            <TextBlock Text="{Binding Outcome}" TextWrapping="Wrap"
+                       IsVisible="{Binding Outcome,
+                           Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+            <!-- The instrument did not come back to where it started. Two sentences, Studio Set first, each
+                 saying what it is holding now and what to do about it — so it wraps and is never trimmed:
+                 this is quite likely the only warning anybody gets before a part goes silent hours later. -->
+            <TextBlock Text="{Binding RestoreWarning}" TextWrapping="Wrap"
+                       Foreground="{StaticResource SnErrorTextBrush}"
+                       IsVisible="{Binding RestoreWarning,
+                           Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+            <!-- The selection. Put away while a sweep runs rather than merely disabled, for the reason at the
+                 top of this file. -->
+            <StackPanel Orientation="Vertical" Spacing="10" IsVisible="{Binding IsIdle}">
+
+                <TextBlock Text="Engines" FontWeight="Bold" />
+                <ItemsControl ItemsSource="{Binding Engines}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Vertical" Spacing="2" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SeedOptionViewModel">
+                            <!-- The tick box takes the whole row so the cost is part of what is being
+                                 pressed, rather than a label beside it that has to be aimed at
+                                 separately. -->
+                            <CheckBox IsChecked="{Binding IsTicked, Mode=TwoWay}"
+                                      HorizontalAlignment="Stretch"
+                                      HorizontalContentAlignment="Left">
+                                <StackPanel Orientation="Vertical">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Name}" />
+                                        <TextBlock Text="{Binding Cost}"
+                                                   Foreground="{StaticResource SnMutedTextBrush}" />
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Note}" TextWrapping="Wrap"
+                                               Foreground="{StaticResource SnMutedTextBrush}"
+                                               IsVisible="{Binding Note,
+                                                   Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                                </StackPanel>
+                            </CheckBox>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="Banks" FontWeight="Bold" />
+                <ItemsControl ItemsSource="{Binding Banks}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Vertical" Spacing="2" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SeedOptionViewModel">
+                            <!-- The note is outside the tick box here, where the Engines template above keeps
+                                 it inside. Two of these rows are disabled, a disabled CheckBox greys
+                                 everything in its content, and the whole point of leaving those rows in the
+                                 list is the sentence that says why they are greyed — which has to stay as
+                                 readable as every other row's. The name and the count are still inside, so
+                                 the cost is part of what is pressed on the rows that can be pressed, and the
+                                 margin below is what the tick box's own content is indented by, so the two
+                                 lists line up. Nothing in Engines is ever unsweepable, which is why it needs
+                                 none of this. -->
+                            <StackPanel Orientation="Vertical">
+                                <CheckBox IsChecked="{Binding IsTicked, Mode=TwoWay}"
+                                          IsEnabled="{Binding IsSweepable}"
+                                          HorizontalAlignment="Stretch"
+                                          HorizontalContentAlignment="Left">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="{Binding Name}" />
+                                        <TextBlock Text="{Binding Cost}"
+                                                   Foreground="{StaticResource SnMutedTextBrush}" />
+                                    </StackPanel>
+                                </CheckBox>
+                                <TextBlock Text="{Binding Note}" TextWrapping="Wrap" Margin="30,0,0,0"
+                                           Foreground="{StaticResource SnMutedTextBrush}"
+                                           IsVisible="{Binding Note,
+                                               Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Not banks, though they look like a third one. A user slot reports its bank as PRST like
+                     the factory tone beside it, so this pair is the only thing that tells the two sides
+                     apart. -->
+                <CheckBox IsChecked="{Binding IncludeInternal, Mode=TwoWay}" Content="Factory presets" />
+                <CheckBox IsChecked="{Binding IncludeUser, Mode=TwoWay}" Content="Your own user slots" />
+
+                <TextBlock Text="Capture on" />
+                <ComboBox ItemsSource="{Binding PartNames}"
+                          SelectedIndex="{Binding PartIndex, Mode=TwoWay}"
+                          HorizontalAlignment="Stretch" />
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource SnMutedTextBrush}"
+                           Text="That part's tone is replaced once per patch while the sweep runs, so choose one you are not listening to. Your Studio Set is put back at the end." />
+
+                <TextBlock Text="{Binding Plan}" TextWrapping="Wrap" FontWeight="Bold" />
+                <!-- "412 are already in your library" and "412 skipped" are different sentences, and only the
+                     first tells the user that their last run worked. -->
+                <TextBlock Text="{Binding Skips}" TextWrapping="Wrap"
+                           Foreground="{StaticResource SnMutedTextBrush}"
+                           IsVisible="{Binding Skips,
+                               Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                <TextBlock Text="{Binding Refusal}" TextWrapping="Wrap"
+                           Foreground="{StaticResource SnErrorTextBrush}"
+                           IsVisible="{Binding Refusal,
+                               Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+                <Button Content="Start" Command="{Binding StartAsync}"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+
+                <!-- Last, because it is the way out rather than something to do here, and offered only while
+                     the panel is idle: closing it mid-sweep would take the one Cancel button off screen with
+                     an hour still to run. -->
+                <Button Content="Close" Command="{Binding Close}"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

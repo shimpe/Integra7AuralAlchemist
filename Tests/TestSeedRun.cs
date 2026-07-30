@@ -1,0 +1,655 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Integra7AuralAlchemist.Models.Data;
+using Integra7AuralAlchemist.Models.Services;
+
+namespace Tests;
+
+/// <summary>Walking a plan across an instrument: what happens to the sweep when one patch goes wrong, and
+/// what the instrument looks like when the sweep is over.</summary>
+public class SeedRunTests
+{
+    private static Integra7Preset Preset(string name, string type = "SN-A", string bank = "PRST",
+        string usage = "INT", int pc = 1) =>
+        new(0, usage, type, bank, pc, name, 89, 64, pc, "Ac.Piano");
+
+    /// <summary>Every engine and every bank these presets use, so that the plan below is about the patches
+    /// a test names and not about what a selection left out -- that is <c>SeedPlanTests</c>' subject.</summary>
+    private static SeedSelection Selection(IReadOnlyList<Integra7Preset> presets) =>
+        new(["SN-A", "SN-S", "PCMS", "PCMD", "SN-D"],
+            presets.Select(preset => preset.ToneBankStr).Distinct().ToList());
+
+    /// <summary>Plan these presets and sweep them, exactly as the panel will.
+    ///
+    /// The work goes through <see cref="SeedPlan.Build"/> rather than being assembled by hand, so that these
+    /// tests run over the rounds, file names and metadata the planner really produces. A hand-built
+    /// <see cref="SeedItem"/> would be a second opinion about the shape of the work, and the two would
+    /// eventually disagree without either being wrong on its own.</summary>
+    private static Task<SeedOutcome> Sweep(FakeInstrument instrument, IReadOnlyList<Integra7Preset> presets,
+        Func<SeedItem, Integra7Snapshot, string>? write = null, IProgress<SeedProgress>? progress = null,
+        CancellationToken token = default)
+    {
+        var selection = Selection(presets);
+        var work = SeedPlan.Build(presets, selection, [], instrument.Boards);
+        return SeedRun.RunAsync(work, selection, instrument, write ?? ((item, _) => item.FileName),
+            progress, token);
+    }
+
+    /// <summary>A fake instrument, so the loop's rules -- isolation, restore, cancellation -- are tested
+    /// without hardware and without waiting an hour.</summary>
+    private sealed class FakeInstrument : ISeedInstrument
+    {
+        public List<string> Calls { get; } = [];
+        public HashSet<string> Silent { get; } = [];      // preset names that expose no tone
+        public HashSet<string> Throws { get; } = [];      // preset names whose capture throws
+        public HashSet<string> LoadIgnores { get; } = []; // loadouts it accepts and then does not hold
+        public HashSet<string> LoadThrows { get; } = [];  // loadouts it refuses outright
+        public bool RestoreThrows { get; set; }           // the Studio Set will not go back
+        public int[] Boards { get; set; } = [0, 0, 0, 0];
+
+        /// <summary>Set to have the slots stop answering <i>after</i> the sweep, which fails the verification
+        /// read and nothing else. The reading taken before the first patch is deliberately outside the run's
+        /// try -- a sweep that cannot find out what the slots hold has not started yet and fails there, with
+        /// the instrument untouched -- so a fake that refused both readings would be exercising that path
+        /// instead of this one.</summary>
+        public bool VerificationReadThrows { get; set; }
+
+        private int _reads;
+
+        /// <summary>Set to have the <i>first</i> board load cancel the run and abandon itself, which is what
+        /// Cancel pressed while the adapter is waiting for the instrument to be free looks like from here --
+        /// nothing has been sent at that point, so it comes out of the wait as an
+        /// <see cref="OperationCanceledException"/>. Cleared as it fires, so the restore's own load still
+        /// goes through: a cancelled sweep must still put the instrument back.</summary>
+        public CancellationTokenSource? CancelDuringLoad { get; set; }
+
+        /// <summary>Set to have the first board load notice the cancel and then finish anyway, which is what
+        /// Cancel pressed after the loadout has gone out looks like: an instrument that is loading discards
+        /// anything else sent to its slots, so the adapter sees the load through and returns normally.
+        /// Cleared as it fires, for <see cref="CancelDuringLoad"/>'s reason.</summary>
+        public CancellationTokenSource? CancelAsLoadFinishes { get; set; }
+
+        public Task<int[]> LoadedBoardsAsync()
+        {
+            if (VerificationReadThrows && ++_reads > 1)
+                throw new SnapshotFormatException("the slots will not answer");
+            return Task.FromResult(Boards);
+        }
+
+        public Task LoadBoardsAsync(int[] boards, CancellationToken token)
+        {
+            var loadout = string.Join(',', boards);
+            Calls.Add($"load {loadout}");
+            if (LoadThrows.Contains(loadout)) throw new SnapshotFormatException("the slots are stuck");
+            if (CancelDuringLoad is { } cancelling)
+            {
+                CancelDuringLoad = null;
+                cancelling.Cancel();
+                throw new OperationCanceledException(token);
+            }
+
+            if (CancelAsLoadFinishes is { } stopping)
+            {
+                CancelAsLoadFinishes = null;
+                stopping.Cancel();
+            }
+
+            if (!LoadIgnores.Contains(loadout)) Boards = boards;
+            return Task.CompletedTask;
+        }
+
+        public Task<Integra7Snapshot?> CaptureAsync(SeedItem item, int part, CancellationToken token)
+        {
+            Calls.Add($"capture {item.Preset.Name}");
+            if (Throws.Contains(item.Preset.Name)) throw new SnapshotFormatException("no answer");
+            return Task.FromResult<Integra7Snapshot?>(Silent.Contains(item.Preset.Name)
+                ? null
+                : new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, item.Preset.Name, [],
+                    SnapshotKinds.Tone, item.Preset.ToneTypeStr));
+        }
+
+        public Task<Integra7Snapshot> CaptureStudioSetAsync()
+        {
+            Calls.Add("capture studio set");
+            return Task.FromResult(new Integra7Snapshot(Integra7Snapshot.CurrentFormatVersion, "before", [],
+                SnapshotKinds.StudioSet, null));
+        }
+
+        public Task RestoreStudioSetAsync(Integra7Snapshot studioSet)
+        {
+            // Recorded before it throws, because the tests below are about the restore having been attempted
+            // rather than about it having worked: a restore that was never reached and one that was refused
+            // are the two states this feature has to keep apart.
+            Calls.Add("restore studio set");
+            if (RestoreThrows) throw new SnapshotFormatException("the Studio Set will not load");
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>Progress collected as it is reported. Not <see cref="Progress{T}"/>, which posts to a
+    /// synchronization context and would turn every assertion about it into a race.</summary>
+    private sealed class Reports(Action<SeedProgress>? each = null) : IProgress<SeedProgress>
+    {
+        public List<SeedProgress> Seen { get; } = [];
+
+        public void Report(SeedProgress value)
+        {
+            Seen.Add(value);
+            each?.Invoke(value);
+        }
+    }
+
+    /// <summary>Before the first patch, because the first patch overwrites part of it. A Studio Set that
+    /// could not be captured cannot be put back, and the sweep is about to spend an hour changing it -- so
+    /// this is the one thing that has to succeed before anything else is allowed to start.</summary>
+    [Test]
+    public async Task The_studio_set_is_captured_before_the_first_patch()
+    {
+        var instrument = new FakeInstrument();
+
+        await Sweep(instrument, [Preset("Full Grand 1")]);
+
+        Assert.That(instrument.Calls[0], Is.EqualTo("capture studio set"));
+    }
+
+    /// <summary>And put back at the end. The user did not ask for their Studio Set to be replaced by
+    /// whatever the last patch of the sweep happened to be; they asked for their library to be filled.
+    /// </summary>
+    [Test]
+    public async Task The_studio_set_is_restored_at_the_end()
+    {
+        var instrument = new FakeInstrument();
+
+        await Sweep(instrument, [Preset("Full Grand 1")]);
+
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
+    }
+
+    /// <summary>Including when a patch went wrong on the way. A sweep that stopped tidying up because one
+    /// capture threw would leave the instrument in a state the user never chose, which is worse than the
+    /// failed capture it was reacting to.</summary>
+    [Test]
+    public async Task The_studio_set_is_restored_when_a_capture_throws()
+    {
+        var instrument = new FakeInstrument();
+        instrument.Throws.Add("Broken");
+
+        await Sweep(instrument, [Preset("Full Grand 1"), Preset("Broken")]);
+
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
+    }
+
+    /// <summary>The boards go back before the Studio Set does, and that order is load-bearing: a Studio Set
+    /// names a tone per part, some of those tones live on the boards, and restoring it while the slots still
+    /// hold the sweep's last loadout would land parts on banks that are not there.</summary>
+    [Test]
+    public async Task The_boards_are_put_back()
+    {
+        var instrument = new FakeInstrument { Boards = [7, 0, 0, 0] };
+
+        var outcome = await Sweep(instrument, [Preset("On another board", bank: "SRX08")]);
+
+        Assert.That(instrument.Calls[^2], Is.EqualTo("load 7,0,0,0"));
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
+        Assert.That(outcome.RestoreWarning, Is.Null, "the boards went back, so there is nothing to warn about");
+    }
+
+    /// <summary>Nothing is loaded when nothing needed loading -- not for the round, and not for the restore
+    /// either. A board load converges in about 23 seconds whether or not it changes anything, and a sweep of
+    /// the built-in banks is otherwise the quickest run this feature has.</summary>
+    [Test]
+    public async Task A_boardless_round_loads_nothing()
+    {
+        var instrument = new FakeInstrument();
+
+        await Sweep(instrument, [Preset("Built in")]);
+
+        Assert.That(instrument.Calls, Is.EqualTo(new[]
+        {
+            "capture studio set", "capture Built in", "restore studio set",
+        }));
+    }
+
+    /// <summary>A patch the instrument exposes no tone for is recorded as unavailable and the sweep carries
+    /// on. 796 of the 6,023 factory rows answer nothing on the measured unit -- every GM2 and every ExPCM
+    /// one -- so this is 13% of a full sweep rather than an exceptional case, and it is emphatically not a
+    /// failure: "your instrument does not expose these" and "these failed" are different sentences, and only
+    /// the first is true.</summary>
+    [Test]
+    public async Task A_silent_preset_is_recorded_and_the_sweep_goes_on()
+    {
+        var instrument = new FakeInstrument();
+        instrument.Silent.Add("Not on this unit");
+
+        var outcome = await Sweep(instrument,
+            [Preset("Not on this unit"), Preset("The next one"), Preset("And the one after")]);
+
+        Assert.That(outcome.Unavailable.Select(preset => preset.Name),
+            Is.EqualTo(new[] { "Not on this unit" }));
+        Assert.That(outcome.Failed, Is.Empty, "unavailable is not failed");
+        Assert.That(outcome.Written, Is.EqualTo(new[]
+        {
+            "The next one [89-64-1].json", "And the one after [89-64-1].json",
+        }));
+    }
+
+    /// <summary>A capture that threw is recorded against the preset it threw for, with what it said, and the
+    /// sweep carries on. A run is 6,000 patches and 54 minutes; losing all of it to one of them -- and
+    /// losing it 50 minutes in, which is when this is most likely to happen -- is the failure this whole
+    /// feature is shaped around.</summary>
+    [Test]
+    public async Task A_throwing_preset_is_recorded_and_the_sweep_goes_on()
+    {
+        var instrument = new FakeInstrument();
+        instrument.Throws.Add("Broken");
+
+        var outcome = await Sweep(instrument, [Preset("Broken"), Preset("The next one")]);
+
+        Assert.That(outcome.Failed.Single().Preset.Name, Is.EqualTo("Broken"));
+        Assert.That(outcome.Failed.Single().Why, Is.EqualTo("no answer"));
+        Assert.That(outcome.Unavailable, Is.Empty, "failed is not unavailable");
+        Assert.That(outcome.Written, Is.EqualTo(new[] { "The next one [89-64-1].json" }));
+    }
+
+    /// <summary>Cancel stops the sweep between patches and never inside one: the three parameter writes and
+    /// the capture share a lease, and stopping between them leaves the part holding one patch's bank and
+    /// another's program. And the instrument still goes back -- a cancel is the user changing their mind,
+    /// not the user asking to keep whatever the sweep had got to.
+    ///
+    /// The cancel is fired from the write, which is the moment this test is about: one patch captured and on
+    /// disk, and the user pressing the button. It used to be fired from the first progress report, which was
+    /// the same moment only for as long as progress was reported after a patch -- it is now reported before
+    /// one, so a report is the start of a patch and no longer the end of the one before it. Same intent,
+    /// pinned to the thing that actually means it.</summary>
+    [Test]
+    public async Task Cancellation_stops_between_patches_and_still_restores()
+    {
+        var instrument = new FakeInstrument();
+        var cancelling = new CancellationTokenSource();
+
+        var outcome = await Sweep(instrument, [Preset("First"), Preset("Second"), Preset("Third")],
+            write: (item, _) =>
+            {
+                cancelling.Cancel();
+                return item.FileName;
+            },
+            token: cancelling.Token);
+
+        Assert.That(outcome.Cancelled, Is.True);
+        Assert.That(outcome.Written, Is.EqualTo(new[] { "First [89-64-1].json" }));
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
+    }
+
+    /// <summary>And a cancel that arrives while a patch is in flight does not abandon that patch. Now that a
+    /// patch is announced before it is attempted, the gap between the announcement and the capture is
+    /// somewhere a token could plausibly be read a second time -- and reading it there would be reading it
+    /// inside a patch, which is the one place this loop must not: the bank write, the program write and the
+    /// capture share a single lease, and stopping between them leaves the part holding one patch's bank and
+    /// another's program. The report is the closest a test can stand to that moment.</summary>
+    [Test]
+    public async Task A_cancel_that_arrives_as_a_patch_starts_still_lets_that_patch_finish()
+    {
+        var instrument = new FakeInstrument();
+        var cancelling = new CancellationTokenSource();
+
+        var outcome = await Sweep(instrument, [Preset("First"), Preset("Second")],
+            progress: new Reports(_ => cancelling.Cancel()), token: cancelling.Token);
+
+        Assert.That(outcome.Written, Is.EqualTo(new[] { "First [89-64-1].json" }),
+            "the patch that had already been handed to the instrument was seen through");
+        Assert.That(outcome.Cancelled, Is.True);
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
+    }
+
+    /// <summary>Every capture that answered something is handed straight to the library, with the file name
+    /// and the annotations the plan decided on. Written as it is captured rather than at the end, because
+    /// that is what makes an interrupted sweep resumable: what is on disk when a run stops is what the next
+    /// run will not have to do again.</summary>
+    [Test]
+    public async Task Every_written_snapshot_reaches_the_library()
+    {
+        var instrument = new FakeInstrument();
+        instrument.Silent.Add("Not on this unit");
+        List<(SeedItem Item, Integra7Snapshot Snapshot)> writes = [];
+
+        await Sweep(instrument, [Preset("Full Grand 1"), Preset("Not on this unit")],
+            write: (item, snapshot) =>
+            {
+                writes.Add((item, snapshot));
+                return item.FileName;
+            });
+
+        Assert.That(writes, Has.Count.EqualTo(1), "and nothing at all for the one that answered nothing");
+        Assert.That(writes[0].Item.FileName, Is.EqualTo("Full Grand 1 [89-64-1].json"));
+        Assert.That(writes[0].Item.Metadata.Category, Is.EqualTo("Ac.Piano"));
+        Assert.That(writes[0].Item.Metadata.TagList, Is.EquivalentTo(new[] { "PRST", "factory" }));
+        Assert.That(writes[0].Snapshot.Name, Is.EqualTo("Full Grand 1"));
+    }
+
+    /// <summary>A round's boards are in the slots before any of its patches is asked for. Capturing a
+    /// board's tones before its board has arrived is how a whole round becomes 200 rows of "unavailable"
+    /// that were available all along.</summary>
+    [Test]
+    public async Task A_round_loads_its_boards_before_capturing_any_of_its_items()
+    {
+        var instrument = new FakeInstrument();
+
+        await Sweep(instrument, [Preset("Built in"), Preset("On a board", bank: "SRX07")]);
+
+        Assert.That(instrument.Calls.IndexOf("load 7,0,0,0"),
+            Is.LessThan(instrument.Calls.IndexOf("capture On a board")));
+        Assert.That(instrument.Calls.IndexOf("capture Built in"),
+            Is.LessThan(instrument.Calls.IndexOf("load 7,0,0,0")),
+            "and the boardless round is swept first, so files appear before the first 23-second load");
+    }
+
+    /// <summary>The restore is verified by reading the slots back, not assumed from having sent the load.
+    /// A user whose boards did not come back finds out when a part goes silent in the middle of something
+    /// else, which is both much later and much harder to connect to a sweep they ran this morning.
+    ///
+    /// This is the one comparison against a read-back that is legitimate here: what was sent is the set the
+    /// device had already settled on before the sweep started, so this compares convergence with
+    /// convergence rather than convergence with a request -- which is the trap the spike walked into.
+    /// </summary>
+    [Test]
+    public async Task A_restore_that_did_not_take_is_reported_rather_than_assumed()
+    {
+        var instrument = new FakeInstrument { Boards = [7, 0, 0, 0] };
+        instrument.LoadIgnores.Add("7,0,0,0");
+
+        var outcome = await Sweep(instrument, [Preset("On another board", bank: "SRX08")]);
+
+        Assert.That(outcome.RestoreWarning, Is.Not.Null);
+        Assert.That(outcome.RestoreWarning, Does.Contain("7, 0, 0, 0"), "what the slots held before");
+        Assert.That(outcome.RestoreWarning, Does.Contain("8, 0, 0, 0"), "and what they hold now");
+    }
+
+    /// <summary>Progress counts attempts, not successes. On a full sweep the unavailable rows arrive in
+    /// runs of hundreds -- every GM2 row, then every ExPCM one -- so a counter that only moved when a file
+    /// was written would sit still for minutes at a time, which from the outside is indistinguishable from
+    /// a hang. It is also what the panel divides by to say how much longer this will take.
+    ///
+    /// A patch is announced before it is attempted, so a report cannot be conditioned on what the patch
+    /// turned out to be even in principle -- but the property this test exists for is unchanged by that and
+    /// is still what the names below pin: the silent one and the throwing one are both announced, in their
+    /// place in the plan. What the move does change is <c>Done</c>, which counts the patches that have
+    /// finished and is therefore one behind the patch named beside it: the first report is 0, and the last
+    /// one of three is 2. The panel adds the one back -- see <c>SeedRunViewModel.ShowProgress</c>.</summary>
+    [Test]
+    public async Task Progress_counts_every_attempt_and_not_only_the_ones_that_wrote_a_file()
+    {
+        var instrument = new FakeInstrument();
+        instrument.Silent.Add("Not on this unit");
+        instrument.Throws.Add("Broken");
+        var reports = new Reports();
+
+        await Sweep(instrument, [Preset("Not on this unit"), Preset("Broken"), Preset("Fine")],
+            progress: reports);
+
+        Assert.That(reports.Seen.Select(report => report.Done), Is.EqualTo(new[] { 0, 1, 2 }),
+            "how many had finished when each patch was announced");
+        Assert.That(reports.Seen.Select(report => report.Current.Preset.Name),
+            Is.EqualTo(new[] { "Not on this unit", "Broken", "Fine" }));
+        Assert.That(reports.Seen[^1].Total, Is.EqualTo(3));
+    }
+
+    /// <summary>Each patch is announced before it is captured, and once.
+    ///
+    /// This is the defect the user found, and only the order of these calls shows it: the panel has nothing
+    /// to name a patch by except the last report, so a report made after the capture named the patch that
+    /// had just finished. On SN-A, at 116 ms a patch, nobody could see it. On PCM drum kits, at 6.018 s, the
+    /// panel spent every one of those six seconds naming the previous kit while the instrument's own display
+    /// named the one it was loading -- and the user, quite reasonably, asked which of the two was lying.
+    ///
+    /// Once per patch, which the sequence below also pins from both ends: a sweep is about 6,000 patches,
+    /// and a second report after each one would say a moment early exactly what the next patch's report
+    /// says anyway. The last patch has no report after it and needs none; the panel reads the in-flight
+    /// index as <c>Done + 1</c>, so its counter is already reading 3 of 3 while the third is
+    /// captured.</summary>
+    [Test]
+    public async Task Each_patch_is_announced_before_it_is_captured_and_once()
+    {
+        var instrument = new FakeInstrument();
+        // Written into the instrument's own log, because which side of the capture a report happened on is
+        // the whole of what this test is about, and the two are only comparable in one list.
+        var reports = new Reports(report => instrument.Calls.Add($"announce {report.Current.Preset.Name}"));
+
+        await Sweep(instrument, [Preset("First"), Preset("Second")], progress: reports);
+
+        Assert.That(instrument.Calls, Is.EqualTo(new[]
+        {
+            "capture studio set",
+            "announce First", "capture First",
+            "announce Second", "capture Second",
+            "restore studio set",
+        }));
+    }
+
+    /// <summary>A board load that throws ends the sweep -- there is nothing useful to do with a round whose
+    /// board never arrived, and an instrument that cannot move its slots will not capture the next round
+    /// either -- but it does not end it with the user's instrument left as the sweep had it.</summary>
+    [Test]
+    public async Task A_board_that_will_not_load_still_puts_the_instrument_back()
+    {
+        var instrument = new FakeInstrument();
+        instrument.LoadThrows.Add("7,0,0,0");
+
+        await Sweep(instrument, [Preset("On a board", bank: "SRX07")]);
+
+        Assert.That(instrument.Calls, Is.EqualTo(new[]
+        {
+            "capture studio set", "load 7,0,0,0", "load 0,0,0,0", "restore studio set",
+        }), "and the slots are put back even though it was the load that failed: it may have emptied them");
+    }
+
+    /// <summary>And the report survives it. Stopping is right; throwing is not. A user fifty minutes into a
+    /// sweep whose fourth loadout is refused has 4,000-odd files on disk and one thing that says so -- the
+    /// outcome -- and an exception out of here would be the only part of that failure that actually
+    /// destroyed anything. The reason is carried on the outcome instead, separately from
+    /// <c>Cancelled</c>: "you stopped this" and "your instrument stopped this" are different sentences.
+    /// </summary>
+    [Test]
+    public async Task A_refused_board_keeps_the_report_of_everything_swept_before_it()
+    {
+        var instrument = new FakeInstrument();
+        instrument.LoadThrows.Add("7,0,0,0");
+
+        var outcome = await Sweep(instrument,
+            [Preset("Built in"), Preset("On a board", bank: "SRX07")]);
+
+        Assert.That(outcome.Written, Is.EqualTo(new[] { "Built in [89-64-1].json" }),
+            "the round that finished before the refusal is still reported");
+        Assert.That(outcome.StoppedEarly, Does.Contain("7, 0, 0, 0"), "and it names the loadout");
+        Assert.That(outcome.StoppedEarly, Does.Contain("the slots are stuck"), "and what the instrument said");
+        Assert.That(outcome.Cancelled, Is.False, "the user did not ask for this");
+        Assert.That(outcome.Failed, Is.Empty, "and it is not a patch that failed");
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
+    }
+
+    /// <summary>A cancel that arrives during a board round is a cancel. The run's token is what the load was
+    /// given, and while the adapter is still waiting for a free instrument -- before it has sent anything --
+    /// it comes back out as an <c>OperationCanceledException</c>; reporting that as a loadout the instrument
+    /// refused would have the user checking a board that is perfectly well.</summary>
+    [Test]
+    public async Task A_cancel_during_a_board_load_is_not_a_refusal()
+    {
+        var cancelling = new CancellationTokenSource();
+        var instrument = new FakeInstrument { CancelDuringLoad = cancelling };
+
+        var outcome = await Sweep(instrument, [Preset("On a board", bank: "SRX07")],
+            token: cancelling.Token);
+
+        Assert.That(outcome.Cancelled, Is.True);
+        Assert.That(outcome.StoppedEarly, Is.Null, "the instrument refused nothing");
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
+    }
+
+    /// <summary>And a cancel that arrives once the loadout has gone out is still a cancel, even though the
+    /// load then finishes and the call returns as though nothing had happened. That is the adapter's contract
+    /// now -- an instrument that is loading discards anything else sent to its slots, so a load in flight is
+    /// seen through rather than abandoned -- and it puts the round in a state no other test covers: the
+    /// boards this round wanted are in the slots, and not one of its patches may be captured. The user
+    /// pressed Cancel; arriving at the first patch with the board freshly loaded is not a reason to take one
+    /// more.</summary>
+    [Test]
+    public async Task A_cancel_that_arrives_after_the_loadout_was_sent_captures_nothing_more()
+    {
+        var cancelling = new CancellationTokenSource();
+        var instrument = new FakeInstrument { CancelAsLoadFinishes = cancelling };
+
+        var outcome = await Sweep(instrument, [Preset("On a board", bank: "SRX07")],
+            token: cancelling.Token);
+
+        Assert.That(outcome.Cancelled, Is.True);
+        Assert.That(outcome.Written, Is.Empty, "the board arrived, but the user had already stopped this");
+        Assert.That(outcome.StoppedEarly, Is.Null, "and the instrument refused nothing");
+        Assert.That(instrument.Calls, Is.EqualTo(new[]
+        {
+            "capture studio set", "load 7,0,0,0", "load 0,0,0,0", "restore studio set",
+        }), "the round's load happened, no patch did, and the slots were still put back");
+    }
+
+    /// <summary>This is the path the <c>finally</c> exists for, now that a refused board stops gracefully.
+    /// The progress callback is the caller's own code, run six thousand times, and it sits outside the
+    /// per-patch catch on purpose: a screen that throws is not a patch that failed, and recording it against
+    /// a preset would be a lie about a sound that captured perfectly. So it ends the run -- and a run that
+    /// restored on its way out of the normal path only would look correct in every other test in this file
+    /// and would abandon the user's instrument on this one.</summary>
+    [Test]
+    public void A_progress_report_that_throws_still_puts_the_instrument_back()
+    {
+        var instrument = new FakeInstrument { Boards = [7, 0, 0, 0] };
+
+        Assert.That(async () => await Sweep(instrument, [Preset("On another board", bank: "SRX08")],
+                progress: new Reports(_ => throw new InvalidOperationException("the panel has gone"))),
+            Throws.TypeOf<InvalidOperationException>());
+        Assert.That(instrument.Calls[^2], Is.EqualTo("load 7,0,0,0"), "the boards are back");
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"), "and so is the Studio Set");
+    }
+
+    /// <summary>A board that will not go back must not also cost the user their Studio Set. The restore
+    /// order is boards first and the adapter gives up on a loadout by throwing after 90 seconds, so a board
+    /// restore left unguarded takes the Studio Set restore underneath it with it -- and the user whose slots
+    /// are stuck, who has a real fault to deal with already, silently loses the sixteen parts as well. They
+    /// are separate attempts for that reason, and the sweep's own report survives both.</summary>
+    [Test]
+    public async Task A_board_restore_that_throws_still_puts_the_studio_set_back()
+    {
+        var instrument = new FakeInstrument { Boards = [7, 0, 0, 0] };
+        instrument.LoadThrows.Add("7,0,0,0"); // the restore's loadout; the sweep's own load still works
+
+        var outcome = await Sweep(instrument, [Preset("On another board", bank: "SRX08")]);
+
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"),
+            "reached even though the load before it threw");
+        Assert.That(outcome.Written, Is.EqualTo(new[] { "On another board [89-64-1].json" }),
+            "and the report of what was swept is not thrown away by the tidying up");
+        Assert.That(outcome.RestoreWarning, Does.Contain("the slots are stuck"), "what the instrument said");
+        Assert.That(outcome.RestoreWarning, Does.Contain("7, 0, 0, 0"),
+            "and the set the user now has to load by hand");
+    }
+
+    /// <summary>And it is not then also reported as slots that disagree. What the adapter throws on is the
+    /// slots never settling, so a reading taken straight afterwards is a mid-flight one -- the device answers
+    /// all zeros while it works -- and the comparison this feature does make is only honest because both
+    /// sides of it are settled readings. Running it here would add a second sentence about a failure already
+    /// named, carrying a number that need not still be true by the time anybody reads it.</summary>
+    [Test]
+    public async Task A_board_restore_that_threw_is_not_also_read_back_and_disagreed_with()
+    {
+        var instrument = new FakeInstrument { Boards = [7, 0, 0, 0] };
+        instrument.LoadThrows.Add("7,0,0,0");
+
+        var outcome = await Sweep(instrument, [Preset("On another board", bank: "SRX08")]);
+
+        Assert.That(outcome.RestoreWarning, Does.Not.Contain("8, 0, 0, 0"),
+            "the sweep's own loadout is still in the slots, and saying so would be a reading of a device "
+            + "that never stopped moving");
+    }
+
+    /// <summary>The Studio Set failing to go back is the more serious of the two restores -- the boards cost
+    /// the parts whose tones lived on them, this costs all sixteen -- and it is still not allowed to destroy
+    /// the report. Fifty minutes of counts describe files that are already on disk, and an exception here
+    /// would be the one part of this failure that actually took something away that a second attempt could
+    /// not get back.</summary>
+    [Test]
+    public async Task A_studio_set_restore_that_throws_still_answers_with_what_was_swept()
+    {
+        var instrument = new FakeInstrument { RestoreThrows = true };
+
+        var outcome = await Sweep(instrument, [Preset("Built in"), Preset("And another")]);
+
+        Assert.That(outcome.Written, Is.EqualTo(new[]
+        {
+            "Built in [89-64-1].json", "And another [89-64-1].json",
+        }));
+        Assert.That(outcome.RestoreWarning, Does.Contain("Studio Set"),
+            "named, because a user told only that 'the restore failed' cannot tell which of the two it was");
+        Assert.That(outcome.RestoreWarning, Does.Not.Contain("expansion boards"),
+            "and named by the warning rather than by accident: the device's own words are quoted into this "
+            + "string, so 'it mentions the Studio Set' is satisfied by the exception alone. This run never "
+            + "touched a slot, so a sentence about the boards is the wrong sentence.");
+        Assert.That(outcome.RestoreWarning, Does.Contain("the Studio Set will not load"), "and what it said");
+    }
+
+    /// <summary>Both failing is still one outcome and one warning, and the Studio Set is the sentence it
+    /// opens with. This string is quite likely the only warning anybody gets before something goes silent
+    /// hours later, and a warning that leads with two lines about expansion slots buries the loss that makes
+    /// every part wrong under the one that makes some of them wrong.</summary>
+    [Test]
+    public async Task Both_restores_failing_gives_one_warning_that_names_the_studio_set_first()
+    {
+        var instrument = new FakeInstrument { Boards = [7, 0, 0, 0], RestoreThrows = true };
+        instrument.LoadThrows.Add("7,0,0,0");
+
+        var outcome = await Sweep(instrument, [Preset("On another board", bank: "SRX08")]);
+
+        Assert.That(outcome.Written, Is.Not.Empty, "one outcome, describing the sweep rather than the mess");
+        Assert.That(outcome.RestoreWarning, Does.Contain("Studio Set"));
+        Assert.That(outcome.RestoreWarning, Does.Contain("expansion boards"));
+        Assert.That(outcome.RestoreWarning!.IndexOf("Studio Set", StringComparison.Ordinal),
+            Is.LessThan(outcome.RestoreWarning!.IndexOf("expansion boards", StringComparison.Ordinal)),
+            "the more serious loss leads");
+    }
+
+    /// <summary>Slots that stop answering are a warning too, and a different one. The load itself converged,
+    /// so what could not be done is the checking -- probably the wire and not the boards -- and telling the
+    /// user their boards did not come back would send them after a fault they do not have. It cannot be an
+    /// exception either: this is read in a <c>finally</c>, where throwing would cost the report a check that
+    /// was only ever a precaution.</summary>
+    [Test]
+    public async Task Slots_that_cannot_be_read_after_the_restore_are_a_warning_and_not_an_exception()
+    {
+        var instrument = new FakeInstrument { Boards = [7, 0, 0, 0], VerificationReadThrows = true };
+
+        var outcome = await Sweep(instrument, [Preset("On another board", bank: "SRX08")]);
+
+        Assert.That(outcome.Written, Is.EqualTo(new[] { "On another board [89-64-1].json" }));
+        Assert.That(outcome.RestoreWarning, Does.Contain("could not be read"));
+        Assert.That(outcome.RestoreWarning, Does.Not.Contain("did not come back"),
+            "which is a claim about the slots, and this is a failure to look at them");
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
+    }
+
+    /// <summary>And when the run was already failing, the tidying up does not get to speak instead of it.
+    /// The progress callback throwing is what ends a sweep from outside the per-patch catch, and a restore
+    /// that threw on the way out would replace it -- leaving the user reading about their expansion slots
+    /// when what actually stopped their sweep was the screen. There is no outcome on this path and so no
+    /// warning either, which is the price of the run having failed rather than finished; what matters is
+    /// that both restores were still tried and that the exception is the one the user needs.</summary>
+    [Test]
+    public void A_failed_restore_does_not_replace_what_ended_the_run()
+    {
+        var instrument = new FakeInstrument { Boards = [7, 0, 0, 0], RestoreThrows = true };
+        instrument.LoadThrows.Add("7,0,0,0");
+
+        Assert.That(async () => await Sweep(instrument, [Preset("On another board", bank: "SRX08")],
+                progress: new Reports(_ => throw new InvalidOperationException("the panel has gone"))),
+            Throws.TypeOf<InvalidOperationException>().With.Message.EqualTo("the panel has gone"));
+        Assert.That(instrument.Calls[^2], Is.EqualTo("load 7,0,0,0"), "the boards were tried");
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"), "and so was the Studio Set");
+    }
+}
