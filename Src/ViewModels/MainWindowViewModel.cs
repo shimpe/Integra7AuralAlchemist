@@ -6,7 +6,6 @@ using System.IO;
 using System.Linq;
 using System.Reactive;
 using System.Reactive.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Platform;
@@ -96,6 +95,21 @@ public partial class MainWindowViewModel : ViewModelBase
     /// and a fresh set of parts, so a loader still running for the previous connection must stop before
     /// it pushes rows from the old list into the new parts.</summary>
     private CancellationTokenSource? _userPresetsCts;
+
+    /// <summary>Whether the sweep that reads the instrument's user-tone names has run to the end for the
+    /// preset list <see cref="PartViewModels"/> currently holds.
+    ///
+    /// <b>It describes the list, not the connection</b>, which is why it is cleared where a new sweep is
+    /// launched rather than where a connection is attempted. A rescan that fails to reconnect leaves the old
+    /// parts and their old list in place -- so if that list was complete it still is, and if the failing
+    /// rescan cancelled a sweep partway through, it stays partial for the rest of the session and every later
+    /// export writes the same half of the user's sounds. Only <see cref="ExportPatchListAsync"/> reads it, and
+    /// nothing else needs to: everywhere else a missing user name shows up as a row that is simply not there
+    /// yet, whereas an export is a file that goes away and gets used.
+    ///
+    /// Written from the loader's continuations and read from a button press, both on the UI thread, which is
+    /// the same reason <see cref="AddUserDefinedPresets"/> can touch the shared list at all.</summary>
+    private bool _userPresetNamesComplete;
 
     public ReadOnlyObservableCollection<PartViewModel> PartViewModels { get; private set; }
 
@@ -2033,6 +2047,11 @@ public partial class MainWindowViewModel : ViewModelBase
                 // Fetching the user tone names costs ~10s of sysex round trips, and nothing above
                 // depends on it — the factory presets from the CSV are already in place. Let it run
                 // after the window is usable and drip the user presets into the lists as they arrive.
+                //
+                // Cleared on the statement before the launch, with no await between this and the assignment
+                // of PartViewModels above: the flag describes that list, so the two have to change together
+                // or an export in between would describe the new, empty list with the old one's answer.
+                _userPresetNamesComplete = false;
                 _ = LoadUserPresetsInBackgroundAsync(presets, PartViewModels, userPresetsToken);
             }
             else
@@ -2072,6 +2091,12 @@ public partial class MainWindowViewModel : ViewModelBase
                 if (token.IsCancellationRequested) return;
                 await pvm.EnsurePreselectIsNotNullAsync();
             }
+
+            // The one place this is set, and only on the path where every name list was asked for and
+            // answered. A superseded loader returns above without touching it, and a failure leaves it
+            // false through the catch below -- both of which are true statements about the list: it has
+            // some of the user's tones in it and there is no way to know which are missing.
+            _userPresetNamesComplete = true;
         }
         catch (OperationCanceledException)
         {
@@ -2687,7 +2712,12 @@ public partial class MainWindowViewModel : ViewModelBase
     /// thread (see <see cref="AddUserDefinedPresets"/>), so enumerating it anywhere else is a read racing a
     /// write. <see cref="PatchListSource"/> materialises everything it produces, so what comes back is a
     /// snapshot nothing can change under the writer -- which is what makes the formatting safe to hand to a
-    /// pool thread below.</summary>
+    /// pool thread below.
+    ///
+    /// <b>And whether that snapshot was taken too early is said out loud.</b> Reading the list at the press
+    /// is not enough on its own: pressed thirty seconds into a connection, or after a rescan that failed and
+    /// cancelled the sweep, the list is genuinely missing user tones and would otherwise be described as
+    /// complete. <see cref="_userPresetNamesComplete"/> is what turns that into a sentence.</summary>
     public async Task ExportPatchListAsync()
     {
         UserActionLog.Action("button: Export patch list");
@@ -2719,21 +2749,34 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             // Off the UI thread: six thousand patches through an XML document builder is long enough to be
             // seen as a stall, and by this point the list is an immutable snapshot, so there is nothing for
-            // a pool thread to race.
-            var text = await Task.Run(() => writer.Write(list));
+            // a pool thread to race. The byte-order mark is the writer's answer rather than a decision made
+            // here -- see PatchListExport.BytesFor, which is also why this asks for bytes and not text.
+            var bytes = await Task.Run(() => PatchListExport.BytesFor(writer, list));
 
-            // Ask the writer about the byte-order mark rather than deciding here. The four formats disagree
-            // and both failures are silent: Reaper's parser and several midnam readers read a leading mark
-            // as part of the first token, and the symptom is a bank that simply does not appear; Excel
-            // opening a BOM-less UTF-8 .csv by double-click falls back to the system code page and mangles
-            // the 84 factory names that carry a curly apostrophe.
-            await File.WriteAllTextAsync(path, text, new UTF8Encoding(writer.WantsByteOrderMark));
+            // Written atomically, as ExportStudioSetAsync and ExportToneAsync are and for the same reason,
+            // even though a patch list is regenerable where a captured Studio Set is not: WriteAllBytes
+            // truncates the target before the first byte lands, so a share that drops partway through six
+            // thousand patches leaves last month's file as a short one that Reaper will still happily load
+            // as a complete bank list. A truncated file that reports failure is worse than no file, because
+            // the report is on a status line and the file is what the DAW reads next month.
+            var tempPath = path + ".tmp";
+            try
+            {
+                await File.WriteAllBytesAsync(tempPath, bytes);
+                File.Move(tempPath, path, overwrite: true);
+            }
+            catch
+            {
+                if (File.Exists(tempPath)) File.Delete(tempPath);
+                throw;
+            }
 
             SnapshotFailed = false;
-            // What could not be represented is said here, not logged. A patch list that lost a patch or put
-            // two at one address is byte-for-byte the shape of a correct one, so this sentence is the only
-            // place the user can find out -- see PatchListExport.Outcome.
-            SnapshotStatus = PatchListExport.Outcome(list, Path.GetFileName(path));
+            // What could not be represented is said here, not logged. A patch list that lost a patch, that
+            // put two at one address, or that was written before the user's own tone names had all arrived
+            // is byte-for-byte the shape of a correct one, so this sentence is the only place the user can
+            // find out -- see PatchListExport.Outcome.
+            SnapshotStatus = PatchListExport.Outcome(list, Path.GetFileName(path), _userPresetNamesComplete);
         }
         catch (Exception e)
         {
