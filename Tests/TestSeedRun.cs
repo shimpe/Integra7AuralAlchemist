@@ -49,6 +49,13 @@ public class SeedRunTests
         public HashSet<string> LoadThrows { get; } = [];  // loadouts it refuses outright
         public int[] Boards { get; set; } = [0, 0, 0, 0];
 
+        /// <summary>Set to have the <i>first</i> board load cancel the run and abandon itself, which is what
+        /// Cancel pressed during a 23-second load looks like from here -- the real implementation polls with
+        /// the run's token and comes out of the wait as an <see cref="OperationCanceledException"/>. Cleared
+        /// as it fires, so the restore's own load still goes through: a cancelled sweep must still put the
+        /// instrument back.</summary>
+        public CancellationTokenSource? CancelDuringLoad { get; set; }
+
         public Task<int[]> LoadedBoardsAsync() => Task.FromResult(Boards);
 
         public Task LoadBoardsAsync(int[] boards, CancellationToken token)
@@ -56,6 +63,13 @@ public class SeedRunTests
             var loadout = string.Join(',', boards);
             Calls.Add($"load {loadout}");
             if (LoadThrows.Contains(loadout)) throw new SnapshotFormatException("the slots are stuck");
+            if (CancelDuringLoad is { } cancelling)
+            {
+                CancelDuringLoad = null;
+                cancelling.Cancel();
+                throw new OperationCanceledException(token);
+            }
+
             if (!LoadIgnores.Contains(loadout)) Boards = boards;
             return Task.CompletedTask;
         }
@@ -313,21 +327,78 @@ public class SeedRunTests
 
     /// <summary>A board load that throws ends the sweep -- there is nothing useful to do with a round whose
     /// board never arrived, and an instrument that cannot move its slots will not capture the next round
-    /// either -- but it does not end it with the user's instrument left as the sweep had it. This is the
-    /// path the <c>finally</c> exists for: every per-patch failure above is caught and recorded, so a run
-    /// that restored on its way out of the normal path only would look correct in every other test here and
-    /// would abandon the instrument on this one.</summary>
+    /// either -- but it does not end it with the user's instrument left as the sweep had it.</summary>
     [Test]
-    public void A_board_that_will_not_load_still_puts_the_instrument_back()
+    public async Task A_board_that_will_not_load_still_puts_the_instrument_back()
     {
         var instrument = new FakeInstrument();
         instrument.LoadThrows.Add("7,0,0,0");
 
-        Assert.That(async () => await Sweep(instrument, [Preset("On a board", bank: "SRX07")]),
-            Throws.TypeOf<SnapshotFormatException>());
+        await Sweep(instrument, [Preset("On a board", bank: "SRX07")]);
+
         Assert.That(instrument.Calls, Is.EqualTo(new[]
         {
             "capture studio set", "load 7,0,0,0", "load 0,0,0,0", "restore studio set",
         }), "and the slots are put back even though it was the load that failed: it may have emptied them");
+    }
+
+    /// <summary>And the report survives it. Stopping is right; throwing is not. A user fifty minutes into a
+    /// sweep whose fourth loadout is refused has 4,000-odd files on disk and one thing that says so -- the
+    /// outcome -- and an exception out of here would be the only part of that failure that actually
+    /// destroyed anything. The reason is carried on the outcome instead, separately from
+    /// <c>Cancelled</c>: "you stopped this" and "your instrument stopped this" are different sentences.
+    /// </summary>
+    [Test]
+    public async Task A_refused_board_keeps_the_report_of_everything_swept_before_it()
+    {
+        var instrument = new FakeInstrument();
+        instrument.LoadThrows.Add("7,0,0,0");
+
+        var outcome = await Sweep(instrument,
+            [Preset("Built in"), Preset("On a board", bank: "SRX07")]);
+
+        Assert.That(outcome.Written, Is.EqualTo(new[] { "Built in [89-64-1].json" }),
+            "the round that finished before the refusal is still reported");
+        Assert.That(outcome.StoppedEarly, Does.Contain("7, 0, 0, 0"), "and it names the loadout");
+        Assert.That(outcome.StoppedEarly, Does.Contain("the slots are stuck"), "and what the instrument said");
+        Assert.That(outcome.Cancelled, Is.False, "the user did not ask for this");
+        Assert.That(outcome.Failed, Is.Empty, "and it is not a patch that failed");
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
+    }
+
+    /// <summary>A cancel that arrives while a 23-second load is in flight is a cancel. The run's token is
+    /// what the load was given, so it comes back out as an <c>OperationCanceledException</c> -- and reporting
+    /// that as a loadout the instrument refused would have the user checking a board that is perfectly
+    /// well.</summary>
+    [Test]
+    public async Task A_cancel_during_a_board_load_is_not_a_refusal()
+    {
+        var cancelling = new CancellationTokenSource();
+        var instrument = new FakeInstrument { CancelDuringLoad = cancelling };
+
+        var outcome = await Sweep(instrument, [Preset("On a board", bank: "SRX07")],
+            token: cancelling.Token);
+
+        Assert.That(outcome.Cancelled, Is.True);
+        Assert.That(outcome.StoppedEarly, Is.Null, "the instrument refused nothing");
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"));
+    }
+
+    /// <summary>This is the path the <c>finally</c> exists for, now that a refused board stops gracefully.
+    /// The progress callback is the caller's own code, run six thousand times, and it sits outside the
+    /// per-patch catch on purpose: a screen that throws is not a patch that failed, and recording it against
+    /// a preset would be a lie about a sound that captured perfectly. So it ends the run -- and a run that
+    /// restored on its way out of the normal path only would look correct in every other test in this file
+    /// and would abandon the user's instrument on this one.</summary>
+    [Test]
+    public void A_progress_report_that_throws_still_puts_the_instrument_back()
+    {
+        var instrument = new FakeInstrument { Boards = [7, 0, 0, 0] };
+
+        Assert.That(async () => await Sweep(instrument, [Preset("On another board", bank: "SRX08")],
+                progress: new Reports(_ => throw new InvalidOperationException("the panel has gone"))),
+            Throws.TypeOf<InvalidOperationException>());
+        Assert.That(instrument.Calls[^2], Is.EqualTo("load 7,0,0,0"), "the boards are back");
+        Assert.That(instrument.Calls[^1], Is.EqualTo("restore studio set"), "and so is the Studio Set");
     }
 }

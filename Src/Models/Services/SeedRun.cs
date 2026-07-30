@@ -57,12 +57,20 @@ public sealed record SeedProgress(int Done, int Total, SeedItem Current);
 /// user whose boards did not come back needs to be told rather than left to find out when a part goes
 /// silent. Carried rather than thrown: it is discovered in a finally, where throwing would replace whatever
 /// the run was already reporting.</param>
+/// <param name="StoppedEarly">Non-null when the sweep gave up before the end of the plan for a reason that
+/// was not the user's -- in practice a loadout the instrument refused. Separate from
+/// <paramref name="Cancelled"/> because "you stopped this" and "the instrument stopped this" are different
+/// sentences, and separate from <paramref name="Failed"/> because that is per-patch and this ended the
+/// sweep. Carried rather than thrown for the same reason the whole loop isolates failures: the counts on
+/// either side of it are the only record of fifty minutes of work, and the files they describe are already
+/// on disk.</param>
 public sealed record SeedOutcome(
     IReadOnlyList<string> Written,
     IReadOnlyList<Integra7Preset> Unavailable,
     IReadOnlyList<(Integra7Preset Preset, string Why)> Failed,
     bool Cancelled,
-    string? RestoreWarning = null);
+    string? RestoreWarning = null,
+    string? StoppedEarly = null);
 
 /// <summary>Walking a <see cref="SeedWork"/> across an instrument: the boards each round needs, the patches
 /// capturable under them, the file that comes out of each one, and putting the instrument back afterwards.
@@ -81,10 +89,20 @@ public sealed record SeedOutcome(
 /// this unit genuinely does not expose, and retried three times it was silent three times -- so a retry is
 /// 1.5 s spent to be told the same thing again, twenty minutes of it over a full sweep.
 ///
+/// <b>A loadout the instrument refuses ends the sweep without throwing.</b> Stopping is right -- an
+/// instrument that cannot move its slots will not capture the next round either -- but throwing would take
+/// the <see cref="SeedOutcome"/> with it, and fifty minutes in that outcome is the only record of what was
+/// done. The files it describes are already on disk; the counts are the one thing a failure here can still
+/// destroy, so they are returned with the reason attached instead.
+///
 /// <b>The instrument is put back in a finally.</b> A sweep overwrites a part once per patch and evicts
 /// whatever was in the four board slots, and a run that threw and left the user with neither their Studio
 /// Set nor their boards is the worst thing this feature can do -- worse than not running at all, because
-/// they did not choose it.</summary>
+/// they did not choose it. What can still throw out of the loop, now that the board load cannot, is the
+/// caller's own <see cref="IProgress{T}"/>: it is deliberately outside the per-patch catch, because a
+/// screen that throws is not a patch that failed and recording it against a preset would be a lie about a
+/// sound that captured perfectly. So it ends the run -- and the finally is what makes ending the run leave
+/// the instrument where the sweep found it.</summary>
 public static class SeedRun
 {
     /// <summary>Sweep <paramref name="work"/> into the library, one patch at a time.</summary>
@@ -115,6 +133,7 @@ public static class SeedRun
         var loadedBoards = false;
         var done = 0;
         string? restoreWarning;
+        string? stoppedEarly = null;
 
         try
         {
@@ -132,7 +151,31 @@ public static class SeedRun
                     // evicted what was in the slots, and the run where the boards most need putting back is
                     // exactly the run where the loading went wrong.
                     loadedBoards = true;
-                    await instrument.LoadBoardsAsync(round.Boards, token);
+                    try
+                    {
+                        await instrument.LoadBoardsAsync(round.Boards, token);
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    {
+                        // The Cancel button pressed while a 23-second load was in flight. The same event as
+                        // the check above, arriving a moment later, and it has to read the same way: "you
+                        // stopped this" rather than "your instrument refused a loadout", which would send
+                        // the user looking for a fault they do not have.
+                        cancelled = true;
+                        break;
+                    }
+                    catch (Exception e)
+                    {
+                        // Stop, but do not throw. There is nothing useful to do with a round whose board
+                        // never arrived, and an instrument that cannot move its slots will not manage the
+                        // next round either -- so ending the sweep is right. Ending it with an exception is
+                        // not: everything captured before this is already written, and the outcome about to
+                        // be returned is the only thing that says so.
+                        stoppedEarly =
+                            $"The sweep stopped after the instrument refused the expansion boards "
+                            + $"{Slots(round.Boards)}: {e.Message}";
+                        break;
+                    }
                 }
 
                 foreach (var item in round.Items)
@@ -174,7 +217,7 @@ public static class SeedRun
             restoreWarning = await PutBackAsync(instrument, studioSet, boardsBefore, loadedBoards);
         }
 
-        return new SeedOutcome(written, unavailable, failed, cancelled, restoreWarning);
+        return new SeedOutcome(written, unavailable, failed, cancelled, restoreWarning, stoppedEarly);
     }
 
     /// <summary>Put the instrument back where the sweep found it, and say so when it did not go.
