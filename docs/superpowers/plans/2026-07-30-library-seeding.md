@@ -307,9 +307,10 @@ public enum SeedSkip
 }
 
 /// <param name="Preset">The row this came from.</param>
-/// <param name="FileName">What the file will be called, without a folder. Built from the catalogue name,
-/// because the resume compares it against the folder before anything is captured and the device's name is
-/// not known until after.</param>
+/// <param name="FileName">What the file will be called, without a folder. See
+/// <see cref="SeedPlan.FileNameFor"/> -- the catalogue name and the address, because the resume compares
+/// this against the folder before anything is captured and neither the device's name nor a collision
+/// suffix is knowable that early.</param>
 /// <param name="Metadata">The annotations to write with it. Built here rather than at the write, so that
 /// what a swept snapshot carries is decided in one tested place -- the tag is what makes "only my own
 /// patches" a filter afterwards, and a sweep that forgot it would need 6,000 files re-annotated.</param>
@@ -363,7 +364,25 @@ public class SeedPlanTests
         var work = SeedPlan.Build([Preset("Full Grand 1")], Everything(), [], []);
 
         Assert.That(work.Count, Is.EqualTo(1));
-        Assert.That(work.Rounds[0].Items[0].FileName, Is.EqualTo("Full Grand 1.json"));
+        Assert.That(work.Rounds[0].Items[0].FileName, Is.EqualTo("Full Grand 1 [89-64-1].json"));
+    }
+
+    /// <summary>The address is in the file name because the name alone is not unique and the library will
+    /// not overwrite: 405 of the 6,022 catalogue rows share a name with another row -- three Harps, three
+    /// Shakuhachis, three Snare Menu 1s -- and <c>SnapshotLibrary.Create</c> answers a collision with
+    /// " (2)". A sweep that let it would write ~208 files under names its own planner never predicts, so
+    /// every re-run would capture them again and the folder would grow by 208 files each time while the
+    /// resume looked like it was working. Unique by construction is the only version of this that stays
+    /// true after the second run.</summary>
+    [Test]
+    public void Two_presets_with_one_name_get_two_file_names()
+    {
+        var work = SeedPlan.Build(
+            [Preset("Harp", bank: "PRST", pc: 12), Preset("Harp", bank: "SRX07", pc: 40)],
+            Everything("PRST", "SRX07"), [], []);
+
+        var names = work.Rounds.SelectMany(round => round.Items).Select(item => item.FileName).ToList();
+        Assert.That(names, Is.Unique);
     }
 
     [Test]
@@ -391,7 +410,8 @@ public class SeedPlanTests
     [Test]
     public void A_preset_already_in_the_library_is_skipped()
     {
-        var work = SeedPlan.Build([Preset("Full Grand 1")], Everything(), ["Full Grand 1.json"], []);
+        var work = SeedPlan.Build([Preset("Full Grand 1")], Everything(),
+            ["Full Grand 1 [89-64-1].json"], []);
 
         Assert.That(work.Count, Is.EqualTo(0));
         Assert.That(work.Skipped.Single().Why, Is.EqualTo(SeedSkip.AlreadyInLibrary));
@@ -402,7 +422,8 @@ public class SeedPlanTests
     [Test]
     public void An_existing_file_matches_whatever_its_case()
     {
-        var work = SeedPlan.Build([Preset("Full Grand 1")], Everything(), ["FULL GRAND 1.JSON"], []);
+        var work = SeedPlan.Build([Preset("Full Grand 1")], Everything(),
+            ["FULL GRAND 1 [89-64-1].JSON"], []);
 
         Assert.That(work.Skipped.Single().Why, Is.EqualTo(SeedSkip.AlreadyInLibrary));
     }
@@ -485,7 +506,7 @@ public class SeedPlanTests
     {
         var work = SeedPlan.Build(
             [Preset("Built in"), Preset("On a board", bank: "SRX07")],
-            Everything("PRST", "SRX07"), ["On a board.json"], []);
+            Everything("PRST", "SRX07"), ["On a board [89-64-1].json"], []);
 
         Assert.That(work.Rounds, Has.Count.EqualTo(1));
         Assert.That(work.Rounds[0].Boards, Is.Null);
@@ -608,7 +629,7 @@ public class SeedPlanTests
                 continue;
             }
 
-            var fileName = $"{SnapshotLibrary.SafeFileName(preset.Name)}.json";
+            var fileName = FileNameFor(preset);
             if (have.Contains(fileName))
             {
                 skipped.Add((preset, SeedSkip.AlreadyInLibrary));
@@ -666,13 +687,39 @@ public class SeedPlanTests
         + PerLoadout * rounds.Count(round => round.Boards is not null);
 ```
 
-`SnapshotLibrary.SafeFileName` may not exist under that name — **check `SnapshotLibrary.Create` and use
-whatever it already uses to turn a snapshot name into a file name**. If that logic is private, make it
-internal or public rather than writing a second version: the plan's resume depends on this producing exactly
-the name `Create` will produce, and two implementations of that would diverge silently and re-sweep the
-folder every run.
+And the file name itself, in the same class:
 
-- [ ] **Step 5: Green, then the whole suite.** Expected 1142 + 15 = **1157**.
+```csharp
+    /// <summary>What a swept preset's file is called: its catalogue name, then its address.
+    ///
+    /// <b>The address is there because the name is not unique and the library will not overwrite.</b> 405
+    /// of the 6,022 catalogue rows share a name with another row -- three Harps, three Shakuhachis, three
+    /// Snare Menu 1s -- and <see cref="SnapshotLibrary.Create"/> answers a collision by suffixing " (2)",
+    /// which is right for a user saving a sound by hand and wrong here: the sweep predicts this name before
+    /// it captures anything, and a file that landed under a name the planner cannot predict would be
+    /// captured again on every re-run, the folder growing by ~208 files each time while the resume looked
+    /// like it was working. MSB, LSB and PC together are unique across every row in the table and across
+    /// the user slots as well, which are at their own addresses, so a name built from them collides only
+    /// with itself.
+    ///
+    /// <b>Not the device's name</b>, though the snapshot inside will carry it. This is chosen before the
+    /// capture, because it is what the resume compares against the folder, and a name only knowable after a
+    /// capture cannot decide whether to capture. The library already treats the two as different things.
+    /// </summary>
+    public static string FileNameFor(Integra7Preset preset) =>
+        SnapshotLibrary.FileNameFor($"{preset.Name} [{preset.Msb}-{preset.Lsb}-{preset.Pc}]");
+```
+
+`SnapshotLibrary.FileNameFor` is public already, scrubs what a file name may not hold, appends `.json`, and
+is the same call `SnapshotLibrary.Create` makes — so the two cannot disagree about what a legal name is.
+
+**`SnapshotLibrary.Create` needs one change, in Task 3 or 4 rather than here:** it derives the file name from
+the snapshot's own name, and the sweep must supply its own instead. Give it an optional last parameter,
+`string? fileName = null`, null meaning what it means today. Keep the `UniquePath` call — with names unique
+by construction the suffix now only fires if the folder changed under a running sweep, and overwriting a file
+the user has is worse than one file that gets swept twice.
+
+- [ ] **Step 5: Green, then the whole suite.** Expected 1142 + 18 = **1160**.
 
 - [ ] **Step 6: Commit**
 
@@ -807,7 +854,7 @@ The cases that must be pinned, each its own test:
 user's Studio Set overwritten and their boards evicted is the worst outcome this feature has; it is worse
 than not running at all, because they did not choose it.
 
-- [ ] **Step 4: Green, then the whole suite.** Expected 1157 + 10 = **1167**.
+- [ ] **Step 4: Green, then the whole suite.** Expected 1160 + 10 = **1170**.
 
 - [ ] **Step 5: Commit**
 
@@ -847,6 +894,12 @@ the catalogue name in `Notes` as `Listed as "<name>"`.
 resume compares against the folder, and a name only knowable after a capture cannot decide whether to
 capture. The library already treats those as two different things: `LibraryEntryViewModel.Name` documents
 that the name lives inside the file and the file name is the user's.
+
+The rename goes **through `SnapshotMetadata`, not by mutating the snapshot**: it already has a nullable
+`Name` whose null means "leave what the file says", and a `Notes`, and `SnapshotLibrary.Annotated` is the one
+place those are turned into a snapshot's own fields. So this service answers with a `SnapshotMetadata` — the
+category and tags the plan built, plus the device's name and any note — and the write hands that to
+`Create` along with the plan's file name.
 
 This is a rule with an input and an output and no device in it, so **put it in a service and test it** —
 given a captured snapshot and a preset, what the snapshot should be renamed to and what note it should carry.
