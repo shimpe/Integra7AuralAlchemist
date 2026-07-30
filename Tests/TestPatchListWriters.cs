@@ -341,3 +341,122 @@ public class CubasePatchListWriterTests
         Assert.That(writer.WantsByteOrderMark, Is.False);
     }
 }
+
+/// <summary>The MMA MIDINameDocument, which Ardour and Mixbus read. Unlike the Cubase format this one is a
+/// published DTD and a schema about patches, so the shape is not in doubt; what these tests pin is the two
+/// numbers a patch carries and the fact that all sixteen channels can reach it.</summary>
+public class MidnamPatchListWriterTests
+{
+    private static string Written() => new MidnamPatchListWriter().Write(AwkwardPatchList.Build());
+
+    [Test]
+    public void It_is_well_formed_and_declares_the_mma_doctype()
+    {
+        Assert.That(Written(), Does.Contain("<!DOCTYPE MIDINameDocument PUBLIC"));
+        Assert.DoesNotThrow(() => XDocument.Parse(Written()));
+    }
+
+    [Test]
+    public void A_bank_carries_its_two_control_changes()
+    {
+        var bank = XDocument.Parse(Written()).Descendants("PatchBank").First();
+        var changes = bank.Descendants("ControlChange")
+            .Select(c => (c.Attribute("Control")!.Value, c.Attribute("Value")!.Value)).ToList();
+
+        // The fixture's own first bank is 89/64 -- it is built by hand, not through PatchListSource, so it
+        // is in the order it is written in rather than in address order.
+        Assert.That(changes, Is.EqualTo(new[] { ("0", "89"), ("32", "64") }));
+    }
+
+    /// <summary>Number is a label and ProgramChange is the wire value, and they are not the same number.
+    ///
+    /// <b>The reason is not the one it is easy to assume.</b> Ardour does not display Number at all -- its
+    /// own parser says so in a comment and skips the attribute -- so writing the wire value there would be
+    /// invisible in the reader this format was chosen for, and would still be wrong: the DTD wants Number
+    /// unique within its list, other readers show it as the patch's label, and Roland's own printed tone
+    /// list counts from 1. Roland_SonicCell.midnam, shipped with Ardour and describing an instrument
+    /// addressed exactly like this one, writes Number="001" against ProgramChange="0".</summary>
+    [Test]
+    public void The_display_number_and_the_program_change_are_not_the_same_number()
+    {
+        var patch = XDocument.Parse(Written()).Descendants("Patch").First();
+
+        Assert.That(patch.Attribute("ProgramChange")!.Value, Is.EqualTo("0"));
+        Assert.That(patch.Attribute("Number")!.Value, Is.EqualTo("1"));
+    }
+
+    /// <summary>And it restarts in each bank, because it labels a position in one bank's list rather than a
+    /// position in the instrument. A single counter running through all 6,023 patches would satisfy the test
+    /// above -- the first patch of the first bank is 1 either way -- and would then label the second bank's
+    /// first patch 6 in a fixture, or 130 in the real data, against a program change of 0.</summary>
+    [Test]
+    public void The_display_number_restarts_in_each_bank()
+    {
+        var banks = XDocument.Parse(Written()).Descendants("PatchBank").ToList();
+
+        Assert.That(banks[0].Descendants("Patch").Select(p => p.Attribute("Number")!.Value),
+            Is.EqualTo(new[] { "1", "2", "3", "4", "5" }));
+        Assert.That(banks[1].Descendants("Patch").Select(p => p.Attribute("Number")!.Value),
+            Is.EqualTo(new[] { "1" }));
+    }
+
+    [Test]
+    public void Every_channel_is_offered_the_name_set()
+    {
+        var doc = XDocument.Parse(Written());
+
+        Assert.That(doc.Descendants("AvailableChannel").Count(), Is.EqualTo(16));
+        Assert.That(doc.Descendants("ChannelNameSetAssign").Count(), Is.EqualTo(16));
+    }
+
+    [Test]
+    public void A_parser_reads_the_names_back_unchanged()
+    {
+        var names = XDocument.Parse(Written())
+            .Descendants("Patch").Select(p => p.Attribute("Name")!.Value).ToList();
+
+        Assert.That(names, Does.Contain("Rock & Roll").And.Contain("Café Piano"));
+    }
+
+    /// <summary>Each bank keeps its name and its own patches. Everything above looks at the first bank or at
+    /// the document as a whole, and a writer that put all six patches in the first bank -- or wrote one bank
+    /// per patch -- would pass all of it.</summary>
+    [Test]
+    public void Each_bank_keeps_its_name_and_its_own_patches()
+    {
+        var banks = XDocument.Parse(Written()).Descendants("PatchBank")
+            .Select(b => (Name: b.Attribute("Name")!.Value,
+                Patches: b.Descendants("Patch").Select(p => p.Attribute("Name")!.Value).ToList()))
+            .ToList();
+
+        Assert.That(banks.Select(b => b.Name), Is.EqualTo(new[] { "SN-A PRST", "PCMS USER" }));
+        Assert.That(banks[0].Patches, Is.EqualTo(new[]
+            { "Rock & Roll", "The \"Big\" One", "Strings, Warm", "Café Piano", "Split\nName" }));
+        Assert.That(banks[1].Patches, Is.EqualTo(new[] { "Mine" }));
+    }
+
+    /// <summary>The name set the channels are assigned to is the one that exists. The assignment is by name,
+    /// so a mismatch between the two spellings is a document that parses, validates and offers every channel
+    /// a name set that is not there -- which is the whole patch list gone, silently.</summary>
+    [Test]
+    public void The_channels_are_assigned_a_name_set_that_exists()
+    {
+        var doc = XDocument.Parse(Written());
+        var sets = doc.Descendants("ChannelNameSet").Select(s => s.Attribute("Name")!.Value).ToHashSet();
+        var assigned = doc.Descendants("ChannelNameSetAssign")
+            .Select(a => a.Attribute("NameSet")!.Value).Distinct().ToList();
+
+        Assert.That(assigned, Is.Not.Empty);
+        Assert.That(assigned.Where(name => !sets.Contains(name)), Is.Empty);
+    }
+
+    /// <summary>No mark -- several midnam readers take a leading byte-order mark as part of the first token,
+    /// and what the user sees is a file that does not load at all.</summary>
+    [Test]
+    public void It_asks_for_no_byte_order_mark()
+    {
+        IPatchListWriter writer = new MidnamPatchListWriter();
+
+        Assert.That(writer.WantsByteOrderMark, Is.False);
+    }
+}
