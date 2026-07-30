@@ -34,8 +34,11 @@
                        TextWrapping="Wrap"
                        Foreground="{StaticResource SnMutedTextBrush}" />
             <StackPanel Orientation="Horizontal" Spacing="8">
-                <NumericUpDown Value="{Binding Threshold}" Minimum="0" Maximum="100" Increment="1"
-                               FormatString="0" Width="110" />
+                <!-- Bound to ThresholdValue, not to Threshold: the control's value is nullable because the
+                     box can be emptied, and binding that to an int renders a raw InvalidCastException in
+                     red under the control — see the view model for what that costs the layout. -->
+                <NumericUpDown Value="{Binding ThresholdValue, Mode=TwoWay}" Minimum="0" Maximum="100"
+                               Increment="1" FormatString="0" Width="110" />
                 <Button Content="Scan" Command="{Binding ScanAsync}" Padding="12,2" />
             </StackPanel>
 

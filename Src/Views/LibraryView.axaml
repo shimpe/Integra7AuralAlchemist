@@ -178,25 +178,32 @@
                          SelectionMode="Multiple">
                     <ListBox.ItemTemplate>
                         <DataTemplate x:DataType="vm:LibraryEntryViewModel">
-                            <Grid ColumnDefinitions="28,2*,150,140,80,130,3*">
-                                <TextBlock Grid.Column="0" Text="{Binding FavouriteMark}"
+                            <Grid ColumnDefinitions="28,2*,150,140,80,130,3*" RowDefinitions="Auto,Auto">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding FavouriteMark}"
                                            Foreground="{StaticResource SnRatingStarBrush}" />
-                                <!-- The name, and under it why this row is here when the name says nothing
-                                     about what was searched for. Under the name rather than in a column of
-                                     its own: it is blank on every row until somebody looks inside a patch,
-                                     and a column wide enough for a parameter path would cost the Tags
-                                     column its width permanently for something usually empty. Collapsed
-                                     when there is nothing to say, or every row would carry a blank second
-                                     line and the list would lose half its rows to whitespace. -->
-                                <StackPanel Grid.Column="1">
-                                    <TextBlock Text="{Binding Name}"
-                                               TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding MatchedInside}"
-                                               Foreground="{StaticResource SnMutedTextBrush}"
-                                               TextTrimming="CharacterEllipsis"
-                                               IsVisible="{Binding MatchedInside,
-                                                   Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                                </StackPanel>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding Name}"
+                                           TextTrimming="CharacterEllipsis" />
+                                <!-- Why this row is here, when the name says nothing about what was searched
+                                     for. A second line under the columns rather than a column of its own:
+                                     it is blank on every row until somebody looks inside a patch, and a
+                                     column wide enough for a parameter path would cost the Tags column its
+                                     width permanently for something usually empty.
+
+                                     Spanning to the end of the row, and this is not cosmetic. Inside the
+                                     name column it was trimmed to "SuperNATURAL Synth To…" on a 1750px
+                                     window — the block's name and never the parameter or the value, which
+                                     is the whole of what it has to say. Measured by driving the built
+                                     application, not guessed at.
+
+                                     Collapsed when there is nothing to say, or every row would carry a
+                                     blank second line and the list would lose half its rows to
+                                     whitespace. -->
+                                <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="6"
+                                           Text="{Binding MatchedInside}"
+                                           Foreground="{StaticResource SnMutedTextBrush}"
+                                           TextTrimming="CharacterEllipsis"
+                                           IsVisible="{Binding MatchedInside,
+                                               Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                                 <!-- The kind and the init-tone mark share a column: the mark is set on at
                                      most five rows in the whole library, and a column of its own would be
                                      blank on every other one. The mark is accented rather than muted like

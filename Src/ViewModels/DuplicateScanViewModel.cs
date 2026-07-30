@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Threading;
 using Integra7AuralAlchemist.Models.Services;
 using ReactiveUI;
 using ReactiveUI.SourceGenerators;
@@ -176,6 +177,11 @@ public sealed partial class DuplicateScanViewModel : ViewModelBase
         _delete = delete;
         _compareTwo = compareTwo;
         _close = close;
+
+        // The generated Threshold setter announces itself and knows nothing of the property the box is
+        // actually bound to -- the same wiring LibraryEntryViewModel needs for its init-tone mark, for the
+        // same reason.
+        this.WhenAnyValue(x => x.Threshold).Subscribe(_ => this.RaisePropertyChanged(nameof(ThresholdValue)));
     }
 
     /// <summary>How many parameter values two snapshots may differ in and still count as the same sound.
@@ -185,6 +191,45 @@ public sealed partial class DuplicateScanViewModel : ViewModelBase
     /// <see cref="DuplicateGroups"/>. Nought is a perfectly good setting and means "identical", which is the
     /// other thing a user comes here for: the file copied in twice.</summary>
     [Reactive] private int _threshold = 5;
+
+    /// <summary>The threshold as the spin box edits it, which is a <c>decimal?</c> because an editable
+    /// <c>NumericUpDown</c> has an empty state and a number cannot represent one.
+    ///
+    /// <b>Bound instead of <see cref="Threshold"/>, because binding a nullable control to an int puts a raw
+    /// .NET exception on screen.</b> Clearing the box -- select all, delete, which is how anyone retypes a
+    /// small number -- hands the binding a null, and Avalonia renders
+    /// <c>System.InvalidCastException: Could not convert '(null)' (null) to System.Int32</c> as four wrapped
+    /// red lines under the control. Worse than the message: it is ninety pixels tall, so it pushes the
+    /// summary and both action buttons down -- which is the row movement the view's own comment explains the
+    /// disabled-rather-than-hidden buttons exist to prevent.
+    ///
+    /// <b>An empty box is refused rather than read as a number.</b> Reading it as nought would set the
+    /// threshold to "identical only" for a user who was halfway through typing, and the next Scan would
+    /// quietly answer a stricter question than the one they meant to ask. So the last good value stands.
+    ///
+    /// <b>The box is left empty while it is empty, and that is deliberate.</b> The notification below cannot
+    /// refill it -- <see cref="Threshold"/> never moved, so the value pushed back at the control is the one
+    /// it already holds, and a control does not re-format its text for a value that did not change. Measured
+    /// by driving the application, and then left alone: refilling would put the old number back under the
+    /// user's caret mid-edit, so select-all, delete, "3" would read 53. An empty box that takes the next
+    /// number typed is what retyping a small number needs.
+    ///
+    /// The cost is one gesture: clearing the box and then pressing the spinner's up arrow gives 0 rather
+    /// than one more than the old value, because the control resolves its own null against its Minimum. The
+    /// scan then genuinely runs at 0 and the summary says "identical", so it is a threshold nobody chose
+    /// rather than a result described wrongly -- <see cref="Summary"/> is what keeps that distinction.
+    ///
+    /// The notification is posted rather than raised inline because the control is mid-update when this
+    /// setter runs and would ignore a change to the property it is currently writing.</summary>
+    public decimal? ThresholdValue
+    {
+        get => Threshold;
+        set
+        {
+            if (value is { } chosen) Threshold = (int)chosen;
+            else Dispatcher.UIThread.Post(() => this.RaisePropertyChanged(nameof(ThresholdValue)));
+        }
+    }
 
     /// <summary>What was found, in the panel's own words. Also what the status bar says when a scan finishes,
     /// so that the two cannot disagree.</summary>

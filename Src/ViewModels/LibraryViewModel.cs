@@ -1147,7 +1147,8 @@ public sealed partial class LibraryViewModel : ViewModelBase
         // Everything asked up to this moment is what the scan below is about to answer.
         _rescanWanted = false;
 
-        UserActionLog.Action($"library: scan for duplicates within {threshold} parameters");
+        UserActionLog.Action(
+            $"library: scan for duplicates within {threshold} parameter{(threshold == 1 ? "" : "s")}");
 
         // Before anything is read, and this is the line that stops the panel acting on an answer about
         // another folder -- see DuplicateScanViewModel.ScanStarted.
