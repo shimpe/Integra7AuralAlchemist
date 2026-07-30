@@ -85,8 +85,11 @@ public class PatchListSourceTests
         Assert.That(list.Banks[0].Name, Is.EqualTo("PCMS USER (87/0)"));
     }
 
-    /// <summary>Two patches at one address is in the instrument's own data: MSB 121 / LSB 0, printed by
-    /// Roland as PC 116 and therefore program 115 on the wire, is both Woodblock and Castanets. The
+    /// <summary>Two patches at one address. The fixture is the pair that was in the shipped data until
+    /// 2026-07-30 -- MSB 121 / LSB 0, printed by Roland as PC 116 and therefore program 115 on the wire,
+    /// listed as both Woodblock and Castanets -- kept as the fixture because it is what a real one looks
+    /// like. <c>Presets.csv</c> now has Castanets at LSB 1, where GM2 puts a variation, so nothing in the
+    /// factory data collides; <see cref="PatchList"/> records why the handling stays anyway. The
     /// collision is reported with the wire number, because that is the number every other part of this
     /// feature uses and a report in the other numbering would disagree with the file it describes.
     ///

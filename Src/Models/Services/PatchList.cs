@@ -24,11 +24,24 @@ public sealed record PatchBank(int Msb, int Lsb, string Name, IReadOnlyList<Patc
 /// the wrong sound. So what was left out and what shares an address are carried back to whoever asked, to
 /// be said out loud.</summary>
 /// <param name="Device">What the file calls the instrument.</param>
-/// <param name="Collisions">Addresses carrying more than one patch, in words. The instrument's own data
-/// has exactly one: MSB 121 / LSB 0, <b>program 115</b>, is both Woodblock and Castanets.
+/// <param name="Collisions">Addresses carrying more than one patch, in words.
 ///
-/// <b>Program 115, not 116.</b> Roland's tone list prints that pair at PC 116 because it counts programs
-/// from 1; everything downstream of <see cref="PatchListSource"/> -- these strings, the numbers on
+/// <b>The factory data has none, and it had one until 2026-07-30.</b> `Castanets` was listed at MSB 121 /
+/// LSB 0 / PC 116, the same address as `Woodblock`, which is a transcription error: in GM2 a variation
+/// lives at LSB 1, and this bank's neighbours prove the pattern -- Taiko 117/LSB 0 with Concert BD at
+/// 117/LSB 1, Melo. Tom 1 118/0 with Melo. Tom 2 118/1, Synth Drum 119/0 with 808 Tom 119/1 -- while
+/// 121/1/116 sat empty, which is exactly the slot the pattern wants. Corrected in `Presets.csv`, so
+/// nothing in the shipped data collides today.
+///
+/// <b>Kept anyway, and not as dead code.</b> The user memory is 1,120 more patches whose addresses this
+/// application computes rather than reads, a future preset table can carry the same sort of error, and the
+/// failure this guards against is the silent one -- a patch dropped to make a file look tidy, discovered
+/// when a track plays the wrong sound. The tests below still exercise it, with the historical pair as
+/// their fixture.
+///
+/// <b>Program 115, not 116</b>, wherever one is reported. Roland's tone list printed that pair at PC 116
+/// because it counts programs from 1; everything downstream of <see cref="PatchListSource"/> -- these
+/// strings, the numbers on
 /// <see cref="PatchEntry"/>, the four writers, and anything the user is shown -- speaks the wire value.
 /// Two numbers naming one address is how a status line ends up disagreeing with the file it describes, so
 /// "program" always means the wire value here and "PC" is left to the instrument's own printed list.</param>

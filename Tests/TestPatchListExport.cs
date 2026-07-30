@@ -209,8 +209,10 @@ public class PatchListExportTests
     /// on a tooltip, but a sentence that must be hovered to be read is one that half of users will not read.
     ///
     /// The budget is not "it fits" -- nothing that names an address and two tone names fits a status bar --
-    /// but "it has not quietly grown again". A connected instrument with the one collision the factory data
-    /// has is the longest thing a user will actually see.</summary>
+    /// but "it has not quietly grown again". A connected instrument plus one collision is the longest thing
+    /// a user is likely to see -- the factory data carries no collision since Castanets moved to LSB 1 on
+    /// 2026-07-30, so this is now the worst case rather than the everyday one, which is the right thing to
+    /// hold a length budget against.</summary>
     [Test]
     public void The_longest_real_sentence_stays_within_its_budget()
     {
