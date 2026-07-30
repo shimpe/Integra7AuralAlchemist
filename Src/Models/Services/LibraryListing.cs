@@ -16,7 +16,8 @@ public enum LibrarySort
 
 /// <summary>The decisions a library browser makes that are not about files, controls or state: how the list is
 /// ordered, what a rating looks like, what the filter drop-downs offer and what a chosen row of one of them
-/// means, and how a tag box's text becomes tags.
+/// means, how a tag box's text becomes tags, and what the duplicate panel says a group is and asks before it
+/// deletes one.
 ///
 /// <b>Why any of this is here rather than in the view model.</b> Every one of them is a function of its
 /// arguments, and every one of them is a decision somebody will want to change or will get wrong: that
@@ -256,4 +257,59 @@ public static class LibraryListing
     /// <summary>Tags as one line of text, which is what <see cref="ParseTags"/> reads back and what a list
     /// column shows. ", " rather than "," so that a long list wraps somewhere.</summary>
     public static string FormatTags(IEnumerable<string> tags) => string.Join(", ", tags);
+
+    /// <summary>What a duplicate scan found, and -- in the same breath -- what a group actually promises.
+    ///
+    /// <b>The second sentence is not decoration.</b> <see cref="DuplicateGroups"/> is transitive on purpose:
+    /// a group is every patch reachable from every other by steps of at most the threshold, so two members at
+    /// opposite ends of one may differ by a great deal more than the number in the drop-down. The only honest
+    /// thing to say is "at least one other", and a panel that let the user read "these are all within 5 of
+    /// each other" would be inviting them to delete on a promise nobody made.
+    ///
+    /// <b>A threshold of nothing gets its own sentence</b> rather than a nought dropped into the general one:
+    /// "differs in at most 0 parameters" is a puzzle where "identical" is a fact. And finding nothing says
+    /// what was looked for, because "no duplicates" alone leaves a user unable to tell a tidy library from a
+    /// threshold set too tight -- which is the one thing they can do something about.</summary>
+    public static string DuplicateSummary(int groups, int patches, int threshold)
+    {
+        if (groups == 0)
+            return threshold == 0
+                ? "No two snapshots here are identical."
+                : $"No two snapshots here differ in {threshold} " +
+                  $"{(threshold == 1 ? "parameter" : "parameters")} or fewer.";
+
+        var promise = threshold == 0
+            ? "Each of these is identical to at least one other in its group."
+            : $"Each of these differs in at most {threshold} " +
+              $"{(threshold == 1 ? "parameter" : "parameters")} from at least one other in its group.";
+
+        return $"{groups} {(groups == 1 ? "group" : "groups")}, {patches} snapshots. {promise}";
+    }
+
+    /// <summary>What the duplicate panel asks before it removes the ticked snapshots.
+    ///
+    /// The history sentence is <c>LibraryViewModel</c>'s own, word for word, because it is the same promise
+    /// about the same folder and a user who reads it twice should not have to work out whether the two mean
+    /// the same thing.
+    ///
+    /// <b><paramref name="emptiedGroups"/> is the warning this panel needs and the others do not.</b>
+    /// Everywhere else a user deletes snapshots they chose one at a time; here they are working through
+    /// families of near-identical sounds with a tick box, and ticking a whole family -- four rows that all
+    /// look alike -- is the natural gesture and the one that loses the sound. The copies in the history folder
+    /// are still there, but nobody tidying a library is thinking about the history folder.</summary>
+    public static string DuplicateDeleteQuestion(int ticked, int emptiedGroups)
+    {
+        var question = ticked == 1
+            ? "Delete 1 snapshot from the library? A copy is kept in the history folder beside your library."
+            : $"Delete {ticked} snapshots from the library? A copy of each is kept in the history folder " +
+              "beside your library.";
+
+        if (emptiedGroups <= 0) return question;
+
+        return emptiedGroups == 1
+            ? question + " That empties one of the groups, so nothing of that sound would be left in the " +
+              "library."
+            : question + $" That empties {emptiedGroups} of the groups, so nothing of those sounds would be " +
+              "left in the library.";
+    }
 }

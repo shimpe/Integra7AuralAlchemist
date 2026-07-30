@@ -257,4 +257,73 @@ public class LibraryListingTests
         Assert.That(LibraryListing.AllTags([Entry("Untagged")]), Is.Empty);
         Assert.That(LibraryListing.AllTags([]), Is.Empty);
     }
+
+    /// <summary>What the duplicate panel says a group is. It has to be said in the panel's own words rather
+    /// than left to the user, because <c>DuplicateGroups</c> is transitive: every member is near <i>some</i>
+    /// other member, and no more than that is promised.</summary>
+    [Test]
+    public void The_duplicate_summary_says_what_a_group_means()
+    {
+        Assert.That(LibraryListing.DuplicateSummary(3, 8, 5), Is.EqualTo(
+            "3 groups, 8 snapshots. Each of these differs in at most 5 parameters from at least one other " +
+            "in its group."));
+    }
+
+    /// <summary>A threshold of nothing is a different sentence, not a sentence with a nought in it: "differs
+    /// in at most 0 parameters" is a puzzle where "identical" is a fact.</summary>
+    [Test]
+    public void A_threshold_of_nothing_is_worded_as_identical()
+    {
+        Assert.That(LibraryListing.DuplicateSummary(1, 2, 0), Is.EqualTo(
+            "1 group, 2 snapshots. Each of these is identical to at least one other in its group."));
+    }
+
+    [Test]
+    public void One_group_and_one_parameter_are_singular()
+    {
+        Assert.That(LibraryListing.DuplicateSummary(1, 4, 1), Is.EqualTo(
+            "1 group, 4 snapshots. Each of these differs in at most 1 parameter from at least one other " +
+            "in its group."));
+    }
+
+    /// <summary>Nothing found says what was asked as well as what was answered: "no duplicates" alone would
+    /// leave the user unable to tell a clean library from a threshold set too tight.</summary>
+    [Test]
+    public void Finding_nothing_says_what_was_looked_for()
+    {
+        Assert.That(LibraryListing.DuplicateSummary(0, 0, 5),
+            Is.EqualTo("No two snapshots here differ in 5 parameters or fewer."));
+        Assert.That(LibraryListing.DuplicateSummary(0, 0, 1),
+            Is.EqualTo("No two snapshots here differ in 1 parameter or fewer."));
+        Assert.That(LibraryListing.DuplicateSummary(0, 0, 0),
+            Is.EqualTo("No two snapshots here are identical."));
+    }
+
+    /// <summary>The question the duplicate panel asks before it deletes. The counts are in it because this is
+    /// the one place in the library where a user is deliberately ticking many rows they mean to lose.
+    /// </summary>
+    [Test]
+    public void The_duplicate_delete_question_counts_what_goes()
+    {
+        Assert.That(LibraryListing.DuplicateDeleteQuestion(3, 0), Is.EqualTo(
+            "Delete 3 snapshots from the library? A copy of each is kept in the history folder beside your " +
+            "library."));
+        Assert.That(LibraryListing.DuplicateDeleteQuestion(1, 0), Is.EqualTo(
+            "Delete 1 snapshot from the library? A copy is kept in the history folder beside your library."));
+    }
+
+    /// <summary>The trap this panel invites, and the only warning against it: ticking every row of a group
+    /// deletes every copy of that sound. The history folder still has them, but the library does not, and a
+    /// user tidying duplicates is not thinking about that.</summary>
+    [Test]
+    public void The_duplicate_delete_question_warns_when_a_whole_group_would_go()
+    {
+        Assert.That(LibraryListing.DuplicateDeleteQuestion(4, 1), Is.EqualTo(
+            "Delete 4 snapshots from the library? A copy of each is kept in the history folder beside your " +
+            "library. That empties one of the groups, so nothing of that sound would be left in the library."));
+        Assert.That(LibraryListing.DuplicateDeleteQuestion(9, 2), Is.EqualTo(
+            "Delete 9 snapshots from the library? A copy of each is kept in the history folder beside your " +
+            "library. That empties 2 of the groups, so nothing of those sounds would be left in the " +
+            "library."));
+    }
 }
