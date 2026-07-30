@@ -767,7 +767,20 @@
                 BorderBrush="{StaticResource SnStatusBarBorderBrush}"
                 BorderThickness="0,1,0,0"
                 Padding="10,4,10,10">
-            <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+            <!-- Two columns, and this is not cosmetic. Everything here used to sit in one horizontal
+                 StackPanel, which does not shrink its children and does not scroll: it lays them out at
+                 their full width and the row simply clips whatever runs past the edge, with no ellipsis
+                 and no indication that anything was lost. The status line is the long child, so it was
+                 the one cut — measured at 63 of 309 characters on a 1750px window, mid-word, so an
+                 export's collision warning was never delivered at all. That is the same silent-clipping
+                 failure the library's filter bar and folder row are WrapPanels to escape.
+
+                 A star column instead: the controls keep their natural width, the status gets what is
+                 left, and it trims with an ellipsis so a cut reads as "there is more" rather than as a
+                 rendering fault. What was cut is on the tooltip. -->
+            <Grid ColumnDefinitions="Auto,*">
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12"
+                            VerticalAlignment="Center">
                 <!-- Undo lives here, in window chrome, and not in the Parameters tab's toolbar where it
                      started: there is one journal for the whole application, but Parameters, SRX Loader
                      and Motional Surround are sibling tabs, so a button inside one of them is missing
@@ -915,40 +928,64 @@
                     Panic!
                 </Button>
 
-                <TextBlock Text="{Binding MidiDevices}" VerticalAlignment="Center" />
-                <!-- Progress of the user tone names, which load after the window is usable.
-                     Collapses to nothing once they are in. -->
-                <TextBlock Text="{Binding BackgroundInfo}" VerticalAlignment="Center"
-                           Foreground="{StaticResource SnMutedTextBrush}"
-                           IsVisible="{Binding BackgroundInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                <!-- Outcome of the last Studio Set snapshot save/load. Two TextBlocks over the same
-                     string rather than one: a failure has to be visibly wrong, and a success shown in
-                     the same red would read as one. -->
-                <TextBlock Text="{Binding SnapshotStatus}" VerticalAlignment="Center"
-                           Foreground="{StaticResource SnMutedTextBrush}">
-                    <TextBlock.IsVisible>
-                        <MultiBinding Converter="{x:Static BoolConverters.And}">
-                            <MultiBinding.Bindings>
-                                <Binding Path="SnapshotStatus"
-                                         Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
-                                <Binding Path="!SnapshotFailed" />
-                            </MultiBinding.Bindings>
-                        </MultiBinding>
-                    </TextBlock.IsVisible>
-                </TextBlock>
-                <TextBlock Text="{Binding SnapshotStatus}" VerticalAlignment="Center"
-                           Foreground="{StaticResource SnErrorTextBrush}">
-                    <TextBlock.IsVisible>
-                        <MultiBinding Converter="{x:Static BoolConverters.And}">
-                            <MultiBinding.Bindings>
-                                <Binding Path="SnapshotStatus"
-                                         Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
-                                <Binding Path="SnapshotFailed" />
-                            </MultiBinding.Bindings>
-                        </MultiBinding>
-                    </TextBlock.IsVisible>
-                </TextBlock>
-            </StackPanel>
+                    <TextBlock Text="{Binding MidiDevices}" VerticalAlignment="Center" />
+                    <!-- Progress of the user tone names, which load after the window is usable.
+                         Collapses to nothing once they are in. -->
+                    <TextBlock Text="{Binding BackgroundInfo}" VerticalAlignment="Center"
+                               Foreground="{StaticResource SnMutedTextBrush}"
+                               IsVisible="{Binding BackgroundInfo, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                </StackPanel>
+
+                <!-- The status channel, and the whole window's: every tab writes here — the Studio Set and
+                     tone exports, the library, the compare tab, the morph pad, auditioning. It is last and
+                     it is the star column because it is the only child whose length is not known in
+                     advance; the messages run from "Put the part back as it was." to three sentences about
+                     an export.
+
+                     Two TextBlocks over the same string rather than one: a failure has to be visibly wrong,
+                     and a success shown in the same red would read as one. They share this cell because
+                     only one of them is ever visible.
+
+                     A ToolTip here does not break the rule the three buttons above obey, which is against
+                     tooltips on controls a user clicks repeatedly — nobody clicks a status line. It is
+                     wrapped and width-limited rather than left as one long strip, both so that it is
+                     readable and so that a wide tip anchored at the right of the row cannot be pushed back
+                     across the Undo and Compare buttons at the left of it. -->
+                <Panel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding SnapshotStatus}" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{StaticResource SnMutedTextBrush}">
+                        <ToolTip.Tip>
+                            <TextBlock Text="{Binding SnapshotStatus}" TextWrapping="Wrap" MaxWidth="520" />
+                        </ToolTip.Tip>
+                        <TextBlock.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <MultiBinding.Bindings>
+                                    <Binding Path="SnapshotStatus"
+                                             Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                                    <Binding Path="!SnapshotFailed" />
+                                </MultiBinding.Bindings>
+                            </MultiBinding>
+                        </TextBlock.IsVisible>
+                    </TextBlock>
+                    <TextBlock Text="{Binding SnapshotStatus}" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{StaticResource SnErrorTextBrush}">
+                        <ToolTip.Tip>
+                            <TextBlock Text="{Binding SnapshotStatus}" TextWrapping="Wrap" MaxWidth="520" />
+                        </ToolTip.Tip>
+                        <TextBlock.IsVisible>
+                            <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                <MultiBinding.Bindings>
+                                    <Binding Path="SnapshotStatus"
+                                             Converter="{x:Static StringConverters.IsNotNullOrEmpty}" />
+                                    <Binding Path="SnapshotFailed" />
+                                </MultiBinding.Bindings>
+                            </MultiBinding>
+                        </TextBlock.IsVisible>
+                    </TextBlock>
+                </Panel>
+            </Grid>
         </Border>
     </Grid>
 </Window>

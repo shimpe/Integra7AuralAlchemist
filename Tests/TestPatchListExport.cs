@@ -33,7 +33,7 @@ public class PatchListExportTests
         var said = Outcome(List([Patch(0, "Full Grand 1"), Patch(1, "Full Grand 2")]),
             "INTEGRA-7.reabank");
 
-        Assert.That(said, Does.StartWith("Exported 2 patches to INTEGRA-7.reabank."));
+        Assert.That(said, Does.StartWith("Exported 2 patches to INTEGRA-7.reabank,"));
     }
 
     /// <summary>Six thousand of anything is a number nobody reads as a quantity without the separator, and
@@ -68,8 +68,8 @@ public class PatchListExportTests
     {
         var said = Outcome(List([Patch(0, "Full Grand 1"), Patch(1, "Mine", user: true)]));
 
-        Assert.That(said, Does.StartWith("Exported 2 patches to a.csv."));
-        Assert.That(said, Does.Contain("1 of them are your own"));
+        Assert.That(said, Does.StartWith("Exported 2 patches to a.csv,"));
+        Assert.That(said, Does.Contain("1 of them your own"));
     }
 
     /// <summary>Nothing plugged in. The factory tones are still worth exporting -- they are what the
@@ -80,8 +80,8 @@ public class PatchListExportTests
     {
         var said = Outcome(List([Patch(0, "Full Grand 1")]), userMemoryComplete: false);
 
-        Assert.That(said, Does.Contain("No user-memory tones"));
-        Assert.That(said, Does.Contain("none had been read from the instrument"));
+        Assert.That(said, Does.Contain("none from user memory"));
+        Assert.That(said, Does.Contain("had not been read"));
     }
 
     /// <summary>Pressed while the names are still arriving, or after a rescan cancelled the sweep partway --
@@ -93,7 +93,7 @@ public class PatchListExportTests
         var said = Outcome(List([Patch(0, "Full Grand 1"), Patch(1, "Mine", user: true)]),
             userMemoryComplete: false);
 
-        Assert.That(said, Does.Contain("1 of them are your own"));
+        Assert.That(said, Does.Contain("1 of them your own"));
         Assert.That(said, Does.Contain("still being read"));
     }
 
@@ -104,7 +104,7 @@ public class PatchListExportTests
     {
         var said = Outcome(List([Patch(0, "Full Grand 1")]));
 
-        Assert.That(said, Does.Contain("None of them are from the instrument's user memory."));
+        Assert.That(said, Does.Contain("none from user memory"));
         Assert.That(said, Does.Not.Contain("had not been read"));
     }
 
@@ -127,8 +127,11 @@ public class PatchListExportTests
             "INTEGRA-7.reabank");
 
         Assert.That(said, Does.Contain("MSB 121 LSB 0 program 115: Woodblock, Castanets"));
-        Assert.That(said, Does.Contain("same program change"));
+        Assert.That(said, Does.Contain("share one program change"));
         Assert.That(said, Does.Not.Contain("will show one of them"));
+        // The reassurance, not only the warning: read on a status line that trims, "one address holds two
+        // patches" without "both are in the file" is the half that alarms without the half that settles.
+        Assert.That(said, Does.Contain("both are in the file"));
     }
 
     /// <summary>More than one, and the first is still named. A count on its own tells the user something
@@ -157,7 +160,7 @@ public class PatchListExportTests
         var said = Outcome(List([Patch(0, "Fine"), Patch(1, "Also fine")],
             skipped: ["Impossible (program 200)"]));
 
-        Assert.That(said, Does.StartWith("Exported 2 patches to a.csv."));
+        Assert.That(said, Does.StartWith("Exported 2 patches to a.csv,"));
         Assert.That(said, Does.Contain("Impossible (program 200)"));
         Assert.That(said, Does.Contain("left out"));
     }
@@ -168,7 +171,7 @@ public class PatchListExportTests
         var said = Outcome(List([Patch(0, "Fine")],
             skipped: ["one (program 200)", "two (program 201)"]));
 
-        Assert.That(said, Does.StartWith("Exported 1 patch to a.csv."));
+        Assert.That(said, Does.StartWith("Exported 1 patch to a.csv,"));
         Assert.That(said, Does.Contain("2 patches were left out"));
         Assert.That(said, Does.Contain("one (program 200)"));
         Assert.That(said, Does.Not.Contain("two (program 201)"));
@@ -195,6 +198,30 @@ public class PatchListExportTests
 
         Assert.That(said, Does.Contain("empty.csv").And.Contain("no patches"));
         Assert.That(said, Does.Not.Contain("Exported 0"));
+    }
+
+    /// <summary>The realistic worst case, kept short enough to be readable where it is shown.
+    ///
+    /// <b>This test exists because nobody was counting.</b> These sentences reached 309 characters and went
+    /// to a status bar that showed 63 of them, mid-word, beside eight buttons -- so the collision warning,
+    /// which is the entire reason the builder carries a list of collisions, was never delivered to anyone.
+    /// The row now gives the text the width that is left, trims it with an ellipsis and puts the whole of it
+    /// on a tooltip, but a sentence that must be hovered to be read is one that half of users will not read.
+    ///
+    /// The budget is not "it fits" -- nothing that names an address and two tone names fits a status bar --
+    /// but "it has not quietly grown again". A connected instrument with the one collision the factory data
+    /// has is the longest thing a user will actually see.</summary>
+    [Test]
+    public void The_longest_real_sentence_stays_within_its_budget()
+    {
+        var said = Outcome(
+            new PatchList("INTEGRA-7",
+                [new PatchBank(121, 0, "PCMS GM2/GM2# (121/0)",
+                    [Patch(115, "Woodblock"), Patch(115, "Castanets"), Patch(0, "Mine", user: true)])],
+                ["MSB 121 LSB 0 program 115: Woodblock, Castanets"], []),
+            "INTEGRA-7.reabank");
+
+        Assert.That(said.Length, Is.LessThan(240), said);
     }
 
     // ---- the file's name and its bytes ------------------------------------------------------------------

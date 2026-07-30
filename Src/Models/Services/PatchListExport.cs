@@ -64,12 +64,18 @@ public static class PatchListExport
     /// is unreadable without one, and the invariant one keeps the sentence the same on every machine the
     /// application runs on -- which is what lets it be tested at all.
     ///
-    /// <b>Only the first of each list is named.</b> The status bar is one line; a list of every collision
-    /// would fill it and be scrolled away unread, and a bare count would tell the user something happened
-    /// while giving them nothing to look at. The first, with the count beside it, is the most that fits and
-    /// the least that is actionable. The collision strings are the builder's own, quoted verbatim, so the
-    /// address and the program number the user reads here are the ones the file they just wrote actually
-    /// carries -- wire numbering, so the instrument's own printed tone list will say one more.
+    /// <b>Only the first of each list is named, and every clause is written short.</b> This goes to the
+    /// window's status bar, which is one line beside eight buttons: the first version of these sentences ran
+    /// to 309 characters and the row showed 63 of them, so the collision warning -- the whole reason the
+    /// list of collisions is carried back at all -- was never delivered to anybody. The row now gives this
+    /// text the width that is left and trims it with an ellipsis, and the rest is on a tooltip, but a
+    /// sentence that has to be hovered to be read is still a sentence half the users will not read. So the
+    /// explanation of why a collision is survivable was cut to the part that is actionable, and there is a
+    /// test on the length of the realistic worst case to stop it growing back.
+    ///
+    /// The collision strings are the builder's own, quoted verbatim, so the address and the program number
+    /// the user reads here are the ones the file they just wrote actually carries -- wire numbering, so the
+    /// instrument's own printed tone list will say one more.
     ///
     /// <b>A collision is not described as the DAW hiding a name.</b> Three of the four formats can name two
     /// patches at one address, and their readers will list both; what the two share is the program change, so
@@ -97,16 +103,16 @@ public static class PatchListExport
         // about. Nothing is said about user memory either: there are no contents to characterise.
         if (patches == 0) return $"Wrote {fileName}, but there were no patches to export.";
 
-        var said = $"Exported {Count(patches)} {(patches == 1 ? "patch" : "patches")} to {fileName}." +
-                   UserMemoryClause(list, userMemoryComplete);
+        var said = $"Exported {Count(patches)} {(patches == 1 ? "patch" : "patches")} to {fileName}, " +
+                   $"{UserMemoryClause(list, userMemoryComplete)}.";
 
         if (list.Collisions.Count > 0)
             said += list.Collisions.Count == 1
-                ? $" 1 address carries more than one patch ({list.Collisions[0]}); both are in the file and " +
-                  "both send the same program change, so which sound you get is the instrument's decision."
-                : $" {list.Collisions.Count} addresses carry more than one patch, the first being " +
-                  $"{list.Collisions[0]}; every name is in the file, and the ones sharing an address all " +
-                  "send the same program change.";
+                ? $" 1 address holds more than one patch ({list.Collisions[0]}); both are in the file and " +
+                  "share one program change."
+                : $" {list.Collisions.Count} addresses hold more than one patch, the first " +
+                  $"{list.Collisions[0]}; all are in the file, and those sharing an address share one " +
+                  "program change.";
 
         if (list.Skipped.Count > 0)
             said += list.Skipped.Count == 1
@@ -120,20 +126,22 @@ public static class PatchListExport
     /// <summary>Whether the user's own sounds are in the file, which is the question a patch list is exported
     /// to answer and the one a bare total cannot. Four states rather than two, because "we read the user
     /// memory and it was empty" and "nobody read it" are opposite facts with opposite remedies, and a partial
-    /// read has to say so without pretending to know how much is missing.</summary>
+    /// read has to say so without pretending to know how much is missing.
+    ///
+    /// A clause rather than a sentence of its own: it is part of what was exported, and the status bar is one
+    /// line -- see <see cref="Outcome"/> on why every word here is counted.</summary>
     private static string UserMemoryClause(PatchList list, bool complete)
     {
         var user = list.Banks.Sum(bank => bank.Patches.Count(patch => patch.UserMemory));
 
         if (complete)
             return user == 0
-                ? " None of them are from the instrument's user memory."
-                : $" {Count(user)} of them are your own, from the instrument's user memory.";
+                ? "none from user memory"
+                : $"{Count(user)} of them your own";
 
         return user == 0
-            ? " No user-memory tones are in it: none had been read from the instrument."
-            : $" {Count(user)} of them are your own, but the user memory was still being read, so some are " +
-              "missing.";
+            ? "none from user memory, which had not been read"
+            : $"{Count(user)} of them your own, but the user memory was still being read";
     }
 
     /// <summary>A count as the sentence spells it. Invariant, so that two machines describe one export the

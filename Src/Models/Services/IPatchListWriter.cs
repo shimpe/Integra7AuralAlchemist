@@ -22,8 +22,10 @@ public interface IPatchListWriter
     /// writing all four files would otherwise have to pick one rule for four formats that disagree: Reaper
     /// and several midnam readers take a leading BOM as part of the first token, and the symptom is a bank
     /// that simply does not appear; Excel opening a BOM-less UTF-8 .csv falls back to the system code page
-    /// and mangles the 84 factory names that contain a curly apostrophe. Both failures are silent and
-    /// neither is visible in the file to anything but the program that chokes on it.
+    /// and mangles the 84 factory names that contain a curly apostrophe -- 76 with U+2019 ("60’s LeadORG")
+    /// and 8 with the opening U+2018 ("‘76 Pure"), counted over field 4 of all 6,023 rows, and not one ASCII
+    /// apostrophe among them. Both failures are silent and neither is visible in the file to anything but
+    /// the program that chokes on it.
     ///
     /// <b>The default is no mark</b>, because that is right for three of the four and because a format that
     /// has not thought about the question is likelier to be one whose parser is strict than one whose

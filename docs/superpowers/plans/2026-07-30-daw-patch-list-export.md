@@ -1038,6 +1038,14 @@ part of the first token, and the symptom is a bank that does not appear; Excel o
 `.csv` by double-click falls back to the system code page and mangles the 84 factory names that carry a
 curly apostrophe. Only `CsvPatchListWriter` answers `true`.
 
+(**84 stands, but say what it counts** — checked 2026-07-30 after review proposed 76. Measured over field 4
+of all 6,023 rows: **76 names carry U+2019** (`60’s LeadORG`) and **8 more carry U+2018** (`‘76 Pure`,
+`‘73 Tine`), disjoint sets, **84 names and 86 occurrences**; there is not one ASCII apostrophe in the file.
+76/78 is the count of U+2019 alone, and it cannot be the number meant here: two of the three examples this
+plan and `CsvPatchListWriter` give are U+2018 names. Both characters are mangled by the same code-page
+fallback, so 84 is the figure the byte-order mark exists for. The other two are confirmed exactly: 83 names
+with `&`, 7 with an angle bracket.)
+
 **Say what could not be represented.** If `list.Collisions` or `list.Skipped` is non-empty, the status line
 must say so — something the user can act on, naming the first: *"Exported 6,023 patches. 1 address carries
 two patches (MSB 121 LSB 0 program 115: Woodblock, Castanets); your DAW will show one of them."* This is the
