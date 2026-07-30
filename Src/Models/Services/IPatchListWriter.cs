@@ -14,5 +14,19 @@ public interface IPatchListWriter
     /// <summary>The extension without its dot, for the save dialog and the suggested file name.</summary>
     string Extension { get; }
 
+    /// <summary>Whether the file this writer's text goes into should start with a UTF-8 byte-order mark.
+    ///
+    /// <b>It is a per-format answer, which is why it is here and not in the save path.</b> One save path
+    /// writing all four files would otherwise have to pick one rule for four formats that disagree: Reaper
+    /// and several midnam readers take a leading BOM as part of the first token, and the symptom is a bank
+    /// that simply does not appear; Excel opening a BOM-less UTF-8 .csv falls back to the system code page
+    /// and mangles the 84 factory names that contain a curly apostrophe. Both failures are silent and
+    /// neither is visible in the file to anything but the program that chokes on it.
+    ///
+    /// <b>The default is no mark</b>, because that is right for three of the four and because a format that
+    /// has not thought about the question is likelier to be one whose parser is strict than one whose
+    /// reader is Excel.</summary>
+    bool WantsByteOrderMark => false;
+
     string Write(PatchList list);
 }

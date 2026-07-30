@@ -18,13 +18,32 @@ public sealed class CsvPatchListWriter : IPatchListWriter
     /// says CRLF, and a spreadsheet on Windows opening a LF-only file is the one place this would be
     /// noticed.
     ///
-    /// It is also what keeps a name carrying a newline from becoming a second row: that newline is a bare
-    /// LF, so a reader splitting on CRLF -- which is every reader of this format -- still counts one row
-    /// per patch.</summary>
+    /// <b>It is not what keeps a name containing a newline from becoming a second row.</b> Nothing about
+    /// the row separator does that: a name carrying a CRLF of its own would end the line just as neatly.
+    /// What protects the file is the quoting in <see cref="Field"/> -- a newline inside quotes is legal
+    /// CSV, and Excel and LibreOffice both honour it -- which is exactly why RFC 4180 allows the character
+    /// in a field at all. Worth saying plainly, because the next format in this feature has <i>no</i>
+    /// escaping to fall back on and has to flatten newlines instead (see <c>ReabankPatchListWriter</c>).
+    /// Whoever writes that one should not arrive believing a stray newline is somehow self-solving.
+    /// </summary>
     private const string RowEnd = "\r\n";
 
     public string Label => "Spreadsheet (.csv)";
     public string Extension => "csv";
+
+    /// <summary>The one format here that wants a byte-order mark, and the reason the flag exists.
+    ///
+    /// 84 factory tone names carry a curly apostrophe -- "60’s LeadORG", "‘76 Pure", "‘73 Tine" -- three
+    /// bytes of UTF-8 apiece. Excel opening a BOM-less .csv by double-click does not sniff the encoding: it
+    /// falls back to the system code page, each of those bytes becomes a character of its own, and the user
+    /// is shown two pieces of line noise where the apostrophe was. Every version before the recent 365
+    /// builds does this. The file itself is not corrupt, which is worse rather than better -- it looks
+    /// innocent to everything except the one program the user opened it with.
+    ///
+    /// The other three formats are read by parsers that either declare their encoding in the document or
+    /// assume UTF-8, and at least two of them take a leading BOM as part of the first token. So this stays
+    /// a per-format answer rather than one decision the save path makes for all four.</summary>
+    public bool WantsByteOrderMark => true;
 
     public string Write(PatchList list)
     {

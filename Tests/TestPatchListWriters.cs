@@ -75,4 +75,23 @@ public class CsvPatchListWriterTests
     {
         Assert.That(Written(), Does.Contain("87,0,0,PCMS USER,Mine,PCMS,Synth Lead,yes"));
     }
+
+    /// <summary>And a factory patch is not, which needs its own test rather than trusting the one above:
+    /// asserting only the row that says "yes" leaves the whole column pinned by nothing, and a writer that
+    /// marked every row would pass. That writer would tell a user that all 6,023 factory tones are their
+    /// own edits -- in the one file of the four they read by eye and believe.</summary>
+    [Test]
+    public void A_factory_row_is_not_marked()
+    {
+        Assert.That(Written().Split("\r\n")[1], Is.EqualTo("89,64,0,SN-A PRST,Rock & Roll,SN-A,E.Guitar,"));
+    }
+
+    /// <summary>The one format of the four that asks for a byte-order mark. Without it Excel opens the file
+    /// in the system code page and the 84 factory names carrying a curly apostrophe come out as line noise,
+    /// which is a failure the file itself gives no sign of.</summary>
+    [Test]
+    public void It_asks_for_a_byte_order_mark()
+    {
+        Assert.That(new CsvPatchListWriter().WantsByteOrderMark, Is.True);
+    }
 }
