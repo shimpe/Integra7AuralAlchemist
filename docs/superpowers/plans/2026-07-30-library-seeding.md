@@ -992,7 +992,17 @@ file and restoring it in a `finally`; drive through UI Automation, not synthetic
 
 ## Verification by hand (user)
 
-- [ ] A user-slots-only sweep captures your own patches and skips the empty slots.
-- [ ] The estimate is close enough to be worth trusting before an hour-long run.
-- [ ] After a full sweep, the library's search, compare and morph work over factory sounds.
-- [ ] The duplicate scan over a seeded library is still usable — this is the one the spec expects to get slow.
+**All four checked by the user on 2026-07-31, against their own instrument and a seeded library. All pass.**
+
+- [x] A user-slots-only sweep captures your own patches and skips the empty slots.
+- [x] The estimate is close enough to be worth trusting before an hour-long run.
+- [x] After a full sweep, the library's search, compare and morph work over factory sounds.
+- [x] The duplicate scan over a seeded library is still usable — this is the one the spec expects to get slow.
+
+The last one is the interesting result, because it is the only place this feature predicted its own trouble
+and the trouble did not arrive. See the spec's "What it costs the library": a seeded library buckets ~4,300
+PCM tones into one engine, which is ~9M pairwise comparisons against the 268 ms measured over 500 files. The
+early-out on the first pair that passes the threshold is evidently doing the work the estimate hoped it
+would. **Nobody needs the second library folder that was held in reserve for this**, and no code was written
+against a slowdown that was reasoned about rather than measured — which is the right order, and worth
+recording as the outcome rather than quietly dropping the prediction now that it is wrong.
