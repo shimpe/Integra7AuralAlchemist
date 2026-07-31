@@ -98,7 +98,7 @@
                 <Button Content="Use as the init tone"
                         Command="{Binding MarkAsInitTone}"
                         IsEnabled="{Binding CanMarkAsInitTone}"
-                        ToolTip.Tip="Make this the tone the Init Tone button starts from, for parts holding this kind of tone. Replaces the bundled starting point."
+                        ToolTip.Tip="Make this the tone the Init button on the Parameters tab starts from, for parts holding this kind of tone. Replaces the bundled starting point."
                         HorizontalAlignment="Stretch"
                         HorizontalContentAlignment="Center" />
                 <TextBlock Text="{Binding InitToneNote}"

@@ -850,7 +850,12 @@ public sealed partial class LibraryViewModel : ViewModelBase
         try
         {
             LibrarySettings.SaveAll(_settingsPath, new LibraryPreferences(Folder, _initTones));
-            _report($"Init Tone will start from {row.Name} for {toneType} tones.", false);
+            // Names the button as the Parameters tab now labels it. It used to read "Init Tone", which was
+            // the label before that toolbar was grouped by object and the object moved out of every label
+            // into the group heading. A sentence that sends a user to a button by a name the button does
+            // not carry is worse than one that does not name it at all: they look, do not find it, and have
+            // no way to tell whether they are looking in the wrong place or the feature is gone.
+            _report($"The Init button will start from {row.Name} for {toneType} tones.", false);
         }
         catch (Exception e)
         {

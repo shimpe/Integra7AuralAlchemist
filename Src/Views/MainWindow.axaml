@@ -110,65 +110,74 @@
             <TabItem Header="Parameters" Classes="top">
                 <Grid ColumnDefinitions="*"
                       RowDefinitions="Auto,*">
-                    <!-- The toolbar scrolls sideways rather than clipping. It is a fixed row of twelve buttons
-                         now that both saves have an Export beside them, which at a narrow window width put the
-                         last of them past the right edge with nothing to reach them by; a StackPanel does not
-                         clip visibly, so the button was simply not there. Vertical scrolling is off so the row
-                         cannot grow, and the horizontal bar only appears when it is needed. -->
-                    <ScrollViewer Grid.Row="0"
-                                  HorizontalScrollBarVisibility="Auto"
-                                  VerticalScrollBarVisibility="Disabled">
-                        <!-- The bottom margin is the horizontal scrollbar's lane. Avalonia's bars float
-                             over the content rather than reserving space (see App.axaml), so without it
-                             the bar that appears at a narrow window width sits across the bottom of this
-                             row of buttons — over their labels, and over the click target. 16px is the
-                             width the rest of the application reserves for the same reason.
+                    <!-- Two labelled rows, one per object acted on, where this was a single row of twelve
+                         buttons. Nine of those labels named their own object — "Export Studio Set…", "Load
+                         Tone…", "Copy Tone" — so most of the row's width went on repeating two words, and
+                         the twelve of them covered three unrelated topics with nothing but adjacency to say
+                         which was which. The object is named once now, in the group label on the left, and
+                         each button says only what it does.
 
-                             Always reserved, not only while the bar is showing: nothing in the layout
-                             can ask whether it is, and a row that changed height as the window crossed
-                             the width where the bar appears would move every button under the pointer. -->
-                        <StackPanel Orientation="Horizontal"
-                                    Spacing="12"
-                                    Margin="0,0,0,16">
-                            <Button IsEnabled="{Binding RescanButtonEnabled}"
-                                    Command="{Binding RescanMidiDevicesAsync}">
-                                Rescan Midi Devices
-                            </Button>
-                            <!-- Play Note, Play Phrase, Stop Phrase and Panic used to sit here. They moved
-                                 to the status bar beside Undo, Redo and Compare, because they are the same
-                                 kind of thing: reached for at any moment, from any tab, and not part of the
-                                 Parameters tab's own work. Panic in particular is the one button whose whole
-                                 value is being where you already are.
+                         The row used to scroll sideways rather than wrap: a ScrollViewer with a horizontal
+                         bar and a 16px lane reserved at the bottom for it, because Avalonia's bars float
+                         over the content instead of reserving space. That is the defect being fixed here,
+                         so please do not reintroduce it — at a narrow window width it put buttons off the
+                         right edge and left the user a scrollbar to find and drag before they could be
+                         reached at all, which is a worse way to lose a button than clipping, since it looks
+                         deliberate. Both button areas are WrapPanels: when the width runs out the row takes
+                         a second line and nothing leaves the screen. The group labels are aligned to the
+                         top for the same reason, so a label stays beside the first line of a row that has
+                         wrapped rather than drifting down beside its middle.
 
-                                 Play Note was kept here at first, on the grounds that it sounds the selected
-                                 part and only this tab has one. That reasoning did not survive: Play Phrase
-                                 reads the same selection in the same way and had already moved, so the two
-                                 were split up for a difference they do not have. -->
-                            <Button Command="{Binding SaveUserTone}">
-                                <Button.IsEnabled>
-                                    <MultiBinding Converter="{x:Static BoolConverters.And}">
-                                        <MultiBinding.Bindings>
-                                            <Binding Path="Connected" />
-                                            <Binding Path="!IsSyncing" />
-                                            <Binding Path="CurrentPartIsNotCommonPart" />
-                                        </MultiBinding.Bindings>
-                                    </MultiBinding>
-                                </Button.IsEnabled>
-                                Save User Tone
-                            </Button>
-                            <!-- "Add … to Library" against "Export …": both read the same blocks out of the
-                                 instrument and differ only in where the file lands, so the labels name the
-                                 destination and nothing else. They say which *thing* is added, too, because
-                                 the alternative was two buttons in one row both reading "Add to Library"
-                                 with only their position to say what they meant. Longer labels on a row
-                                 this wide is the cheaper cost.
-                                 Title case throughout, because every other button in this toolbar uses it —
-                                 "Export Tone…", "Load Studio Set…", "Save User Tone". An earlier version of
-                                 this comment claimed lower-case "tone" was the application's own usage. It
-                                 is not, and nothing else in this window spells it that way.
-                                 "Save" appears nowhere here on purpose: "Save User Tone", further left,
-                                 writes into the instrument's own memory, and that is the only meaning of
-                                 the word left in this toolbar. -->
+                         Both rows open with the same three buttons in the same order, and every button here
+                         takes the theme's own padding, so "Add to Library", "Export…" and "Load…" line up
+                         under each other between the two rows. That parallel is the point of the ordering:
+                         it is what says a Studio Set and a tone support the same three things. The labels
+                         share one Grid column, which is what keeps the two rows starting at the same x when
+                         "Studio Set" is so much wider than "Tone".
+
+                         The rule in the Tone row divides sending the tone somewhere from changing it where
+                         it is. Everything to its left reads the tone; everything to its right overwrites
+                         it, and three of those four say in their own tooltip that they cannot be undone.
+
+                         Rescan Midi Devices is no longer here. It belongs to neither object — it rebuilds
+                         the MIDI connection and every view model under it — and it is wanted precisely when
+                         the connection has gone, which happens on whichever tab you were already on. It has
+                         moved to the status bar beside the device text, for the reason the next comment
+                         gives for the transport buttons. -->
+                    <!-- Play Note, Play Phrase, Stop Phrase and Panic used to sit here. They moved to the
+                         status bar beside Undo, Redo and Compare, because they are the same kind of thing:
+                         reached for at any moment, from any tab, and not part of the Parameters tab's own
+                         work. Panic in particular is the one button whose whole value is being where you
+                         already are.
+
+                         Play Note was kept here at first, on the grounds that it sounds the selected part
+                         and only this tab has one. That reasoning did not survive: Play Phrase reads the
+                         same selection in the same way and had already moved, so the two were split up for
+                         a difference they do not have. -->
+                    <Grid Grid.Row="0"
+                          ColumnDefinitions="Auto,*"
+                          RowDefinitions="Auto,Auto"
+                          RowSpacing="8"
+                          ColumnSpacing="12"
+                          Margin="0,0,0,12">
+                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                   Text="Studio Set"
+                                   Margin="0,7,0,0"
+                                   VerticalAlignment="Top"
+                                   Foreground="{StaticResource SnMutedTextBrush}" />
+                        <!-- "Add to Library" against "Export…": both read the same blocks out of the
+                             instrument and differ only in where the file lands, so the labels name the
+                             destination and nothing else. What is added used to be in the label too, and
+                             does not need to be now that the group says it — which is what frees the two
+                             rows to read alike.
+                             Title case throughout, because every other button in this window uses it.
+                             An earlier version of this comment claimed lower-case "tone" was the
+                             application's own usage. It is not, and nothing else here spells it that way.
+                             "Save" appears once in these two rows and only in the Tone row, where "Save to
+                             User Memory" writes into the instrument's own memory. Nothing that writes a
+                             file is called saving. -->
+                        <WrapPanel Grid.Row="0" Grid.Column="1"
+                                   Orientation="Horizontal" ItemSpacing="12" LineSpacing="6">
                             <Button Command="{Binding SaveStudioSetAsync}"
                                     ToolTip.Tip="Read the Studio Set currently in the instrument — its common settings, effects and all 16 parts — and add it to the library, with a name, tags and a rating.">
                                 <Button.IsEnabled>
@@ -179,7 +188,7 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Add Studio Set to Library
+                                Add to Library
                             </Button>
                             <Button Command="{Binding ExportStudioSetAsync}"
                                     ToolTip.Tip="Read the Studio Set currently in the instrument and write it to a file anywhere you like, outside the library.">
@@ -191,7 +200,7 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Export Studio Set…
+                                Export…
                             </Button>
                             <Button Command="{Binding LoadStudioSetAsync}"
                                     ToolTip.Tip="Write a saved Studio Set back into the instrument. This overwrites the Studio Set currently loaded there, including any edits you have not saved.">
@@ -203,10 +212,16 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Load Studio Set…
+                                Load…
                             </Button>
-                            <!-- See the Studio Set pair above for why these read "Add … to Library" rather
-                                 than "Save …". -->
+                        </WrapPanel>
+                        <TextBlock Grid.Row="1" Grid.Column="0"
+                                   Text="Tone"
+                                   Margin="0,7,0,0"
+                                   VerticalAlignment="Top"
+                                   Foreground="{StaticResource SnMutedTextBrush}" />
+                        <WrapPanel Grid.Row="1" Grid.Column="1"
+                                   Orientation="Horizontal" ItemSpacing="12" LineSpacing="6">
                             <Button Command="{Binding SaveToneAsync}"
                                     ToolTip.Tip="Read the tone currently loaded into the selected part — every one of its parameters — and add it to the library, with a name, category, tags and a rating.">
                                 <Button.IsEnabled>
@@ -218,7 +233,7 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Add Tone to Library
+                                Add to Library
                             </Button>
                             <Button Command="{Binding ExportToneAsync}"
                                     ToolTip.Tip="Read the tone currently loaded into the selected part and write it to a file anywhere you like, outside the library.">
@@ -231,7 +246,7 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Export Tone…
+                                Export…
                             </Button>
                             <Button Command="{Binding LoadToneAsync}"
                                     ToolTip.Tip="Write a saved tone into the selected part. This overwrites the tone currently in that part, including any edits you have not saved, and the part must already hold a tone of the same kind — select a preset of that kind on it first.">
@@ -244,10 +259,10 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Load Tone…
+                                Load…
                             </Button>
-                            <Button Command="{Binding InitToneAsync}"
-                                    ToolTip.Tip="Replace the tone in the selected part with a neutral starting point — the library tone marked as this engine's init tone, or the one bundled with the application. This cannot be undone.">
+                            <Button Command="{Binding SaveUserTone}"
+                                    ToolTip.Tip="Write the tone in the selected part into the instrument's own user memory, over a user slot you pick — not a file, and not the library. The instrument keeps tone names to 12 characters, so a longer one is cut to fit.">
                                 <Button.IsEnabled>
                                     <MultiBinding Converter="{x:Static BoolConverters.And}">
                                         <MultiBinding.Bindings>
@@ -257,8 +272,35 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Init Tone
+                                Save to User Memory
                             </Button>
+                            <!-- The rule and Init are one child of the WrapPanel, so that they wrap
+                                 together. Left to itself the rule is a child like any other and the row
+                                 can break immediately after it, which strands a one-pixel line at the end
+                                 of a line with nothing on either side of it to divide. Paired, it is
+                                 always the thing immediately to the left of the first button it separates,
+                                 wherever the row happens to break. The four buttons after it still wrap
+                                 individually.
+                                 Same Rectangle as the status bar's rule, down to the brush and the
+                                 margins: there is one way this application draws a divider in a row of
+                                 buttons and this is it. -->
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Rectangle Width="1" VerticalAlignment="Stretch" Margin="0,2"
+                                           Fill="{StaticResource SnStatusBarBorderBrush}" />
+                                <Button Command="{Binding InitToneAsync}"
+                                        ToolTip.Tip="Replace the tone in the selected part with a neutral starting point — the library tone marked as this engine's init tone, or the one bundled with the application. This cannot be undone.">
+                                    <Button.IsEnabled>
+                                        <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                            <MultiBinding.Bindings>
+                                                <Binding Path="Connected" />
+                                                <Binding Path="!IsSyncing" />
+                                                <Binding Path="CurrentPartIsNotCommonPart" />
+                                            </MultiBinding.Bindings>
+                                        </MultiBinding>
+                                    </Button.IsEnabled>
+                                    Init
+                                </Button>
+                            </StackPanel>
                             <Button Command="{Binding CopyToneAsync}"
                                     ToolTip.Tip="Read the tone in the selected part and hold it, so it can be pasted into another part of the same kind.">
                                 <Button.IsEnabled>
@@ -270,7 +312,7 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Copy Tone
+                                Copy
                             </Button>
                             <Button Command="{Binding PasteToneAsync}"
                                     ToolTip.Tip="Write the copied tone into the selected part. The part must already hold a tone of the same kind. This cannot be undone.">
@@ -284,7 +326,7 @@
                                         </MultiBinding.Bindings>
                                     </MultiBinding>
                                 </Button.IsEnabled>
-                                Paste Tone
+                                Paste
                             </Button>
                             <Button Command="{Binding RandomiseToneAsync}"
                                     ToolTip.Tip="Vary the tone in the selected part. You choose which groups of parameters move and how far from their current values; everything else is left alone. One press of Undo takes it all back.">
@@ -299,8 +341,8 @@
                                 </Button.IsEnabled>
                                 Randomise…
                             </Button>
-                        </StackPanel>
-                    </ScrollViewer>
+                        </WrapPanel>
+                    </Grid>
                     <TabControl HorizontalContentAlignment="Left"
                                 TabStripPlacement="Left"
                                 Grid.Row="1"
@@ -934,7 +976,22 @@
                     Panic!
                 </Button>
 
+                <!-- The device text and the button that rebuilds the connection, as one group behind their
+                     own rule. Rescan moved out of the Parameters tab's toolbar for the reason Undo and the
+                     transport buttons did: it is wanted from wherever you happen to be, and losing the
+                     instrument while looking at the Mixer or the Library is the ordinary way of losing it.
+
+                     Here it also gains a reading it did not have in the toolbar. RescanButtonEnabled is
+                     !_connected, so the button turns on exactly when the text beside it stops naming
+                     devices — the state and the remedy end up side by side, and neither has to be looked
+                     for. No ToolTip, like the rest of the status bar's buttons: see above for why. -->
+                <Rectangle Width="1" VerticalAlignment="Stretch" Margin="4,2"
+                           Fill="{StaticResource SnStatusBarBorderBrush}" />
                 <TextBlock Text="{Binding MidiDevices}" VerticalAlignment="Center" />
+                <Button IsEnabled="{Binding RescanButtonEnabled}"
+                        Command="{Binding RescanMidiDevicesAsync}" Padding="8,2">
+                    Rescan Midi Devices
+                </Button>
                 <!-- Progress of the user tone names, which load after the window is usable.
                      Collapses to nothing once they are in. -->
                 <TextBlock Text="{Binding BackgroundInfo}" VerticalAlignment="Center"
