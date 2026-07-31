@@ -1,0 +1,256 @@
+name: Release
+
+# Turns a tag into something an end user can download and run without installing anything first.
+#
+# This is deliberately separate from build.yml, which is untouched: that workflow answers "does this
+# push still compile and pass its tests" on every push and pull request to main, and it runs on a
+# branch filter, so a tag push does not trigger it. This one answers a different question — "is there
+# a runnable copy of this for each platform" — and only ever runs for a tag.
+#
+# The archives are self-contained: they carry the .NET 10 runtime with them, so nothing has to be
+# installed on the machine that unpacks them. Every asset the application needs (the pictures, the
+# CSV name tables, the generated parameter database) is embedded in the assembly as an
+# AvaloniaResource, so an archive is the executable, its DLLs, the platform's native libraries and
+# the licence, and nothing loose that can go missing.
+#
+# The result is a *draft* release. Cutting the tag does not publish anything to the world; it puts
+# the files somewhere they can be looked at, and publishing stays a deliberate act.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # So the packaging can be rehearsed on a branch without spending a version number on it. A
+  # dispatch run builds and uploads the archives as workflow artifacts and stops there: the release
+  # job below is guarded on the ref being a tag.
+  workflow_dispatch:
+
+jobs:
+  # Runs once rather than once per platform: the tests are platform-independent, and a tag that
+  # fails them should not produce downloads at all. The three steps are the ones build.yml already
+  # runs on every push, in the same order, so this is a sequence known to be green rather than a
+  # plausible shorter one.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build --verbosity normal
+
+  package:
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      # One platform failing to package should not hide whether the others worked.
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: ubuntu-latest
+            rid: linux-x64
+          # Both Mac architectures, from the same runner. Rosetta can run the x64 build on Apple
+          # Silicon, but slowly and with a translation warning, so the native one is worth its slot.
+          - os: macos-latest
+            rid: osx-x64
+          - os: macos-latest
+            rid: osx-arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Work out the version
+        id: version
+        shell: bash
+        # A tag gives the version; a dispatch rehearsal has no tag and gets a name that cannot be
+        # mistaken for a release. plain is the same thing with any pre-release suffix removed,
+        # because macOS wants a bare x.y.z in the bundle's Info.plist.
+        run: |
+          ref='${{ github.ref_name }}'
+          case "$ref" in
+            v*) version="${ref#v}" ;;
+            *)  version="0.0.0-dev" ;;
+          esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "plain=${version%%-*}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish self-contained
+        shell: bash
+        run: |
+          dotnet publish Src/Integra7AuralAlchemist.csproj \
+            --configuration Release \
+            --runtime ${{ matrix.rid }} \
+            --self-contained true \
+            -p:Version=${{ steps.version.outputs.version }} \
+            --output publish/${{ matrix.rid }}
+
+      - name: Drop the native symbol files
+        if: matrix.rid == 'win-x64'
+        shell: bash
+        # SkiaSharp and HarfBuzzSharp ship Windows .pdb files in their runtime packs: 101 MB of a
+        # 224 MB publish output, symbols for native libraries that nobody downloading a release will
+        # ever load. The application's own .pdb stays, on all platforms — it is what puts line
+        # numbers into the stack traces that end up in the log file and in bug reports.
+        run: rm -f "publish/${{ matrix.rid }}/libSkiaSharp.pdb" "publish/${{ matrix.rid }}/libHarfBuzzSharp.pdb"
+
+      - name: Stage a plain folder
+        if: ${{ !startsWith(matrix.rid, 'osx-') }}
+        shell: bash
+        # Everything lands under one named folder so that unpacking the archive produces a directory
+        # rather than 240 loose files in whatever the user happened to be pointing at.
+        run: |
+          set -euo pipefail
+          mkdir -p staging/Integra7AuralAlchemist
+          cp -R publish/${{ matrix.rid }}/. staging/Integra7AuralAlchemist/
+          cp LICENSE staging/Integra7AuralAlchemist/
+          if [ -f staging/Integra7AuralAlchemist/Integra7AuralAlchemist ]; then
+            chmod +x staging/Integra7AuralAlchemist/Integra7AuralAlchemist
+          fi
+
+      - name: Stage a macOS application bundle
+        if: startsWith(matrix.rid, 'osx-')
+        shell: bash
+        # A bare Mach-O executable does start, but it has no icon, no name in the menu bar and
+        # cannot be dragged into Applications. The bundle is a directory with a known shape and a
+        # property list, so it is assembled here rather than by any extra tooling.
+        run: |
+          set -euo pipefail
+          app="staging/Integra-7 Aural Alchemist.app"
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+          cp -R publish/${{ matrix.rid }}/. "$app/Contents/MacOS/"
+          chmod +x "$app/Contents/MacOS/Integra7AuralAlchemist"
+          cp LICENSE staging/
+          # The application icon is a 512x512 PNG in the repository; sips is part of macOS and turns
+          # it into the .icns that Finder reads.
+          sips -s format icns Src/Assets/integra7-icon.png --out "$app/Contents/Resources/integra7.icns"
+          cat > "$app/Contents/Info.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>Aural Alchemist</string>
+            <key>CFBundleDisplayName</key><string>Integra-7 Aural Alchemist</string>
+            <key>CFBundleIdentifier</key><string>com.github.shimpe.integra7auralalchemist</string>
+            <key>CFBundleExecutable</key><string>Integra7AuralAlchemist</string>
+            <key>CFBundleIconFile</key><string>integra7.icns</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>${{ steps.version.outputs.plain }}</string>
+            <key>CFBundleVersion</key><string>${{ steps.version.outputs.plain }}</string>
+            <key>LSMinimumSystemVersion</key><string>11.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          PLIST
+
+      - name: Archive as a zip
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path staging/Integra7AuralAlchemist `
+                           -DestinationPath "dist/Integra7AuralAlchemist-${{ steps.version.outputs.version }}-${{ matrix.rid }}.zip"
+
+      - name: Archive as a tarball
+        if: matrix.rid != 'win-x64'
+        shell: bash
+        # tar rather than zip for the two Unix platforms: a zip does not carry the executable bit,
+        # so its contents would arrive unrunnable and need a chmod before anything happened.
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          tar -C staging -czf "dist/Integra7AuralAlchemist-${{ steps.version.outputs.version }}-${{ matrix.rid }}.tar.gz" .
+
+      - name: Upload the archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.rid }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: package
+    runs-on: ubuntu-latest
+    # A workflow_dispatch rehearsal stops after packaging: its archives are on the run's own page,
+    # and nothing is created against the repository.
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      # Scoped to this job rather than the workflow: it is the only one that writes anything back,
+      # so the jobs that merely build and test run with a read-only token.
+      contents: write
+    steps:
+      - name: Collect the archives
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        # The notes below are prepended to the changelog GitHub generates from the commits. They say
+        # what each file is and what each platform does when handed an unsigned application, which
+        # is the part a first-time downloader gets stuck on: the warnings are about the absence of a
+        # code-signing certificate, not about the contents.
+        run: |
+          set -euo pipefail
+          notes=$(cat <<'NOTES'
+          ### Downloads
+
+          | File | For |
+          | --- | --- |
+          | `…-win-x64.zip` | Windows, 64-bit |
+          | `…-linux-x64.tar.gz` | Linux, 64-bit |
+          | `…-osx-arm64.tar.gz` | macOS, Apple Silicon (M1 and later) |
+          | `…-osx-x64.tar.gz` | macOS, Intel |
+
+          Nothing needs to be installed first — the .NET runtime travels inside the archive.
+
+          ### Running it
+
+          The application is not code-signed, so each platform will say so once. This is the absence
+          of a certificate, nothing about the files.
+
+          **Windows** — unpack the zip, run `Integra7AuralAlchemist.exe`. SmartScreen shows
+          "Windows protected your PC": choose *More info*, then *Run anyway*.
+
+          **macOS** — unpack, drag *Integra-7 Aural Alchemist* into Applications, then, once:
+          ```sh
+          xattr -dr com.apple.quarantine "/Applications/Integra-7 Aural Alchemist.app"
+          ```
+          Without that, Gatekeeper refuses to open it at all.
+
+          **Linux** — unpack and run `./Integra7AuralAlchemist`. ALSA has to be present; on Debian
+          and Ubuntu that is `libasound2`.
+
+          Then switch the INTEGRA-7 on, connect it over USB or MIDI, and pick the ports from the
+          drop-downs at the bottom of the window.
+          NOTES
+          )
+          # --verify-tag rather than letting gh create one: if the tag is not on the remote, that is
+          # a mistake worth failing on, not a reason to invent a tag pointing at whatever is newest.
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "Integra-7 Aural Alchemist $GITHUB_REF_NAME" \
+            --notes "$notes" \
+            --generate-notes \
+            --verify-tag \
+            --draft
