@@ -252,6 +252,16 @@ stated rather than discovered later:
 The mitigations are the filters that already exist: engine, bank tag, and `factory` versus `user`. If this
 turns out to be too slow in practice, the answer is a second library folder, which needs no new code.
 
+**It did not turn out that way.** The user checked all three by hand against a seeded library on 2026-07-31
+and found them usable, the duplicate scan included. So the early-out on the first pair that passes the
+threshold carries the ~9M comparisons after all, and the second library folder held in reserve above is not
+needed.
+
+This is left standing rather than deleted now that it is wrong, because being wrong in this direction is the
+outcome the section was for. The cost was reasoned about before a seeded library existed, the mitigation was
+named and **not built**, and the prediction was then checked against the real thing. Had it gone the other
+way the answer was ready; since it did not, no code was written for a slowdown nobody ever had.
+
 ---
 
 ## Testing
