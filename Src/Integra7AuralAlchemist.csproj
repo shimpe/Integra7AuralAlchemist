@@ -61,8 +61,15 @@
              clashes with the app's. Building it via the MSBuild graph (rather than an out-of-band
              `dotnet run`) keeps it a single, deduplicated build, avoiding a DLL write-lock race when
              `dotnet test` builds the generator (referenced by the test project) and the app concurrently. -->
+        <!-- GlobalPropertiesToRemove keeps the RuntimeIdentifier of a `dotnet publish -r <rid>` out of
+             the generator. The generator is a build-time tool: it has to run on the machine doing the
+             build, not on the machine the application is being published for. Without this it is built
+             for the target, and its output directory then holds that target's hostpolicy, which the
+             host's own dotnet tries to load and cannot ("incompatible architecture" when the two
+             differ only in architecture, "hostpolicy.dll not found" when they differ in OS). -->
         <ProjectReference Include="..\Tools\ParameterBlobGenerator\ParameterBlobGenerator.csproj"
-                          ReferenceOutputAssembly="false" Private="false" />
+                          ReferenceOutputAssembly="false" Private="false"
+                          GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" />
     </ItemGroup>
     <PropertyGroup>
         <DotNetHost Condition="'$(DOTNET_HOST_PATH)' != ''">$(DOTNET_HOST_PATH)</DotNetHost>
@@ -88,11 +95,18 @@
              (the generator) to their default configuration (Debug). Relying on ResolveProjectReferences
              alone would leave the Release output missing on a clean solution build, so we build the
              exact configuration we are about to execute. Debug and Release land in separate output dirs,
-             so this never clashes with the generator copy the test project may build concurrently. -->
+             so this never clashes with the generator copy the test project may build concurrently.
+
+             RemoveProperties repeats what GlobalPropertiesToRemove does on the ProjectReference above,
+             because these two calls pass their own property set rather than inheriting that one: drop
+             it here and the generator is built a second time, for the target runtime, into the
+             directory GetTargetPath then hands to Exec. -->
         <MSBuild Projects="$(ParameterBlobGeneratorProject)" Targets="Build"
-                 Properties="Configuration=$(Configuration)" />
+                 Properties="Configuration=$(Configuration)"
+                 RemoveProperties="RuntimeIdentifier;SelfContained" />
         <MSBuild Projects="$(ParameterBlobGeneratorProject)" Targets="GetTargetPath"
-                 Properties="Configuration=$(Configuration)">
+                 Properties="Configuration=$(Configuration)"
+                 RemoveProperties="RuntimeIdentifier;SelfContained">
             <Output TaskParameter="TargetOutputs" ItemName="_GeneratorDll" />
         </MSBuild>
         <Message Importance="high" Text="GenerateParameterBlob: producing $(ParameterBlobPath) via $(DotNetHost)" />
