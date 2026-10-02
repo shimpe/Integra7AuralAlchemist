@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Commons.Music.Midi;
 using Integra7AuralAlchemist.Models.Services;
 
 namespace Tests;
@@ -22,10 +21,7 @@ public class TestAsyncMidiInputWrapper
         public bool HandlerInstalled => _handler is not null;
 
         public void Push(byte[] message) =>
-            _handler?.Invoke(this, new MidiReceivedEventArgs
-            {
-                Data = message, Start = 0, Length = message.Length, Timestamp = 0
-            });
+            _handler?.Invoke(this, new MidiReceivedEventArgs(message));
 
         public void ConfigureHandler(EventHandler<MidiReceivedEventArgs> handler) => _handler = handler;
         public void ConfigureDefaultHandler() => _handler = null;

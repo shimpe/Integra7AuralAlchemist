@@ -1898,6 +1898,9 @@ public partial class MainWindowViewModel : ViewModelBase
         MixerVm = null;
         LayerMapVm?.Dispose();
         LayerMapVm = null;
+        // The old ports go first: WinMM opens a device for one client at a time, so the new ones would
+        // not open while these are still held.
+        (Integra7 as IDisposable)?.Dispose();
         Integra7 = new Integra7Api(
             new MidiPort(new MidiOut(INTEGRA_CONNECTION_STRING), new MidiIn(INTEGRA_CONNECTION_STRING)));
         await Integra7.CheckIdentityAsync();

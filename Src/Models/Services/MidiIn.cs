@@ -1,8 +1,8 @@
 using System;
 using System.Diagnostics;
 using System.Linq;
-using Commons.Music.Midi;
 using Integra7AuralAlchemist.Models.Data;
+using OwnAudio.Midi.IO;
 using ReactiveUI;
 using Serilog;
 
@@ -23,13 +23,13 @@ public interface IMidiIn
     public void DispatchUnsolicited(byte[] message);
 }
 
-public class MidiIn : IMidiIn
+public sealed class MidiIn : IMidiIn, IDisposable
 {
-    private readonly IMidiAccess? _midiAccessManager;
-    private readonly IMidiInput? _access;
-    private readonly IMidiPortDetails? _midiPortDetails;
+    private readonly IMidiInputPort? _access;
 
-    private event EventHandler<MidiReceivedEventArgs> _lastEventHandler;
+    /// <summary>Who receives the next message. The port's own events stay subscribed for the life of the
+    /// port and forward here, so installing a reader is a single assignment.</summary>
+    private volatile EventHandler<MidiReceivedEventArgs> _lastEventHandler;
 #if DEBUG
     public bool Verbose { get; set; } = true;
 #else
@@ -38,36 +38,70 @@ public class MidiIn : IMidiIn
 
     public MidiIn(string Name)
     {
-        _midiAccessManager = MidiAccessManager.Default;
         _lastEventHandler = DefaultHandler;
+        IMidiInputPort? access = null;
         try
         {
-            var inputs = _midiAccessManager?.Inputs.Where(x => x.Name.Contains(Name));
-            if (!inputs.Any())
+            var portNames = MidiPortFactory.GetInputPortNames();
+            var portName = portNames.LastOrDefault(x => x.Contains(Name));
+            if (portName is null)
             {
-                _midiPortDetails = null;
-                _access = null;
-            }
-            else
-            {
-                _midiPortDetails = inputs.Last();
-                // Bracketed because this blocks on an async open, and a driver left in a bad state can
-                // make it never return -- which looks like the application hanging with no clue why.
-                Log.Information("Opening MIDI input '{Port}'.", _midiPortDetails?.Name);
-                _access = _midiAccessManager?.OpenInputAsync(_midiPortDetails?.Id).Result;
-                Log.Information("MIDI input opened.");
+                // Names differ per platform and per driver, so the log says what there was to choose from.
+                Log.Information("No MIDI input matches '{Name}'; available: {Ports}.", Name, portNames);
+                return;
             }
 
-            if (_access != null)
-            {
-                Log.Debug("Configure default midi handler");
-                _access.MessageReceived += _lastEventHandler;
-            }
+            // Bracketed because a driver left in a bad state can make the open never return -- which
+            // looks like the application hanging with no clue why.
+            Log.Information("Opening MIDI input '{Port}'.", portName);
+            access = MidiPortFactory.OpenInput(portName);
+            Log.Debug("Configure default midi handler");
+            access.MessageReceived += OnMessageReceived;
+            access.SysExReceived += OnSysExReceived;
+            access.Start();
+            _access = access;
+            Log.Information("MIDI input opened.");
         }
-        catch (InvalidOperationException)
+        catch (Exception e)
         {
-            _midiPortDetails = null;
+            // A missing native library as well as a port that vanished between listing and opening:
+            // either way the application carries on without a device, as it does when none is found.
+            Log.Error(e, "Could not open the MIDI input matching '{Name}'.", Name);
+            access?.Dispose();
         }
+    }
+
+    private void OnMessageReceived(MidiMessage message) =>
+        Deliver(MidiWire.FromShortMessage(message.Status, message.Data1, message.Data2));
+
+    // The span is only valid during the callback, so it is copied before anything else sees it.
+    private void OnSysExReceived(ReadOnlySpan<byte> data) => Deliver(data.ToArray());
+
+    /// <summary>Hand a message to the current reader. This runs on the native core's thread, called
+    /// straight from unmanaged code: an exception escaping here would take the whole process down, so
+    /// it is logged and the message dropped instead.</summary>
+    private void Deliver(byte[] message)
+    {
+        try
+        {
+            _lastEventHandler(this, new MidiReceivedEventArgs(message));
+        }
+        catch (Exception e)
+        {
+            Log.Error(e, "MIDI input handler failed on {Length} byte(s), starting {Bytes}.", message.Length,
+                BitConverter.ToString(message, 0, Math.Min(message.Length, 8)));
+        }
+    }
+
+    /// <summary>Close the port. WinMM opens an input for one client only, so a rescan has to close the
+    /// old one before it can open the device again.</summary>
+    public void Dispose()
+    {
+        if (_access is null)
+            return;
+
+        Log.Information("Closing MIDI input '{Port}'.", _access.Name);
+        _access.Dispose();
     }
 
     public void ConfigureDefaultHandler()
@@ -75,11 +109,8 @@ public class MidiIn : IMidiIn
         if (_access == null)
             return;
 
-        Log.Debug("Remove customized midi handler");
-        _access.MessageReceived -= _lastEventHandler;
-        _lastEventHandler = DefaultHandler;
         Log.Debug("Restore default midi handler");
-        _access.MessageReceived += _lastEventHandler;
+        _lastEventHandler = DefaultHandler;
     }
 
     /// <summary>Restore the default handler on behalf of <paramref name="handler"/>. Ignored when it is
@@ -109,20 +140,15 @@ public class MidiIn : IMidiIn
         if (!Equals(_lastEventHandler, (EventHandler<MidiReceivedEventArgs>)DefaultHandler))
             Log.Warning("Installing a MIDI reader while another reader is still waiting for its reply.");
 
-        Log.Debug("Remove last configured midi handler");
-        _access.MessageReceived -= _lastEventHandler;
-        _lastEventHandler = handler;
         Log.Debug("Configure custom midi handler");
-        _access.MessageReceived += _lastEventHandler;
+        _lastEventHandler = handler;
     }
 
     private void DefaultHandler(object? sender, MidiReceivedEventArgs e)
     {
-        var localCopy = new byte[e.Length];
-        Debug.Assert(e.Length != 0);
-        Array.Copy(e.Data, localCopy, e.Length);
-        if (Verbose) ByteStreamDisplay.Display("Received (default handler): ", localCopy);
-        DispatchUnsolicited(localCopy);
+        Debug.Assert(e.Data.Length != 0);
+        if (Verbose) ByteStreamDisplay.Display("Received (default handler): ", e.Data);
+        DispatchUnsolicited(e.Data);
     }
 
     public void DispatchUnsolicited(byte[] message)

@@ -220,7 +220,9 @@ dotnet publish Src/Integra7AuralAlchemist.csproj -c Release -r win-x64 --self-co
 - **[ReactiveUI](https://www.reactiveui.net/) 24** (ReactiveUI.Avalonia, ReactiveUI.Reactive,
   ReactiveUI.SourceGenerators) and **[DynamicData](https://github.com/reactivemarbles/DynamicData)**
   for the MVVM and reactive layer.
-- **[managed-midi](https://github.com/atsushieno/managed-midi)** for MIDI and SysEx.
+- **[OwnAudioSharp.Midi](https://github.com/ModernMube/OwnAudioSharp)** for MIDI and SysEx: a native
+  core over WinMM, CoreMIDI and the ALSA sequencer, shipped inside the package for every platform the
+  releases target.
 - **[Serilog](https://serilog.net/)** (console and file sinks) for the log, which is worth reading
   when something does not behave: it records every action the user takes.
 - **NUnit 4** for the tests.

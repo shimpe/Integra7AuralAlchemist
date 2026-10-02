@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Commons.Music.Midi;
 using Integra7AuralAlchemist.Models.Services;
 
 namespace Tests;
@@ -28,10 +27,7 @@ public class TestMidiPort
         public int HandlersInstalled { get; private set; }
 
         public void Push(byte[] message) =>
-            _handler?.Invoke(this, new MidiReceivedEventArgs
-            {
-                Data = message, Start = 0, Length = message.Length, Timestamp = 0
-            });
+            _handler?.Invoke(this, new MidiReceivedEventArgs(message));
 
         public void ConfigureHandler(EventHandler<MidiReceivedEventArgs> handler)
         {

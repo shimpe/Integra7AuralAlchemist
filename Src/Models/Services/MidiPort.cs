@@ -39,7 +39,7 @@ public interface IMidiLease : IAsyncDisposable
     Task<byte[]> ReadNextAsync(IReplyMatcher expected);
 }
 
-public sealed class MidiPort : IMidiPort
+public sealed class MidiPort : IMidiPort, IDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly IMidiOut _midiOut;
@@ -70,6 +70,14 @@ public sealed class MidiPort : IMidiPort
     {
         _midiOut = midiOut;
         _midiIn = midiIn;
+    }
+
+    /// <summary>Close both handles, so a rescan can open the device again. A conversation still running
+    /// on this port times out on its read, and its sends are dropped and logged.</summary>
+    public void Dispose()
+    {
+        (_midiIn as IDisposable)?.Dispose();
+        (_midiOut as IDisposable)?.Dispose();
     }
 
     public async Task<IMidiLease> AcquireAsync(string what)

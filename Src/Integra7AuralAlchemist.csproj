@@ -36,7 +36,7 @@
         <PackageReference Include="ReactiveUI.Reactive" Version="24.0.0"/>
         <PackageReference Include="dynamicdata" Version="9.4.33"/>
         <PackageReference Include="FluentAvaloniaUI" Version="3.0.2"/>
-        <PackageReference Include="managed-midi" Version="1.10.1"/>
+        <PackageReference Include="OwnAudioSharp.Midi" Version="4.0.8"/>
         <PackageReference Include="ReactiveUI.SourceGenerators" Version="3.1.0">
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>

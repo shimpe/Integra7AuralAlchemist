@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
-using Commons.Music.Midi;
-using CoreMidi;
 using Integra7AuralAlchemist.Models.Data;
 using Integra7AuralAlchemist.Models.Domain;
 using ReactiveUI;
@@ -56,7 +54,7 @@ public interface IIntegra7Api
     Task<List<string>> GetSuperNATURALSynthToneUserNames448to511();
 }
 
-public class Integra7Api : IIntegra7Api
+public class Integra7Api : IIntegra7Api, IDisposable
 {
     private readonly IMidiPort _port;
     private byte _deviceId;
@@ -70,6 +68,8 @@ public class Integra7Api : IIntegra7Api
     {
         _port = port;
     }
+
+    public void Dispose() => (_port as IDisposable)?.Dispose();
 
     public byte DeviceId()
     {
@@ -172,7 +172,7 @@ public class Integra7Api : IIntegra7Api
             // It used to be built as [123 + channel, 124, 0], putting a controller number where the
             // status byte goes -- and a status byte below 0x80 is not a MIDI message at all, so WinMM
             // rejected all sixteen. Panic never reached the device.
-            byte[] data = [(byte)(MidiEvent.CC + i), Integra7MidiControlNos.AllNotesOff, 0x00];
+            byte[] data = [(byte)(Integra7MidiControlNos.ControlChange + i), Integra7MidiControlNos.AllNotesOff, 0x00];
             await port.SendAsync(data);
         }
     }
@@ -458,7 +458,7 @@ public class Integra7Api : IIntegra7Api
     {
         ISet<int> PossibleBankMsb = new HashSet<int> { 85, 86, 87, 88, 89, 92, 93, 95, 96, 97, 120, 121 };
         if (PossibleBankMsb.Contains(BankNumberMsb))
-            return [(byte)(MidiEvent.CC + Channel), 0, (byte)BankNumberMsb];
+            return [(byte)(Integra7MidiControlNos.ControlChange + Channel), 0, (byte)BankNumberMsb];
 
         // Throws rather than skipping: sending only the LSB and program change would select some
         // other patch and say nothing about it.
@@ -468,36 +468,36 @@ public class Integra7Api : IIntegra7Api
     private static byte[] BankSelectLsb(byte Channel, int BankNumberLsb)
     {
         if (0 <= BankNumberLsb && BankNumberLsb <= 127)
-            return [(byte)(MidiEvent.CC + Channel), 0x20, (byte)BankNumberLsb];
+            return [(byte)(Integra7MidiControlNos.ControlChange + Channel), 0x20, (byte)BankNumberLsb];
 
         throw new MidiException("Trying to select impossible LSB BankNumber: " + BankNumberLsb);
     }
 
     private static byte[] ProgramChange(byte Channel, int ProgramNumber) =>
-        [(byte)(MidiEvent.Program + Channel), (byte)ProgramNumber];
+        [(byte)(Integra7MidiControlNos.ProgramChange + Channel), (byte)ProgramNumber];
 
 
     public static bool CheckIsPartOfPresetChange(byte[] reply, out byte midiChannel)
     {
         midiChannel = 0;
         // check for bank select msb
-        if (reply.Length > 2 && reply[0] >= MidiEvent.CC && reply[0] <= MidiEvent.CC + 15 && reply[1] == 0x00)
+        if (reply.Length > 2 && reply[0] >= Integra7MidiControlNos.ControlChange && reply[0] <= Integra7MidiControlNos.ControlChange + 15 && reply[1] == 0x00)
         {
-            midiChannel = (byte)(reply[0] - MidiEvent.CC);
+            midiChannel = (byte)(reply[0] - Integra7MidiControlNos.ControlChange);
             return true;
         }
 
         // ckeck for bank select lsb
-        if (reply.Length > 2 && reply[0] >= MidiEvent.CC && reply[0] <= MidiEvent.CC + 15 && reply[1] == 0x20)
+        if (reply.Length > 2 && reply[0] >= Integra7MidiControlNos.ControlChange && reply[0] <= Integra7MidiControlNos.ControlChange + 15 && reply[1] == 0x20)
         {
-            midiChannel = (byte)(reply[0] - MidiEvent.CC);
+            midiChannel = (byte)(reply[0] - Integra7MidiControlNos.ControlChange);
             return true;
         }
 
         // check for program change
-        if (reply.Length > 1 && reply[0] >= MidiEvent.Program && reply[0] <= MidiEvent.Program + 15)
+        if (reply.Length > 1 && reply[0] >= Integra7MidiControlNos.ProgramChange && reply[0] <= Integra7MidiControlNos.ProgramChange + 15)
         {
-            midiChannel = (byte)(reply[0] - MidiEvent.Program);
+            midiChannel = (byte)(reply[0] - Integra7MidiControlNos.ProgramChange);
             return true;
         }
 
