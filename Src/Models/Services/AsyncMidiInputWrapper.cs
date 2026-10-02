@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using Commons.Music.Midi;
 using Serilog;
 
 namespace Integra7AuralAlchemist.Models.Services;
@@ -38,10 +37,8 @@ public class AsyncMidiInputWrapper
 
     private void OnMidiMessageReceived(object? sender, MidiReceivedEventArgs e)
     {
-        var localCopy = new byte[e.Length];
-        Buffer.BlockCopy(e.Data, 0, localCopy, 0, e.Length);
-        ByteStreamDisplay.Display($"Received {localCopy.Length} bytes (async): ", localCopy);
-        _channel.Writer.TryWrite(localCopy);
+        ByteStreamDisplay.Display($"Received {e.Data.Length} bytes (async): ", e.Data);
+        _channel.Writer.TryWrite(e.Data);
     }
 
     /// <summary>Messages that arrived while this read was waiting and were not its reply, in arrival
