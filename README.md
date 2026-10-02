@@ -237,3 +237,8 @@ between the screen and the instrument. Read them before changing either.
 ## Licence
 
 GNU General Public License v3 — see [LICENSE](LICENSE).
+
+The downloads also contain the libraries the application is built on, each under its own licence;
+[THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) reproduces them all and ships in every archive. After
+changing a package, regenerate it with `Tools/ThirdPartyNotices/generate.sh`, which refuses to run
+while its package list disagrees with what the application actually uses.

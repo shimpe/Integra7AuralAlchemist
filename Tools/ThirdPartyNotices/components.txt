@@ -1,0 +1,25 @@
+# One entry per licence to reproduce. Format:
+#   key | title | SPDX licence | project URL | where the licence text comes from
+# The source is either a URL, or nuget:<package id>/<version>/<file> for a file inside a restored package
+# in the NuGet cache. Several sources may be given, separated by " + ", and are reproduced in order.
+avalonia | Avalonia | MIT | https://github.com/AvaloniaUI/Avalonia | https://raw.githubusercontent.com/AvaloniaUI/Avalonia/main/licence.md
+inter | Inter typeface (embedded by Avalonia.Fonts.Inter) | OFL-1.1 | https://github.com/rsms/inter | https://raw.githubusercontent.com/rsms/inter/master/LICENSE.txt
+avalonia-datagrid | Avalonia.Controls.DataGrid | MIT | https://github.com/AvaloniaUI/Avalonia.Controls.DataGrid | https://raw.githubusercontent.com/AvaloniaUI/Avalonia.Controls.DataGrid/main/licence.md
+angle | ANGLE (Avalonia.Angle.Windows.Natives) | BSD-3-Clause | https://github.com/AvaloniaUI/angle | nuget:avalonia.angle.windows.natives/2.1.27548.20260419/LICENSE
+fluentavalonia | FluentAvalonia | MIT | https://github.com/amwx/FluentAvalonia | https://raw.githubusercontent.com/amwx/FluentAvalonia/master/LICENSE
+microcom | MicroCom | MIT | https://github.com/kekekeks/MicroCom | https://raw.githubusercontent.com/kekekeks/MicroCom/master/LICENSE
+tmds-dbus | Tmds.DBus | MIT | https://github.com/tmds/Tmds.DBus | https://raw.githubusercontent.com/tmds/Tmds.DBus/main/COPYING
+reactiveui | ReactiveUI | MIT | https://github.com/reactiveui/ReactiveUI | nuget:reactiveui/24.0.0/LICENSE/LICENSE
+reactiveui-avalonia | ReactiveUI.Avalonia | MIT | https://github.com/reactiveui/ReactiveUI.Avalonia | nuget:reactiveui.avalonia/12.1.0/LICENSE/LICENSE
+reactiveui-primitives | ReactiveUI Primitives | MIT | https://github.com/reactiveui/Primitives | nuget:reactiveui.primitives/7.1.0/LICENSE/LICENSE
+splat | Splat | MIT | https://github.com/reactiveui/splat | nuget:splat/20.2.0/LICENSE/LICENSE
+dynamicdata | DynamicData | MIT | https://github.com/reactiveui/DynamicData | nuget:dynamicdata/9.4.33/LICENSE/LICENSE
+system-reactive | Reactive Extensions for .NET (System.Reactive) | MIT | https://github.com/dotnet/reactive | https://raw.githubusercontent.com/dotnet/reactive/main/LICENSE
+recyclablememorystream | Microsoft.IO.RecyclableMemoryStream | MIT | https://github.com/microsoft/Microsoft.IO.RecyclableMemoryStream | https://raw.githubusercontent.com/microsoft/Microsoft.IO.RecyclableMemoryStream/master/LICENSE
+serilog | Serilog | Apache-2.0 | https://github.com/serilog/serilog | https://raw.githubusercontent.com/serilog/serilog/dev/LICENSE
+serilog-sinks-console | Serilog.Sinks.Console | Apache-2.0 | https://github.com/serilog/serilog-sinks-console | https://raw.githubusercontent.com/serilog/serilog-sinks-console/dev/LICENSE
+serilog-sinks-file | Serilog.Sinks.File | Apache-2.0 | https://github.com/serilog/serilog-sinks-file | https://raw.githubusercontent.com/serilog/serilog-sinks-file/dev/LICENSE
+skiasharp | SkiaSharp, and the native Skia library with its own third-party components | MIT | https://github.com/mono/SkiaSharp | nuget:skiasharp/3.119.4/LICENSE.txt + nuget:skiasharp.nativeassets.win32/3.119.4/THIRD-PARTY-NOTICES.txt
+harfbuzzsharp | HarfBuzzSharp (its native HarfBuzz library is covered by the SkiaSharp third-party notices above, which are the same file) | MIT | https://github.com/mono/SkiaSharp | nuget:harfbuzzsharp/8.3.1.3/LICENSE.txt
+dotnet-runtime | The .NET runtime and libraries, included in the self-contained downloads (also covers Microsoft.Extensions.*) | MIT | https://github.com/dotnet/runtime | runtime-pack:LICENSE.TXT + runtime-pack:THIRD-PARTY-NOTICES.TXT
+ownaudiosharp | OwnAudioSharp.Midi | MIT | https://github.com/ModernMube/OwnAudioSharp | https://raw.githubusercontent.com/ModernMube/OwnAudioSharp/main/LICENSE
