@@ -13,8 +13,10 @@ public class LfoWaveformControl : Control
     public static readonly StyledProperty<string> ShapeProperty =
         AvaloniaProperty.Register<LfoWaveformControl, string>(nameof(Shape), "Triangle");
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<IBrush> B(string name, IBrush def) =>
         AvaloniaProperty.Register<LfoWaveformControl, IBrush>(name, def);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<IBrush> LineBrushProperty = B(nameof(LineBrush), new SolidColorBrush(Color.Parse("#4FB0A0")));
     public static readonly StyledProperty<IBrush> BackgroundBrushProperty = B(nameof(BackgroundBrush), new SolidColorBrush(Color.Parse("#1B1F22")));

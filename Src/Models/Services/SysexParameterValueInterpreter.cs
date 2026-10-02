@@ -55,7 +55,7 @@ public class SysexParameterValueInterpreter
         {
             var found = false;
             long val = (parResult[0] << 8) + parResult[1];
-            foreach (Tuple<int, string> entry in spec.Discrete)
+            foreach (Tuple<int, string> entry in spec.Discrete ?? [])
                 if (entry.Item1 == val)
                 {
                     found = true;
@@ -67,8 +67,11 @@ public class SysexParameterValueInterpreter
             {
                 Log.Error(
                     $"Discrete value {val} has not known value for parameter {spec.Path}. Choosing something else instead.");
-                rawNumericValue = spec.Discrete[0].Item1;
-                stringValue = spec.Discrete[0].Item2;
+                if (spec.Discrete is [var fallback, ..])
+                {
+                    rawNumericValue = fallback.Item1;
+                    stringValue = fallback.Item2;
+                }
             }
         }
         else

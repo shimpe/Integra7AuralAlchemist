@@ -121,7 +121,7 @@ public static class DataTemplateProvider
         if (p.IsDiscrete)
         {
             ComboBox c = new();
-            foreach (var el in p.ParSpec.Discrete) c.Items.Add(el.Item2);
+            foreach (var el in p.ParSpec.Discrete ?? []) c.Items.Add(el.Item2);
             c.SelectedItem = p.StringValue;
             c.SelectionChanged += (s, e) =>
             {

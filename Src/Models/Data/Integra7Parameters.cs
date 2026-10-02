@@ -62,7 +62,7 @@ public class Integra7Parameters
     /// The scan runs once per distinct prefix; later calls copy the cached result.</summary>
     public List<Integra7ParameterSpec> GetParametersWithPrefix(string prefix)
     {
-        List<Integra7ParameterSpec> cached;
+        List<Integra7ParameterSpec>? cached;
         // Domains are built on one thread today, but the cache is cheap to guard and a torn dictionary
         // would be a miserable bug to chase.
         lock (_prefixCache)

@@ -65,7 +65,7 @@ public class DisplayValueToRawValueConverter
         }
         else if (p.IsDiscrete)
         {
-            foreach (var entry in p.ParSpec.Discrete)
+            foreach (var entry in p.ParSpec.Discrete ?? [])
                 if (entry.Item2 == displayValue)
                 {
                     p.RawNumericValue = entry.Item1;

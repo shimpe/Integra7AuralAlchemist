@@ -14,7 +14,7 @@ public class PartialViewModel : ViewModelBase
     protected readonly byte _zeroBasedPartial;
     private Integra7StartAddresses _i7addr;
     private IIntegra7Api _i7api;
-    protected Integra7Domain? _i7domain;
+    protected Integra7Domain _i7domain;
     private Integra7Parameters _i7par;
     private PartViewModel _parent;
     protected string _toneTypeStr;

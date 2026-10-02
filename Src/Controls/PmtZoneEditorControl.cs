@@ -23,8 +23,10 @@ public class PmtZoneEditorControl : Control
     private const double HandleMargin = 6;
     private const double KeyboardHeight = 30; // bottom strip reserved for the piano keyboard
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<int> I(string name) =>
         AvaloniaProperty.Register<PmtZoneEditorControl, int>(name, 0, defaultBindingMode: BindingMode.TwoWay);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<int> Key1LoProperty = I(nameof(Key1Lo));
     public static readonly StyledProperty<int> Key1HiProperty = I(nameof(Key1Hi));
@@ -51,8 +53,10 @@ public class PmtZoneEditorControl : Control
     /// there is no path by which the control could write one back and a two-way binding would only be a write
     /// path nobody uses. Zero because both views that host this control predate the fades: a view that has not
     /// yet bound them gets no bands, which is exactly what it drew before.</para></summary>
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<int> F(string name) =>
         AvaloniaProperty.Register<PmtZoneEditorControl, int>(name);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<int> KeyFade1LoProperty = F(nameof(KeyFade1Lo));
     public static readonly StyledProperty<int> KeyFade1HiProperty = F(nameof(KeyFade1Hi));
@@ -84,8 +88,10 @@ public class PmtZoneEditorControl : Control
     public static readonly StyledProperty<bool> PreviewProperty =
         AvaloniaProperty.Register<PmtZoneEditorControl, bool>(nameof(Preview));
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<IBrush> B(string name, IBrush def) =>
         AvaloniaProperty.Register<PmtZoneEditorControl, IBrush>(name, def);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<IBrush> Zone1BrushProperty = B(nameof(Zone1Brush), new SolidColorBrush(Color.Parse("#6b8dff")));
     public static readonly StyledProperty<IBrush> Zone2BrushProperty = B(nameof(Zone2Brush), new SolidColorBrush(Color.Parse("#ff9e6b")));
