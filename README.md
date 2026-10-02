@@ -214,9 +214,8 @@ dotnet publish Src/Integra7AuralAlchemist.csproj -c Release -r win-x64 --self-co
 ## How it is put together
 
 - **.NET 10** and C#, nullable enabled, Avalonia compiled bindings.
-- **[Avalonia](https://avaloniaui.net/) 12** for the user interface (Desktop, DataGrid,
-  ItemsRepeater, Inter font), with **[FluentAvaloniaUI](https://github.com/amwx/FluentAvalonia)**
-  controls.
+- **[Avalonia](https://avaloniaui.net/) 12** for the user interface (Desktop, DataGrid, Inter font),
+  with **[FluentAvaloniaUI](https://github.com/amwx/FluentAvalonia)** controls.
 - **[ReactiveUI](https://www.reactiveui.net/) 24** (ReactiveUI.Avalonia, ReactiveUI.Reactive,
   ReactiveUI.SourceGenerators) and **[DynamicData](https://github.com/reactivemarbles/DynamicData)**
   for the MVVM and reactive layer.

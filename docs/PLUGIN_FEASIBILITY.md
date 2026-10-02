@@ -1,14 +1,16 @@
 # Running Aural Alchemist as a VST3 or CLAP plugin
 
-An assessment, not a plan of record. Written 2026-07-25 against the code as it stands, and updated
-on 2026-10-02 for the move from managed-midi to OwnAudioSharp.Midi. Companion to
-`WASM_FEASIBILITY.md`.
+An assessment, not a plan of record. Written 2026-07-25 against the code as it stands, and rechecked
+claim by claim on 2026-10-02 — against the code, against the current state of Avalonia, NPlug and
+Windows MIDI, and with one experiment on the actual instrument. Companion to `WASM_FEASIBILITY.md`.
 
-**Short answer:** harder than the browser, and for a less obvious payoff. The plugin ABI is the
-*easy* part — a solved problem in .NET. The difficulty is that this is a hardware editor with no
-audio, so it has to fight the host for the MIDI port; that Avalonia has no supported way to live
-inside a window the host owns; and that the .NET plugin route wants NativeAOT, which this code is
-not ready for.
+**Short answer:** still a big job, but two of the three obstacles the first version named have
+shrunk. The plugin ABI remains the *easy* part — a solved problem in .NET. **The MIDI port** is no
+longer a fight on current Windows: every port is multi-client now, and this app was measured sharing
+the INTEGRA-7 with a second client (see Problem 1). **The editor window** has a path on every platform,
+including macOS, where the first version called it unresolved. What remains hard is everything that
+comes from living in someone else's process: NativeAOT, which this code is not ready for, and
+process-wide state that two instances would share.
 
 ---
 
@@ -17,8 +19,10 @@ not ready for.
 Worth naming, because it shapes how much of the below is worth paying for:
 
 1. **The editor lives in the project window** instead of a separate app.
-2. **The Studio Set is saved with the song.** The app has no persistence today — state lives in the
-   instrument — so "open the project, get the sounds back" would be a genuinely new capability.
+2. **The Studio Set is saved with the song.** When this was first written the app had no persistence
+   at all. It now has Studio Set snapshots — the whole set as one JSON document, loadable back into
+   the instrument — so this has become a matter of storing that document in the plugin's state and
+   loading it when the project opens. The capability is new for a DAW project; the machinery is not.
 3. **Automation** of parameters from the DAW timeline.
 
 Note that none of the three needs the plugin to process audio. This would be a MIDI-effect /
@@ -28,15 +32,30 @@ instrument plugin that outputs silence, which both formats allow but neither is 
 
 ## Problem 1: who owns the MIDI port
 
-This is the one that decides the design, and it has no comfortable answer.
+This is the one that decides the design. The first version found no comfortable answer; there is now
+a likely one (Option A), not yet confirmed with a DAW as the other client.
 
 **Option A — the plugin opens the OS MIDI port itself**, exactly as the standalone app does today
-(`MidiIn`/`MidiOut` over OwnAudioSharp.Midi). Almost no code changes. But on Windows a WinMM MIDI device
-is typically opened exclusively: if the DAW already has the INTEGRA-7 port open for a MIDI track,
-the plugin's open fails, and vice versa. Since the whole point of being in the DAW is that the DAW is
-also playing the instrument, this collides in the normal case rather than the edge case. (Whether the
-Roland driver is multi-client, and whether Windows MIDI Services changes this, needs checking against
-the actual device before trusting either answer.)
+(`MidiIn`/`MidiOut` over OwnAudioSharp.Midi). Almost no code changes. The first version of this
+document expected it to collide with the DAW, because a WinMM device used to be opened exclusively.
+That has changed:
+
+- **Windows.** Windows MIDI Services, now built into Windows 11, makes every MIDI 1.0 port
+  multi-client regardless of driver, and routes the old WinMM API through it. **Measured
+  2026-10-02:** two instances of this application open on the INTEGRA-7 at the same time, the second
+  started while the first held the port. Both opened it, both passed the identity check, and both
+  read all 1,164 replies of their startup sync with no timeouts. This was two copies of this app
+  rather than a DAW, but a DAW reaches the port through the same service. (Windows MIDI Services is
+  rolled out in phases, so an older or un-updated Windows 11 may still open ports exclusively.)
+- **macOS.** CoreMIDI has always been multi-client.
+- **Linux.** OwnAudioSharp.Midi uses the ALSA sequencer, which is multi-client by design.
+
+The measurement also showed the cost. **The instrument's replies go to every client.** The first
+instance received all 1,164 of the second's replies as unsolicited traffic and passed them to its
+`DispatchUnsolicited` as front-panel updates. For a plugin beside its DAW that means the DAW's MIDI
+input sees the editor's whole conversation (DAWs usually filter SysEx from recording, but not all
+do), and two editors on one instrument would apply each other's reads. Neither is a blocker; both
+are worth knowing before choosing A.
 
 **Option B — the sysex travels through the host**, as plugin MIDI input/output events. This is the
 architecturally correct answer and the risky one:
@@ -57,14 +76,22 @@ trips. It would still work; the timeout tuning and the progress UI would both ne
 ## Problem 2: the editor window
 
 A plugin is handed a parent window (`HWND` on Windows, `NSView` on macOS, an X11 window on Linux) and
-must draw inside it. Avalonia does not support this as a first-class scenario.
+must draw inside it. Avalonia does not document this as a plugin scenario, but every platform now has
+a way in, built on `EmbeddableControlRoot`, the top level Avalonia uses whenever it lives inside
+someone else's window:
 
-- `NativeControlHost` is the **opposite** direction — it puts native controls *inside* Avalonia.
-- Embedding Avalonia into a foreign parent does exist in practice on Windows (it is what the WinForms
-  and WPF interop hosts do internally), so an `HWND`-parented top level is reachable.
-- On macOS it is an open question — the Avalonia discussions on hosting inside an `NSView` end at
-  "it might be possible to implement a TopLevel that holds an NSView", which is not a foundation to
-  plan a cross-platform plugin on.
+- `NativeControlHost` is the **opposite** direction — it puts native controls *inside* Avalonia — and
+  is not the answer.
+- **Windows:** embedding Avalonia into a foreign `HWND` is what the WinForms and WPF interop hosts do,
+  so an `HWND`-parented top level is reachable.
+- **macOS:** the first version of this document called this an open question. It was already
+  answered: Avalonia 11.2 added a top level that lives inside a foreign `NSView` (AvaloniaUI PR
+  #15932), so this project's Avalonia 12 has it.
+- **Linux/X11:** `XEmbedPlug` embeds Avalonia into a foreign X11 window.
+
+None of the three is documented or tested for plugin hosts, whose windows come and go and whose
+threading rules differ per DAW. That makes this a spike per platform rather than a known recipe —
+but no longer a dead end on macOS.
 
 Two further consequences of living inside someone else's process:
 
@@ -80,7 +107,8 @@ Two further consequences of living inside someone else's process:
 ## Problem 3: NativeAOT, and what this code does that dislikes it
 
 The .NET route into VST3 is [NPlug](https://github.com/xoofx/NPlug) — purely managed, no C++/CLI,
-covering win/osx/linux on x64 and arm64 — and it is built on **NativeAOT**. CLAP is a plain C ABI, so
+covering win/osx/linux on x64 and arm64, at 0.5 (June 2026, VST3 SDK 3.8) — and it is built on
+**NativeAOT**. CLAP is a plain C ABI, so
 a .NET NativeAOT library can export `clap_entry` directly with `[UnmanagedCallersOnly]`, no C++ shim
 at all. Either way the plugin is an AOT-compiled shared library.
 
@@ -92,15 +120,24 @@ rather than reflection. What is not ready:
 **`ViewLocator` resolves views by string.** It does `Type.GetType(vmName.Replace("ViewModel","View"))`
 followed by `Activator.CreateInstance`. Under trimming, a type referenced only by name is not
 reachable, so it is removed — and the failure is a blank panel at runtime, not a build error. Views
-referenced explicitly in XAML are rooted and safe; these ten are reached **only** through the
-ViewLocator and would need rooting (or the ViewLocator replaced with an explicit map):
+referenced explicitly in XAML are rooted and safe; these eleven are reached **only** through the
+ViewLocator and would need rooting (or the ViewLocator replaced with an explicit map). Rechecked
+2026-10-02: `StepLfoPanelView` has joined the ten the first version found, and every other view is
+referenced explicitly.
 
 ```
 DiscriminatedParamSectionView   PCMDrumWmtLayerView   SNDrumCompEqPanelView
 LfoPanelView                    PcmLfoPanelView       SNDrumNoteEditorView
-MfxPanelView                    PcmPmtPanelView       ToneNoteRailView
-PCMDrumNoteEditorView
+MfxPanelView                    PcmPmtPanelView       StepLfoPanelView
+PCMDrumNoteEditorView           ToneNoteRailView
 ```
+
+**JSON is serialised by reflection.** New since the first version: snapshots, morph pads and the
+library settings go through `JsonSerializer` with no source-generated `JsonSerializerContext`.
+NativeAOT turns reflection-based serialisation off by default, so all three would fail at run time —
+and snapshots are exactly what a plugin's saved state would be. The snapshot already has a
+hand-written converter (`SnapshotJsonConverter`), so adding a context is small; it just has to be
+done, and tested under AOT.
 
 **ReactiveUI** is the other question mark. `ReactiveUI.SourceGenerators` is already in use, which
 removes much of the reflection, but a full AOT pass is the kind of thing that surfaces problems only
@@ -113,9 +150,14 @@ when you try it.
 A standalone app can use process-wide singletons freely. A plugin cannot: two instances of the plugin
 in one project share the same statics. The ones that would cross-talk:
 
-- **`MessageBus.Current`** — the `"ui2hw"` and `"hw2ui"` buses, plus `UpdateResyncPart`. Every
-  instance would see every other instance's parameter edits and resync requests.
-- **`LoadedSrxState.Default`** — the loaded expansion boards.
+- **`MessageBus.Current`** — the `"ui2hw"` and `"hw2ui"` buses, plus `UpdateResyncPart` and
+  `UpdateSetPresetAndResyncPart`. Every instance would see every other instance's parameter edits
+  and resync requests.
+- **`EditJournal.Default`** — new since the first version: the undo/redo history and Compare's
+  buffer. Two instances would undo each other's edits, and Compare in one would roll back the
+  other's.
+- **`LoadedSrxState.Default`** — the loaded expansion boards. (This one is arguably *right* to share:
+  there is one instrument.)
 - **`Log.Logger`** — one static logger, and a file sink pointing at a relative `logs/` path, which in
   a plugin resolves against the *host's* working directory.
 
@@ -146,7 +188,8 @@ Worth weighing before committing, because two of the three motivations do not ac
 plugin:
 
 - **Save/load a Studio Set snapshot to a file** in the standalone app. That is the "recall my sounds"
-  benefit, without any of the above. It is also useful on its own.
+  benefit, without any of the above. **Done since the first version** — the Library saves and loads
+  whole Studio Sets, so a user can already keep one beside each DAW project by hand.
 - **A thin plugin that owns nothing but the state**, storing a Studio Set snapshot in the project and
   sending it on load, with the existing standalone app kept as the editor. Sidesteps the entire
   editor-window and multi-instance problem.
@@ -159,21 +202,28 @@ plugin:
 
 | Step | Size |
 | --- | --- |
-| Decide MIDI routing (Option A vs B) — needs a hardware experiment | small, but gates everything |
+| Decide MIDI routing (Option A vs B) | small — Option A now looks viable; confirm with a real DAW |
 | Plugin skeleton (CLAP export, or NPlug for VST3) with no UI | small |
-| NativeAOT pass: ViewLocator rooting, ReactiveUI, trimming warnings | medium, with unknowns |
-| Avalonia inside a host-provided window, per platform | large; unresolved on macOS |
+| NativeAOT pass: ViewLocator rooting, JSON source generation, ReactiveUI, trimming warnings | medium, with unknowns |
+| Avalonia inside a host-provided window, per platform | medium to large; a path exists on all three, none proven in a plugin host |
 | Per-instance state, or enforce a single instance | small if single-instance |
-| State persistence (the actual new feature) | medium |
+| State persistence (the actual new feature) | small — a Studio Set snapshot is already the state |
 
 **The experiment that would settle it fastest**, and needs none of the refactoring: with the DAW open
 and the INTEGRA-7 assigned to a MIDI track, run the standalone app and see whether it can still open
-the port. If it can, Option A is viable and this becomes mostly a UI-embedding problem. If it cannot,
-everything hinges on whether your DAW passes plugin sysex both ways — which is the second experiment,
-and the one that has historically disappointed.
+the port. Half of it has been done: on 2026-10-02 a second client opened the port while this app held
+it, on Windows 11 with Windows MIDI Services. What remains is to repeat it with the DAW as the other
+client, and to see whether the DAW's MIDI track records the editor's SysEx traffic. If both come out
+well, Option A holds and this becomes an AOT and UI-embedding problem. If not, everything hinges on
+whether your DAW passes plugin SysEx both ways — the experiment that has historically disappointed.
 
 ---
 
 Sources consulted while writing this: [NPlug](https://github.com/xoofx/NPlug),
 [Avalonia native interop docs](https://docs.avaloniaui.net/docs/app-development/native-interop),
 [Avalonia discussion on hosting inside an NSView](https://github.com/AvaloniaUI/Avalonia/discussions/15719).
+Added when rechecking on 2026-10-02:
+[NPlug on NuGet](https://www.nuget.org/packages/NPlug/),
+[Avalonia PR #15932: TopLevel embedding in a foreign NSView](https://github.com/AvaloniaUI/Avalonia/pull/15932),
+[Avalonia `XEmbedPlug`](https://github.com/AvaloniaUI/Avalonia/blob/master/src/Avalonia.X11/XEmbedPlug.cs),
+[Windows MIDI Services: multi-client MIDI in Windows 11](https://blogs.windows.com/windowsexperience/2026/02/17/making-music-with-midi-just-got-a-real-boost-in-windows-11/).
