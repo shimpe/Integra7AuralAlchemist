@@ -24,14 +24,20 @@ public class EqCurveControl : Control
     private const int GainLimit = 15;           // hardware range per band, in dB
     private const double LabelStripHeight = 14; // bottom strip reserved for frequency labels
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<double> D(string name, double def) =>
         AvaloniaProperty.Register<EqCurveControl, double>(name, def, defaultBindingMode: BindingMode.TwoWay);
+#pragma warning restore AVP1001
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<int> I(string name) =>
         AvaloniaProperty.Register<EqCurveControl, int>(name, 0, defaultBindingMode: BindingMode.TwoWay);
+#pragma warning restore AVP1001
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<IBrush> B(string name, IBrush def) =>
         AvaloniaProperty.Register<EqCurveControl, IBrush>(name, def);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<double> LowHzProperty = D(nameof(LowHz), 200);
     public static readonly StyledProperty<double> MidHzProperty = D(nameof(MidHz), 1000);
@@ -40,8 +46,10 @@ public class EqCurveControl : Control
     public static readonly StyledProperty<int> MidGainProperty = I(nameof(MidGain));
     public static readonly StyledProperty<int> HighGainProperty = I(nameof(HighGain));
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<IReadOnlyList<double>?> F(string name) =>
         AvaloniaProperty.Register<EqCurveControl, IReadOnlyList<double>?>(name);
+#pragma warning restore AVP1001
 
     /// <summary>The frequencies each band may be set to, in Hz. A dragged handle snaps to the nearest
     /// of them, so it can only ever sit where the hardware can actually put the band. Leave unset to

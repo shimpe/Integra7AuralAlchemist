@@ -23,8 +23,10 @@ public class StepLfoControl : Control
     private const int MinValue = -36;
     private const int MaxValue = 36;
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<int> S(string name) =>
         AvaloniaProperty.Register<StepLfoControl, int>(name, 0, defaultBindingMode: BindingMode.TwoWay);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<int> Step1Property = S(nameof(Step1));
     public static readonly StyledProperty<int> Step2Property = S(nameof(Step2));
@@ -70,8 +72,10 @@ public class StepLfoControl : Control
     public int Step15 { get => GetValue(Step15Property); set => SetValue(Step15Property, value); }
     public int Step16 { get => GetValue(Step16Property); set => SetValue(Step16Property, value); }
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<IBrush> B(string name, IBrush def) =>
         AvaloniaProperty.Register<StepLfoControl, IBrush>(name, def);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<IBrush> BarBrushProperty =
         B(nameof(BarBrush), new SolidColorBrush(Color.Parse("#7FB6E0")));

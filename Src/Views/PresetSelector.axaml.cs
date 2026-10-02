@@ -50,7 +50,7 @@ public partial class PresetSelector : UserControl
     /// overwrite a different saved sound. See <c>UserToneSlots</c> for how that number is derived now.</summary>
     public void PresetDataGrid_CellPointerPressed(object? sender, DataGridCellPointerPressedEventArgs? args)
     {
-        SelectedPreset = (Integra7Preset)args.Row.DataContext;
+        if (args?.Row.DataContext is Integra7Preset preset) SelectedPreset = preset;
     }
 
     /// <summary>Keep the selected preset visible. Reacting to the property *change* (rather than to the

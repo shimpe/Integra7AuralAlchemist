@@ -30,8 +30,10 @@ public class RotaryKnobDial : Control
     public static readonly StyledProperty<double> MaximumProperty =
         AvaloniaProperty.Register<RotaryKnobDial, double>(nameof(Maximum), 127);
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<IBrush> B(string name, IBrush def) =>
         AvaloniaProperty.Register<RotaryKnobDial, IBrush>(name, def);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<IBrush> AccentBrushProperty =
         B(nameof(AccentBrush), new SolidColorBrush(Color.Parse("#7FB6E0")));

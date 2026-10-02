@@ -24,8 +24,10 @@ public class WmtVelocityMapControl : Control
 {
     private const double HandleMargin = 6;
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<int> I(string name) =>
         AvaloniaProperty.Register<WmtVelocityMapControl, int>(name, 0, defaultBindingMode: BindingMode.TwoWay);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<int> Wmt1LoProperty = I(nameof(Wmt1Lo));
     public static readonly StyledProperty<int> Wmt1HiProperty = I(nameof(Wmt1Hi));
@@ -52,8 +54,10 @@ public class WmtVelocityMapControl : Control
     public static readonly StyledProperty<int> SelectedIndexProperty =
         AvaloniaProperty.Register<WmtVelocityMapControl, int>(nameof(SelectedIndex), 0, defaultBindingMode: BindingMode.TwoWay);
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<IBrush> B(string name, IBrush def) =>
         AvaloniaProperty.Register<WmtVelocityMapControl, IBrush>(name, def);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<IBrush> Lane1BrushProperty = B(nameof(Lane1Brush), new SolidColorBrush(Color.Parse("#6b8dff")));
     public static readonly StyledProperty<IBrush> Lane2BrushProperty = B(nameof(Lane2Brush), new SolidColorBrush(Color.Parse("#ff9e6b")));

@@ -591,17 +591,18 @@ public partial class MainWindowViewModel : ViewModelBase
         // part's search box would both shrink the list of slots the dialog offers and shift the slot
         // numbering counted over it. Every part shares this one list by reference, so any part serves.
         var presets = PartViewModels[1].AllPresets;
-        var preset = PartViewModels[_currentPartSelection].SelectedPreset;
+        // Read again after the await rather than trusting the check above: the part may have moved on.
+        if (PartViewModels[_currentPartSelection].SelectedPreset is not { } preset) return;
         var toneType = preset.ToneTypeStr;
         var vm = new SaveUserToneViewModel(presets, toneType);
         var tone = await ShowSaveUserToneDialog.Handle(vm);
         if (tone != null)
-            if (_integra7Communicator != null)
+            if (Integra7 is { } api && _integra7Communicator is { } communicator)
             {
                 string name = tone.NewName;
                 if (name.Length > 12)
                     name = name.Substring(0, 12);
-                await Integra7?.WriteToneToUserMemory(_integra7Communicator, toneType,
+                await api.WriteToneToUserMemory(communicator, toneType,
                     (byte)(_currentPartSelection - 1), name, tone.ZeroBasedMemoryId);
 
                 // Rename the slot the user picked. The dialog hands back that preset itself, so there is
@@ -1859,9 +1860,12 @@ public partial class MainWindowViewModel : ViewModelBase
         byte zeroBasedMidiChannel = 0;
         if (_currentPartSelection is > 0 and < 17) zeroBasedMidiChannel = (byte)(_currentPartSelection - 1);
 
-        await Integra7?.NoteOnAsync(zeroBasedMidiChannel, 65, 100);
+        // A local rather than `Integra7?.`: awaiting the null task that `?.` produces throws, so the
+        // operator only looked like a guard. The same holds for every button handler below.
+        if (Integra7 is not { } api) return;
+        await api.NoteOnAsync(zeroBasedMidiChannel, 65, 100);
         Thread.Sleep(1000);
-        await Integra7?.NoteOffAsync(zeroBasedMidiChannel, 65);
+        await api.NoteOffAsync(zeroBasedMidiChannel, 65);
     }
 
     public async Task PlayPhraseAsync()
@@ -1870,21 +1874,24 @@ public partial class MainWindowViewModel : ViewModelBase
         byte zeroBasedMidiChannel = 0;
         if (_currentPartSelection is > 0 and < 17) zeroBasedMidiChannel = (byte)(_currentPartSelection - 1);
 
-        await Integra7?.SendStopPreviewPhraseMsgAsync();
-        await Integra7?.SendPlayPreviewPhraseMsgAsync(zeroBasedMidiChannel);
+        if (Integra7 is not { } api) return;
+        await api.SendStopPreviewPhraseMsgAsync();
+        await api.SendPlayPreviewPhraseMsgAsync(zeroBasedMidiChannel);
     }
 
     public async Task StopPhraseAsync()
     {
         UserActionLog.Action("button: Stop Phrase");
-        await Integra7?.SendStopPreviewPhraseMsgAsync();
+        if (Integra7 is not { } api) return;
+        await api.SendStopPreviewPhraseMsgAsync();
     }
 
     public async Task PanicAsync()
     {
         UserActionLog.Action("button: Panic");
-        await Integra7?.AllNotesOffAsync();
-        await Integra7?.SendStopPreviewPhraseMsgAsync();
+        if (Integra7 is not { } api) return;
+        await api.AllNotesOffAsync();
+        await api.SendStopPreviewPhraseMsgAsync();
     }
 
     public async Task RescanMidiDevicesAsync()
@@ -1916,9 +1923,9 @@ public partial class MainWindowViewModel : ViewModelBase
     public async Task LoadSrx()
     {
         UserActionLog.Action($"button: Load SRX (slots {_srxSlot1}, {_srxSlot2}, {_srxSlot3}, {_srxSlot4})");
-        if (_connected)
+        if (_connected && Integra7 is { } api)
         {
-            await Integra7?.SendLoadSrxAsync((byte)_srxSlot1, (byte)_srxSlot2, (byte)_srxSlot3, (byte)_srxSlot4);
+            await api.SendLoadSrxAsync((byte)_srxSlot1, (byte)_srxSlot2, (byte)_srxSlot3, (byte)_srxSlot4);
             LoadedSrxState.Default.SetFromSlots(_srxSlot1, _srxSlot2, _srxSlot3, _srxSlot4);
             await ResyncAllPartsAsync(); // re-runs the read path -> refreshes Wave Group ID options
         }
@@ -1999,7 +2006,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
                     var commonTab = i == 0;
                     var vm = new PartViewModel(this, commonTab ? (byte)255 : (byte)(i - 1),
-                        _i7startAddresses, _i7parameters, Integra7,
+                        _i7startAddresses, _i7parameters, integra7Api,
                         _integra7Communicator, presets, commonTab);
                     await vm.InitializeParameterSourceCachesAsync();
                     pvm.Add(vm);
@@ -2138,8 +2145,12 @@ public partial class MainWindowViewModel : ViewModelBase
             BackgroundInfo = info;
         }
 
+        // Taken once: a rescan during this sweep replaces the property, and the remaining lists must not
+        // be asked of a different device than the first ones were.
+        if (Integra7 is not { } api) return;
+
         Step("Loading PCM Drum Kit User Names 0-31...");
-        List<string> names = await Integra7?.GetPCMDrumKitUserNames0to31();
+        List<string> names = await api.GetPCMDrumKitUserNames0to31();
         var pc = 0;
         var id = presets.Count;
         foreach (var n in names)
@@ -2153,7 +2164,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading PCM Synth Tone User Names 0-63...");
-        names = await Integra7?.GetPCMToneUserNames0to63();
+        names = await api.GetPCMToneUserNames0to63();
         pc = 0;
         foreach (var n in names)
         {
@@ -2166,7 +2177,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading PCM Synth Tone User Names 64-127...");
-        names = await Integra7?.GetPCMToneUserNames64to127();
+        names = await api.GetPCMToneUserNames64to127();
         foreach (var n in names)
         {
             var msb = 87;
@@ -2178,7 +2189,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading PCM Synth Tone User Names 128-191...");
-        names = await Integra7?.GetPCMToneUserNames128to191();
+        names = await api.GetPCMToneUserNames128to191();
         pc = 0;
         foreach (var n in names)
         {
@@ -2191,7 +2202,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading PCM Synth Tone User Names 192-255...");
-        names = await Integra7?.GetPCMToneUserNames192to255();
+        names = await api.GetPCMToneUserNames192to255();
         foreach (var n in names)
         {
             var msb = 87;
@@ -2203,7 +2214,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading SuperNATURAL Drum Kit User Names 0-63...");
-        names = await Integra7?.GetSuperNATURALDrumKitUserNames0to63();
+        names = await api.GetSuperNATURALDrumKitUserNames0to63();
         pc = 0;
         foreach (var n in names)
         {
@@ -2216,7 +2227,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading SuperNATURAL Acoustic Tone User Names 0-63...");
-        names = await Integra7?.GetSuperNATURALAcousticToneUserNames0to63();
+        names = await api.GetSuperNATURALAcousticToneUserNames0to63();
         pc = 0;
         foreach (var n in names)
         {
@@ -2229,7 +2240,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading SuperNATURAL Acoustic Tone User Names 64-127...");
-        names = await Integra7?.GetSuperNATURALAcousticToneUserNames64to127();
+        names = await api.GetSuperNATURALAcousticToneUserNames64to127();
         foreach (var n in names)
         {
             var msb = 89;
@@ -2241,7 +2252,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading SuperNATURAL Acoustic Tone User Names 128-191...");
-        names = await Integra7?.GetSuperNATURALAcousticToneUserNames128to191();
+        names = await api.GetSuperNATURALAcousticToneUserNames128to191();
         pc = 0;
         foreach (var n in names)
         {
@@ -2254,7 +2265,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading SuperNATURAL Acoustic Tone User Names 192-255...");
-        names = await Integra7?.GetSuperNATURALAcousticToneUserNames192to255();
+        names = await api.GetSuperNATURALAcousticToneUserNames192to255();
         foreach (var n in names)
         {
             var msb = 89;
@@ -2266,7 +2277,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading SuperNATURAL Synth Tone User Names 0-63...");
-        names = await Integra7?.GetSuperNATURALSynthToneUserNames0to63();
+        names = await api.GetSuperNATURALSynthToneUserNames0to63();
         pc = 0;
         foreach (var n in names)
         {
@@ -2279,7 +2290,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading SuperNATURAL Synth Tone User Names 64-127...");
-        names = await Integra7?.GetSuperNATURALSynthToneUserNames64to127();
+        names = await api.GetSuperNATURALSynthToneUserNames64to127();
         foreach (var n in names)
         {
             var msb = 95;
@@ -2291,7 +2302,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading SuperNATURAL Synth Tone User Names 128-191...");
-        names = await Integra7?.GetSuperNATURALSynthToneUserNames128to191();
+        names = await api.GetSuperNATURALSynthToneUserNames128to191();
         pc = 0;
         foreach (var n in names)
         {
@@ -2304,7 +2315,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading SuperNATURAL Synth Tone User Names 192-255...");
-        names = await Integra7?.GetSuperNATURALSynthToneUserNames192to255();
+        names = await api.GetSuperNATURALSynthToneUserNames192to255();
         foreach (var n in names)
         {
             var msb = 95;
@@ -2316,7 +2327,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading SuperNATURAL Synth Tone User Names 256-319...");
-        names = await Integra7?.GetSuperNATURALSynthToneUserNames256to319();
+        names = await api.GetSuperNATURALSynthToneUserNames256to319();
         pc = 0;
         foreach (var n in names)
         {
@@ -2329,7 +2340,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading SuperNATURAL Synth Tone User Names 320-383...");
-        names = await Integra7?.GetSuperNATURALSynthToneUserNames320to383();
+        names = await api.GetSuperNATURALSynthToneUserNames320to383();
         foreach (var n in names)
         {
             var msb = 95;
@@ -2341,7 +2352,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading SuperNATURAL Synth Tone User Names 384-447...");
-        names = await Integra7?.GetSuperNATURALSynthToneUserNames384to447();
+        names = await api.GetSuperNATURALSynthToneUserNames384to447();
         pc = 0;
         foreach (var n in names)
         {
@@ -2354,7 +2365,7 @@ public partial class MainWindowViewModel : ViewModelBase
         }
 
         Step("Loading SuperNATURAL Synth Tone User Names 448-511...");
-        names = await Integra7?.GetSuperNATURALSynthToneUserNames448to511();
+        names = await api.GetSuperNATURALSynthToneUserNames448to511();
         foreach (var n in names)
         {
             var msb = 95;
@@ -2981,14 +2992,17 @@ public partial class MainWindowViewModel : ViewModelBase
             OldValue: p.StringValue, NewValue: s.DisplayValue,
             IsDiscriminator: p.ParSpec.IsParent));
         p.StringValue = s.DisplayValue;
-        if (Integra7 is null) return;
+        // Locals, as in ApplyEditsAsync: a rescan during the awaits below replaces both.
+        var api = Integra7;
+        var communicator = _integra7Communicator;
+        if (api is null || communicator is null) return;
         // One conversation, for the same reason as the friendly editors' writes: the re-read must see
         // the state this write produced.
-        await using var lease = await Integra7!.BeginConversationAsync($"edit {p.ParSpec.Path}");
-        await _integra7Communicator?.WriteSingleParameterToIntegraAsync(p, lease);
+        await using var lease = await api.BeginConversationAsync($"edit {p.ParSpec.Path}");
+        await communicator.WriteSingleParameterToIntegraAsync(p, lease);
         if (p.ParSpec.IsParent)
         {
-            var resetDomain = _integra7Communicator?.GetDomain(p);
+            var resetDomain = communicator.GetDomain(p);
             if (resetDomain != null)
             {
                 await WaveOutOfRangeReset.ApplyAsync(resetDomain, p, WaveformBanks.Default, lease);
@@ -3035,7 +3049,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 _integra7Communicator?.GetDomain(spec.Par)
                     .ModifySingleParameterDisplayedValue(spec.Par.ParSpec.Path, spec.DisplayValue);
         }
-        else
+        else if (_integra7Communicator is { } communicator)
         {
             // need to resync all relevant parameters instead of just updating the modified parameters
             HashSet<string> alreadyEncountered = [];
@@ -3044,7 +3058,7 @@ public partial class MainWindowViewModel : ViewModelBase
                 var domainName = spec.Par.Start + spec.Par.Offset;
                 if (alreadyEncountered.Add(domainName))
                 {
-                    await _integra7Communicator?.GetDomain(spec.Par).ReadFromIntegraAsync();
+                    await communicator.GetDomain(spec.Par).ReadFromIntegraAsync();
                     ForceUiRefresh(spec.Par);
                 }
             }
@@ -3128,14 +3142,14 @@ public partial class MainWindowViewModel : ViewModelBase
         try
         {
             SignalStartSync();
-            if (PartViewModels != null)
+            if (PartViewModels != null && _integra7Communicator is { } communicator)
                 foreach (var pvm in PartViewModels)
                     if (part == pvm.PartNo)
                     {
                         SyncInfo = $"Resync part {pvm.PartNo}";
                         // The preset itself is refreshed even for a part that was never opened: it is a
                         // single read, and the preset list and tab visibility show it everywhere.
-                        var b = _integra7Communicator.StudioSetPart(part);
+                        var b = communicator.StudioSetPart(part);
                         // Only when the read answered: a failed one keeps the previous values, and a
                         // preset derived from those claims a patch the device never reported. See
                         // PartViewModel.EnsurePreselectIsNotNullAsync.

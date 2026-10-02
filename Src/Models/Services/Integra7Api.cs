@@ -133,7 +133,7 @@ public class Integra7Api : IIntegra7Api, IDisposable
     {
         public IMidiLease Lease { get; } = lease;
 
-        public ValueTask DisposeAsync() => owned ? lease.DisposeAsync() : ValueTask.CompletedTask;
+        public ValueTask DisposeAsync() => owned ? Lease.DisposeAsync() : ValueTask.CompletedTask;
     }
 
     private async Task<Borrowed> LeaseAsync(IMidiLease? given, string what) =>
@@ -334,16 +334,11 @@ public class Integra7Api : IIntegra7Api, IDisposable
         // 3. write the current patch (i.e. the selected user patch) to the user memory again to cement the new name
         await using var port = await _port.AcquireAsync("write tone to user memory");
 
-        var msb = 0;
-        var lsb = 0;
-
         // step 1
         switch (toneTypeStr)
         {
             case "SN-A":
             {
-                msb = 89;
-                lsb = zeroBasedUserMemoryId >> 7;
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALAcousticToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
@@ -352,8 +347,6 @@ public class Integra7Api : IIntegra7Api, IDisposable
                 break;
             case "SN-S":
             {
-                msb = 95;
-                lsb = zeroBasedUserMemoryId >> 7;
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALSynthToneMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
@@ -362,8 +355,6 @@ public class Integra7Api : IIntegra7Api, IDisposable
                 break;
             case "SN-D":
             {
-                msb = 88;
-                lsb = zeroBasedUserMemoryId >> 7;
                 var msg =
                     Integra7SysexHelpers.MakeWriteSuperNATURALDrumKitMsg(_deviceId, zeroBasedPartNo,
                         zeroBasedUserMemoryId);
@@ -372,8 +363,6 @@ public class Integra7Api : IIntegra7Api, IDisposable
                 break;
             case "PCMS":
             {
-                msb = 87;
-                lsb = zeroBasedUserMemoryId >> 7;
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMSynthToneMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
                 await port.SendAsync(msg);
@@ -381,8 +370,6 @@ public class Integra7Api : IIntegra7Api, IDisposable
                 break;
             case "PCMD":
             {
-                msb = 86;
-                lsb = 0;
                 var msg =
                     Integra7SysexHelpers.MakeWritePCMDrumKitMsg(_deviceId, zeroBasedPartNo, zeroBasedUserMemoryId);
                 await port.SendAsync(msg);

@@ -12,8 +12,10 @@ namespace Integra7AuralAlchemist.Controls;
 /// </summary>
 public class DualMultiStageEnvelopeControl : Control
 {
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<int> I(string name) =>
         AvaloniaProperty.Register<DualMultiStageEnvelopeControl, int>(name);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<int> AmpTime1Property = I(nameof(AmpTime1));
     public static readonly StyledProperty<int> AmpTime2Property = I(nameof(AmpTime2));
@@ -34,8 +36,10 @@ public class DualMultiStageEnvelopeControl : Control
     public static readonly StyledProperty<int> FilterLevel3Property = I(nameof(FilterLevel3));
     public static readonly StyledProperty<int> FilterLevel4Property = I(nameof(FilterLevel4));
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<IBrush> B(string name, IBrush def) =>
         AvaloniaProperty.Register<DualMultiStageEnvelopeControl, IBrush>(name, def);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<IBrush> AmpLineBrushProperty = B(nameof(AmpLineBrush), new SolidColorBrush(Color.Parse("#7FB6E0")));
     public static readonly StyledProperty<IBrush> AmpFillBrushProperty = B(nameof(AmpFillBrush), new SolidColorBrush(Color.FromArgb(0x55, 0x3d, 0x7e, 0xaa)));

@@ -33,12 +33,9 @@ public class App : Application
             // Line below is needed to remove Avalonia data validation.
             // Without this line you will get duplicate validations from both Avalonia and CT
             var vm = new MainWindowViewModel();
-            desktop.MainWindow = new MainWindow
-            {
-                DataContext = vm
-            };
-            var mw = desktop.MainWindow as MainWindow;
-            mw.ViewModel = vm;
+            // Setting ViewModel sets the DataContext as well.
+            var mw = new MainWindow { ViewModel = vm };
+            desktop.MainWindow = mw;
             mw.RegisterDialogHandler();
             _ = vm.InitializeAsync();
         }

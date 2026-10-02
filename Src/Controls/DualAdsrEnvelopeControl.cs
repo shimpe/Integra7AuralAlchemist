@@ -17,8 +17,10 @@ public class DualAdsrEnvelopeControl : Control
     private const double HandleRadius = 7;
     private const double SustainWidth = 40;
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<int> I(string name) =>
         AvaloniaProperty.Register<DualAdsrEnvelopeControl, int>(name, 0, defaultBindingMode: BindingMode.TwoWay);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<int> AmpAttackProperty = I(nameof(AmpAttack));
     public static readonly StyledProperty<int> AmpDecayProperty = I(nameof(AmpDecay));
@@ -35,8 +37,10 @@ public class DualAdsrEnvelopeControl : Control
     public static readonly StyledProperty<int> ActiveEnvelopeProperty =
         AvaloniaProperty.Register<DualAdsrEnvelopeControl, int>(nameof(ActiveEnvelope), 0, defaultBindingMode: BindingMode.TwoWay);
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<IBrush> B(string name, IBrush def) =>
         AvaloniaProperty.Register<DualAdsrEnvelopeControl, IBrush>(name, def);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<IBrush> AmpLineBrushProperty = B(nameof(AmpLineBrush), new SolidColorBrush(Color.Parse("#7FB6E0")));
     public static readonly StyledProperty<IBrush> AmpFillBrushProperty = B(nameof(AmpFillBrush), new SolidColorBrush(Color.FromArgb(0x55, 0x3d, 0x7e, 0xaa)));

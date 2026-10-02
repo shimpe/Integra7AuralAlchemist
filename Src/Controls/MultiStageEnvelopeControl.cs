@@ -16,8 +16,10 @@ public class MultiStageEnvelopeControl : Control
 {
     private const double HandleRadius = 7;
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<int> I(string name) =>
         AvaloniaProperty.Register<MultiStageEnvelopeControl, int>(name, 0, defaultBindingMode: BindingMode.TwoWay);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<int> Time1Property = I(nameof(Time1));
     public static readonly StyledProperty<int> Time2Property = I(nameof(Time2));
@@ -41,8 +43,10 @@ public class MultiStageEnvelopeControl : Control
     public static readonly StyledProperty<bool> PreviewProperty =
         AvaloniaProperty.Register<MultiStageEnvelopeControl, bool>(nameof(Preview));
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<IBrush> B(string name, IBrush def) =>
         AvaloniaProperty.Register<MultiStageEnvelopeControl, IBrush>(name, def);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<IBrush> LineBrushProperty = B(nameof(LineBrush), new SolidColorBrush(Color.Parse("#7FB6E0")));
     public static readonly StyledProperty<IBrush> FillBrushProperty = B(nameof(FillBrush), new SolidColorBrush(Color.FromArgb(0x55, 0x3d, 0x7e, 0xaa)));

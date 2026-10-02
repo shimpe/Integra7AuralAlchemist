@@ -26,7 +26,7 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
     private static readonly FilePickerFileType JsonFileType =
         new("Snapshot or morph pad") { Patterns = ["*.json"] };
 
-    private MainWindowViewModel _viewModel;
+    private MainWindowViewModel? _viewModel;
 
     public MainWindow()
     {
@@ -57,7 +57,7 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
         }
     }
 
-    public MainWindowViewModel ViewModel
+    public MainWindowViewModel? ViewModel
     {
         get => _viewModel;
         set
@@ -67,10 +67,10 @@ public partial class MainWindow : FAAppWindow, IViewFor<MainWindowViewModel>
         }
     }
 
-    object IViewFor.ViewModel
+    object? IViewFor.ViewModel
     {
         get => ViewModel;
-        set => ViewModel = (MainWindowViewModel)value;
+        set => ViewModel = (MainWindowViewModel?)value;
     }
 
     public void RegisterDialogHandler()

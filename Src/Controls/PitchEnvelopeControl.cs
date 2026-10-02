@@ -25,8 +25,10 @@ public class PitchEnvelopeControl : Control
     public static readonly StyledProperty<bool> PreviewProperty =
         AvaloniaProperty.Register<PitchEnvelopeControl, bool>(nameof(Preview));
 
+#pragma warning disable AVP1001 // only called from static field initializers, which the analyzer cannot see through
     private static StyledProperty<IBrush> B(string name, IBrush def) =>
         AvaloniaProperty.Register<PitchEnvelopeControl, IBrush>(name, def);
+#pragma warning restore AVP1001
 
     public static readonly StyledProperty<IBrush> LineBrushProperty = B(nameof(LineBrush), new SolidColorBrush(Color.Parse("#9C7BE0")));
     public static readonly StyledProperty<IBrush> FillBrushProperty = B(nameof(FillBrush), new SolidColorBrush(Color.FromArgb(0x55, 0x6a, 0x4f, 0xb0)));
