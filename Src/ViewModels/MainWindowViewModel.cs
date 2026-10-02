@@ -1864,7 +1864,9 @@ public partial class MainWindowViewModel : ViewModelBase
         // operator only looked like a guard. The same holds for every button handler below.
         if (Integra7 is not { } api) return;
         await api.NoteOnAsync(zeroBasedMidiChannel, 65, 100);
-        Thread.Sleep(1000);
+        // Awaited, not slept: this runs on the UI thread, and a Thread.Sleep froze the window for the
+        // length of the note.
+        await Task.Delay(1000);
         await api.NoteOffAsync(zeroBasedMidiChannel, 65);
     }
 
