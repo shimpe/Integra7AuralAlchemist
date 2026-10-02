@@ -1,6 +1,7 @@
 # Running Aural Alchemist as a VST3 or CLAP plugin
 
-An assessment, not a plan of record. Written 2026-07-25 against the code as it stands. Companion to
+An assessment, not a plan of record. Written 2026-07-25 against the code as it stands, and updated
+on 2026-10-02 for the move from managed-midi to OwnAudioSharp.Midi. Companion to
 `WASM_FEASIBILITY.md`.
 
 **Short answer:** harder than the browser, and for a less obvious payoff. The plugin ABI is the
@@ -30,7 +31,7 @@ instrument plugin that outputs silence, which both formats allow but neither is 
 This is the one that decides the design, and it has no comfortable answer.
 
 **Option A — the plugin opens the OS MIDI port itself**, exactly as the standalone app does today
-(`MidiIn`/`MidiOut` over managed-midi). Almost no code changes. But on Windows a WinMM MIDI device
+(`MidiIn`/`MidiOut` over OwnAudioSharp.Midi). Almost no code changes. But on Windows a WinMM MIDI device
 is typically opened exclusively: if the DAW already has the INTEGRA-7 port open for a MIDI track,
 the plugin's open fails, and vice versa. Since the whole point of being in the DAW is that the DAW is
 also playing the instrument, this collides in the normal case rather than the edge case. (Whether the
@@ -84,7 +85,9 @@ a .NET NativeAOT library can export `clap_entry` directly with `[UnmanagedCaller
 at all. Either way the plugin is an AOT-compiled shared library.
 
 The app is partway there: `AvaloniaUseCompiledBindingsByDefault` is already on, which is the single
-biggest AOT prerequisite for an Avalonia app. What is not ready:
+biggest AOT prerequisite for an Avalonia app. The MIDI library is ready too: OwnAudioSharp.Midi is
+marked AOT-compatible and trimmable, and reaches its native core through source-generated P/Invoke
+rather than reflection. What is not ready:
 
 **`ViewLocator` resolves views by string.** It does `Type.GetType(vmName.Replace("ViewModel","View"))`
 followed by `Activator.CreateInstance`. Under trimming, a type referenced only by name is not

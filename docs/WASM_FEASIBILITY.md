@@ -1,6 +1,9 @@
 # Running Aural Alchemist in a browser (WebAssembly)
 
-An assessment, not a plan of record. Written 2026-07-25 against the code as it stands.
+An assessment, not a plan of record. Written 2026-07-25 against the code as it stands, and brought up
+to date on 2026-10-02: the MIDI library is now OwnAudioSharp.Midi instead of managed-midi, and two of
+the changes this document asked for (an app-owned event-args type, no `Thread.Sleep` in Play Note)
+have since been made for reasons of their own.
 
 **Short answer:** the UI would port with almost no work. MIDI is the whole problem, and it decides
 whether this is worth doing at all — Safari and iOS cannot run it, and every other browser will
@@ -12,8 +15,9 @@ demand an explicit SysEx permission that this app cannot work without.
 
 Avalonia already targets the browser, so the view layer, the view models, ReactiveUI, DynamicData
 and the parameter database all come along unchanged. What does not come along is
-[managed-midi](https://github.com/atsushieno/managed-midi): its backends are P/Invoke into WinMM,
-ALSA and CoreMIDI, none of which exist in a browser sandbox. In a browser the only way to reach a
+[OwnAudioSharp.Midi](https://github.com/ModernMube/OwnAudioSharp): it is a native Rust core over
+WinMM, CoreMIDI and the ALSA sequencer, none of which exist in a browser sandbox, and the package
+ships no WebAssembly build of that core. In a browser the only way to reach a
 MIDI device is the **Web MIDI API**, through JavaScript interop.
 
 So the work splits into three very unequal parts:
@@ -64,33 +68,37 @@ The **only** filesystem access in the whole application is the Serilog file sink
 
 ## 3. MIDI — the actual work
 
-### How little of managed-midi the app touches
+### How little of the MIDI library the app touches
 
-The contact surface is unusually small, which is the good news:
+The contact surface is unusually small, which is the good news. Every use is inside `MidiIn.cs`
+and `MidiOut.cs`:
 
 | Symbol | Uses |
 | --- | --- |
-| `MidiAccessManager.Default` | 2 (the `MidiIn` and `MidiOut` constructors) |
-| `IMidiAccess` | 2 |
-| `IMidiPortDetails` | 2 |
-| `IMidiInput` / `IMidiOutput` | 1 each |
-| `MidiEvent.CC` / `.Program` / `.NoteOn` / `.NoteOff` | 15 — plain byte constants, trivially replaced |
+| `MidiPortFactory.GetInputPortNames` / `GetOutputPortNames` | 1 each, to find the INTEGRA-7 by name |
+| `MidiPortFactory.OpenInput` / `OpenOutput` | 1 each |
+| `IMidiInputPort` (`MessageReceived`, `SysExReceived`, `Start`) | `MidiIn` only |
+| `IMidiOutputPort` (`Send`, `SendSysEx`) | `MidiOut` only |
+| `MidiMessage` | the status-plus-two-bytes shape short messages arrive and leave in |
 
-Above that sit the app's own abstractions, which are already clean: `IMidiPort` / `IMidiLease`
-(conversations and leases — see `docs/MIDI_DEVICE_ACCESS.md`) know nothing about the library.
+The status bytes the app sends are its own constants (`Integra7MidiControlNos`), and `MidiWire`
+translates between the library's message shapes and the byte arrays everything else works with.
+Above that sit the app's own abstractions: `IMidiPort` / `IMidiLease` (conversations and leases —
+see `docs/MIDI_DEVICE_ACCESS.md`) know nothing about the library.
 
-### The seam that needs widening
+### The seam is already in place
 
-`IMidiOut` is already library-agnostic (`ConnectionOk`, `SafeSend`). `IMidiIn` is not:
+`IMidiOut` is library-agnostic (`ConnectionOk`, `SafeSend`), and so, since the move to
+OwnAudioSharp.Midi, is `IMidiIn`:
 
 ```csharp
 void ConfigureHandler(EventHandler<MidiReceivedEventArgs> handler);
 ```
 
-`MidiReceivedEventArgs` is a Commons.Music.Midi type, so it leaks through `AsyncMidiInputWrapper`
-and `Integra7Api`. Replacing it with an app-owned event-args type is a mechanical change, and once
-it is done the whole application above `IMidiIn`/`IMidiOut` is backend-agnostic. `Tests` already
-fakes these interfaces, so the refactor is covered.
+`MidiReceivedEventArgs` is now the app's own type, a complete message as a byte array. When this
+document was first written it was a Commons.Music.Midi type that leaked through
+`AsyncMidiInputWrapper` and `Integra7Api`; that is no longer so, and the whole application above
+`IMidiIn`/`IMidiOut` is backend-agnostic. `Tests` fakes both interfaces.
 
 ### The backend to write
 
@@ -104,22 +112,20 @@ using `[JSImport]`/`[JSExport]` interop:
 Inbound sysex needs no new handling: the app already copes with chunked and concatenated messages
 (`ByteUtils.SplitAfterF7`, `AsyncMidiInputWrapper`), which is exactly what a browser may hand it.
 
-### Two blocking calls that must become async
+### Opening the port must become async
 
-```
-Src/Models/Services/MidiIn.cs:57   _access = _midiAccessManager?.OpenInputAsync(...).Result;
-Src/Models/Services/MidiOut.cs:58  _access = _midiAccessManager?.OpenOutputAsync(...).Result;
-```
-
-Blocking on a promise from the WASM UI thread does not merely stall — the continuation can only run
-on that same thread, so it never completes. Both need an async open (a factory method rather than
-work in the constructor). Everything above them is already `async`/`await`.
+`MidiIn` opens its port in the constructor, and `MidiOut` on its first send. With OwnAudioSharp.Midi
+both are plain synchronous calls into the native core (managed-midi's version blocked on a task with
+`.Result`, which is gone). A browser backend cannot keep that shape: `requestMIDIAccess` returns a
+promise, and blocking on a promise from the WASM UI thread does not merely stall — the continuation
+can only run on that same thread, so it never completes. The open therefore has to move into an
+async factory method that `MainWindowViewModel.InitializeAsync` awaits. Everything above it is
+already `async`/`await`.
 
 ## 4. Smaller changes
 
-- **`MainWindowViewModel.PlayNoteAsync` uses `Thread.Sleep(1000)`** between note-on and note-off.
-  In the browser that freezes the only thread for a second. It should be `await Task.Delay(1000)`
-  regardless — it blocks the UI thread on desktop too.
+- ~~**`MainWindowViewModel.PlayNoteAsync` uses `Thread.Sleep(1000)`**~~ — done 2026-10-02: it now
+  awaits `Task.Delay(1000)` between note-on and note-off, which was worth doing on desktop anyway.
 - **Logging.** `Program.cs` writes `logs/I7AuralAlchemist.log` through `Serilog.Sinks.File`. The
   browser head needs console-only logging, or an in-memory buffer with a "download log" button —
   worth having, since the log is how problems in this app get diagnosed.
@@ -155,7 +161,7 @@ This is what decides whether the exercise is worth it.
 | Step | Size |
 | --- | --- |
 | Split into library + desktop head + browser head | small |
-| De-leak `IMidiIn`, async open, `Task.Delay`, browser logging | small |
+| Async port open, browser logging (`IMidiIn` de-leak and `Task.Delay` already done) | small |
 | Web MIDI backend over JS interop | the bulk of it |
 | Hardware testing through a browser | unknown until the spike |
 

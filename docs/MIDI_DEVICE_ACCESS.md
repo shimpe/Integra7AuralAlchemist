@@ -248,9 +248,16 @@ started inside a conversation outlives it. Writing onto a port someone else now 
 
 ### A send that fails
 
-Logged at `Error` with the failing bytes. Failures that mean the handle is dead drop the port —
-`ConnectionOk()` then reports no device. Anything else (a malformed message, say) drops only the cached
-handle, so the next send reopens and one bad message cannot condemn the device for the session.
+Logged at `Error` with the failing bytes. Failures that mean the port is gone (OwnAudioSharp.Midi
+reports a port that is not there as an `ArgumentException`) drop the port — `ConnectionOk()` then
+reports no device. Anything else (a malformed message, say) drops only the cached handle, so the next
+send reopens and one bad message cannot condemn the device for the session.
+
+### A reader that throws
+
+Incoming messages are delivered on the MIDI library's own thread, called straight from native code.
+An exception escaping there would end the process, so `MidiIn` catches it, logs it at `Error` with
+the first bytes of the message, and drops that message. The next message is delivered normally.
 
 ---
 
@@ -304,6 +311,7 @@ rather than freezing anything. The test is the thing that catches it.
 | `Src/Models/Services/AsyncMidiInputWrapper.cs` | A lease's reader: matches replies, keeps everything else. |
 | `Src/Models/Services/Integra7Api.cs` | Every device operation, and `Borrowed` / `LeaseAsync`. |
 | `Src/Models/Services/MidiIn.cs` | `DispatchUnsolicited` — where unrequested messages go. |
+| `Src/Models/Services/MidiOut.cs`, `MidiWire.cs` | With `MidiIn.cs`, the only code that touches the MIDI library (OwnAudioSharp.Midi), and the translation between its message shapes and byte arrays. |
 | `Src/Models/Domain/DomainBase.cs` | The domain-layer path, and `BeginConversationAsync`. |
 
 Related but separate: `Src/Models/Services/PartLoadState.cs` governs when a *part* is loaded, not who
@@ -317,8 +325,10 @@ ones that were reversed.
 
 ## Known limits
 
-- **Rescanning MIDI devices** builds a second port while the first may be mid-conversation. In practice
-  the Rescan button is disabled while connected to hardware, so this is not reachable from the UI.
+- **Rescanning MIDI devices** builds a second port while the first may be mid-conversation. It closes
+  the old port's handles first (WinMM opens a device for one client at a time), so a conversation still
+  running on the old port times out on its read and its sends are dropped and logged. In practice the
+  Rescan button is disabled while connected to hardware, so this is not reachable from the UI.
 - **A parent-parameter edit holds the port longer than a plain one**, because it covers write → reset →
   a full domain re-read. That is what atomicity costs here. If it ever feels sluggish, narrow the
   conversation rather than widening the port.
