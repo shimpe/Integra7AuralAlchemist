@@ -1,0 +1,56 @@
+# Every NuGet package that ships inside a release, and which component's licence covers it.
+# Format: package id | resolved version | component (a key in components.txt)
+#
+# generate.sh compares this list against `dotnet list package --include-transitive` and stops when a
+# shipped package is missing or its version has moved, so a package upgrade cannot quietly leave the
+# notices behind. Packages that never reach a release (build-time generators, Debug-only tooling) are
+# listed in generate.sh's SKIP instead.
+Avalonia | 12.1.0 | avalonia
+Avalonia.Controls.ColorPicker | 12.0.0 | avalonia
+Avalonia.Desktop | 12.1.0 | avalonia
+Avalonia.Fonts.Inter | 12.1.0 | avalonia
+Avalonia.FreeDesktop | 12.1.0 | avalonia
+Avalonia.FreeDesktop.AtSpi | 12.1.0 | avalonia
+Avalonia.HarfBuzz | 12.1.0 | avalonia
+Avalonia.Native | 12.1.0 | avalonia
+Avalonia.Remote.Protocol | 12.1.0 | avalonia
+Avalonia.Skia | 12.1.0 | avalonia
+Avalonia.Win32 | 12.1.0 | avalonia
+Avalonia.X11 | 12.1.0 | avalonia
+Avalonia.Controls.DataGrid | 12.1.0 | avalonia-datagrid
+Avalonia.Angle.Windows.Natives | 2.1.27548.20260419 | angle
+FluentAvaloniaUI | 3.0.2 | fluentavalonia
+MicroCom.Runtime | 0.11.6 | microcom
+Tmds.DBus.Protocol | 0.94.1 | tmds-dbus
+ReactiveUI | 24.0.0 | reactiveui
+ReactiveUI.Core | 24.0.0 | reactiveui
+ReactiveUI.Reactive | 24.0.0 | reactiveui
+ReactiveUI.Avalonia | 12.1.0 | reactiveui-avalonia
+ReactiveUI.Disposables | 7.1.0 | reactiveui-primitives
+ReactiveUI.Primitives | 7.1.0 | reactiveui-primitives
+ReactiveUI.Primitives.Avalonia | 7.1.0 | reactiveui-primitives
+ReactiveUI.Primitives.Core | 7.1.0 | reactiveui-primitives
+ReactiveUI.Primitives.Reactive | 7.1.0 | reactiveui-primitives
+Splat | 20.2.0 | splat
+Splat.Builder | 20.2.0 | splat
+Splat.Core | 20.2.0 | splat
+Splat.Logging | 20.2.0 | splat
+dynamicdata | 9.4.33 | dynamicdata
+System.Reactive | 7.0.0 | system-reactive
+Microsoft.IO.RecyclableMemoryStream | 3.0.1 | recyclablememorystream
+Microsoft.Extensions.DependencyInjection.Abstractions | 8.0.0 | dotnet-runtime
+Microsoft.Extensions.Logging.Abstractions | 8.0.0 | dotnet-runtime
+Serilog | 4.4.0 | serilog
+Serilog.Sinks.Console | 6.1.1 | serilog-sinks-console
+Serilog.Sinks.File | 8.0.0-nblumhardt-02322 | serilog-sinks-file
+SkiaSharp | 3.119.4 | skiasharp
+SkiaSharp.NativeAssets.Linux | 3.119.4 | skiasharp
+SkiaSharp.NativeAssets.macOS | 3.119.4 | skiasharp
+SkiaSharp.NativeAssets.Win32 | 3.119.4 | skiasharp
+SkiaSharp.NativeAssets.WebAssembly | 3.119.4 | skiasharp
+HarfBuzzSharp | 8.3.1.3 | harfbuzzsharp
+HarfBuzzSharp.NativeAssets.Linux | 8.3.1.3 | harfbuzzsharp
+HarfBuzzSharp.NativeAssets.macOS | 8.3.1.3 | harfbuzzsharp
+HarfBuzzSharp.NativeAssets.Win32 | 8.3.1.3 | harfbuzzsharp
+HarfBuzzSharp.NativeAssets.WebAssembly | 8.3.1.3 | harfbuzzsharp
+OwnAudioSharp.Midi | 4.0.8 | ownaudiosharp

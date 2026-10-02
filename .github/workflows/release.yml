@@ -121,7 +121,7 @@ jobs:
           set -euo pipefail
           mkdir -p staging/Integra7AuralAlchemist
           cp -R publish/${{ matrix.rid }}/. staging/Integra7AuralAlchemist/
-          cp LICENSE staging/Integra7AuralAlchemist/
+          cp LICENSE THIRD-PARTY-NOTICES.txt staging/Integra7AuralAlchemist/
           if [ -f staging/Integra7AuralAlchemist/Integra7AuralAlchemist ]; then
             chmod +x staging/Integra7AuralAlchemist/Integra7AuralAlchemist
           fi
@@ -138,7 +138,7 @@ jobs:
           mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
           cp -R publish/${{ matrix.rid }}/. "$app/Contents/MacOS/"
           chmod +x "$app/Contents/MacOS/Integra7AuralAlchemist"
-          cp LICENSE staging/
+          cp LICENSE THIRD-PARTY-NOTICES.txt staging/
           # The application icon is a 512x512 PNG in the repository; sips is part of macOS and turns
           # it into the .icns that Finder reads.
           sips -s format icns Src/Assets/integra7-icon.png --out "$app/Contents/Resources/integra7.icns"

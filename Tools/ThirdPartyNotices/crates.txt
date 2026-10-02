@@ -1,0 +1,41 @@
+# The Rust crates compiled into OwnAudioSharp.Midi's native library (ownaudio_midi_ffi), for the
+# platforms the releases target. Format: crate | version [| licence URL, for a crate that ships none]
+#
+# Taken from the Cargo.lock of the OwnAudioSharp commit that OwnAudioSharp.Midi 4.0.8 was built from
+# (f99a5f3), following normal dependencies only and leaving out what never reaches the binary:
+# build scripts, procedural macros and their own dependencies (thiserror-impl, windows-implement,
+# windows-interface, proc-macro2, quote, syn, unicode-ident), and crates for targets the releases do
+# not ship (wasm, redox, and the Windows targets other than x86_64-msvc). Revisit when the
+# OwnAudioSharp.Midi version in packages.txt changes.
+alsa | 0.9.1
+alsa-sys | 0.3.1
+bitflags | 1.3.2
+bitflags | 2.13.0
+block2 | 0.6.2 | https://raw.githubusercontent.com/madsmtm/objc2/main/LICENSE-MIT.txt
+cfg-if | 1.0.4
+core-foundation | 0.10.1
+core-foundation-sys | 0.8.7
+coremidi | 0.9.1
+coremidi-sys | 3.2.0
+futures-core | 0.3.32
+futures-task | 0.3.32
+futures-util | 0.3.32
+libc | 0.2.186
+lock_api | 0.4.14
+midir | 0.10.4
+objc2 | 0.6.4 | https://raw.githubusercontent.com/madsmtm/objc2/main/LICENSE-MIT.txt
+objc2-encode | 4.1.0 | https://raw.githubusercontent.com/madsmtm/objc2/main/LICENSE-MIT.txt
+once_cell | 1.21.4
+parking_lot | 0.12.5
+parking_lot_core | 0.9.12
+pin-project-lite | 0.2.17
+scopeguard | 1.2.0
+slab | 0.4.12
+smallvec | 1.15.2
+thiserror | 1.0.69
+windows | 0.56.0
+windows-core | 0.56.0
+windows-link | 0.2.1
+windows-result | 0.1.2
+windows-targets | 0.52.6
+windows_x86_64_msvc | 0.52.6
