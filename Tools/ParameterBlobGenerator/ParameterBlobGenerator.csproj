@@ -11,18 +11,4 @@
     <Compile Include="..\..\Src\Models\Services\ByteUtils.cs" Link="ByteUtils.cs" />
     <Compile Include="..\..\Src\Models\Data\ParameterBlobFormat.cs" Link="ParameterBlobFormat.cs" />
   </ItemGroup>
-
-  <!-- This project is not in the solution: the application and the tests reach it by reference, and the
-       application's GenerateParameterBlob target builds it explicitly. `dotnet build` restores the whole
-       reference graph, so the CLI never notices. Rider restores only the projects in the solution, so on
-       a fresh clone it built this one with no obj/project.assets.json and failed with NETSDK1004.
-       Restoring here, only when the assets file is missing, mends it for every caller. The extra
-       property gives the restore an evaluation of its own; the assets file it writes is read later in
-       this build, when ResolvePackageAssets runs. -->
-  <Target Name="RestoreIfNeverRestored"
-          BeforeTargets="ResolvePackageAssets"
-          Condition="!Exists('$(ProjectAssetsFile)') and '$(_ParameterBlobGeneratorSelfRestore)' != 'true'">
-    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="Restore"
-             Properties="_ParameterBlobGeneratorSelfRestore=true" />
-  </Target>
 </Project>

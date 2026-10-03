@@ -90,12 +90,15 @@
             Inputs="@(ParameterBlobSources)"
             Outputs="$(ParameterBlobPath)">
         <!-- Build the generator in *this* build's configuration and fetch its output DLL path, then run
-             it directly with the build's own .NET host. The explicit Build (not just GetTargetPath) is
-             required because a solution build remaps ProjectReferences to projects outside the .sln
-             (the generator) to their default configuration (Debug). Relying on ResolveProjectReferences
-             alone would leave the Release output missing on a clean solution build, so we build the
-             exact configuration we are about to execute. Debug and Release land in separate output dirs,
-             so this never clashes with the generator copy the test project may build concurrently.
+             it directly with the build's own .NET host. The explicit Build (not just GetTargetPath) was
+             first needed because a solution build remapped ProjectReferences to projects outside the .sln
+             (as the generator then was) to their default configuration (Debug), which left the Release
+             output missing on a clean solution build. The generator is in the solution now, because Rider
+             restores only solution projects and failed on a fresh clone without it (NU1105 from the test
+             project, NETSDK1004 from here); a solution build then builds it once rather than twice. The
+             explicit Build stays because it is what guarantees the exact configuration about to be
+             executed when this project is built on its own. Debug and Release land in separate output
+             dirs, so this never clashes with the generator copy the test project may build concurrently.
 
              RemoveProperties repeats what GlobalPropertiesToRemove does on the ProjectReference above,
              because these two calls pass their own property set rather than inheriting that one: drop
